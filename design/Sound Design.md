@@ -54,7 +54,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | `mic.stop()` | ends the take; the mic stays open | `mic.close()` (releases the device) |
 | monitor output | wet (`mic.effects`) | the recording (always dry) |
 | `pitch=` on a mic monitor | ignored (file voices only) | live transpose (not in v1) |
-| `name=` replace | cut (5 ms de-click) | `crossfade=` (opt-in; requires `name=`) |
+| `name=` replace | cut (5 ms de-click); with `crossfade=` a ramp, still a cut (no `on_done`) | `crossfade=` (opt-in; requires `name=`) |
 | `crossfade=0` | named-slot cut (same as omitting it) | a fade that starts at silence |
 | `loops="forever"` | never `on_done`; stop with `.cancel()` | a `loop=True` boolean (doesn’t exist) |
 | owner ends (destroy / mode leave / act change) | a sound that ends by itself **finishes**; a forever loop, named slot or paused sound is cut | "everything the owner started stops" |
@@ -92,7 +92,11 @@ hint on a non-sound handle — same precedent as `.velocity` on `after`.
   It must be finite and `>= 0` (`ValueError` otherwise). **`crossfade=0`**
   does not ramp: the outgoing voice is cut (no `on_done`) and the new voice
   starts at its volume. Only `crossfade > 0` fades the old voice out and
-  the new voice in from silence. An explicit `fade_in=` still wins for the
+  the new voice in from silence. Either way the old voice's end is a cut by
+  the slot: no `on_done`, no `then=` (`Handle._ramp_out(natural=False)`; the
+  public `fade_out` is the natural end). Before 2026-10-21 a crossfade used
+  `fade_out`, so a replaced `forever` loop ran its `on_done` (persona probes
+  R5-1). An explicit `fade_in=` still wins for the
   incoming ramp.
 - Fades are author-requested only. A cut (`.cancel()`, `name=` replace, an
   owner ending under a sound that would not end by itself) is not a fade: the

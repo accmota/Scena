@@ -5121,6 +5121,8 @@ class CollisionSystem:
 
     def __init__(self):
         self._colliders: List[Collider] = []
+        # R5-7: the one-time "on_collide has no partner" check is still owed.
+        self._alone_check_owed = True
         # Registered multi-piece bodies (``Collider([a, b])``), so the broad
         # phase finds a body / own-piece pair without walking every collider.
         self._multi_bodies: Dict[int, Collider] = {}
@@ -7125,9 +7127,40 @@ class CollisionSystem:
 
     # -- step ---------------------------------------------------------------
 
+    def _check_on_collide_alone(self) -> None:
+        """Once, a second into play: when every enrolled body is one whose
+        ``on_collide`` / ``_stay`` / ``_exit`` enrolled it, and no contact has
+        reached one, those callbacks can only ever see each other. Say so,
+        naming how the other side joins (R5-7: an Alien's ``on_collide`` and a
+        plain ``Rect`` bullet, silent at every rate)."""
+        from .process import _clock
+        if float(getattr(_clock(), "time", 0.0) or 0.0) < _ALONE_AFTER_S:
+            return
+        self._alone_check_owed = False
+        bodies = [c for c in self._colliders if c._part is None]
+        hooked = [c for c in bodies if c._on_collide is not None
+                  or c._on_collide_stay is not None or c._on_collide_exit is not None]
+        if not hooked or len(hooked) != len(bodies) or self._prev_contacts:
+            return
+        if self._pair_handlers or self._resolve_pairs:
+            return                   # the game names its pairs itself
+        names = sorted({type(c._identity).__name__ for c in hooked})
+        kinds = " / ".join(names)
+        warnings.warn(
+            f"{kinds}.on_collide runs only for bodies that take part in "
+            f"collisions, and no other body does: it can only see another "
+            f"{kinds}. A plain shape is not tested. Give the other side "
+            f"collidable = True (or its own on_collide), or name both sides: "
+            f"@collide(\"{names[0].lower()}\", \"bullet\") with group= tags.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
     def step(self) -> None:
         t_total0 = time.perf_counter()
         self._prune_dead()
+        if self._alone_check_owed:
+            self._check_on_collide_alone()
         # Linked hitbox ``active`` (``hb["active"] @= fn``): evaluated here, after
         # update / on_update / play(), so collision sees this frame's value.
         from .hitbox import _LINKED_PARTS, _refresh_linked_parts
@@ -11617,6 +11650,9 @@ def get_collision_system() -> CollisionSystem:
     if _collision_system is None:
         _collision_system = CollisionSystem()
     return _collision_system
+
+
+_ALONE_AFTER_S = 1.0     # world seconds of play before the R5-7 check
 
 
 def reset_collision_system() -> None:

@@ -464,5 +464,80 @@ class TestRoundFourMessages(unittest.TestCase):
         self.assertEqual(msgs, [])
         self.assertLessEqual(hero.center.x, 100.5)      # it still stops at the wall
 
+
+class TestOnCollideWithNoPartner(unittest.TestCase):
+    """R5-7 (persona probes, round 5): an Alien's ``on_collide`` and a plain
+    ``Rect`` bullet never met, silently: ``on_collide`` tests enrolled bodies
+    only. A second into play, when every enrolled body is one its own hook
+    enrolled and no contact came, one warning names how the other side joins."""
+
+    def setUp(self):
+        from scena.collision import reset_collision_system
+        init(width=600, height=800)
+        reset_collision_system()
+        self.addCleanup(reset_collision_system)
+        clock._time = 0.0
+
+    def _play(self, bullet_joins=False):
+        import warnings
+        from scena.collision import get_collision_system
+
+        class Alien(Rect):
+            def on_collide(self, other):
+                pass
+
+        aliens = [Alien(center=(100 + 60 * i, 500), width=30, height=24) for i in range(3)]
+        bullet = Rect(center=(300, 84), width=4, height=16, group="bullet")
+        if bullet_joins:
+            bullet.collidable = True
+        for o in aliens + [bullet]:
+            self.addCleanup(o.destroy)
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter("always")
+            for _ in range(70):
+                clock._time += 1 / 60
+                get_collision_system().step()
+        return [str(w.message) for w in ws if "on_collide runs only" in str(w.message)]
+
+    def test_a_lonely_on_collide_is_told_once(self):
+        msgs = self._play()
+        self.assertEqual(len(msgs), 1, msgs)
+        self.assertIn("Alien.on_collide", msgs[0])
+        self.assertIn("collidable = True", msgs[0])
+
+    def test_an_enrolled_partner_is_quiet(self):
+        self.assertEqual(self._play(bullet_joins=True), [])
+
+
+class TestRoundFiveMessages(unittest.TestCase):
+    """Persona probes round 5: a limit names the value it got (R5-5: a
+    computed ``60 // 120`` is 0); ``sides=`` is pointed at ``n=``, not at
+    ``side=``, another quantity (R5-6)."""
+
+    def setUp(self):
+        init(width=400, height=300)
+
+    def test_limits_name_the_value(self):
+        from scena import after, every, Slider, st
+        with self.assertRaises(ValueError) as cm:
+            every(60 // 120, lambda: None)
+        self.assertIn("got 0", str(cm.exception))
+        self.assertIn("60 / 120", str(cm.exception))
+        with self.assertRaises(ValueError) as cm:
+            after(-1, lambda: None)
+        self.assertIn("got -1", str(cm.exception))
+        st.r55_level = 0
+        with self.assertRaises(ValueError) as cm:
+            Slider(st["r55_level"], min_value=0, max_value=1 - 1)
+        self.assertIn("both 0", str(cm.exception))
+
+    def test_sides_points_at_n(self):
+        from scena import RegularPolygon
+        with self.assertRaises(TypeError) as cm:
+            RegularPolygon(sides=5, center=(200, 200), radius=40)
+        msg = str(cm.exception)
+        self.assertIn("n= is the number of sides", msg)
+        self.assertNotIn("Did you mean 'side'", msg)
+
 if __name__ == "__main__":
     unittest.main()

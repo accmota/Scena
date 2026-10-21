@@ -1363,6 +1363,18 @@ Lesson:
 - A triager's verdict on a rule question is read again by the coordinator against the design docs, not only against the Guia.
 - A3's triager saw the behaviour and the bucket order. It did not see that Scena Design named the other order.
 
+**Round 5 (2026-10-21).** Commit 872a78c, models swapped again:
+- A (Opus: UI / menu designer, rhythm-game maker): 22 probes.
+- B (Sonnet: procedural generator, arcade cloner): 28 probes.
+
+Each brief now told its triager to check a "that is the rule" verdict against the design docs. That is the round-4 lesson.
+
+- BUG: A 1–2 (R5-1, a crossfade ran a replaced `forever` loop's `on_done`, against Sound Design; R5-2, `CheckBox.checked` was the cell, the PP2 class in one more widget), B 0. None in a law area.
+- **Round 5 meets the table: streak 1**; round 6 decides.
+- BUG estimate: 0 remaining.
+- Broad estimate: n₁ = 5, n₂ = 3, m = 0, N̂ ≈ 23, about 15 unfound (round 4: 12).
+- The re-run of rounds 1–4 found no regression.
+
 
 # Test tiers
 
@@ -2581,6 +2593,7 @@ one, or a rare combination.
 | Persona probes, round 2 | 2026-10-20 | two blind campaigns on 4220f07, models swapped: A Sonnet (teen, teacher) 31 probes + 9 second tries + 8 mirrors; B Opus (Godot / Processing refugee, game-jam crammer) 22 + 2 + 7; plus the round-1 probes re-run on the same commit | R2 10 (+3 R rows of round 1) | 2 (R2-1 floor snap glues a soft bounce at 144 Hz; R2-2 phantom contacts behind a fast body at 30 Hz) | 6 messages fixed (R2-4–R2-9), 1 DOC (R2-3, the round-1 Guia rows on `vel`: both campaigns), 1 decision (R2-10, applied: the Guia documents act inheritance) | triager mirrors (E11 keys flipped twice), probe timing | resolve and swept detection under frame-rate change (the E1 / PACE flags found both BUGs); messages for other engines' words. Laws model: no finding |
 | Persona probes, round 3 | 2026-10-20 | two blind campaigns on fe00fda, models swapped again: A Opus (deadline student, puzzle designer) 20 probes + 8 second tries + 8 mirrors; B Sonnet (web developer, physics tinkerer) 24 + 8 + 6; plus rounds 1 and 2 re-run | R3 16 | 1 (R3-2 a resting movable partner answered as a wall at 60 Hz) | 12 messages fixed, 2 DOC, decisions R3-1 (applied: dead own-field reads), R3-3 (applied: pose retarget quiet), R3-11 (kept, Guia note); B2 LATENT (stacks, P1 non-goal) | runner timeout under load (one HANG); triager mirrors | messages for other worlds' words and half-done edits; resolve's skin answer. Laws model and E11: no finding |
 | Persona probes, round 4 | 2026-10-21 | two blind campaigns on c7e8626, models swapped again: A Sonnet (animator, level builder) 20 probes + 11 second tries + 10 mirrors; B Opus (two players, simulation builder) 23 + 10 + 6, two long runs; plus rounds 1–3 re-run | R4 7 | 1 (R4-1, timers before tweens against the documented order; the triager's DECISION, re-read by the coordinator) | 2 messages (R4-2, R4-4), 2 DOC (R4-3, R4-7), decisions R4-5 (applied: act-owned names set the stage's aside), R4-6 (kept, Guia note); ACADEMIC A5, B4, B5 | triager format slips (`HZ` an int); a missed E1 in round 3's triage | tick order and act slots, where two documented rules met; laws model and E11: no finding |
+| Persona probes, round 5 | 2026-10-21 | two blind campaigns on 872a78c, models swapped again: A Opus (UI designer, rhythm maker) 22 probes + 7 second tries + 6 mirrors; B Sonnet (procedural generator, arcade cloner) 28 + 5 + 9; plus rounds 1–4 re-run | R5 8 | 2 (R5-1 crossfade fate, R5-2 `.checked` a cell) | 3 messages (R5-5, R5-6, R5-7 a new warning), 2 DOC (R5-4, R5-8), decision R5-3 (kept) | probe timing at check instants, mirrors naming widgets | the audio slot's fade path, a widget alias, `on_collide`'s enrolled-only reach; laws model and E11: no finding |
 
 **Reading it.** A falling yield across *different* instruments says the
 shallow bugs are gone, not that no deep ones remain: each new kind of
@@ -3586,6 +3599,22 @@ no overlap between A and B).
 | R4-5 | DECISION, applied (user, 2026-10-21). An act's own named work (`self.every(…, name=)`, `self.play_sound(…, name=)`, a loose `every` with an act method) ran beside the stage's same-named handle; two tracks played | stage `every(1, f, name="relogio")`; act `every(0.5, self.tic, name="relogio")` | The act object is the owner, so another slot; the shadow step ran only for ownerless act work | Each rule was tested alone | `Scheduler._shadow_game_slot` pauses the game handle, and the act change gives it back (`setdefault` keeps the author's pause). `test_act.TestNamedSlotsAcrossTheSeal` (four doors, music, author pause) |
 | R4-6 | DECISION, kept. `on_update` runs at dt = 0 while paused, so `keyp.once` there acts during a pause | `clock.paused = True`; a key read in `on_update` | Pause scales time, not input | — | Guia note on the `clock.paused` row: `if clock.paused: return` |
 | R4-7 | DOC. The Guia's st table wrote `st.keys` without the call | `for k in st.keys` | — | — | `st.keys()` |
+
+### R5 — persona probes, round 5 (2026-10-21)
+
+Found by the [persona probes](#persona-probes), round 5 (blind, 872a78c;
+no overlap between A and B).
+
+| ID | Finding | Repro | Cause | Why tests missed it | Fix / guard |
+| --- | --- | --- | --- | --- | --- |
+| R5-1 | BUG. A `crossfade=` replace ran the old named sound's `on_done`, even on a `forever` loop; without `crossfade=` nothing ran | `play_sound(A, name="m", loops="forever", on_done=f)`, then `play_sound(B, name="m", crossfade=1)` | The crossfade ramped the old voice with the public `fade_out`, whose end is natural | `test_crossfade_two_ramps` asserted the old voice `done`, not cancelled | `Handle._ramp_out(natural=False)` ends it as a slot cut (`_R_NAME`). `test_audio.TestFades.test_crossfade_ends_the_old_voice_as_a_cut` (forever and finite × crossfade 0 / 0.3 / 1) |
+| R5-2 | BUG (Breaking fix, user 2026-10-21). `CheckBox.checked` returned the `Attribute`: `json.dumps` raised, `is True` was False | a settings screen saving its boxes | `_DataAlias` returned `data` on purpose, for `@=`; every other widget name reads the value (PP2's rule) | The alias test asserted the identity | `_ValueAlias` reads the value; the cell is `box["checked"]`; the old spellings raise from an AST scan of the author file. `test_uiwidget.TestCheckBox` (value, JSON, cell link, old spellings, class guard over every widget alias) |
+| R5-3 | DECISION, kept. A formula with a generator over a list cell is refused | `"\n".join(… for n, p in st.ranking)` | Reactive Design refuses comprehensions | — | The message names `update()` |
+| R5-4 | DOC. `Menu(box=)` "Preenche a caixa": the options stay text-sized in the middle | a click in the left third | — | — | The Guia row says the panel takes the box |
+| R5-5 | ERROR. Limits did not name the value they got | `every(60 // 120, f)`, a one-level `Slider` | Fixed texts | — | "got 0" and the `//` hint; `test_read_hints.TestRoundFiveMessages` |
+| R5-6 | ERROR. `RegularPolygon(sides=5)` offered `side=`, the edge length (following it was silently wrong) | as written | The spelling matcher | — | A family hint names `n=`; `TestRoundFiveMessages` |
+| R5-7 | ERROR (a new warning, user 2026-10-21). `on_collide` never met a plain `Rect` bullet, silently | an Alien class with `on_collide`, plain bullets | `ANYTHING` reaches enrolled bodies only (design) | — | `CollisionSystem._check_on_collide_alone`, once, a second in; Guia line. `test_read_hints.TestOnCollideWithNoPartner` (fires and silent twin) |
+| R5-8 | DOC. A self re-arming `after` drifts; the Guia promised a rate | invaders that speed up | Laws T2 ("at least p") | — | The Guia's timers paragraph names the exception and `every(…, name=)` |
 
 ### DV — a destroyed actor refuses first (2026-10-17)
 

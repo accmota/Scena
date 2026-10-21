@@ -307,16 +307,62 @@ class TestTextBoxCommit(WidgetTestCase):
 
 
 class TestCheckBox(WidgetTestCase):
-    def test_checked_is_data_alias(self):
+    def test_checked_reads_the_bool_and_the_cell_is_the_item(self):
+        """R5-2 (persona probes, round 5): ``.checked`` returned the cell, so
+        a settings screen's ``json.dumps({"hat": box.checked})`` raised and
+        ``box.checked is True`` was False, unlike ``Slider.value``."""
+        import json
         name = self.key("on")
         st.create(name, initial=False)
         attr = st._resolve_cell(name)
         c = self.track(CheckBox(attr, label="Show", top_left=(20, 40)))
-        self.assertIs(c.checked, attr)
+        self.assertIs(c.checked, False)
         c.checked = True
+        self.assertIs(c.checked, True)
         self.assertTrue(bool(attr.value))
-        c.checked @= Attribute(False)
-        self.assertFalse(bool(c.value))
+        self.assertEqual(json.dumps({"hat": c.checked}), '{"hat": true}')
+        src = Attribute(False)
+        c["checked"] @= src                    # the cell spelling links
+        self.assertIs(c.checked, False)
+        src.value = True
+        self.assertIs(c.checked, True)
+        self.assertTrue(bool(attr.value))
+
+    def test_no_widget_alias_reads_the_cell(self):
+        """Class guard (R5-2, after PP2's ``t.text``): every author name a
+        widget class publishes reads the value; the cell is ``w["name"]``."""
+        import scena
+        from scena import uiwidget
+        from scena.uiwidget import UIWidget, _DataAlias, _ValueAlias
+        seen = []
+        for name in dir(scena):
+            cls = getattr(scena, name)
+            if isinstance(cls, type) and issubclass(cls, UIWidget):
+                for base in cls.__mro__:
+                    for attr, desc in vars(base).items():
+                        if isinstance(desc, _DataAlias):
+                            seen.append(attr)
+                            self.assertIsInstance(desc, _ValueAlias, f"{cls.__name__}.{attr}")
+        self.assertIn("checked", seen)
+
+    def test_the_old_cell_spellings_name_the_fix(self):
+        import os
+        import runpy
+        import tempfile
+        for line in ('box.checked @= lambda: st.x', 'print(box.checked.value)'):
+            with self.subTest(line=line):
+                d = tempfile.mkdtemp()
+                path = os.path.join(d, "old_checked.py")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("from scena import CheckBox, st\n"
+                            f"st.{self.key('x')} = False\n"
+                            f"box = CheckBox(st[{self.key('x')!r}], label='x')\n"
+                            f"{line.replace('st.x', 'st.' + self.key('x'))}\n")
+                with self.assertRaises(TypeError) as cm:
+                    runpy.run_path(path)
+                msg = str(cm.exception)
+                self.assertIn('old_checked.py:4', msg)
+                self.assertIn('box["checked"] @=', msg)
 
     def test_toggle_and_initial_overrides_bound(self):
         name = self.key("on")

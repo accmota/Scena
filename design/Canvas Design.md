@@ -263,6 +263,19 @@ read-only `pointer_hover`: a widget under the cursor is *the* hover target
 from move events (widgets sit still in view space); `ScenaFramework._step_hover`
 hands it (or the pressed widget) to the per-frame hover resolver.
 
+**A widget's author names read the value.** `Slider.value`, `Menu.text`,
+`TextInput.text` and `CheckBox.checked` read the plain value (`True` /
+`False` for a check box). The cell is `w.data`, or `w["checked"]` for `@=`
+(`_ValueAlias` on the class; `_resolve_field` maps the name to `data`).
+Before 0.9.0, `CheckBox.checked` returned the `Attribute`, so a settings
+screen's `json.dumps({"hat": box.checked})` raised and `box.checked is True`
+was False (persona probes R5-2). That is the PP2 class (`t.text` read a cell).
+The old spellings `box.checked @= …` and `box.checked.value` cannot raise on
+their own, because a bool takes neither. So a CheckBox's construction parses
+its author file once (`_refuse_old_checked_spelling`, AST, code only) and
+raises with the fix and the line. Guard:
+`test_uiwidget.TestCheckBox.test_no_widget_alias_reads_the_cell`.
+
 Chrome (`ui.scale`, `ui.font`, `ui.min_label_space`) is construct-time.
 ``ui.font`` is a family name or a font file, same as ``Text.font``.
 `init()` does not wipe it. `min_label_space` is the unscaled floor for a

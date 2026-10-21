@@ -833,10 +833,32 @@ class TestFades(PlaySoundTestCase):
         self.assertAlmostEqual(b.volume, 0.5, places=1)
         self.assertFalse(a.done)
         _frame(0.55)
-        self.assertTrue(a.done)
-        self.assertFalse(a.cancelled)
+        self.assertTrue(a.cancelled, "a crossfade replace is a cut by the slot (R5-1)")
         self.assertAlmostEqual(b.volume, 1.0, places=1)
         self.assertFalse(b.done)
+
+    def test_crossfade_ends_the_old_voice_as_a_cut(self):
+        """R5-1 (persona probes, round 5): a crossfade ended the old named
+        voice with ``fade_out``, a natural end, so its ``on_done`` / ``then=``
+        ran, even on a ``forever`` loop (``then=`` takes the same path);
+        without ``crossfade=`` nothing ran.
+        A replace is one fate, smooth or not (Sound Design)."""
+        from scena.audio_mixer import get_mixer
+        for loops in ("forever", 1):
+            for cf in (0, 0.3, 1.0):
+                with self.subTest(loops=loops, crossfade=cf):
+                    gone = []
+                    a = play_sound(_pcm(3.0), volume=1.0, name="cf", loops=loops,
+                                   on_done=lambda: gone.append("on_done"))
+                    b = play_sound(_pcm(3.0), volume=1.0, name="cf", loops="forever",
+                                   crossfade=cf)
+                    for _ in range(15):
+                        _frame(0.1)
+                    self.assertEqual(gone, [])
+                    self.assertTrue(a.cancelled)
+                    self.assertNotIn(a._voice_id, get_mixer().voices)
+                    self.assertFalse(b.done or b.cancelled)
+                    b.cancel()
 
     def test_clock_scale_stretches_fade(self):
         clock.scale = 0.5

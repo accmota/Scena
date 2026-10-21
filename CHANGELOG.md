@@ -14,6 +14,14 @@ left out.
 
 ### Breaking
 
+- `CheckBox.checked` reads the value (`True` / `False`), as `Slider.value`
+  and `TextInput.text` do. Before, it was the cell, so
+  `json.dumps({"hat": box.checked})` raised and `box.checked is True` was
+  False. The cell is `box["checked"]`.
+  Before: `box.checked @= lambda: …` and `box.checked.value`.
+  After: `box["checked"] @= lambda: …` and `box.checked`.
+  The old spellings in a file that makes a CheckBox raise with this fix.
+
 - `EquilateralTriangle` is now `Triangle`, equilateral by default and
   isosceles with `base_ratio=` (one class: the old name would have been a
   second spelling of `Triangle()`). Before:
@@ -316,6 +324,20 @@ left out.
   mean 'plataforma'?`.
 
 ### Changed
+
+- A `crossfade=` replace ends the old named sound as a cut, as a plain
+  `name=` replace does: its `on_done` no longer runs. Before, crossfading a
+  `loops="forever"` track ran its `on_done` at the end of the fade, so a
+  playlist's `on_done=next_track` started a track nobody asked for.
+- A warning when `on_collide` can never fire: a second into play, if every
+  body that takes part in collisions is one whose own `on_collide` enrolled
+  it, those callbacks can only see each other. A plain `Rect` bullet is not
+  tested. The warning names `collidable = True` / `@collide`.
+- More messages that name the fix (persona probes round 5). `every()`,
+  `after()`, `tween` / `move_along` `time=`, `ui.scale` and `Slider`
+  limits say the value they got, so a computed `60 // 120` shows as 0.
+  `RegularPolygon(sides=5)` names `n=` instead of offering `side=`, which
+  is the edge length.
 
 - In a frame, tweens now step before timers. So a timer as long as a tween
   made with it sees the tween finished, with its `on_done` already run, at
@@ -789,6 +811,12 @@ left out.
   What links and what refuses did not change.
 
 ### Documentation
+
+- Guia: `on_collide` sees enrolled bodies only (a plain `Rect` needs
+  `collidable = True`). A self re-arming `after` is "at least p" apart, not a
+  steady rate; use `every(…, name=)`, restarted when the pace changes.
+  `Menu(box=)`: the panel takes the box, the options keep their text size.
+  `CheckBox.checked` is the value.
 
 - Guia: an object is hidden on the line after it is made
   (`obj.visible = False`, not a constructor keyword). `st.keys()` is a call.

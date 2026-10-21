@@ -7839,7 +7839,7 @@ ship["color"] @= lambda: st.cor
 
     <section class="section prose" id="agendar-timers">
       <h2>after / every</h2>
-      <p class="one-liner"><code>after(segundos, função)</code> chama a função uma vez, depois desse tempo; <code>every(segundos, função)</code> chama de novo a cada intervalo — a primeira vez depois de um intervalo, não na hora. Dispara no primeiro frame em que o tempo já passou: com frames de 1/60 s, <code>after(0.5)</code> é o frame 30 e <code>every(0.25)</code> os frames 15, 30, 45… Um frame mais longo que o intervalo dispara as vezes que deve: o ritmo não depende do FPS. O tempo é o do jogo: pausa e câmera lenta valem. Ignore o Handle devolvido, guarde-o para cancelar, ou dê um <code>name=</code> — chamar de novo com o mesmo nome substitui o anterior. Dentro de um mode, <code>after</code> / <code>every</code> soltos param quando o mode acaba; <code>e.after</code> / <code>e.every</code> continuam (<a href="#mode-cancela">escopo e cancelamento</a>).</p>
+      <p class="one-liner"><code>after(segundos, função)</code> chama a função uma vez, depois desse tempo; <code>every(segundos, função)</code> chama de novo a cada intervalo — a primeira vez depois de um intervalo, não na hora. Dispara no primeiro frame em que o tempo já passou: com frames de 1/60 s, <code>after(0.5)</code> é o frame 30 e <code>every(0.25)</code> os frames 15, 30, 45… Um frame mais longo que o intervalo dispara as vezes que deve: o ritmo não depende do FPS. Um <code>after</code> que se arma de novo dentro da própria função não é um ritmo: cada volta começa no frame em que a anterior disparou, então os intervalos ficam “pelo menos p” e o atraso se acumula (até um frame por volta). Para um ritmo que muda (os invasores que aceleram), use <code>every(p, passo, name="marcha")</code> e, só quando o ritmo muda (um invasor morreu), chame de novo com o novo p: o nome troca o anterior. O tempo é o do jogo: pausa e câmera lenta valem. Ignore o Handle devolvido, guarde-o para cancelar, ou dê um <code>name=</code> — chamar de novo com o mesmo nome substitui o anterior. Dentro de um mode, <code>after</code> / <code>every</code> soltos param quando o mode acaba; <code>e.after</code> / <code>e.every</code> continuam (<a href="#mode-cancela">escopo e cancelamento</a>).</p>
       <div class="tabs" data-tabs>
         <div class="tab-bar">
           <button class="tab active" type="button" data-tab="ag-call">Chamada</button>
@@ -9521,7 +9521,7 @@ def left_door(me, other, info):
           <p>Callback: <code>fn(self, other)</code> ou <code>fn(self, other, info)</code>.</p>
         </div>
         <div class="tab-panel" data-panel="colisao-on-collide" id="colisao-on-collide">
-          <p class="one-liner">Propriedade no objeto — Shape, Sprite e SpatialFx. Alcance: este objeto × qualquer outro inscrito.</p>
+          <p class="one-liner">Propriedade no objeto — Shape, Sprite e SpatialFx. Alcance: este objeto × qualquer outro <strong>inscrito</strong>. Um <code>Rect</code> comum não é inscrito: o tiro que atravessa o alien sem nada acontecer precisa de <code>tiro.collidable = True</code> (ou do seu próprio <code>on_collide</code>, ou de um <code>@collide</code> com os dois grupos).</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>ball.on_collide = lambda me, other, info: me.set_color("yellow")
@@ -10669,7 +10669,7 @@ Slider(st["vidas"], label="Vidas", min_value=1, max_value=9, only_int=True)</pre
 
     <section class="section prose" id="ui-checkbox">
       <h2>CheckBox</h2>
-      <p class="one-liner">Caixa de marcar: liga e desliga um Attribute booleano (<code>True</code> / <code>False</code>). Clicar inverte o valor; gravar o valor marca ou desmarca a caixa. <code>.checked</code> lê o mesmo valor que <code>.data</code>.</p>
+      <p class="one-liner">Caixa de marcar: liga e desliga um Attribute booleano (<code>True</code> / <code>False</code>). Clicar inverte o valor; gravar o valor marca ou desmarca a caixa. <code>.checked</code> é o valor (<code>True</code> / <code>False</code>), como o <code>.value</code> de um Slider: dá para salvar em JSON. A célula é <code>caixa["checked"]</code> (para ligar com <code>@=</code>).</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.mute = False
@@ -10817,7 +10817,7 @@ def update(dt):
             <tr><td><code>modal</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>Escurece o jogo. Só um modal por vez; o segundo levanta erro com o nome do aberto. <code>False</code>: sem véu; um novo substitui o aberto (o antigo fecha com <code>None</code>).</td></tr>
             <tr><td><code>pause</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td><code>True</code> pausa o jogo (<code>clock.paused</code>) enquanto o menu está aberto; ao fechar, <code>clock.paused</code> volta ao que era antes. Vale com <code>modal=False</code>.</td></tr>
             <tr><td><code>center</code></td><td>nome=</td><td class="type"><span class="t">ponto ou função</span></td><td>Centro na janela (espaço da vista), valor ou <code>lambda</code>. Acompanha todo frame. O painel fica inteiro na tela. Não segue a câmera.</td></tr>
-            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span></td><td>Preenche a caixa. A fonte encolhe até um mínimo legível; abaixo disso corta e avisa.</td></tr>
+            <tr><td><code>box</code></td><td>nome=</td><td class="type"><span class="t">Box</span></td><td>O painel ocupa a caixa; as opções ficam do tamanho do texto, centradas nele (um clique no painel fora delas não escolhe nada). A fonte só encolhe se não couber, até um mínimo legível; abaixo disso corta e avisa.</td></tr>
             <tr><td><code>font</code> / <code>font_size</code></td><td>nome=</td><td class="type"><span class="t">str / número</span><span class="ex">"pixel.ttf"</span></td><td>Família ou arquivo <code>.ttf</code> / <code>.otf</code>. Omitir <code>font</code> usa <code>ui.font</code>.</td></tr>
             <tr><td><code>color</code></td><td>nome=</td><td class="type"><span class="t">cor</span><span class="ex">"white"</span></td><td>Cor dos rótulos. O destaque da opção sob o mouse sai dessa cor quando ela é dada.</td></tr>
             <tr><td><code>background</code></td><td>nome=</td><td class="type"><span class="t">cor, Gradient ou Texture</span><span class="ex">Gradient("red", "gold")</span></td><td>Fundo do painel. Gradient e Texture se ajustam ao painel como no preenchimento de uma forma: o degradê vai até a borda do painel, e o <code>size=</code> do Gradient é medido a partir do centro do painel. A faixa do título fica um pouco mais clara. Sem <code>color</code>, o destaque da opção sob o mouse sai do fundo (<code>mean_color()</code> do Gradient, <code>color</code> da Texture). Preenchimento animado (<code>WaterFill</code> …) ou valor que não é cor levanta erro na criação.</td></tr>

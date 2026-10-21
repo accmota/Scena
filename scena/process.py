@@ -1176,6 +1176,13 @@ class Handle:
     def fade_out(self, time=0.3, ease="linear"):
         """Ramp to silence and stop (natural end — ``on_done`` fires)."""
         self._require_sound("fade_out")
+        return self._ramp_out(time, ease, natural=True)
+
+    def _ramp_out(self, time, ease="linear", *, natural: bool):
+        """The ramp of ``fade_out`` (``natural``: its end is the sound's end,
+        ``on_done`` / ``then=`` run) and of a ``crossfade=`` replace (not
+        natural: a cut by the slot, as a plain ``name=`` replace is — R5-1,
+        a replaced ``forever`` loop ran its ``on_done``)."""
         from .audio_mixer import require_finite
         start = float(self._sound_volume)
         duration = require_finite("time", time, non_negative=True)
@@ -1185,6 +1192,9 @@ class Handle:
 
         def finish():
             if self._cancelled or self._done:
+                return
+            if not natural:
+                self._cancel_for(_R_NAME)
                 return
             if self._voice_id is not None:
                 from .audio_mixer import get_mixer
@@ -3530,7 +3540,7 @@ def _start_after(
     _require_then_owner(then, owner, call_name="after")
     delay = seconds(delay, "after() delay")
     if delay < 0.0:
-        raise ValueError("after() delay must be >= 0")
+        raise ValueError(f"after() delay must be >= 0, got {delay:g}")
     handle = Handle._make(
         kind="after", delay=delay, fn=fn, then=then, owner=owner, scope=scope, name=name,
     )
@@ -3549,8 +3559,9 @@ def _start_every(
     interval = seconds(interval, "every() interval")
     if interval <= 0.0:
         raise ValueError(
-            "every() interval must be > 0 — for every frame, use "
-            "on_update (Entity) or update(dt) (script)"
+            f"every() interval must be > 0, got {interval:g} (a // rounds down "
+            f"to a whole number: 60 // 120 is 0; write 60 / 120). For every "
+            f"frame, use on_update (Entity) or update(dt) (script)"
         )
     handle = Handle._make(
         kind="every", interval=interval, fn=fn, owner=owner, scope=scope, name=name,
@@ -4312,7 +4323,7 @@ def _validate_timed(*, time, ease, then, on_done, owner=None,
         _require_then_owner(then, owner, call_name="tween")
     duration = seconds(time, what)
     if duration < 0.0:
-        raise ValueError(f"{what} must be >= 0")
+        raise ValueError(f"{what} must be >= 0, got {duration:g}")
     return on_done, then, duration, resolve_ease(ease, what="ease")
 
 
@@ -4380,7 +4391,7 @@ def _start_tween(
             _require_then_owner(then, owner, call_name="tween")
         duration = seconds(duration, what)
         if duration < 0.0:
-            raise ValueError(f"{what} must be >= 0")
+            raise ValueError(f"{what} must be >= 0, got {duration:g}")
         ease_fn = resolve_ease(ease, what="ease")
     handle = Handle._make(
         kind="tween",
@@ -5256,7 +5267,7 @@ def timed_move_along(
     if speed is None:
         time = seconds(time, "move_along time=")
         if time < 0.0:
-            raise ValueError("move_along time= must be >= 0")
+            raise ValueError(f"move_along time= must be >= 0, got {time:g}")
 
     key = _center_pose_key(shape)
     _preempt_tween_keys(key, *((id(shape), "angle"),) if face else ())

@@ -1,5 +1,6 @@
 import glfw
 import skia
+import os
 import sys
 import time
 from typing import Any, Optional, Union
@@ -367,7 +368,8 @@ def text_baseline_from_bottom(y_min: float, font, padding: float = 8.0) -> float
 #   - Widgets that need keyboard input should set handle_key = True
 #   - Most widgets support callbacks like on_click; for value-change callbacks, use @on_change over the data Attribute
 #   - .data is the widget's graph cell (identity-bind target). .value unwraps it to a Python payload.
-#   - Domain aliases (CheckBox.checked) return that same Attribute so they can take @=.
+#   - Domain aliases (CheckBox.checked) read the value, as .value does; the cell is
+#     box["checked"] (R5-2: it returned the Attribute).
 #     TextInput.text is the edit buffer (plain str), not the cell — Enter / Tab / focus loss commit it
 #     to .data, but only when it differs from the cell's own text at focus time.
 #   - Modifier keys for the key being dispatched are in WidgetManager._key_mods (GLFW bits).
@@ -399,7 +401,7 @@ class UiSettings(ClosedSurface):
     def _reset(self, scale: float = 1.0, font: str | None = None) -> None:
         s = float(scale)
         if s <= 0:
-            raise ValueError("ui.scale must be > 0")
+            raise ValueError(f"ui.scale must be > 0, got {s:g}")
         self._scale = s
         self._font = None if font is None or font == "" else str(font)
 
@@ -413,7 +415,7 @@ class UiSettings(ClosedSurface):
         from .validate import number
         s = number(value, "ui.scale")
         if s <= 0:
-            raise ValueError("ui.scale must be > 0")
+            raise ValueError(f"ui.scale must be > 0, got {s:g}")
         self._scale = s
 
     @property
@@ -667,6 +669,67 @@ class _DataAlias:
 
     def __set__(self, instance, value):
         instance.data.value = value
+
+
+class _ValueAlias(_DataAlias):
+    """An author name that reads the cell's value, as every widget field
+    does (``CheckBox.checked`` → ``True`` / ``False``); writing sets the cell.
+    The cell is ``box["checked"]`` (``_resolve_field`` maps it to ``data``).
+    R5-2 (persona probes, round 5): ``.checked`` returned the ``Attribute``,
+    so ``json.dumps({"hat": box.checked})`` raised and ``is True`` was False,
+    against ``Slider.value`` / ``TextInput.text`` and the PP2 rule."""
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return instance.data.value
+
+
+# Old spellings of the cell on ``.checked`` (before 0.9.0 it was the cell):
+# a bool has no ``.value`` and takes no ``@=``, so Python's own error would
+# not name the fix. Each author file is parsed once, when a CheckBox is made
+# (code only: a string that spells it is not a use).
+_OLD_CHECKED_SEEN: dict = {}
+
+
+def _old_checked_line(path: str) -> Optional[int]:
+    import ast
+    import linecache
+    try:
+        tree = ast.parse("".join(linecache.getlines(path)))
+    except (SyntaxError, ValueError):
+        return None
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.AugAssign) and isinstance(node.op, ast.MatMult)
+                and isinstance(node.target, ast.Attribute)
+                and node.target.attr == "checked"):
+            return node.lineno
+        if (isinstance(node, ast.Attribute)
+                and node.attr in ("value", "unlink", "is_linked")
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "checked"):
+            return node.lineno
+    return None
+
+
+def _refuse_old_checked_spelling() -> None:
+    import linecache
+    from .entity import _frame_outside_scena
+    site = _frame_outside_scena()
+    if site is None:
+        return
+    path = site.filename
+    if path not in _OLD_CHECKED_SEEN:
+        _OLD_CHECKED_SEEN[path] = _old_checked_line(path)
+    n = _OLD_CHECKED_SEEN[path]
+    if n is not None:
+        text = linecache.getline(path, n).strip()
+        raise TypeError(
+            f"{os.path.basename(path)}:{n}: {text} — CheckBox.checked reads the "
+            f"bool now (True / False), as Slider.value does. The cell is "
+            f"box[\"checked\"]: write box[\"checked\"] @= … to link it, and "
+            f"box.checked for the value."
+        )
 
 
 def _geom_point(value, cls_name: str):
@@ -1233,7 +1296,10 @@ class Slider(UIWidget):
         lo = 0.0 if min_value is None else min_value
         hi = 100.0 if max_value is None else max_value
         if lo == hi:
-            raise ValueError("min_value cannot equal max_value in Slider")
+            raise ValueError(
+                f"Slider min_value and max_value are both {lo:g}: a slider needs "
+                f"a range, max_value above min_value (with one choice, show a "
+                f"Text instead)")
         if lo > hi:
             raise ValueError(
                 f"Slider min_value ({lo:g}) is greater than max_value ({hi:g}). "
@@ -2033,7 +2099,8 @@ class Button(UIWidget):
         )
 
 class CheckBox(UIWidget):
-    """An on/off box with a label in the HUD. ``.checked`` is the value.
+    """An on/off box with a label in the HUD. ``.checked`` is the value
+    (``True`` / ``False``); the cell is ``box["checked"]``.
 
     Args:
         cell: boolean data cell it toggles (``st["mute"]``).
@@ -2045,13 +2112,14 @@ class CheckBox(UIWidget):
         group: group tag(s).
     """
 
-    checked = _DataAlias()
+    checked = _ValueAlias()
 
     _reserved_fields = ("size",)
     _absent_hints = {"height": "Size it with size."}
 
     def __init__(self, cell: Attribute | None = _NO_CELL, *, top_left=None, size=None, 
                  label="CheckBox", initial=None, enabled=True, group=None):
+        _refuse_old_checked_spelling()
         top_left = _geom_point(top_left, "CheckBox")
         size = _geom_size(size, "CheckBox size")
         label = as_payload(label)

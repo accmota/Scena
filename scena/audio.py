@@ -815,7 +815,7 @@ def _start_sound(
         old = sched._named.get(key)
         if old is not None and getattr(old, "kind", None) == "sound":
             _unbind_named(old)
-            old.fade_out(float(crossfade_s))
+            old._ramp_out(float(crossfade_s), natural=False)   # a cut, not an end
     start_vol = 0.0 if fade_in_s else vol
 
     mixer = get_mixer()

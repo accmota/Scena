@@ -957,6 +957,9 @@ _FAMILY_KWARG_HINTS = {
     "friction": "Scena has no friction: slow vel.x yourself in update",
     "velocity": "velocity is ball.vel = (vx, vy), set after making it",
     "vel": "vel is set after making it: ball.vel = (vx, vy)",
+    # Persona probes round 5, R5-6: the spelling matcher offered side=, the
+    # edge length, a different quantity (following it was silently wrong).
+    "sides": "n= is the number of sides (side= is the length of one edge)",
     # Persona probes round 4, R4-2: "create hidden, show later".
     "visible": (
         "visible is set after making it: obj.visible = False on the next line, "

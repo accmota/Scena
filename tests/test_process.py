@@ -429,6 +429,37 @@ class TestATweenEndsBeforeATimerOfItsLength(ProcessTestCase):
                 self.assertAlmostEqual(c.center.y, 150.0, places=9)
 
 
+class TestASelfRearmingAfterIsNotARate(ProcessTestCase):
+    """The Guia's timers paragraph (R5-8, persona probes round 5): an
+    ``after`` armed again inside its own function starts each lap at the
+    frame the last one fired, so its intervals are "at least p", rounded up
+    to frames, and the lag adds up; ``every`` keeps the rate (Laws T2)."""
+
+    def test_rearmed_after_rounds_each_lap_up_and_every_does_not(self):
+        import math
+        p = 0.418
+        for fps in (30, 60, 144):
+            with self.subTest(fps=fps):
+                self.tearDown()
+                self.setUp()
+                dt = 1.0 / fps
+                laps, beats = [], []
+
+                def lap():
+                    laps.append(clock.time)
+                    after(p, lap)
+                after(p, lap)
+                every(p, lambda: beats.append(clock.time))
+                for _ in range(int(round(10 * fps))):
+                    _frame(dt)
+                per_lap = math.ceil(p * fps - 1e-9) / fps
+                for k, t in enumerate(laps[:20], 1):
+                    self.assertAlmostEqual(t, k * per_lap, places=6)
+                    self.assertGreaterEqual(t + 1e-9, k * p)
+                for k, t in enumerate(beats[:20], 1):
+                    self.assertLess(t - k * p, dt + 1e-9)     # within a frame, no drift
+
+
 class TestRearmSameTick(ProcessTestCase):
     """A Handle created during tick() must not fire until the next tick.
 
