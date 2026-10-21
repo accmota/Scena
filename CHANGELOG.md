@@ -720,6 +720,15 @@ left out.
 - Guia: a pause starts at the next frame; stacks of three or more movable
   boxes are outside what `resolve` promises.
 
+- New example `examples/revoada.py`, a flock of 120 `Triangle` birds with no
+  leader: each one sees only its neighbours and follows three rules (keep
+  apart, fly the same way, go to the middle). The heading is the colour,
+  so a flock that flies together is one colour; the mouse is a falcon, and
+  the fright of the birds that see it passes to their neighbours as a wave
+  (white, thinner: `base_ratio`); the sky lights up (`Bloom`) as the
+  flock comes into order. A click scatters the birds; S / A / J switch the
+  rules. It holds ~230 fps uncapped on the dev machine with the falcon in
+  the flock.
 
 - New example `examples/constelacao.py`, a piece of creative coding: points
   of light drift and each one threads a line to its nearest neighbour

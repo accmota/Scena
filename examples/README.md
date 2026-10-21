@@ -56,6 +56,7 @@ No tutorial ends in these; each docstring says what to try.
 | `entropia.py` | Two colours of balls mix once the middle wall goes; the panel counts each side every 5 s (mix, pressure, temperature, energy). Gravity, loose walls that the pressure blows off, a piston. |
 | `app_pitagoras.py` | The Pythagorean theorem by rearranging triangles (drag, wheel to turn). |
 | `constelacao.py` | Creative coding: drifting points thread to their nearest neighbour (`nearest`) into constellations that keep re-forming; Neon comets hunt the nearest free point and take its colour. Hold the mouse to pull the points, let go for a wave; SPACE adds a comet, T the screen trail. |
+| `revoada.py` | Flocking: 120 `Triangle` birds follow three rules (separate, align, gather) and flocks form with no leader. The heading is the colour, so a flock is one colour; the mouse is a falcon whose fright passes from bird to bird (white, thin); the sky lights up (`Bloom`) when the flock is in order. Click for a burst; S / A / J switch the rules. |
 
 ```bash
 python examples/naves.py

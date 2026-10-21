@@ -240,4 +240,5 @@ examples/pegar_estrelas.py
 examples/piano.py
 examples/ponto_medio.py
 examples/primeiro_script.py
+examples/revoada.py
 examples/trilhas.py
