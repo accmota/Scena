@@ -26,7 +26,7 @@ Bloom()
 Scanlines()
 
 folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
-explosao = Sheet("misc/exp4.png", cols=12)
+explosao = Sheet("explosions/exp4.png", cols=12)
 explosao.clip("explode", range(12), fps=24)
 
 st.pontos = 0

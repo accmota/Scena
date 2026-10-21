@@ -430,7 +430,7 @@ run()
       title: "Uma explosão em quadros",
       body: `
         <p>O inimigo some num estouro desenhado pelo Scena. Agora ele vai explodir com uma animação de verdade, desenhada quadro a quadro, como num desenho animado.</p>
-        <p>A animação vem numa faixa: <code>misc/exp4.png</code> tem 12 quadros lado a lado. A explosão nasce pequena, cresce e se desfaz em fumaça.</p>
+        <p>A animação vem numa faixa: <code>explosions/exp4.png</code> tem 12 quadros lado a lado. A explosão nasce pequena, cresce e se desfaz em fumaça.</p>
 
         <figure class="fig">
           <svg viewBox="0 0 420 150" role="img" aria-label="Uma faixa de doze quadrados numerados de 0 a 11, como um filme; círculos crescem e depois se desfazem; uma seta embaixo diz o tempo, 24 quadros por segundo">
@@ -485,7 +485,7 @@ Bloom()
 Scanlines()
 
 folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
-explosao = Sheet("misc/exp4.png", cols=12)
+explosao = Sheet("explosions/exp4.png", cols=12)
 explosao.clip("explode", range(12), fps=24)
 
 st.pontos = 0
@@ -589,7 +589,7 @@ run()
 `,
       notes: [
         {
-          at: "Sheet(\"misc/exp4.png\", cols=12)",
+          at: "Sheet(\"explosions/exp4.png\", cols=12)",
           text: "Esta folha não tem lista. <code>cols=12</code> (colunas) corta a faixa em 12 partes iguais, e os quadros se chamam pelo número, de 0 a 11."
         },
         {
@@ -637,7 +637,7 @@ Bloom()
 Scanlines()
 
 folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
-explosao = Sheet("misc/exp4.png", cols=12)
+explosao = Sheet("explosions/exp4.png", cols=12)
 explosao.clip("explode", range(12), fps=24)
 
 st.pontos = 0
@@ -820,7 +820,7 @@ Bloom()
 Scanlines()
 
 folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
-explosao = Sheet("misc/exp4.png", cols=12)
+explosao = Sheet("explosions/exp4.png", cols=12)
 explosao.clip("explode", range(12), fps=24)
 
 st.pontos = 0
@@ -1015,7 +1015,7 @@ Bloom()
 Scanlines()
 
 folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
-explosao = Sheet("misc/exp4.png", cols=12)
+explosao = Sheet("explosions/exp4.png", cols=12)
 explosao.clip("explode", range(12), fps=24)
 
 st.pontos = 0

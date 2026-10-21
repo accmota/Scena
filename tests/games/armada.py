@@ -55,7 +55,7 @@ VINHETA = Vignette(amount=0.6)
 PALCO_FX = [BLOOM, VINHETA]
 
 SPACE = Sheet("shooter/sheet.xml")
-BOOM = Sheet("misc/exp4.png", cols=12)
+BOOM = Sheet("explosions/exp4.png", cols=12)
 BOOM.clip("explode", list(range(12)), fps=24)
 LASER = Sound("audio/laser4.wav").bake(Distortion(), Wavefold(), transpose=3)
 EXPLOSAO = Sound("audio/explosion02.wav")
