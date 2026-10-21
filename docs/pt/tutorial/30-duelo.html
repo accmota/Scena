@@ -1117,7 +1117,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
 
     def on_update(self, dt):
@@ -1223,7 +1223,7 @@ run(Duelo)
       notes: [
         {
           at: "self.fogo = Fire(",
-          text: "Um fogo pequeno (<code>radius=20</code>) um pouco atrás do centro, que segue a nave por uma <code>lambda</code>. Ele nasce desligado (<code>active = False</code>)."
+          text: "Uma chama (<code>style=\"plume\"</code>) na cauda da nave, 22 atrás do centro. As duas <code>lambda</code> a fazem seguir a nave: o lugar (<code>center</code>) e a direção (<code>angle</code>), sempre o ângulo da nave mais 180, para trás. <code>width</code> e <code>length</code> dão a largura e o comprimento. Ela nasce desligada (<code>active = False</code>)."
         },
         {
           at: "@when(lambda self: self.energia < 30)",
@@ -1299,7 +1299,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
 
     def on_update(self, dt):
@@ -1511,7 +1511,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
 
     def on_update(self, dt):
@@ -1726,7 +1726,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
 
     def on_update(self, dt):
@@ -2019,7 +2019,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
 
     def on_update(self, dt):
@@ -2338,7 +2338,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
 
     def on_update(self, dt):
@@ -2739,7 +2739,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
         self.escudo = Escudo(center=lambda: self.center)
         self.escudo.active = False
@@ -3145,7 +3145,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
         self.escudo = Escudo(center=lambda: self.center)
         self.escudo.active = False

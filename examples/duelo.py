@@ -110,7 +110,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         self.u = 0.5
         self.energia = 100
         self.jato = Jet(origin=self.center, length=40, width=14, amount=0)
-        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 12), radius=20, amount=1.5)
+        self.fogo = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
         self.fogo.active = False
         self.escudo = Escudo(center=lambda: self.center)
         self.escudo.active = False
