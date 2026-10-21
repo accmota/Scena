@@ -1,8 +1,8 @@
 """Afinidade.
 
-Um mundo de átomos inventados num prato de laboratório. Parece água, mas não
-é química de verdade: são poucas regras, escolhidas para dar um movimento
-bonito.
+Um mundo de átomos inventados num prato de laboratório. Lembra água e óleo,
+mas não é química de verdade: são poucas regras, escolhidas para dar um
+movimento bonito.
 
 Os átomos
 ---------
@@ -21,7 +21,7 @@ Duas ligações
 -------------
   forte   (linha cheia) junta átomos de elementos diferentes numa molécula.
           Só acontece num choque rápido o bastante, e não se desfaz sozinha.
-  fraca   (linha pontilhada) junta uma ponta + a uma ponta - de moléculas
+  fraca   (linha tracejada) junta uma ponta + a uma ponta - de moléculas
           diferentes. O branco segura uma só, o vermelho duas, um íon
           várias. Ela puxa como um fio, mais forte quanto mais perto;
           esticada demais, arrebenta; e o calor a desfaz e refaz o tempo todo.
@@ -29,15 +29,20 @@ Duas ligações
 A carga vem das ligações: um átomo solto é neutro. Ligado a um vizinho mais
 ávido, ele fica + (brilho azul) e o vizinho fica - (brilho rosa). Cargas
 iguais se empurram, opostas se puxam. Por isso o branco preso ao vermelho
-(a "água") fica carregado e faz ligações fracas, e o branco preso ao âmbar
-(o "óleo") fica quase neutro e não faz: os dois não se misturam.
+fica carregado e faz ligações fracas, e o branco preso ao âmbar fica quase
+neutro e não faz: as duas moléculas não se misturam.
+
+Ninguém se amontoa: dois átomos sem ligação forte se empurram quando chegam
+perto (uma casca macia em volta de cada um), e cada vez mais forte se
+encostam (o núcleo duro). A casca vence as outras forças, então até uma
+ligação fraca deixa uma folga entre as duas moléculas.
 
 Coisas para experimentar
 ------------------------
-  1   água: brancos e vermelhos soltos reagem e viram moléculas
-  2   sal na água: os íons juntam água em volta de si
-  3   óleo e água: gotas de óleo se separam sozinhas
-  R   elementos novos: valência e avidez ao acaso para as mesmas cores
+  1   Nascente: brancos e vermelhos soltos reagem e viram moléculas
+  2   Coroas: cada íon junta moléculas vermelhas em volta de si
+  3   Ilhas: as moléculas de vermelho e as de âmbar se separam sozinhas
+  R   Acaso: valência e avidez ao acaso para as mesmas cores
   Esfrie tudo: a rede de ligações fracas para de se mexer (um gelo).
   Esquente: as ligações fracas não duram, e uma faísca desfaz as fortes.
 
@@ -54,7 +59,7 @@ Uso
     python examples/affinity.py
 """
 from math import cos, sin, radians
-from random import random, uniform
+from random import random, shuffle, uniform
 from scena import *
 
 LARGURA, ALTURA = 1280, 800
@@ -83,12 +88,14 @@ FORMA = 46          # mais perto que isso, uma ligação fraca pode nascer
 ROMPE = 70          # mais esticada que isso, a ligação fraca arrebenta
 ATIVACAO = 70       # rapidez mínima de um choque que faz ligação forte
 ANGULO = 105        # o ângulo entre as duas ligações de um átomo de valência 2
-NUCLEO = 2500       # o empurrão de dois átomos que se encostam
+CASCA = 2000        # o empurrão de quem chega perto (casca macia)...
+FIM_CASCA = 1.5     # ...até 1,5 vezes a distância em que se encostam
+DURO = 20000        # o núcleo duro: cresce depressa quando se encostam
 MOLA = 600          # a rigidez da ligação forte
 MOLA_ANGULO = 150   # a rigidez do ângulo
 FIO = 1500          # o puxão da ligação fraca
 CARGA = 120         # cargas iguais se empurram, opostas se puxam
-COLA = 80           # moléculas quase encostadas se puxam um pouco
+COLA = 80           # moléculas logo fora da casca se puxam um pouco
 BOLA = 0.6          # a bola desenhada é menor que o átomo: sobra lugar para a haste
 ARRASTO = 2.5       # o líquido freia quem anda
 AGITO = 420         # o quanto o calor sacode
@@ -97,7 +104,7 @@ FAISCA = 90         # o alcance da faísca
 POLO = 0.15         # menos carga que isso: o átomo não faz ligação fraca (nem brilha)
 
 st.calor = 0.4      # 0: gelado · 1: fervendo
-st.receita = "água"
+st.receita = "Nascente"
 
 atomos = []
 fortes = []         # [a, b, linha]
@@ -284,15 +291,24 @@ def agitar(dt):
                     continue
                 d = d2 ** 0.5
                 encosta = a.raio + b.raio
+                casca = encosta * FIM_CASCA
                 forca = 0
-                # ninguém atravessa ninguém
-                if d < encosta and b not in a.vizinhos:
-                    forca -= NUCLEO * (encosta - d) / encosta
+                # ninguém se amontoa: a casca empurra quem chega perto, e o
+                # núcleo, cada vez mais, quem se encosta (a mola da ligação
+                # forte é quem cuida dos vizinhos)
+                if d < casca and b not in a.vizinhos:
+                    if d < encosta:
+                        # reto e íngreme: mais duro que isso (ou uma curva
+                        # como 1/d²), um passo de 1/60 s passa do ponto e o
+                        # par ganha velocidade em vez de perder
+                        forca -= CASCA + DURO * (encosta - d) / encosta
+                    else:
+                        forca -= CASCA * (casca - d) / (casca - encosta)
                 if a.molecula is not b.molecula:
                     qq = a.carga * b.carga
                     perto = 1 - d / ALCANCE
                     forca -= CARGA * qq * perto
-                    if d < encosta + 10:
+                    if d < casca + 10:
                         forca += COLA
                     if (qq < 0 and d < FORMA and abs(a.carga) > POLO
                             and abs(b.carga) > POLO and b not in a.pontes):
@@ -349,8 +365,8 @@ def agitar(dt):
             solta(fracas, ligacao)
             continue
         ligacao[3] = forca
-        if d > a.raio + b.raio + 6:
-            puxa(a, b, FIO * abs(a.carga * b.carga) * forca, ax, ay)
+        # perto demais, a casca empurra mais do que o fio puxa: sobra uma folga
+        puxa(a, b, FIO * abs(a.carga * b.carga) * forca, ax, ay)
 
     # o movimento: forças, o freio do líquido, a sacudida do calor
     # (a sacudida cresce com a raiz do passo: assim o calor não depende dos fps)
@@ -419,23 +435,35 @@ def esvazia():
     st.mudou = True
 
 
-def ao_acaso():
-    """Um ponto ao acaso dentro do prato."""
-    while True:
-        x = uniform(CX - PRATO, CX + PRATO)
-        y = uniform(CY - PRATO, CY + PRATO)
-        if distance((x, y), (CX, CY)) < PRATO - 30:
-            return x, y
+def lugares(espaco):
+    """Pontos de uma grade de favo dentro do prato, embaralhados.
+
+    Cada átomo (ou molécula) nasce num ponto: ninguém nasce em cima de
+    ninguém (o núcleo duro o jogaria longe) e não é preciso procurar lugar
+    (procurar ao acaso num prato quase cheio chegava a levar segundos).
+    """
+    pontos = []
+    linha = 0
+    y = CY - PRATO
+    while y < CY + PRATO:
+        x = CX - PRATO + (espaco / 2 if linha % 2 else 0)
+        while x < CX + PRATO:
+            if distance((x, y), (CX, CY)) < PRATO - 24:
+                pontos.append((x, y))
+            x += espaco
+        y += espaco * 0.866     # as linhas de um favo ficam mais juntas
+        linha += 1
+    shuffle(pontos)
+    return pontos
 
 
-def molecula(centro, lados):
+def molecula(centro, lados, x, y):
     """Um átomo central com um branco em cada um dos lados (ângulo ANGULO)."""
-    x, y = ao_acaso()
     a = Atomo(centro, x, y)
+    d = (a.raio + ELEMENTOS["branco"]["raio"]) * 1.1
     virada = uniform(0, 360)
     for k in range(lados):
         rumo = radians(virada + k * ANGULO)
-        d = (a.raio + ELEMENTOS["branco"]["raio"]) * 1.1
         liga_forte(a, Atomo("branco", x + d * cos(rumo), y + d * sin(rumo)))
 
 
@@ -445,35 +473,39 @@ def receita(nome):
         ELEMENTOS[elemento].update(valores)
     st.receita = nome
     mostra_elementos()
-    if nome == "água":
+    if nome == "Nascente":
+        lugar = lugares(34)
         for k in range(70):
-            Atomo("vermelho", *ao_acaso())
+            Atomo("vermelho", *lugar.pop())
         for k in range(140):
-            Atomo("branco", *ao_acaso())
-    elif nome == "sal na água":
+            Atomo("branco", *lugar.pop())
+    elif nome == "Coroas":
+        lugar = lugares(58)     # uma molécula precisa de mais lugar
         for k in range(70):
-            molecula("vermelho", 2)
+            molecula("vermelho", 2, *lugar.pop())
         for k in range(10):
-            Atomo("verde", *ao_acaso())
-            Atomo("violeta", *ao_acaso())
-    elif nome == "óleo e água":
+            Atomo("verde", *lugar.pop())
+            Atomo("violeta", *lugar.pop())
+    elif nome == "Ilhas":
+        lugar = lugares(58)
         for k in range(50):
-            molecula("vermelho", 2)
+            molecula("vermelho", 2, *lugar.pop())
         for k in range(40):
-            molecula("ambar", 2)
+            molecula("ambar", 2, *lugar.pop())
 
 
 def elementos_novos():
     """As mesmas cores, regras novas: valência e avidez ao acaso."""
     esvazia()
-    st.receita = "elementos novos"
+    st.receita = "Acaso"
     for nome in ("branco", "vermelho", "ambar"):
         ELEMENTOS[nome]["valencia"] = int(uniform(1, 4))
         ELEMENTOS[nome]["avidez"] = round(uniform(0, 1), 2)
     mostra_elementos()
+    lugar = lugares(34)
     for nome, quantos in (("vermelho", 50), ("branco", 100), ("ambar", 40)):
         for k in range(quantos):
-            Atomo(nome, *ao_acaso())
+            Atomo(nome, *lugar.pop())
 
 
 # o líquido muda de cor com o calor: azul gelado, roxo morno, vermelho fervendo
@@ -504,7 +536,7 @@ Text(lambda: f"{st.receita}    calor {round(st.calor * 100)}%",
 Text("CIMA/BAIXO calor   ARRASTAR mexe   ESPAÇO faísca   1 2 3 R receitas   T rastro",
      top_left=(20, 36), color="#8aa0b8", font_size=14)
 
-receita("água")
+receita("Nascente")
 
 
 def update(dt):
@@ -516,11 +548,11 @@ def update(dt):
     if keyp.once("SPACE"):
         faisca(mouse.x, mouse.y)
     if keyp.once("1"):
-        receita("água")
+        receita("Nascente")
     if keyp.once("2"):
-        receita("sal na água")
+        receita("Coroas")
     if keyp.once("3"):
-        receita("óleo e água")
+        receita("Ilhas")
     if keyp.once("R"):
         elementos_novos()
     if keyp.once("T"):

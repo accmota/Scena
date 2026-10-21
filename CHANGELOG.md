@@ -874,10 +874,14 @@ left out.
   only in a fast enough collision; a weak bond is a string between a + and
   a - end of two molecules, stronger the closer they are, which stretches,
   snaps and re-forms with the heat. Charge comes from the bonds (a more
-  eager neighbour makes an atom +), so white on red ("water") makes weak
-  bonds and white on amber ("oil") does not: the two separate on their
-  own. Recipes: water forming from free atoms, ions in water, oil and
-  water, and R for new random rules (shown in a side table); UP / DOWN
+  eager neighbour makes an atom +), so white on red makes weak bonds and
+  white on amber does not: the two molecules separate on their own. Atoms
+  without a strong bond push apart: a soft shell out to 1.5 times the
+  contact distance, stronger than the other forces (a weak bond keeps a
+  visible gap), and a steep core inside it, so nobody piles up. Recipes
+  with invented names (it is not a physical simulation): Nascente (free
+  atoms react), Coroas (ions gather molecules), Ilhas (two molecules
+  separate) and Acaso (R: random rules, shown in a side table); UP / DOWN
   heat, a drag stirs, SPACE a spark that breaks the bonds near the mouse.
   The world step keeps each atom's numbers on a plain object and lets the
   `Circle` only draw (reads of actor fields cost ~6x in that loop).

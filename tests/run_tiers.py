@@ -91,6 +91,9 @@ SLOW = frozenset({
     "test_game_armada_deep", "test_game_caverna_deep", "test_game_oficina_deep",
     "test_game_canteiro_deep",
     "test_game_coverage",        # every game under the coverage profile hook
+    # Examples: quick keeps test_example_affinity (controls, canaries); the
+    # chemistry and repulsion runs are ~70 s alone.
+    "test_example_affinity_deep",
     # Laws campaign (tests/laws/): quick runs test_laws_quick (the recorder, its
     # fixtures, the models on synthetic traces); the sweeps over the three
     # families are gate / deep.

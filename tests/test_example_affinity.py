@@ -4,11 +4,13 @@ The claims of ``examples/affinity.py``, played headless.
 The example says: free white and red atoms react into molecules (a red one
 with two whites); a strong bond joins two different elements and never more
 than an atom's valence; a weak bond joins a + end to a - end of two
-different molecules, at most the atom's own count of them; the cold stops
-the reactions; oil and water do not mix; ions gather water around them; the
-spark breaks the bonds near the mouse; a drag stirs the liquid; UP / DOWN
-heat and cool; 1 2 3 R switch the recipes (R draws new rules, the table
-shows them); T the trail.
+different molecules, at most the atom's own count of them; nobody piles up
+(a soft shell around each atom, a hard core inside it), and the shell
+leaves a gap even across a weak bond; the cold stops the reactions; red and
+amber molecules do not mix (Ilhas); ions gather red molecules around them
+(Coroas); the spark breaks the bonds near the mouse; a drag stirs the
+liquid; UP / DOWN heat and cool; 1 2 3 R switch the recipes (R draws new
+rules, the table shows them); T the trail.
 
 Bug class guarded: **an example that stops doing what its docstring says**
 after an engine change, and **a world step that slides back onto actor
@@ -16,11 +18,17 @@ fields**: every read of a field on a Circle goes through Scena's change
 tracking (~0.6 us); the step reads ~30 000 numbers a frame, so keeping them
 on the Circle made it ~6x slower (15-26 ms instead of ~4 ms with 210 atoms,
 measured 2026-10-21). The numbers live on a plain object; the canary below
-fails if an atom becomes an actor.
+fails if an atom becomes an actor. Also **a repulsion that pumps energy**: a
+1/d² core was so stiff near its floor that a 1/60 s step overshot and the
+atoms sped up (mean speed 1148 px/s five seconds into Ilhas, ~85 when
+calm); every recipe is checked to keep its calm speed.
+
+The long runs (the chemistry, nobody piles up, the gap, every recipe's
+calm speed) are in ``test_example_affinity_deep`` (gate / deep; ~70 s).
 
 Run:
 
-    python tests/run_tiers.py focused test_example_affinity
+    python tests/run_tiers.py focused test_example_affinity test_example_affinity_deep
 """
 from __future__ import annotations
 
@@ -89,62 +97,34 @@ def same_kind_nearby(ns, reach=60):
     return total / max(counted, 1)
 
 
-class TestAffinityChemistry(unittest.TestCase):
-    def test_water_forms_and_every_bond_obeys_the_rules(self):
+def closeness(ns):
+    """Distance / contact distance of every close pair with no strong bond."""
+    free, weak = [], []
+    atoms = ns["atomos"]
+    for i, a in enumerate(atoms):
+        for b in atoms[i + 1:]:
+            if b in a.vizinhos:
+                continue
+            ratio = math.dist((a.x, a.y), (b.x, b.y)) / (a.raio + b.raio)
+            if ratio < 1.3:
+                (weak if b in a.pontes else free).append(ratio)
+    return free, weak
+
+
+class TestAffinityRepulsion(unittest.TestCase):
+    def test_no_pile_up_after_a_spark_at_full_heat(self):
         with ProgramRun(PATH, seed=1) as run:
             ns = run.ns
-            run.move(*AWAY)
-            for _ in range(30):
-                run.step(SECOND)
-                check_bonds(self, ns)
-            reds = [a for a in ns["atomos"] if a.nome == "vermelho"]
-            water = [a for a in reds if sorted(b.nome for b in a.vizinhos) == ["branco", "branco"]]
-            self.assertGreater(len(water), 0.75 * len(reds), "the atoms did not react into water")
-            self.assertGreater(len(ns["fracas"]), 40, "water makes no weak bonds")
-            # charge comes from the bonds: a free atom is neutral
-            for a in ns["atomos"]:
-                if not a.vizinhos:
-                    self.assertEqual(a.carga, 0)
-
-    def test_the_cold_stops_the_reactions(self):
-        bonds = {}
-        for calor in (0.0, 0.4):
-            with ProgramRun(PATH, seed=1) as run:
-                run.move(*AWAY)
-                run.ns["st"].calor = calor
-                run.step(10 * SECOND)
-                bonds[calor] = len(run.ns["fortes"])
-        self.assertGreater(bonds[0.4], 60)
-        self.assertLess(bonds[0.0], 0.2 * bonds[0.4], "atoms react without heat")
-
-    def test_oil_and_water_do_not_mix(self):
-        with ProgramRun(PATH, seed=1) as run:
-            ns = run.ns
-            run.move(*AWAY)
-            tap(run, "3")
-            self.assertEqual(ns["st"].receita, "óleo e água")
-            samples = []
-            for _ in range(5):
-                run.step(10 * SECOND)
-                samples.append(same_kind_nearby(ns))
-            check_bonds(self, ns)
-            # mixed at random this is ~0.5 (50 water and 40 oil molecules)
-            self.assertGreater(sum(samples[2:]) / 3, 0.62, samples)
-            for a in ns["atomos"]:
-                if a.molecula.nome == "ambar" or any(b.nome == "ambar" for b in a.vizinhos):
-                    self.assertEqual(a.pontes, [], "oil makes weak bonds")
-
-    def test_ions_gather_water(self):
-        with ProgramRun(PATH, seed=1) as run:
-            ns = run.ns
-            run.move(*AWAY)
-            tap(run, "2")
-            run.step(20 * SECOND)
-            check_bonds(self, ns)
-            ions = [a for a in ns["atomos"] if a.valencia == 0]
-            self.assertEqual(len(ions), 20)
-            held = sum(len(a.pontes) for a in ions) / len(ions)
-            self.assertGreater(held, 1.5, "the ions hold no water")
+            ns["st"].calor = 1.0
+            run.move(ns["CX"], ns["CY"])
+            run.step(5 * SECOND)
+            tap(run, "SPACE")
+            seen = []
+            for _ in range(SECOND):
+                run.step(1)
+                free, weak = closeness(ns)
+                seen += free + weak
+            self.assertGreater(min(seen), 0.35)
 
 
 class TestAffinityControls(unittest.TestCase):
@@ -210,7 +190,7 @@ class TestAffinityControls(unittest.TestCase):
             ns = run.ns
             run.move(*AWAY)
             tap(run, "R")
-            self.assertEqual(ns["st"].receita, "elementos novos")
+            self.assertEqual(ns["st"].receita, "Acaso")
             for nome in ("branco", "vermelho", "ambar"):
                 e = ns["ELEMENTOS"][nome]
                 self.assertIn(e["valencia"], (1, 2, 3))
@@ -222,11 +202,27 @@ class TestAffinityControls(unittest.TestCase):
             run.step(10 * SECOND)
             check_bonds(self, ns)
             tap(run, "1")
-            self.assertEqual(ns["st"].receita, "água")
+            self.assertEqual(ns["st"].receita, "Nascente")
             self.assertEqual(ns["ELEMENTOS"], ns["ORIGINAIS"])
             self.assertIn("valência 2  avidez 0.90", ns["legenda"]["vermelho"].text)
             self.assertEqual(len(ns["atomos"]), 210)
             self.assertEqual(ns["fortes"] + ns["fracas"], [])
+
+    def test_a_recipe_switch_does_not_freeze_the_window(self):
+        """A draft looked for free spots at random among every atom: with the
+        dish nearly full a switch took seconds and Scena's watchdog reported
+        a frozen window (found by the quick tier, 2026-10-21). The atoms now
+        take points of a shuffled hex lattice (~0.1 s per switch)."""
+        import time
+        with ProgramRun(PATH, seed=1) as run:
+            for key in ("1", "2", "3", "R"):
+                run.key_down(key)
+                start = time.perf_counter()
+                run.step(1)
+                took = time.perf_counter() - start
+                run.key_up(key)
+                run.step(1)
+                self.assertLess(took, 1.0, f"recipe {key} took {took:.2f} s")
 
     def test_t_switches_the_trail(self):
         with ProgramRun(PATH, seed=1) as run:
