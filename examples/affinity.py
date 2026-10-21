@@ -86,7 +86,7 @@ ORIGINAIS = {nome: dict(e) for nome, e in ELEMENTOS.items()}
 ALCANCE = 80        # mais longe que isso, dois átomos não se veem
 FORMA = 46          # mais perto que isso, uma ligação fraca pode nascer
 ROMPE = 70          # mais esticada que isso, a ligação fraca arrebenta
-ATIVACAO = 70       # rapidez mínima de um choque que faz ligação forte
+ATIVACAO = 90       # rapidez mínima de um choque que faz ligação forte
 ANGULO = 105        # o ângulo entre as duas ligações de um átomo de valência 2
 CASCA = 2000        # o empurrão de quem chega perto (casca macia)...
 FIM_CASCA = 1.5     # ...até 1,5 vezes a distância em que se encostam
@@ -313,8 +313,9 @@ def agitar(dt):
                     if (qq < 0 and d < FORMA and abs(a.carga) > POLO
                             and abs(b.carga) > POLO and b not in a.pontes):
                         candidatas.append((-qq * (1 - d / ROMPE), a, b))
-                    if d < encosta * 1.2 and a.nome != b.nome:
-                        # um choque de frente, rápido o bastante
+                    if d < casca and a.nome != b.nome:
+                        # um choque de frente, rápido o bastante; medido na
+                        # entrada da casca: dentro dela os dois já frearam
                         rapidez = -((b.vx - a.vx) * dx + (b.vy - a.vy) * dy) / d
                         if rapidez > ATIVACAO:
                             choques.append((a, b))

@@ -112,6 +112,20 @@ def closeness(ns):
 
 
 class TestAffinityRepulsion(unittest.TestCase):
+    def test_free_atoms_react_even_when_cool(self):
+        """The shell must not hide the collision from the reaction check: it
+        measured the approach at 1.2x the contact, inside the shell, after
+        the shell had braked both atoms. At 10% heat 27 bonds formed in
+        10 s instead of 118, and a dish of free atoms (Acaso, or after a
+        spark) looked dead (user report 2026-10-21). The check now sits at
+        the shell's edge."""
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            run.move(*AWAY)
+            ns["st"].calor = 0.1
+            run.step(5 * SECOND)
+            self.assertGreater(len(ns["fortes"]), 60, "free atoms do not react when cool")
+
     def test_no_pile_up_after_a_spark_at_full_heat(self):
         with ProgramRun(PATH, seed=1) as run:
             ns = run.ns

@@ -120,6 +120,23 @@ class TestAffinityRepulsion(unittest.TestCase):
             weak.sort()
             self.assertGreater(weak[len(weak) // 2], 1.05, "weak bonds pull the atoms onto each other")
 
+    def test_bonds_form_again_after_a_spark(self):
+        for key in ("1", "R"):
+            with self.subTest(recipe=key), ProgramRun(PATH, seed=1) as run:
+                ns = run.ns
+                run.move(*AWAY)
+                tap(run, key)
+                run.step(10 * SECOND)
+                before = len(ns["fortes"])
+                run.move(ns["CX"], ns["CY"])
+                tap(run, "SPACE")
+                run.move(*AWAY)
+                broken = before - len(ns["fortes"])
+                self.assertGreater(broken, 5, "vacuous: the spark broke nothing")
+                run.step(3 * SECOND)
+                self.assertGreater(len(ns["fortes"]), before - 0.3 * broken,
+                                   "the broken bonds do not form again")
+
     def test_every_recipe_keeps_its_calm_speed(self):
         """Canary for a repulsion that pumps energy (module docstring)."""
         for key in ("1", "2", "3", "R"):
