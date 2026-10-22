@@ -97,7 +97,7 @@ SLOW = frozenset({
     # quick keeps test_example_corrida (the rules); the two whole races are ~10 s.
     "test_example_corrida_deep",
     # quick keeps test_record_game (timing, review, takes, short pilots); the
-    # video pilots' whole games (Naves, the plane) are ~15 s CPU.
+    # video pilots' whole games (Naves, the plane, a race, runs) are ~60 s CPU.
     "test_record_game_deep",
     # Laws campaign (tests/laws/): quick runs test_laws_quick (the recorder, its
     # fixtures, the models on synthetic traces); the sweeps over the three

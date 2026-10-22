@@ -61,6 +61,30 @@ TAKES = {
     "aviao_paisagem/long": dict(program="examples/aviao_paisagem.py", pilot="fly_plane",
                                 args=dict(flights=(110.0,), crashes=("pillar",), seed=2),
                                 seed=2, end="done", seconds=150),
+    # Corrida: both tracks, one and two players (the human cars driven by the
+    # game's own CPU brain); menus with the pointer, the results, back to the
+    # opening.
+    "corrida/serpentina_1p": dict(program="examples/corrida.py", pilot="race",
+                                  args=dict(players=1, track="SERPENTINA", seed=1), seed=1,
+                                  end="done", seconds=180),
+    "corrida/relampago_1p": dict(program="examples/corrida.py", pilot="race",
+                                 args=dict(players=1, track="RELÂMPAGO", seed=2), seed=2,
+                                 end="done", seconds=180),
+    "corrida/serpentina_2p": dict(program="examples/corrida.py", pilot="race",
+                                  args=dict(players=2, track="SERPENTINA", seed=3), seed=3,
+                                  end="done", seconds=180),
+    "corrida/relampago_2p": dict(program="examples/corrida.py", pilot="race",
+                                 args=dict(players=2, track="RELÂMPAGO", seed=4), seed=4,
+                                 end="done", seconds=180),
+    # Corredor: four runs each, every one until the robot falls (the level
+    # makes spots no jump clears at the early speeds, so runs are 3-20 s);
+    # SPACE in between, the record grows. Seeds with the longest runs.
+    "corredor/runs_a": dict(program="examples/corredor.py", pilot="run_robot",
+                            args=dict(runs=(60.0,) * 4, ends=("crate", "hole"), seed=10),
+                            seed=10, end="done", seconds=300),
+    "corredor/runs_b": dict(program="examples/corredor.py", pilot="run_robot",
+                            args=dict(runs=(60.0,) * 4, ends=("crate", "hole"), seed=2),
+                            seed=2, end="done", seconds=300),
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),

@@ -14,6 +14,12 @@ Bug classes guarded:
 * **A pilot's memory survives a restart.** The plane's flights each last their
   own length; the pilot must move on to the next flight in the frame it
   presses SPACE (a frame later the game is already flying again).
+* **A race take skips a screen.** Each race clicks its players and track
+  buttons (the take's mode and track are the ones raced), finishes, shows
+  the results and goes back to the opening.
+* **A runner take stops after one run.** The corredor takes are several runs
+  with SPACE between them; the record never goes down and grows past the
+  first run.
 
     python -m unittest tests.test_record_game_deep -v
 """
@@ -89,6 +95,42 @@ class TestWholeGames(unittest.TestCase):
             self.assertGreater(down[3], 3, "it flew through gaps")
         ground = [d for d, kind in zip(downs, crashes) if kind == "ground"]
         self.assertTrue(all(d[2] < 35 for d in ground), "a dive ends on the ground")
+
+    def test_races_go_through_every_screen(self):
+        for tid in ("corrida/relampago_2p",):        # 2 players, the second track (~50 s CPU a race)
+            spec = tk.take(tid)
+            screens, picked = [], {}
+
+            def watch(ns, t):
+                a = rg_act()
+                if not screens or screens[-1] != a:
+                    screens.append(a)
+                if a == "Corrida":
+                    picked.update(players=ns["st"].jogadores, track=ns["st"].pista)
+
+            r = _play(tid, 180, watch)
+            self.assertTrue(r["done"], tid)
+            self.assertEqual(screens, ["Escolha", "EscolhaPista", "Corrida", "Resultado",
+                                       "Escolha"], tid)
+            self.assertEqual(picked, {"players": spec["args"]["players"],
+                                      "track": spec["args"]["track"]}, tid)
+
+    def test_runner_takes_are_several_runs(self):
+        spec = tk.take("corredor/runs_a")
+        runs = []
+
+        def watch(ns, t):
+            st = ns["st"]
+            if not runs or runs[-1][0] != st.correndo:
+                runs.append((st.correndo, t, st.recorde))
+
+        r = _play("corredor/runs_a", 300, watch)
+        self.assertTrue(r["done"])
+        falls = [e for e in runs if not e[0]]
+        self.assertEqual(len(falls), len(spec["args"]["runs"]))
+        records = [e[2] for e in runs]
+        self.assertEqual(records, sorted(records), "the record never goes down")
+        self.assertGreater(records[-1], 0)
 
 
 if __name__ == "__main__":

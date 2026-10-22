@@ -290,7 +290,9 @@ class Review:
     ``STILL`` (mean of |Δ| over the channels, 0–255): a frozen "press SPACE"
     screen, a hero stuck at a wall. It is *silent* when its sound stays under
     ``SILENT`` (RMS). A take that stands still for ``STALL`` seconds in a row is
-    flagged: a stall the pilot did not mean is a pilot bug.
+    flagged: a stall the pilot did not mean is a pilot bug. A pilot that holds
+    a still screen on purpose (a results screen to read) sets ``game.still``
+    and those seconds are not counted (``mark_meant``).
     """
 
     STILL = 0.15
@@ -305,7 +307,12 @@ class Review:
         self.thumbs: list = []
         self.motion: list = []          # one value per second
         self.loud: list = []            # one RMS per second
+        self.meant: set = set()         # seconds the pilot marked still on purpose
         self._last = None
+
+    def mark_meant(self) -> None:
+        """The frame about to come is still on purpose (``game.still``)."""
+        self.meant.add(self.n // self.fps)
 
     def frame(self, rgba) -> None:
         import numpy as np
@@ -335,7 +342,9 @@ class Review:
 
     def report(self, *, tail_from: float | None = None) -> dict:
         """``tail_from``: seconds after which stillness is meant (the run is over)."""
-        still = [m < self.STILL for m in self.motion]
+        # motion[k] compares second k with second k + 1
+        still = [m < self.STILL and k not in self.meant and k + 1 not in self.meant
+                 for k, m in enumerate(self.motion)]
         if tail_from is not None:
             still = still[:max(0, int(tail_from))]
         longest, at, run_len = 0, 0, 0
@@ -466,6 +475,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
                     mx, my = game._at
                     px = draw_cursor(px, (mx * gw / dw, (dh - my) * gh / dh), cursor_scale)
                 canvas[y0:y0 + gh, x0:x0 + gw] = px
+                if getattr(game, "still", False) and hasattr(sink, "mark_meant"):
+                    sink.mark_meant()
                 sink.frame(canvas)
                 frames += 1
                 if progress and frames % fps == 0:

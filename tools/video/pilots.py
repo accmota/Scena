@@ -8,6 +8,8 @@ one pilot plays several variations of a run. Two flags tell the recorder:
 
   game.cursor = True    draw the pointer (a window has none to capture)
   game.done = True      the run is over; the take ends after its tail
+  game.still = True     this screen stands still on purpose (a results screen
+                        to read): the review does not flag it as a stall
 
 Play like a player, not like a bot: re-aim a few times a second (a reaction
 time), start a key past a threshold and let go inside a smaller one (no
@@ -28,8 +30,14 @@ def memo(game) -> dict:
 
 
 def at(t: float, when: float, frames: int = 1) -> bool:
-    """``t`` is one of the ``frames`` game frames that start at ``when``."""
-    return when <= t < when + frames / 60
+    """``t`` is one of the ``frames`` game frames that start at ``when``.
+
+    Counted in whole frames: a time measured from a screen's first frame
+    (``t - start``) carries float error, and a test on seconds could fall
+    just short on one frame and just past the window on the next (a click
+    that never happened)."""
+    n, w = round(t * 60), round(when * 60)
+    return w <= n < w + frames
 
 
 def path_point(keys, t: float):
@@ -153,10 +161,15 @@ def tour_first_script(game, t, *, end=20.0):
 
 # ── Naves VI · Atos ─────────────────────────────────────────────────────────
 
+def current_act():
+    """The act on stage (``None`` before the first)."""
+    import sys
+    return sys.modules["scena.act"]._manager.current
+
+
 def act_name() -> str:
     """The class name of the act on stage (``""`` before the first)."""
-    import sys
-    act = sys.modules["scena.act"]._manager.current
+    act = current_act()
     return type(act).__name__ if act is not None else ""
 
 
@@ -346,4 +359,185 @@ def fly_plane(game, t, *, flights=(60.0,), crashes=("pillar",), wait=3.5, seed=0
     game.hold(steer(m, aim - y, start=12, stop=5, keys=("DOWN", "UP")))
 
 
-PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, fly_plane)}
+# ── Corrida ─────────────────────────────────────────────────────────────────
+
+_PLAYERS_BUTTON = {1: (640, 380), 2: (640, 280)}
+_TRACK_BUTTON = {"SERPENTINA": (340, 170), "RELÂMPAGO": (940, 170)}
+
+
+def race(game, t, *, players=1, track="SERPENTINA", seed=0, result_hold=5.0, title_hold=2.0):
+    """A whole race of Corrida: the players button, the track button (pointer
+    in view), the countdown, three laps, the results, SPACE back to the
+    opening (the run is over there).
+
+    Each human car is driven by the game's own CPU brain (``Carro.pensar``)
+    turned into its keys: what the brain wants this frame is what the pilot
+    holds. The wheel is proportional in the brain and a key is all or
+    nothing, so a partial turn is a key held that share of the frames.
+    """
+    m = memo(game)
+    if "rng" not in m:
+        m.update(rng=random.Random(seed), wheel={})
+    name = act_name()
+    if name == "Escolha":
+        if m.get("over"):
+            game.cursor = False
+            game.hold()
+            if t - m.setdefault("back", t) >= title_hold:
+                game.done = True
+            return
+        menu_click(game, m, t, _PLAYERS_BUTTON[players], key="players", rest=(1000, 110))
+        game.hold()
+        return
+    if name == "EscolhaPista":
+        menu_click(game, m, t, _TRACK_BUTTON[track], key="track", wait=0.9,
+                   rest=_PLAYERS_BUTTON[players])
+        game.hold()
+        return
+    game.cursor = False
+    game.still = name == "Resultado"           # the podium holds still on purpose
+    if name == "Resultado":
+        m["over"] = True
+        game.hold("SPACE" if at(t - m.setdefault("end", t), result_hold, 3) else None)
+        return
+    if name != "Corrida" or not game.ns["st"].largou:
+        game.hold()
+        return
+    act = current_act()
+    keys = []
+    for car in [act.azul] + ([act.vermelho] if players == 2 else []):
+        if not car.is_alive or car.chegou:
+            continue
+        k = car.teclas
+        car.pensar(1 / 60)
+        acc = m["wheel"].get(car.nome, 0.0) + min(1.0, abs(car.vira))
+        if acc >= 1.0:
+            acc -= 1.0
+            keys.append(k["esquerda"] if car.vira > 0 else k["direita"])
+        m["wheel"][car.nome] = acc
+        keys += [k["acelera"] if car.acelera else None, k["freia"] if car.freia else None,
+                 k["tiro"] if car.quer_atirar else None]
+    game.hold(*keys)
+
+
+# ── Corredor ────────────────────────────────────────────────────────────────
+
+_JUMP_VY, _GRAVITY = 900.0, 2200.0      # corredor.py: a jump and its fall (px/s, px/s²)
+
+
+def _robot_jump_is_safe(ns, robo, v: float) -> bool:
+    """A jump taken now lands on ground, clear of crates, and no crate is in
+    the way of the arc (the game's own jump speed and gravity, the speed
+    ``v`` held for the whole jump)."""
+    query, altura = ns["collision"].query_point, ns["altura"]
+    body = robo.hitbox.box                      # what collides (42 px), not the picture (90)
+    back, front, y0 = body.left, body.right, body.bottom
+
+    def height(t):
+        return y0 + _JUMP_VY * t - _GRAVITY / 2 * t * t
+
+    # landing: the first time after the peak the feet reach the ground under them
+    t = _JUMP_VY / _GRAVITY
+    while t < 2.0:
+        t += 1 / 120
+        mid = (back + front) / 2 + v * t
+        if height(t) <= altura(mid):
+            break
+    land = t
+    lb, lf = back + v * land, front + v * land
+    for k in range(9):
+        x = lb + (lf - lb) * k / 8
+        if not query((x, altura(x) - 8), group="chao"):
+            return False
+    for b in ns["group"]["caixa"]:
+        cl, cr, top = b.box.left, b.box.right, b.box.top
+        if cr < back:
+            continue
+        if cl < lf + 30 and cr > lb - 10:       # lands on it, or right in front of it
+            return False
+        t0 = max(0.0, (cl - front) / v)        # over the crate between t0 and t1
+        t1 = min(land, (cr - back) / v)
+        for k in range(7):
+            tt = t0 + (t1 - t0) * k / 6
+            if t0 <= t1 and height(tt) < top + 4:
+                return False
+    return True
+
+
+def run_robot(game, t, *, runs=(45.0,), ends=("crate",), wait=2.5, seed=0, eager=0.0):
+    """Runs of the robot, each ``runs[i]`` seconds and then ended on purpose
+    by ``ends[i]``: "crate" (runs into the next crate) or "hole" (falls into
+    the next hole); it keeps jumping the other kind until its own comes. After
+    a fall, ``wait`` s on "Aperte espaço", then SPACE starts the next run (the
+    record grows); after the last one the run is over.
+
+    It plays like a good player who reads ahead: with a hole or a crate
+    coming, it jumps at the first moment the landing is safe (on ground,
+    clear of crates: a crate right after a hole, or a hole right after a
+    crate, needs the jump early), and only jumps blind at the last moment.
+    ``eager`` (0–1): the chance per frame of jumping at once in the safe
+    window instead of a few frames into it (a hurried player).
+    """
+    m = memo(game)
+    if "rng" not in m:
+        m.update(rng=random.Random(seed), run=0, start=t, down=None, delay=None)
+    ns = game.ns
+    st = ns["st"]
+    act = current_act()
+    if act_name() != "Corrida":
+        game.hold()
+        return
+    i = m["run"]
+    if not st.correndo:
+        down = m["down"] = m["down"] if m["down"] is not None else t
+        if t - down >= wait:
+            if i + 1 >= len(runs):
+                game.done = True
+                game.hold()
+                return
+            # The next run starts this frame (SPACE changes the act at once).
+            m.update(run=i + 1, start=t, down=None, delay=None)
+            game.hold("SPACE")
+            return
+        game.hold()
+        return
+    robo = act.robo
+    if "bottom" not in robo.touching_sides:
+        game.hold()
+        return
+    ending = (t - m["start"]) >= runs[i]
+    end_kind = ends[i % len(ends)]
+    c, v = robo.center.x, st.velocidade
+    query, altura = ns["collision"].query_point, ns["altura"]
+    hole = None                                 # px from the robot's middle
+    for d in range(0, int(v * 0.6) + 60, 4):
+        x = c + d
+        if not query((x, altura(x) - 8), group="chao"):
+            hole = d
+            break
+    body = robo.hitbox.box
+    c = body.center.x
+    crates = [b.box.left - body.right for b in ns["group"]["caixa"] if b.box.right > body.left]
+    crate = min(crates) if crates else None
+    skip = {"hole": ending and end_kind == "hole", "crate": ending and end_kind == "crate"}
+    near_hole = hole is not None and hole <= v * 0.5 and not skip["hole"]
+    near_crate = crate is not None and crate <= 140 and not skip["crate"]
+    last = (hole is not None and hole <= 16 and not skip["hole"]) or \
+           (crate is not None and crate <= 14 and not skip["crate"])
+    jump = False
+    if last:
+        jump = True
+    elif (near_hole or near_crate) and _robot_jump_is_safe(ns, robo, v):
+        if m["delay"] is None:                  # a few frames into the window, like a player
+            m["delay"] = 0 if m["rng"].random() < eager else m["rng"].randint(0, 4)
+        m["delay"] -= 1
+        jump = m["delay"] < 0
+    else:
+        m["delay"] = None
+    if jump:
+        m["delay"] = None
+    game.hold("UP" if jump else None)
+
+
+PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, fly_plane,
+                                  race, run_robot)}

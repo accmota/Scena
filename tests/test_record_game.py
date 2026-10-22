@@ -259,11 +259,43 @@ class TestReview(unittest.TestCase):
         self.assertTrue(rv.flags(rep, ended="cap", expect_end=True))
         self.assertEqual(rv.flags(rep, ended="cap", expect_end=False), [])
 
+    def test_meant_still_is_not_a_stall(self):
+        """A results screen held on purpose (``game.still``) is not flagged."""
+        rv = rg.Review(None, 10, every=1.0, thumb_width=16)
+        rng = np.random.default_rng(0)
+        for k in range(30):
+            rv.frame(rng.integers(0, 255, (40, 64, 4), dtype=np.uint8))
+        still = np.zeros((40, 64, 4), dtype=np.uint8)
+        for k in range(50):
+            rv.mark_meant()
+            rv.frame(still)
+        rep = rv.report()
+        self.assertEqual(rep["longest_still"], 0)
+        self.assertEqual(rv.flags(rep, ended="done", expect_end=True), [])
+
     def test_sound_counts_as_heard(self):
         rv = self._review(2, 0)
         t = np.arange(200) / 100
         rv.finish(np.stack([np.sin(t * 40), np.sin(t * 40)], axis=1).astype(np.float32) * 0.3, 100)
         self.assertEqual(rv.report()["silent"], 0)
+
+
+class TestPilotClock(unittest.TestCase):
+    def test_at_fires_exactly_once_from_any_start(self):
+        """A click timed from a screen's first frame (``t - start``) must land
+        on exactly one frame. Compared as seconds, float error made both
+        candidate frames miss for some starts: the race pilot never clicked
+        the track button (2026-10-22)."""
+        import pilots
+        for first in range(0, 6000, 7):             # the screen's first frame
+            start = first / 60
+            for when in (0.5, 1.8, 2.2, 5.0):
+                hits = [i for i in range(first, first + 600)
+                        if pilots.at(i / 60 - start, when)]
+                self.assertEqual(len(hits), 1, (first, when, hits))
+                hits = [i for i in range(first, first + 600)
+                        if pilots.at(i / 60 - start, when, 3)]
+                self.assertEqual(len(hits), 3, (first, when))
 
 
 class TestTakes(unittest.TestCase):
