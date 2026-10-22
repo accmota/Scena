@@ -288,11 +288,11 @@ def script_trace(path: str, frames: int, *, source: Optional[str] = None,
             # blamed the engine for a twin that had lost its art).
             folder = os.path.join(tmp, "twin")
             os.mkdir(folder)
-            from source_support import iter_entries
+            from source_support import iter_entries, link_entry
             here = os.path.dirname(path)
             for name in iter_entries(here):
                 if name != os.path.basename(path):
-                    os.symlink(os.path.join(here, name), os.path.join(folder, name))
+                    link_entry(os.path.join(here, name), os.path.join(folder, name))
             twin = os.path.join(folder, os.path.basename(path))
             with open(twin, "w", encoding="utf-8") as fh:
                 fh.write(source)

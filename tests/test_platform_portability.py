@@ -143,6 +143,85 @@ def _text_io(call: ast.Call):
     return "open"   # text mode, or a mode the guard cannot read: name the encoding
 
 
+class TestLinksNeedNoPrivilege(unittest.TestCase):
+    """``os.symlink`` needs Developer Mode or an administrator on Windows
+    (WinError 1314): the laws twins of every example failed at setup in a
+    Windows gate (WP29). ``source_support.link_entry`` falls back to a
+    junction (folder), a hard link (file), then a copy."""
+
+    def _check(self, refuse_symlinks: bool):
+        from unittest import mock
+        from tests.source_support import link_entry
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            src = os.path.join(tmp, "src")
+            os.makedirs(os.path.join(src, "media"))
+            with open(os.path.join(src, "media", "a.txt"), "w", encoding="utf-8") as fh:
+                fh.write("art")
+            with open(os.path.join(src, "level.json"), "w", encoding="utf-8") as fh:
+                fh.write("{}")
+            twin = os.path.join(tmp, "twin")
+            os.makedirs(twin)
+
+            def refused(*a, **k):
+                raise OSError(1314, "A required privilege is not held by the client")
+
+            with mock.patch.object(os, "symlink", refused) if refuse_symlinks else _nothing():
+                how = [link_entry(os.path.join(src, n), os.path.join(twin, n))
+                       for n in ("media", "level.json")]
+            with open(os.path.join(twin, "media", "a.txt"), encoding="utf-8") as fh:
+                self.assertEqual(fh.read(), "art")
+            with open(os.path.join(twin, "level.json"), encoding="utf-8") as fh:
+                self.assertEqual(fh.read(), "{}")
+            return how
+
+    def test_links_where_symlinks_work_or_not(self):
+        self._check(refuse_symlinks=False)
+
+    def test_links_when_symlinks_are_refused(self):
+        how = self._check(refuse_symlinks=True)
+        self.assertNotIn("symlink", how)
+        if os.name == "nt":
+            self.assertEqual(how[0], "junction")
+
+    def test_cleaning_the_twin_keeps_the_target(self):
+        # The twin's folder is a TemporaryDirectory: its cleanup must remove
+        # the junction / hard link, never what it names (examples/media).
+        from unittest import mock
+        from tests.source_support import link_entry
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as keep:
+            with open(os.path.join(keep, "art.txt"), "w", encoding="utf-8") as fh:
+                fh.write("art")
+
+            def refused(*a, **k):
+                raise OSError(1314, "A required privilege is not held by the client")
+
+            with tempfile.TemporaryDirectory() as twin, mock.patch.object(os, "symlink", refused):
+                link_entry(keep, os.path.join(twin, "media"))
+                link_entry(os.path.join(keep, "art.txt"), os.path.join(twin, "art.txt"))
+            self.assertEqual(os.listdir(keep), ["art.txt"])
+
+    def test_tests_link_through_the_helper(self):
+        bad = []
+        for root in (TESTS, os.path.join(EDITOR, "tests")):
+            for path in iter_files(root, ".py", recursive=True):
+                if os.path.basename(path) in ("source_support.py", os.path.basename(__file__)):
+                    continue
+                for call in _calls(path):
+                    if _attr(call) in ("symlink", "symlink_to"):
+                        rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+                        bad.append(f"{rel}:{call.lineno}")
+        self.assertEqual(bad, [], "link with source_support.link_entry (os.symlink needs a "
+                         "privilege on Windows):\n" + "\n".join(bad))
+
+
+class _nothing:
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *exc):
+        return False
+
+
 class TestIterFiles(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

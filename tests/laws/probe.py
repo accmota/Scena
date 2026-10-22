@@ -411,7 +411,8 @@ def _stage(program: str, expect_path: Optional[str], tmp: str):
         shutil.copy2(f, work)
     media = os.path.join(folder, "media")
     if os.path.isdir(media):
-        os.symlink(os.path.realpath(media), os.path.join(work, "media"))
+        from source_support import link_entry
+        link_entry(os.path.realpath(media), os.path.join(work, "media"))
     moved = os.path.join(work, os.path.basename(program))
     exp = os.path.join(work, os.path.basename(expect_path)) if expect_path else None
     return moved, exp
