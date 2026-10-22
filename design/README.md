@@ -353,6 +353,14 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   next to the script or in its `media/`, so an `examples/en/` folder would
   need a second search place, a link or a copy of the media); an English page
   whose `example:` keeps the Portuguese file name fails the check.
+- **Level files are made, not written.** `names_en.json` "levels" pairs each
+  Portuguese level file with its English twin (`levels/ninja.json` ↔
+  `levels/ninja_world.json`) and the page whose glossary renames it.
+  `tutorial_parity.py --levels` writes the twin: the Portuguese file with its
+  groups, item names and sheet names renamed, in the editor's own layout
+  (`scena.level_format.dumps`, which round-trips the files byte for byte). The
+  check fails while a twin lags its Portuguese file or a level word has no
+  English; `--draft` renames the `Level("levels/…")` paths.
 - **The engine's own words** (buttons, box titles: "Your turn", "What we
   covered") come from `WORDS` in `docs/assets/tutorial/tutorial.js`, chosen
   by the page's `<html lang>`; an English page must say `lang="en"`.
@@ -376,10 +384,13 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   needs (once the page exists, its rename); the glossary gets them, series by
   series. `--draft <key>` writes the English page from the Portuguese one with
   `lang="en"`, `noindex`, the English example name, and every code block,
-  snippet, note anchor and `focus` / `replaces` anchor renamed by the
-  glossary (one scanner for all of them, so a note still finds its line).
-  Then the prose, comments and docstrings are translated, and the units
-  marked.
+  snippet, note anchor, `focus` / `replaces` anchor and inline `<code>`
+  renamed by the glossary (one scanner for all of them, so a note still finds
+  its line; inside a quoted field, `\"` quotes are read as quotes). Then the
+  prose, comments, docstrings and player-facing text are translated,
+  `--ready <key>` checks the page as if marked, and the units are marked.
+  Translating finds Portuguese that is wrong (tutorial 01 said "about seventy"
+  color names; there are over a hundred): fix the Portuguese, then mark.
 
 ## Editing the README
 

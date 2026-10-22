@@ -1,5 +1,5 @@
 {
- "_doc": "Glossary of the English tutorials (tools/tutorial/tutorial_parity.py). pages: key -> English page file. examples: pt example file -> English example file (both live in examples/). titles: key -> English page title (for review and the page's title:). series: pages that share one English name per Portuguese name ('*' = every page); names = identifiers, strings = word-like strings (group, clip, act names).",
+ "_doc": "Glossary of the English tutorials (tools/tutorial/tutorial_parity.py). pages: key -> English page file. examples: pt example file -> English example file (both live in examples/). titles: key -> English page title (for review and the page's title:). series: pages that share one English name per Portuguese name ('*' = every page); names = identifiers, strings = word-like strings (group, clip, act names). levels: Portuguese level file -> {en: English level file, page: the page whose glossary renames its groups, names and sheets}; tutorial_parity.py --levels writes them.",
  "pages": {
   "01": "01-first-script.html",
   "02": "02-catch-stars.html",
@@ -618,7 +618,11 @@
     "Bolhas": "Bubbles",
     "explode": "explode",
     "vidas": "lives",
-    "chefe": "boss"
+    "chefe": "boss",
+    "VITÓRIA": "VICTORY",
+    "JOGAR": "PLAY",
+    "NAVES": "SHIPS",
+    "PAUSA": "PAUSED"
    }
   },
   "p20": {
@@ -902,7 +906,9 @@
     "pino": "post",
     "saida": "tee",
     "trave": "bar",
-    "vaivem": "back_and_forth"
+    "vaivem": "back_and_forth",
+    "campo": "course",
+    "grama": "grass"
    }
   },
   "p25i": {
@@ -1039,7 +1045,13 @@
     "alvo": "target",
     "energia": "energy",
     "escudo": "shield",
-    "playerShip": "playerShip"
+    "playerShip": "playerShip",
+    "AZUL": "BLUE",
+    "VERMELHO": "RED",
+    "DUELO": "DUEL",
+    "II": "II",
+    "PRONTO": "READY",
+    "trilho": "rail"
    }
   },
   "p32": {
@@ -1186,7 +1198,18 @@
     "1": "1",
     "cor_luz": "light_color",
     "brilho_luz": "light_glow",
-    "luz": "light"
+    "luz": "light",
+    "AMARELO": "YELLOW",
+    "AZUL": "BLUE",
+    "CORRIDA": "RACE",
+    "PISTA": "TRACK",
+    "RELÂMPAGO": "LIGHTNING",
+    "SERPENTINA": "SERPENTINE",
+    "VERDE": "GREEN",
+    "VERMELHO": "RED",
+    "largada": "grid",
+    "pista": "tiles",
+    "objetos": "objects"
    }
   },
   "pA": {
@@ -1255,7 +1278,8 @@
     "Pastas": "Folders",
     "Formatos": "Formats",
     "1": "1",
-    "2": "2"
+    "2": "2",
+    "FORMATOS": "FORMATS"
    }
   },
   "pD": {
@@ -1346,8 +1370,35 @@
     "Faixas": "Strips",
     "Animações": "Animations",
     "Atlas": "Atlas",
-    "Hitboxes": "Hitboxes"
+    "Hitboxes": "Hitboxes",
+    "SVG": "SVG"
    }
+  }
+ },
+ "levels": {
+  "levels/ninja.json": {
+   "en": "levels/ninja_world.json",
+   "page": "26"
+  },
+  "levels/ninja_perigos.json": {
+   "en": "levels/ninja_hazards.json",
+   "page": "27"
+  },
+  "levels/minigolfe.json": {
+   "en": "levels/minigolf.json",
+   "page": "26i"
+  },
+  "levels/duelo.json": {
+   "en": "levels/duel.json",
+   "page": "31"
+  },
+  "levels/corrida.json": {
+   "en": "levels/race.json",
+   "page": "32"
+  },
+  "levels/corrida_relampago.json": {
+   "en": "levels/race_lightning.json",
+   "page": "32"
   }
  }
 }

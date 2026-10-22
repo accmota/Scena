@@ -37,8 +37,14 @@ Commands (run from the repository root)::
     python tools/tutorial/tutorial_parity.py --status      # translated / pending per page
     python tools/tutorial/tutorial_parity.py --names 05    # names page 05 still needs (or its rename)
     python tools/tutorial/tutorial_parity.py --draft 05    # English page 05 from pt, code renamed by the glossary
+    python tools/tutorial/tutorial_parity.py --ready 05    # page 05 checked as if every unit were marked
     python tools/tutorial/tutorial_parity.py --mark U [U…] # U translated from the current pt (05 = whole page)
     python tools/tutorial/tutorial_parity.py --diff U      # pt change since U was translated
+    python tools/tutorial/tutorial_parity.py --levels      # write the English level files from the Portuguese
+
+The English level files (``names_en.json`` "levels") are made, not written:
+the Portuguese file with its groups, item names and sheet names renamed by
+the glossary of the page that reads it. The check fails while one lags.
 """
 from __future__ import annotations
 
@@ -222,7 +228,9 @@ def _engine_word(s: str) -> bool:
                       and isinstance(n.value, str) and id(n) not in docs and re.fullmatch(r"[a-z_][a-z0-9_]*", n.value)}
         _ENGINE_STRINGS = words
     from scena.color import ColorNames
-    return s.isupper() or s.lower() in ColorNames._COLORS or s in shadowed()[1] or s in _ENGINE_STRINGS
+    from scena.input import _KEY_SPELLINGS, _KEY_WORDS
+    key = s in _KEY_WORDS or s in _KEY_SPELLINGS or re.fullmatch(r"[A-Z0-9]|F\d{1,2}", s) is not None
+    return key or s.lower() in ColorNames._COLORS or s in shadowed()[1] or s in _ENGINE_STRINGS
 
 
 def _st_members() -> set:
@@ -427,6 +435,62 @@ def portuguese_left(unit: str) -> list[str]:
                   {m.group(0) for m in guia_parity._PT_WORDS.finditer(code)})
 
 
+# ── Level files ────────────────────────────────────────────────────────────
+
+MEDIA = EXAMPLES / "media"
+
+
+def level_twin(pt_rel: str, names: dict) -> tuple[str, list[str]]:
+    """The English level file for ``pt_rel`` (``"levels/ninja.json"``), as text,
+    and the words the glossary has no English for. Same layout as the editor
+    writes (``scena.level_format.dumps``)."""
+    from scena import level_format
+    entry = (names.get("levels") or {})[pt_rel]
+    _gn, gs = glossary_for(entry["page"], names)
+    data = json.loads((MEDIA / pt_rel).read_text(encoding="utf-8"))
+    missing = []
+
+    def en(word):
+        if word not in gs:
+            missing.append(word)
+        return gs.get(word, word)
+
+    for item in data.get("items", []):
+        if "groups" in item:
+            item["groups"] = [en(g) for g in item["groups"]]
+        for key in ("name", "sheet"):
+            if key in item:
+                item[key] = en(item[key])
+    for sheet in data.get("sheets", []):
+        sheet["name"] = en(sheet["name"])
+    return level_format.dumps(data), sorted(set(missing))
+
+
+def check_levels(names: dict) -> list[str]:
+    errors = []
+    for pt_rel, entry in (names.get("levels") or {}).items():
+        text, missing = level_twin(pt_rel, names)
+        for word in missing:
+            errors.append(f"{pt_rel}: o glossário (página {entry['page']}) não tem inglês para {word!r}")
+        target = MEDIA / entry["en"]
+        if not target.is_file() or target.read_text(encoding="utf-8") != text:
+            errors.append(f"{entry['en']}: difere do {pt_rel} traduzido — rode tutorial_parity.py --levels")
+    return errors
+
+
+def write_levels(names: dict | None = None) -> list[Path]:
+    names = read_names() if names is None else names
+    out = []
+    for pt_rel, entry in (names.get("levels") or {}).items():
+        text, missing = level_twin(pt_rel, names)
+        if missing:
+            raise SystemExit(f"{pt_rel}: sem inglês no glossário para {', '.join(missing)}")
+        target = MEDIA / entry["en"]
+        target.write_text(text, encoding="utf-8")
+        out.append(target)
+    return out
+
+
 # ── Check ──────────────────────────────────────────────────────────────────
 
 def page_rename(pt_text: str, en_text: str, key: str) -> tuple[Rename, list[str]]:
@@ -504,6 +568,8 @@ def check(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = Non
     for name in sorted(set(state) & known):
         if name.split(":", 1)[0] not in en:
             errors.append(f"{name}: marcada como traduzida, mas a página em inglês não existe")
+    if pt_dir == PT_DIR:                      # the repository's own level files
+        errors += check_levels(names)
     return errors
 
 
@@ -583,8 +649,9 @@ def _escape(src: str) -> str:
 
 def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | None = None) -> Path:
     """Write the English page ``key``: the Portuguese page, ``lang="en"``,
-    ``noindex``, every code block, snippet, note anchor and focus / replaces
-    anchor renamed by the glossary. The prose stays Portuguese (pending)."""
+    ``noindex``, every code block, snippet, note anchor, focus / replaces
+    anchor and inline ``<code>`` renamed by the glossary. The prose stays
+    Portuguese (pending)."""
     names = read_names() if names is None else names
     slug = (names.get("pages") or {}).get(key)
     if not slug or page_key(slug) != key:
@@ -595,6 +662,7 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
     if key in pages(en_dir):
         raise SystemExit(f"a página {key} em inglês já existe; nada feito")
     gn, gs = glossary_for(key, names)
+    gs = {**gs, **{a: e["en"] for a, e in (names.get("levels") or {}).items()}}   # Level("levels/…")
     text = pt[key].read_text(encoding="utf-8")
     ren = lambda s: rename_code(s, gn, gs)  # noqa: E731
     text = re.sub(r'<html lang="[^"]*">', '<html lang="en">', text, count=1)
@@ -611,6 +679,14 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
                        m.group(2))
         return m.group(1) + items
     text = re.sub(r"^(\s*(?:focus|replaces):\s*)(.*)$", anchors, text, flags=re.M)
+    # Inline code in the prose names the same things as the code it explains.
+    # Inside a double-quoted field (a note's text) its quotes are escaped: \"bolas\".
+    def inline(m):
+        body = m.group(1)
+        if '\\"' in body:
+            return "<code>" + ren(body.replace('\\"', '"')).replace('"', '\\"') + "</code>"
+        return f"<code>{ren(body)}</code>"
+    text = re.sub(r"<code>(.*?)</code>", inline, text, flags=re.S)
     for pt_ex in re.findall(r'^\s*example:\s*"([^"]*)"', text, re.M):
         en_ex = (names.get("examples") or {}).get(pt_ex)
         if en_ex:
@@ -745,6 +821,22 @@ def names_cmd(key: str) -> int:
     return 0
 
 
+def ready(key: str) -> int:
+    """Page ``key`` checked as if all its units were marked translated: what
+    ``--mark`` would leave failing (Portuguese left, shape, code)."""
+    pt, en = pages(PT_DIR), pages(EN_DIR)
+    if key not in en:
+        print(f"nenhuma página {key} em inglês")
+        return 1
+    ptext = pt[key].read_text(encoding="utf-8")
+    state = {**read_state(), **{n: digest(t) for n, t in units(key, ptext)}}
+    errors = check_page(key, ptext, en[key].read_text(encoding="utf-8"), state, read_names())
+    for e in errors:
+        print(" ", e)
+    print(f"{len(errors)} erro(s)" if errors else f"{key}: pronta para --mark {key}")
+    return 1 if errors else 0
+
+
 def main(argv: list[str]) -> int:
     if "--status" in argv:
         return status()
@@ -752,8 +844,14 @@ def main(argv: list[str]) -> int:
         return mark(argv[argv.index("--mark") + 1:])
     if "--diff" in argv:
         return diff(argv[argv.index("--diff") + 1])
+    if "--ready" in argv:
+        return ready(argv[argv.index("--ready") + 1])
     if "--names" in argv:
         return names_cmd(argv[argv.index("--names") + 1])
+    if "--levels" in argv:
+        for path in write_levels():
+            print(f"{path.relative_to(REPO)}: escrita")
+        return 0
     if "--draft" in argv:
         out = draft(argv[argv.index("--draft") + 1])
         print(f"{out.relative_to(REPO)}: escrita (prosa em português, código renomeado pelo glossário)")

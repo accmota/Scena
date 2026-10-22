@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catch stars — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "02",
+  title: "Catch stars",
+  steps: [
+    {
+      title: "The paddle",
+      body: `
+        <p>A new script, and this time a game: stars fall from the top, and you catch them with a paddle that slides along near the ground. This first step builds only the paddle.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "width=80",
+          text: "80 pixels wide; the height follows the image's proportions."
+        },
+        {
+          at: "center=(500, 80)",
+          text: "Halfway across, just above the bottom edge."
+        },
+        {
+          at: "-380 * dt",
+          text: "Only two arrows, left and right: the paddle only moves sideways, at 380 pixels per second."
+        }
+      ]
+    },
+    {
+      title: "One falling star",
+      body: `
+        <p>Now the first star. Just one, with a name, to get the motion right before making more.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+star = Sprite("k-rolling-ball/star.png", size=32, center=(500, 820))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+    star.move_by(0, -220 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "center=(500, 820)",
+          text: "The window goes up to y = 800: the star starts a little above the top edge, out of sight, and comes in on its way down."
+        },
+        {
+          at: "-220 * dt",
+          text: "The x stays put, and the y loses 220 every second: y grows upward, so a negative number goes down. The star falls slower than the paddle moves (380), so you have time to get under it."
+        }
+      ],
+      after: `
+        <p>Run it: the star crosses the window in under four seconds and disappears at the bottom. There is only one, and it goes right through the paddle without anything happening.</p>
+      `
+    },
+    {
+      title: "Every so often",
+      body: `
+        <p>One star does not make a game. We need a new one every little while, each in a different place.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+star = Sprite("k-rolling-ball/star.png", size=32, center=(500, 820))
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+    star.move_by(0, -220 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "from random import uniform",
+          text: "<code>uniform</code> comes from Python, not from Scena, so it needs this line: it brings it in from the <code>random</code> module."
+        },
+        {
+          at: "@every",
+          text: "<code>@every</code>, on top of the function, tells Scena when to run it: every 0.9 seconds, nonstop. You never call <code>drop_star</code> anywhere; Scena does."
+        },
+        {
+          at: "0.9)",
+          text: "In Python, a number with decimals uses a <strong>point</strong>, never a comma: <code>0.9</code>. The comma separates the values inside the parentheses."
+        },
+        {
+          at: "uniform(80, 920)",
+          text: "<code>uniform</code> picks a random number between 80 and 920, each with the same chance. The x changes with every star, and the 80 margins keep it away from the edges."
+        },
+        {
+          at: "center=(x, 780)",
+          text: "The y is 780, just below the top edge: the star starts fully inside the window, in sight."
+        }
+      ],
+      after: `
+        <p>Run it and wait. The first star falls as before, and new ones keep appearing at the top, one every 0.9 seconds.</p>
+        <details class="ask"><summary>Why do the new ones stay still?</summary><p><code>update</code> only moves <code>star</code>, the one with a name. Nothing moves the others, and they form a row that grows along the top of the window. That is the next problem.</p></details>
+      `
+    },
+    {
+      title: "A list",
+      body: `
+        <p>To move every star, <code>update</code> needs to know which ones they are. The answer is Python you already know: a list.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+stars = []
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    star = Sprite("k-rolling-ball/star.png", size=32, center=(x, 780))
+    stars.append(star)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+    for star in stars:
+        star.move_by(0, -220 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "stars = []",
+          text: "The list starts empty. The star with its own name is gone: now they all come from the <code>@every</code>."
+        },
+        {
+          at: "stars.append(star)",
+          text: "<code>append</code> puts the new star at the end of the list. The name <code>star</code> only lasts long enough to add it."
+        },
+        {
+          at: "for star in stars:",
+          text: "The <code>for</code> goes through the list and gives each star the same <code>move_by</code> as before."
+        }
+      ],
+      after: `
+        <p>Run it: the first one falls after 0.9 seconds, and then they keep coming, one after another, each at its own x.</p>
+      `
+    },
+    {
+      title: "Group",
+      body: [
+        `
+        <p>The list works, but you have to look after it: create it, add to it and, later on, take out the stars that disappear. Scena can do that work with a <code>group</code>, a name that gathers several things in the game. Two lines do everything the list did:</p>
+        `,
+        {
+          snip: `Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+...
+for star in group["stars"]:`
+        },
+        `
+        <p>With <code>group="stars"</code> when it is created, the star starts out in the group, and the list and the <code>append</code> leave the code. <code>group["stars"]</code> is whoever is in the group right now, and the <code>for</code> goes through it just as it went through the list.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80))
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+    for star in group["stars"]:
+        star.move_by(0, -220 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group=\"stars\"",
+          text: "The group's name is text in quotes, and you choose it; it does not have to match any variable's name."
+        }
+      ],
+      after: `
+        <p>Run it: the game is the same as in the last step. Only the code changed.</p>
+        <details class="ask"><summary>So what does the group do better than the list?</summary><p>The difference shows when a star is removed: the group drops it right away, while the list would keep holding a star that no longer exists. And the group's name works in other places in Scena, such as collisions.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the whole <code>for</code>: one <code>move_by</code> on the group moves each of its stars by the same amount.",
+          code: `group["stars"].move_by(0, -220 * dt)`
+        }
+      ]
+    },
+    {
+      title: "Collision",
+      body: `
+        <p>The stars fall and the paddle moves, but they pass right through each other. The real game is still missing: when the paddle touches a star, the star is caught.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="hero")
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+    for star in group["stars"]:
+        star.move_by(0, -220 * dt)
+
+
+@collide("hero", "stars")
+def caught(bar, star):
+    star.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group=\"hero\"",
+          text: "The paddle joins a group too, like the stars, because collisions are about groups, not variables."
+        },
+        {
+          at: "@collide(",
+          text: "<code>@collide</code>: when something in the <code>\"hero\"</code> group touches something in the <code>\"stars\"</code> group, Scena runs <code>caught</code>. It runs once, when the two start touching, not every frame while they stay in contact."
+        },
+        {
+          at: "def caught(bar, star):",
+          text: "The function gets the two that touched, in the order of the groups: first the paddle, then that star."
+        },
+        {
+          at: "star.destroy()",
+          text: "<code>destroy</code> takes the star out of the game: it disappears from the screen and leaves the group, and the <code>for</code> no longer finds it."
+        }
+      ],
+      after: `
+        <p>Run it and catch a few. To see where Scena measures the touch, press <kbd>Ctrl+Shift+7</kbd>: it draws, over each sprite, the outline it uses for collisions.</p>
+      `,
+      try: [
+        {
+          note: "One at a time, in place of the <code>@collide</code> and its function. A side can also be a single thing, by its variable name (<code>bar</code>), or <code>ANYTHING</code>: the paddle against everything it touches.",
+          code: `@collide(bar, "stars")
+def caught(bar, star):
+    star.destroy()
+
+@collide(bar, ANYTHING)
+def caught(bar, other_one):
+    other_one.destroy()`
+        }
+      ]
+    },
+    {
+      title: "Off the screen",
+      body: `
+        <p>This step has no new code. It shows a problem the game already has that you cannot see yet: the stars you let slip by.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="hero")
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+    for star in group["stars"]:
+        star.move_by(0, -220 * dt)
+
+
+@collide("hero", "stars")
+def caught(bar, star):
+    star.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "for star in group[\"stars\"]:",
+          text: "This <code>for</code> moves every star in the group, every frame, including the ones that have already left the window."
+        }
+      ],
+      after: `
+        <p>Run it and let several stars go by without catching them. Press <kbd>Ctrl+Shift+1</kbd>: it turns on the system panel (HUD), where <code>objs</code> is how many things exist in the game. Watch the number for half a minute.</p>
+        <details class="ask"><summary>What happens to <code>objs</code>?</summary><p>It goes up with every missed star, and never comes down. Only the caught stars, removed by <code>destroy</code>, leave the count. The others left the window, but not the game: they are still in the group and still falling.</p></details>
+        <p>To see them, press <kbd>Ctrl+Shift+8</kbd>: the view zooms out (50%, then 25%).</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 230" role="img" aria-label="The window, small, in the middle of the zoomed-out view; below it, missed stars keep falling">
+            <rect class="ray" fill="none" x="200" y="20" width="100" height="80"/>
+            <rect class="bar" x="242" y="90" width="16" height="4"/>
+            <circle class="dot" cx="220" cy="45" r="3"/>
+            <circle class="dot" cx="275" cy="65" r="3"/>
+            <circle class="hot" cx="215" cy="128" r="3"/>
+            <circle class="hot" cx="262" cy="148" r="3"/>
+            <circle class="hot" cx="238" cy="174" r="3"/>
+            <circle class="hot" cx="285" cy="196" r="3"/>
+            <circle class="hot" cx="224" cy="214" r="3"/>
+            <line class="ray" x1="320" y1="120" x2="320" y2="196"/>
+            <polygon class="dot" points="320,204 315,195 325,195"/>
+            <text x="190" y="40" text-anchor="end">the window</text>
+            <text x="190" y="168" text-anchor="end">missed, still falling</text>
+          </svg>
+          <figcaption>With the view zoomed out, the window becomes a frame in the middle. The stars you did not catch are below it, still going down.</figcaption>
+        </figure>
+        <p>Each one still costs Scena work, frame after frame. Good code removes what it no longer needs.</p>
+      `
+    },
+    {
+      title: "The missed ones",
+      body: `
+        <p>Now the fix: remove each star that goes past the bottom edge.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="hero")
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+    for star in group["stars"]:
+        star.move_by(0, -220 * dt)
+        if star.center.y < 0:
+            star.destroy()
+
+
+@collide("hero", "stars")
+def caught(bar, star):
+    star.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if star.center.y < 0:",
+          text: "Right after the move, the <code>if</code> checks the height: <code>star.center.y</code> is the y of the star's center. The window's bottom edge is y = 0; below that, the star is on its way out and never coming back, and the same <code>destroy</code> as in the collision removes it."
+        }
+      ],
+      after: `
+        <p>Run it with the HUD on (<kbd>Ctrl+Shift+1</kbd>). Now <code>objs</code> goes up and down, but always stays close to the same value: stars are born at the top and removed at the bottom.</p>
+      `,
+      try: [
+        {
+          note: "In place of the <code>if</code> in the loop: a red strip at the bottom, in its own group, and a second collision. A star that touches the floor is removed, like one that touches the paddle.",
+          code: `floor = Rect(center=(500, 0), width=1000, height=40, color="crimson", group="floor")
+
+@collide("floor", "stars")
+def fell(floor, star):
+    star.destroy()`
+        }
+      ]
+    },
+    {
+      title: "Scoreboard",
+      body: [
+        `
+        <p>The game works, but it does not tell you how you are doing. Let's count the stars caught and the stars missed, and show both counts on a scoreboard that writes itself:</p>
+        `,
+        {
+          snip: `scoreboard["text"] @= lambda: f"Stars {st.score}   Missed {st.missed}"`
+        },
+        `
+        <p>A <code>lambda</code> is a short function that computes a value from what it reads; this one builds the scoreboard's line from the two numbers. The <code>f</code> before the quotes makes an <em>f-string</em>: each <code>{…}</code> is replaced by the value inside it. With 3 points and 1 missed, the line reads “Stars 3   Missed 1”.</p>
+        <p><code>@=</code> links the text to that function: when a number changes, the text changes. The square brackets point to the field that gets the formula, the scoreboard's <code>text</code>.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+st.score = 0
+st.missed = 0
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Stars {st.score}   Missed {st.missed}"
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="hero")
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+    for star in group["stars"]:
+        star.move_by(0, -220 * dt)
+        if star.center.y < 0:
+            star.destroy()
+            st.missed += 1
+
+
+@collide("hero", "stars")
+def caught(bar, star):
+    star.destroy()
+    st.score += 1
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.score = 0",
+          text: "<code>st</code> is Scena's place to keep the game's information: points, lives, whatever the script needs. This line creates a value called <code>score</code>, starting at zero, and any function in the script can read it and change it."
+        },
+        {
+          at: "Text(text=\"\"",
+          text: "<code>Text</code> writes on the screen. It starts empty, <code>\"\"</code>, because the formula on the next line is what writes it."
+        },
+        {
+          at: "top_left=(20, 780)",
+          text: "<code>top_left</code> is the text's top-left corner; the text grows right and down from there, and y = 780 keeps it up against the top of the window. <code>font_size</code> is the size of the letters."
+        },
+        {
+          at: "st.score += 1",
+          text: "A short way to write <code>st.score = st.score + 1</code>: the current value, plus one. The <code>if</code> for missed stars does the same with <code>st.missed</code>."
+        }
+      ],
+      after: `
+        <p>Run it: the scoreboard counts on its own with every star caught or missed, without a single line in <code>update</code> to rewrite it.</p>
+      `,
+      try: [
+        {
+          note: "The scoreboard on the right: <code>top_right</code> (the top-right corner) stays pinned, and the text grows to the left.",
+          code: `scoreboard = Text(text="", top_right=(980, 780), font_size=20)`
+        }
+      ]
+    },
+    {
+      title: "Effects",
+      example: "catch_stars.py",
+      body: `
+        <p>The game is complete. What it lacks is visual feedback: the paddle reacts when it catches, and a missed star flashes before it disappears, still in sight.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Catch stars")
+Wallpaper("dark navy")
+
+st.score = 0
+st.missed = 0
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Stars {st.score}   Missed {st.missed}"
+
+bar = Sprite("k-rolling-ball/button_blue.png", width=80, center=(500, 80), group="hero")
+
+
+@every(0.9)
+def drop_star():
+    x = uniform(80, 920)
+    Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        bar.move_by(-380 * dt, 0)
+    if keyp("RIGHT"):
+        bar.move_by(380 * dt, 0)
+
+    for star in group["stars"]:
+        star.move_by(0, -220 * dt)
+        if star.center.y < 40:
+            lost(star)
+
+
+@collide("hero", "stars")
+def caught(bar, star):
+    star.destroy()
+    st.score += 1
+    bar.pop(scale=1.25)
+
+
+def lost(star):
+    star.untag("stars")  # so the if does not fire again
+    star.flash(0.2)
+    star.after(0.2, star.destroy)
+    st.missed += 1
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if star.center.y < 40:",
+          text: "Before, the star disappeared once it was off the screen, where you could not see it. Now the <code>if</code> asks <code>y &lt; 40</code>, with the star still visible at the bottom, and calls <code>lost</code>."
+        },
+        {
+          at: "bar.pop(scale=1.25)",
+          text: "<code>pop</code> makes the paddle grow to 1.25 times its size and back, in under two tenths of a second."
+        },
+        {
+          at: "def lost(star):",
+          text: "A plain function, with nothing on top: it runs when the code calls it, here in the <code>if</code> in <code>update</code>."
+        },
+        {
+          at: "star.untag(\"stars\")",
+          text: "<code>untag</code> takes the star out of the group, but not off the screen."
+        },
+        {
+          at: "# so the if does not fire again",
+          text: "Whatever comes after <code>#</code>, up to the end of the line, is a comment: a note for whoever reads the code, which Python ignores. This one is a reminder of why the line is there."
+        },
+        {
+          at: "star.flash(0.2)",
+          text: "<code>flash</code> brightens the star for 0.2 seconds."
+        },
+        {
+          at: "star.after(0.2, star.destroy)",
+          text: "<code>after</code> waits the same 0.2 seconds and then calls <code>destroy</code>. <code>@every</code> repeats; <code>after</code> runs once."
+        }
+      ],
+      after: [
+        `
+        <p>Run it and let a star go by: it flashes at the bottom and disappears.</p>
+        <p>Notice <code>star.destroy</code> without parentheses inside the <code>after</code>: you hand the function to <code>after</code> to call later. With parentheses, it would run right away:</p>
+        `,
+        {
+          snip: `star.after(0.2, star.destroy())`,
+          alt: true
+        },
+        `
+        <p><code>destroy()</code> would remove the star on the spot, and <code>after</code> would get what it returns, which is not a function. Scena stops with an error that says so: <code>after() expected a function</code>.</p>
+        <details class="ask"><summary>What is the <code>untag</code> for, on the first line of <code>lost</code>?</summary><p>Without it, the star would stay in the group during the flash. On the next frame, the <code>for</code> would find it still below 40 and call <code>lost</code> again: the same star counted every frame. Out of the group, it stops falling, and the <code>if</code> no longer sees it.</p></details>
+        `
+      ],
+      try: [
+        {
+          note: "Stars that glow and sway. In <code>drop_star</code>, replace the <code>Sprite</code> line with these three: the star gets a name so it can take the rest. <code>glow</code> turns on the glow. <code>move_by</code> with <code>time=0.4</code> makes the move gradual, over 0.4 seconds, instead of all at once; <code>loops=\"forever\"</code> repeats it, and <code>yoyo=True</code> comes back along the same path. The star sways 100 pixels to the side as it falls.",
+          code: `star = Sprite("k-rolling-ball/star.png", size=32, center=(x, 780), group="stars")
+star.glow = True
+star.move_by(100, 0, time=0.4, loops="forever", yoyo=True)`
+        }
+      ],
+      closing: `
+        <p>The left and right arrows move the paddle. Catch the falling stars; the ones that get past flash at the bottom and disappear. The scoreboard, at the top, counts both.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>@every</code> — runs the function every so often; <code>after</code> waits and runs once.</li>
+          <li><code>group</code> — a name that gathers things; <code>group["stars"]</code> is whoever is in it now, with no list to look after.</li>
+          <li><code>@collide</code> — runs when something in one group touches something in another; <code>destroy</code> takes the thing out of the game.</li>
+          <li>What leaves the screen without being removed leaks: the HUD (<code>objs</code>) shows the count, and the <code>if</code> on the height fixes it.</li>
+          <li><code>st</code> and <code>@=</code> — <code>st</code> keeps the game's data; <code>@=</code> links the scoreboard's text to a formula, which stays true on its own.</li>
+          <li><code>pop</code> and <code>flash</code> — short effects on a thing, without changing what it is.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#mundo-grupos">Groups</a> · <a href="../guide/index.html#colisao-collide">Detect collisions</a> · <a href="../guide/index.html#reativo-entity">Keeping values</a> · <a href="../guide/index.html#reativo-liga">Link (@=)</a> · <a href="../guide/index.html#desenhar-text">Text</a> · <a href="../guide/index.html#aparencia-transientes">Transients</a>.</p>
+        <p><strong>Next:</strong> geometry — shapes you grab with the mouse and shapes that depend on one another.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Make the stars fall faster as the score goes up.</li>
+          <li>Invent a rock that falls now and then and costs points to whoever catches it.</li>
+          <li>Can you end the game, with a message on the screen, when five stars get past?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

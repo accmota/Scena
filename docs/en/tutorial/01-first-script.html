@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>First script — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "01",
+  title: "First script",
+  steps: [
+    {
+      title: "The window",
+      body: `
+        <p>A Scena script is an ordinary Python file: you write the lines, save, and run it, and Scena takes care of the window, the drawing, the keyboard, and the mouse. Your first one has three lines, and all three will be in every script you write.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+
+run()
+`,
+      notes: [
+        {
+          at: "from scena import *",
+          text: "Brings everything Scena offers into your file: shapes, colors, keyboard, mouse. The <code>*</code> means “everything”; thanks to it, you write names like <code>Circle</code> directly, with no prefix."
+        },
+        {
+          at: "init(",
+          text: "<code>init</code> (short for <em>initialize</em>) prepares the window but does not open it yet. <code>width</code> and <code>height</code> give the size of the drawing area; <code>title</code> is the text in the window's title bar."
+        },
+        {
+          at: "run()",
+          text: "<code>run</code> opens the window and sets the game going: many times a second, Scena reads the keyboard and the mouse and redraws the screen, until you close the window. That is why <code>run()</code> is always the last line, and everything you create comes before it."
+        }
+      ],
+      after: `
+        <p>Copy it, save it as <code>first.py</code>, and run it (<code>python first.py</code>). An empty window opens, with a black background and the title “Mouse and keyboard”. Close the window to end the script.</p>
+        <p>Inside the parentheses of <code>init</code>, each piece of information goes in as <code>name=value</code>, separated from the next by a comma: <code>width=1000</code> means “the width is 1000”. With the name written out, the order does not matter, and whatever you leave out gets a default value that Scena chooses.</p>
+        <details class="ask"><summary>Is the window 1000 pixels of your monitor wide?</summary><p>No. The 1000 × 700 are the units you will place everything with, and Scena fits the window to your screen: on a big monitor or a small one, the drawing comes out the same. When a tutorial says something measures 80, it means 80 of these units.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the <code>init</code> line: another drawing area, wider than it is tall, and another title. This is all that changes from one window to another.",
+          code: `init(width=800, height=500, title="My game")`
+        }
+      ]
+    },
+    {
+      title: "The background",
+      body: `
+        <p>The window opened black. Before drawing anything, let's give the background a color.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+run()
+`,
+      notes: [
+        {
+          at: "Wallpaper(",
+          text: "<code>Wallpaper</code> is the window's background, behind everything that gets drawn. The line alone changes the background: you do not need to store anything in a variable or call anything else."
+        },
+        {
+          at: "\"dark navy\"",
+          text: "A color name: <code>navy</code> is a deep blue, and <code>dark</code> in front makes the color darker."
+        }
+      ],
+      after: `
+        <p>Scena knows over a hundred color names (<code>"navy"</code>, <code>"coral"</code>, <code>"gold"</code>…), some with a space in the middle, and accepts <code>dark</code> or <code>light</code> before any of them.</p>
+        <details class="ask"><summary>What if you misspell it, as in <code>"dark navi"</code>?</summary><p>The script runs anyway: Scena warns in the console and suggests the closest name. When something does not come out as expected, look at the console first.</p></details>
+      `,
+      try: [
+        {
+          note: "One at a time, in place of the <code>Wallpaper</code> line. The first is a hex (hexadecimal) color, which the Color step explains. The second is a <code>Gradient</code>, which goes from black at the bottom to navy at the top: <code>angle=90</code> makes the gradient run vertically, from bottom to top, instead of from left to right.",
+          code: `Wallpaper("#1a1430")
+Wallpaper(Gradient("black", "navy", angle=90))`
+        }
+      ]
+    },
+    {
+      title: "Three shapes",
+      body: `
+        <p>Now the first shapes: <code>Rect</code> (rectangle), <code>Circle</code>, and <code>Triangle</code>. Each one takes a <code>center</code>, the middle point of the shape, written as <code>(x, y)</code>. x counts from left to right; y counts <strong>from bottom to top</strong>, like the graphs in school:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 272" role="img" aria-label="The window as a 1000 by 700 rectangle; the origin (0, 0) in the bottom-left corner; x grows to the right and y upward; the three shapes in a row at y = 480">
+            <rect class="guide" x="50" y="20" width="300" height="210"/>
+            <line class="guide" x1="50" y1="86" x2="84" y2="86"/>
+            <line class="guide" x1="98" y1="230" x2="98" y2="97"/>
+            <rect class="bar" x="84.5" y="75.5" width="27" height="21"/>
+            <circle class="bar" cx="140" cy="86" r="12"/>
+            <polygon class="bar" points="182,71.6 169.5,93.2 194.5,93.2"/>
+            <circle class="dot" cx="50" cy="230" r="3.5"/>
+            <line class="ray" x1="60" y1="258" x2="130" y2="258"/>
+            <line class="ray" x1="130" y1="258" x2="124" y2="254"/>
+            <line class="ray" x1="130" y1="258" x2="124" y2="262"/>
+            <line class="ray" x1="36" y1="220" x2="36" y2="150"/>
+            <line class="ray" x1="36" y1="150" x2="32" y2="156"/>
+            <line class="ray" x1="36" y1="150" x2="40" y2="156"/>
+            <text x="138" y="262">x</text>
+            <text x="36" y="142" text-anchor="middle">y</text>
+            <text x="36" y="246" text-anchor="middle">(0, 0)</text>
+            <text x="350" y="13" text-anchor="end">(1000, 700)</text>
+            <text x="46" y="90" text-anchor="end">480</text>
+            <text x="98" y="244" text-anchor="middle">160</text>
+          </svg>
+          <figcaption>The 1000 × 700 window, with <code>(0, 0)</code> in the bottom-left corner. The rectangle is at <code>(160, 480)</code>: 160 to the right and 480 up.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+
+circle = Circle(center=(300, 480), radius=40)
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+
+run()
+`,
+      notes: [
+        {
+          at: "rectangle = Rect(",
+          text: "Each line makes its shape appear on its own. We store each one in a variable (<code>rectangle</code>, <code>circle</code>, <code>triangle</code>) so we can paint them and move them by name later on."
+        },
+        {
+          at: "width=90, height=70",
+          text: "Sizes use the same units as <code>init</code>: 90 wide by 70 tall."
+        },
+        {
+          at: "radius=40",
+          text: "<code>radius</code> is the distance from the center to the edge: with 40, the circle measures 80 from one side to the other."
+        },
+        {
+          at: "angle=90",
+          text: "On the triangle, <code>radius</code> goes from the center to each tip. <code>angle</code> says, in degrees, where one of the tips points: 0 is to the right, 90 is up. Without it, the triangle would start out lying on its side, pointing to the right."
+        }
+      ],
+      after: `
+        <p>Run it: the three appear in a row, navy inside with a light outline, and almost disappear into the background. They need color.</p>
+        <details class="ask"><summary>With <code>center=(160, 50)</code>, where would the rectangle be?</summary><p>Near the bottom edge: y = 50 is 50 units above the bottom of the window. In many drawing programs y grows downward; in Scena, it grows upward.</p></details>
+      `,
+      try: [
+        {
+          note: "Two more shapes, to put with the others, before <code>run()</code>. <code>Square</code> has a single size, <code>length</code>, which is the side. <code>RegularPolygon</code> has <code>n</code> equal sides: <code>n=6</code> is a hexagon; try 5 or 8. As on the triangle, <code>radius</code> goes from the center to a tip.",
+          code: `Square(center=(600, 480), length=70)
+RegularPolygon(n=6, center=(740, 480), radius=42)`
+        }
+      ]
+    },
+    {
+      title: "Color",
+      body: [
+        `
+        <p>The shapes started out with the default color. Now each one gets its own, and the way you change the color works for changing anything on a shape: the variable's name, a dot, what to change.</p>
+        `,
+        {
+          snip: `rectangle.color = "coral"`
+        },
+        `
+        <p><code>rectangle.color</code> is the <code>color</code> of the rectangle stored in <code>rectangle</code>. Writing to it with <code>=</code> paints the shape, and the screen shows the new color right away.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+
+run()
+`,
+      notes: [
+        {
+          at: "\"coral\"",
+          text: "A color by name, as for the background: <code>coral</code> is a pinkish orange, and the triangle's <code>gold</code> is, well, gold."
+        },
+        {
+          at: "\"#FF83FA\"",
+          text: "A hex (hexadecimal) color, as on web pages. Just below, how to read the digits."
+        }
+      ],
+      after: `
+        <p>In hex, three pairs of digits come after the <code>#</code>. Each pair says how much there is of one light, from <code>00</code> (none) to <code>FF</code> (the most):</p>
+        <div class="tbl"><table><thead><tr><th>Pair</th><th>In <code>#FF83FA</code></th></tr></thead><tbody>
+          <tr><td>red</td><td><code>FF</code>, the most</td></tr>
+          <tr><td>green</td><td><code>83</code>, a little over half</td></tr>
+          <tr><td>blue</td><td><code>FA</code>, almost the most</td></tr>
+        </tbody></table></div>
+        <p>Lots of red and lots of blue, with a little green: a bright pink.</p>
+      `,
+      try: [
+        {
+          note: "In place of the two <code>circle</code> lines. The color can also go in when you create the shape, with <code>color=</code>: the circle starts out pink. The second line changes the color afterward, to a name with spaces: <code>deep sky blue</code>, a strong sky blue.",
+          code: `circle = Circle(center=(300, 480), radius=40, color="#FF83FA")
+circle.color = "deep sky blue"`
+        }
+      ]
+    },
+    {
+      title: "Visual",
+      body: `
+        <p>A flat color is only the beginning. Scena has ready-made visuals: ways of drawing the shape with light, depth, or texture, which build on the color it already has.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+run()
+`,
+      notes: [
+        {
+          at: "Halo(\"blue\")",
+          text: "<code>.visual</code> chooses how the shape is drawn. <code>Halo</code> draws the rectangle as a glowing shell; the <code>\"blue\"</code> tints the light blue."
+        },
+        {
+          at: "circle.glow = True",
+          text: "<code>.glow</code> does not change the visual: it adds a light around the shape. <code>True</code> turns it on, <code>False</code> turns it off."
+        },
+        {
+          at: "Neon()",
+          text: "<code>Neon()</code> turns the triangle into a lit neon tube, in its own gold."
+        }
+      ],
+      after: `
+        <p>Run it and compare: the circle is still pink, now with a light around it; the rectangle and the triangle have changed their look.</p>
+        <details class="ask"><summary>Can a shape have two visuals?</summary><p>No: each shape has only one visual, and writing another <code>.visual</code> replaces the previous one. The glow is something else and lives alongside the visual: a triangle can have <code>Neon()</code> and <code>glow</code> at the same time.</p></details>
+      `,
+      try: [
+        {
+          note: "Other visuals, one at a time, in place of the <code>Halo</code> line. <code>Rim</code> lights up the outline; <code>Flame</code> fills the shape with fire; <code>Metal</code> is brushed metal; <code>Sphere</code> gives it the volume of a ball; <code>Gel</code> looks like a translucent candy. If you paste all five lines at once, only the last one counts.",
+          code: `rectangle.visual = Rim()
+rectangle.visual = Flame()
+rectangle.visual = Metal()
+rectangle.visual = Sphere()
+rectangle.visual = Gel()`
+        }
+      ]
+    },
+    {
+      title: "A sprite",
+      body: `
+        <p>Shapes are drawn with numbers. For a drawing with detail, we use a ready-made image: a <code>Sprite</code> (in games, an image that moves around the screen). This star will be the script's main character.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+run()
+`,
+      notes: [
+        {
+          at: "\"space/star_gold.png\"",
+          text: "The name of the image file, in quotes. Copy the <code>media/</code> folder from the Scena examples next to <code>first.py</code>: this is the file <code>media/space/star_gold.png</code>, a gold star."
+        },
+        {
+          at: "size=48",
+          text: "The image has its own size in pixels, which is rarely what you want on screen. <code>size</code> says how long the longer side should be, in the units of <code>init</code>; the other side keeps the proportion, without stretching."
+        }
+      ],
+      after: `
+        <p>Run it: the star appears halfway across, below the shapes.</p>
+        <details class="ask"><summary>What if the file is not there?</summary><p>The script does not stop: a magenta and black checkerboard appears in place of the image, and the console says which file was missing.</p></details>
+      `,
+      try: [
+        {
+          note: "One at a time, in place of the <code>star</code> line. With <code>width</code> you choose only the width; with <code>height</code>, only the height. Either way, the other side keeps the proportion, as with <code>size</code>.",
+          code: `star = Sprite("space/star_gold.png", width=64, center=(500, 200))
+star = Sprite("space/star_gold.png", height=64, center=(500, 200))`
+        }
+      ]
+    },
+    {
+      title: "Every frame",
+      body: `
+        <p>So far, everything stands still. To move the star, the script needs a place that runs all the time, while the window is open.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+
+def update(dt):
+    star.move_by(200 * dt, 0)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def update",
+          text: "On each turn of the <code>run()</code> loop, Scena draws a new picture of the screen, a frame, about 60 per second. If the script has a function called <code>update</code>, Scena calls it once per frame, before drawing. You never call it anywhere: the right name is enough."
+        },
+        {
+          at: "(dt)",
+          text: "On each call, Scena hands over <code>dt</code> (short for <em>delta time</em>): how many seconds have passed since the previous frame. At 60 frames per second, it is about 0.017."
+        },
+        {
+          at: "move_by(",
+          text: "<code>move_by</code> moves the star from where it is: first how far to go in x (positive goes right), then in y (positive goes up). Here, a tiny step to the right every frame, and nothing up or down."
+        }
+      ],
+      after: `
+        <p>Run it: the star crosses the window to the right and leaves through the edge, without stopping.</p>
+        <p>Why multiply by <code>dt</code>? Because each computer draws a different number of frames per second. With <code>dt</code>, the tiny steps add up to 200 in one second on any machine:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 132" role="img" aria-label="Two rows of marks over one second: the top row has sixty marks, steps of 3.3; the bottom row has thirty, steps of 6.7; both end at the same line, 200">
+            <line class="guide" x1="340" y1="30" x2="340" y2="100"/>
+            <line class="ray" x1="40" y1="40" x2="340" y2="40" style="stroke-width: 12; stroke-dasharray: 1 4"/>
+            <line class="ray" x1="40" y1="90" x2="340" y2="90" style="stroke-width: 12; stroke-dasharray: 1.5 8.5"/>
+            <text x="40" y="24">fast: 60 frames, step ≈ 3.3</text>
+            <text x="40" y="74">slow: 30 frames, step ≈ 6.7</text>
+            <text x="40" y="120" text-anchor="middle">0</text>
+            <text x="340" y="120" text-anchor="middle">200</text>
+          </svg>
+          <figcaption>One second of star, one mark per frame. The slow machine has half the frames, but each <code>dt</code> is twice as long, and so is the step: both reach 200. That is what <code>200 * dt</code> means: 200 per second.</figcaption>
+        </figure>
+      `,
+      try: [
+        {
+          note: "Shapes move too. Inside <code>update</code>, next to the star's line: the rectangle goes right, the circle goes down (negative y), and the triangle goes diagonally, left and up.",
+          code: `rectangle.move_by(80 * dt, 0)
+circle.move_by(0, -60 * dt)
+triangle.move_by(-40 * dt, 40 * dt)`
+        }
+      ]
+    },
+    {
+      title: "A key",
+      body: `
+        <p>The star runs off on its own. Now it will move only when you tell it to, with the right arrow key.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+
+def update(dt):
+    if keyp("RIGHT"):
+        star.move_by(200 * dt, 0)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "keyp(\"RIGHT\")",
+          text: "<code>keyp</code> (short for <em>key pressed</em>) asks about the state of the keyboard. <code>keyp(\"RIGHT\")</code> answers <code>True</code> while the right arrow is held down and <code>False</code> when it is released. The key's name goes in quotes."
+        }
+      ],
+      after: `
+        <p>Run it, hold the arrow down, and let go.</p>
+        <details class="ask"><summary>Why does the star stop as soon as you let go?</summary><p><code>update</code> runs every frame, so the <code>if</code> asks its question every frame too. On the first frame with the arrow released, <code>keyp</code> answers <code>False</code>, and <code>move_by</code> does not run.</p></details>
+      `
+    },
+    {
+      title: "The four arrows",
+      body: `
+        <p>One direction becomes four: the same <code>if</code> repeated, one for each arrow. From one to the next, the only things that change are where the number goes in <code>move_by</code> and its sign:</p>
+        <div class="tbl"><table><thead><tr><th>Key</th><th>In <code>move_by</code></th></tr></thead><tbody>
+          <tr><td><code>"LEFT"</code></td><td>negative x</td></tr>
+          <tr><td><code>"RIGHT"</code></td><td>positive x</td></tr>
+          <tr><td><code>"UP"</code></td><td>positive y</td></tr>
+          <tr><td><code>"DOWN"</code></td><td>negative y</td></tr>
+        </tbody></table></div>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+
+def update(dt):
+    SPEED = 400
+    if keyp("LEFT"):
+        star.move_by(-SPEED * dt, 0)
+    if keyp("RIGHT"):
+        star.move_by(SPEED * dt, 0)
+    if keyp("UP"):
+        star.move_by(0, SPEED * dt)
+    if keyp("DOWN"):
+        star.move_by(0, -SPEED * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "SPEED = 400",
+          text: "The number now has a name: 400 units per second, twice as fast as before. Written in one place, it can be adjusted in one line instead of four. A name in capitals is a Python custom for a value that does not change while the program runs."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>What about two arrows held at the same time?</summary><p>The star moves diagonally. These are four separate <code>if</code>s, not <code>elif</code>: in the same frame, more than one can be true, and the two <code>move_by</code> calls add up.</p></details>
+      `,
+      try: [
+        {
+          note: "Inside <code>update</code>, after the arrows. <code>keyp.once</code> answers <code>True</code> only on the frame the key is pressed, not while it stays held. Each tap of the space bar (<code>SPACE</code>) takes the star back to its starting point: writing to <code>center</code> puts the shape straight in a place.",
+          code: `if keyp.once("SPACE"):
+    star.center = (500, 200)`
+        }
+      ]
+    },
+    {
+      title: "Click",
+      body: `
+        <p>Now the mouse. A click on the triangle will change its color to a random one.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+
+def update(dt):
+    SPEED = 400
+    if keyp("LEFT"):
+        star.move_by(-SPEED * dt, 0)
+    if keyp("RIGHT"):
+        star.move_by(SPEED * dt, 0)
+    if keyp("UP"):
+        star.move_by(0, SPEED * dt)
+    if keyp("DOWN"):
+        star.move_by(0, -SPEED * dt)
+
+
+@click(triangle)
+def clicked(shape):
+    shape.color = Color.random()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "@click(triangle)",
+          text: "<code>@click</code>, written above the function, tells Scena when to run it: when someone clicks the triangle. As with <code>update</code>, you do not call <code>clicked</code>; Scena does, on every click."
+        },
+        {
+          at: "(shape)",
+          text: "Scena hands the clicked shape to this parameter, which here is called <code>shape</code>."
+        },
+        {
+          at: "Color.random()",
+          text: "<code>Color</code> is Scena's color type, and <code>Color.random()</code> picks a new random color each time it is called. It is the same <code>.color</code> as before, now with a random color."
+        }
+      ],
+      after: `
+        <p>Run it and click the triangle a few times: each click brings another color. The other shapes do not respond yet.</p>
+      `,
+      try: [
+        {
+          note: "One more line inside <code>clicked</code>, after the color. <code>pop</code> makes the shape swell and shrink back, in a quick pulse. <code>scale=1.25</code> is the size at the peak of the pulse: 25% bigger.",
+          code: `shape.pop(scale=1.25)`
+        }
+      ]
+    },
+    {
+      title: "Click on several",
+      body: `
+        <p>Only the triangle responds. The other two shapes do not need another function: all three go into the same <code>@click</code>, separated by commas.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+
+def update(dt):
+    SPEED = 400
+    if keyp("LEFT"):
+        star.move_by(-SPEED * dt, 0)
+    if keyp("RIGHT"):
+        star.move_by(SPEED * dt, 0)
+    if keyp("UP"):
+        star.move_by(0, SPEED * dt)
+    if keyp("DOWN"):
+        star.move_by(0, -SPEED * dt)
+
+
+@click(rectangle, circle, triangle)
+def clicked(shape):
+    shape.color = Color.random()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "shape.color",
+          text: "This is where the <code>shape</code> parameter shows what it is for: it receives whatever was clicked. Click the circle, and <code>shape</code> is the circle; click the rectangle, and it is the rectangle. The same line always paints the right shape."
+        }
+      ],
+      after: `
+        <p>Run it and click all three: each one changes color when it is the one clicked, and the others stay as they are.</p>
+        <details class="ask"><summary>What if the line were <code>triangle.color = Color.random()</code>?</summary><p>A click on any of the three would paint the triangle. That is why the function already wrote <code>shape.color</code>, back in the previous step.</p></details>
+      `
+    },
+    {
+      title: "Drop circles",
+      body: [
+        `
+        <p>One more way to react: the D key drops a small circle, in a random color, right where the mouse pointer is. What triggers it is <code>@when</code>:</p>
+        `,
+        {
+          snip: `@when(lambda: keyp("D"))`
+        },
+        `
+        <p>Like <code>@click</code>, it sits above the function and tells Scena when to run it. But instead of a click, it takes a yes-or-no question. Scena asks the question again every frame and runs the function at the moment the answer <em>turns</em> <code>True</code>.</p>
+        <p>To ask the question again, Scena needs it as a function, not as a ready-made answer. <code>lambda</code> is Python's word for writing a short function, on a single line, that computes a value from what it reads: <code>lambda: keyp("D")</code> answers, each time Scena calls it, whether D is held down at that moment.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="A timeline: the D key is held down for a stretch; during that stretch, the if in update answers yes on every frame; @when runs only once, at the instant the key goes down">
+            <line class="guide" x1="120" y1="38" x2="380" y2="38"/>
+            <rect class="bar" x="170" y="22" width="150" height="16"/>
+            <line class="ray" x1="170" y1="70" x2="320" y2="70" style="stroke-width: 12; stroke-dasharray: 1 4"/>
+            <circle class="hot" cx="170" cy="106" r="5"/>
+            <text x="12" y="34">D held</text>
+            <text x="12" y="74">if keyp("D")</text>
+            <text x="12" y="110">@when</text>
+            <text x="170" y="132" text-anchor="middle">down</text>
+            <text x="320" y="132" text-anchor="middle">up</text>
+          </svg>
+          <figcaption>While D is held down, an <code>if keyp("D")</code> in <code>update</code> answers yes on every frame. <code>@when</code> runs only once, at the instant the answer turns <code>True</code>.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+
+def update(dt):
+    SPEED = 400
+    if keyp("LEFT"):
+        star.move_by(-SPEED * dt, 0)
+    if keyp("RIGHT"):
+        star.move_by(SPEED * dt, 0)
+    if keyp("UP"):
+        star.move_by(0, SPEED * dt)
+    if keyp("DOWN"):
+        star.move_by(0, -SPEED * dt)
+
+
+@click(rectangle, circle, triangle)
+def clicked(shape):
+    shape.color = Color.random()
+
+
+@when(lambda: keyp("D"))
+def drop_circle():
+    Circle(center=(mouse.x, mouse.y), radius=20, color=Color.random())
+
+
+run()
+`,
+      notes: [
+        {
+          at: "mouse.x, mouse.y",
+          text: "<code>mouse.x</code> and <code>mouse.y</code> are the pointer's position, in the same units as the shapes."
+        },
+        {
+          at: "radius=20, color=Color.random()",
+          text: "The color goes straight in at creation, with <code>color=</code>. The circle is not stored in a variable, because we will not touch it afterward."
+        }
+      ],
+      after: `
+        <p>Run it, point the mouse, and press D. Hold it: nothing repeats. For another circle, let go and press again. Each dropped circle stays on screen until the script ends.</p>
+      `
+    },
+    {
+      title: "When the star arrives",
+      example: "first_script.py",
+      body: `
+        <p>The question in <code>@when</code> does not have to be about a key: it can be anything that answers <code>True</code> or <code>False</code>. Here, it is about the star: has it passed the line x = 800, near the right edge?</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 250" role="img" aria-label="The window with a dashed vertical line at x 800; the star, left of the line, moves right; left of the line the question answers False, right of it, True">
+            <rect class="ray" fill="none" x="40" y="20" width="300" height="210"/>
+            <line class="guide" x1="280" y1="20" x2="280" y2="230"/>
+            <circle class="hot" cx="190" cy="170" r="6"/>
+            <line class="ray" x1="202" y1="170" x2="288" y2="170"/>
+            <polygon class="dot" points="296,170 288,165 288,175"/>
+            <text x="160" y="50" text-anchor="middle">False</text>
+            <text x="310" y="50" text-anchor="middle">True</text>
+            <text x="280" y="246" text-anchor="middle">x = 800</text>
+          </svg>
+          <figcaption>The question answers <code>False</code> while the star is left of the line. On the frame it crosses, the answer turns <code>True</code>, and the function runs once.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper("dark navy")
+
+rectangle = Rect(center=(160, 480), width=90, height=70)
+rectangle.color = "coral"
+rectangle.visual = Halo("blue")
+
+circle = Circle(center=(300, 480), radius=40)
+circle.color = "#FF83FA"
+circle.glow = True
+
+triangle = Triangle(center=(440, 480), radius=48, angle=90)
+triangle.color = "gold"
+triangle.visual = Neon()
+
+star = Sprite("space/star_gold.png", size=48, center=(500, 200))
+
+
+def update(dt):
+    SPEED = 400
+    if keyp("LEFT"):
+        star.move_by(-SPEED * dt, 0)
+    if keyp("RIGHT"):
+        star.move_by(SPEED * dt, 0)
+    if keyp("UP"):
+        star.move_by(0, SPEED * dt)
+    if keyp("DOWN"):
+        star.move_by(0, -SPEED * dt)
+
+
+@click(rectangle, circle, triangle)
+def clicked(shape):
+    shape.color = Color.random()
+
+
+@when(lambda: keyp("D"))
+def drop_circle():
+    Circle(center=(mouse.x, mouse.y), radius=20, color=Color.random())
+
+
+@when(lambda: star.center.x > 800)
+def arrived():
+    triangle.color = "white"
+    circle.radius = 60
+
+
+run()
+`,
+      notes: [
+        {
+          at: "star.center.x > 800",
+          text: "<code>star.center</code> is the star's middle point, and <code>.x</code> is just the x part of that point."
+        },
+        {
+          at: "circle.radius = 60",
+          text: "Writing to <code>radius</code> changes the size, just as writing to <code>color</code> changes the color: the circle grows from radius 40 to 60."
+        }
+      ],
+      after: `
+        <p>Run it and take the star to the right: the triangle turns white and the circle grows.</p>
+        <details class="ask"><summary>How do you make the triangle turn white again?</summary><p>While the star stays past 800, the answer stays <code>True</code> and nothing repeats. Paint the triangle with a click, bring the star back to the left, and cross the line again: the answer turns <code>True</code> once more, and the triangle turns white.</p></details>
+      `,
+      try: [
+        {
+          note: "Other questions, next to <code>arrived</code>. The first looks at height: it paints the rectangle lime green when the star rises above y = 400. The second looks at the mouse: it lights a glow on the star when the pointer enters the strip on the left (x &lt; 200).",
+          code: `@when(lambda: star.center.y > 400)
+def went_up():
+    rectangle.color = "lime"
+
+@when(lambda: mouse.x < 200)
+def corner():
+    star.glow = True`
+        }
+      ],
+      closing: `
+        <p>The arrow keys move the star. A click on one of the three shapes gives it a new random color. D drops a circle under the mouse. Take the star past x = 800: the triangle turns white and the circle grows.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>init</code> and <code>run</code> — open the window and run the loop; <code>from scena import *</code> brings in everything. y grows upward.</li>
+          <li><code>Wallpaper</code>, <code>Rect</code>, <code>Circle</code> — each line makes the thing appear on its own; <code>center</code> says where.</li>
+          <li><code>.color</code>, <code>.visual</code>, <code>.glow</code> — changing something on a shape is the name, a dot, what to change. The visual and the glow live together.</li>
+          <li><code>Sprite</code> — an image from the <code>media/</code> folder, at the size you ask for.</li>
+          <li><code>update(dt)</code>, <code>move_by</code>, <code>keyp</code> — Scena calls <code>update</code> every frame; <code>dt</code> turns "per second" into "per frame".</li>
+          <li><code>@click</code> and <code>@when</code> — tell Scena when to run the function: on a click, or when a question (<code>lambda</code>) turns true.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#script-minimo">Minimal script</a> · <a href="../guide/index.html#desenhar-shapes">Shapes</a> · <a href="../guide/index.html#desenhar-sprite">Sprite</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#frame-teclado">Keyboard</a> · <a href="../guide/index.html#reagir-pointer">Click / drag</a> · <a href="../guide/index.html#reagir-when">@when</a>.</p>
+        <p><strong>Next:</strong> the star becomes a game — stars fall, a bar catches them, and a scoreboard keeps count.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Change colors, sizes, and positions as much as you like, and run again after each change: that is how you learn what each number does.</li>
+          <li>Add a second star that moves with W, A, S, and D: a two-player game starts like this.</li>
+          <li>Can you make the circle go back to its old size when the star returns to the left of x = 800?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

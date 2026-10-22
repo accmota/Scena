@@ -2,49 +2,52 @@
 
 Beginner-style Scena games. Prefer these over smoke/bench when learning the API.
 They read like a beginner's code: flat classes, Portuguese names, game data in
-`st`, no advanced Python.
+`st`, no advanced Python. A tutorial already translated also ends in an English
+twin of its file (English names, the same program), next to the Portuguese one.
 
 ## Tutorial endpoints
 
 Each tutorial in [`docs/pt/tutorial/`](../docs/pt/tutorial/index.html) ends in one of these
 files: the file is the last step's code plus a docstring, nothing else
 (`tests/test_tutorials.py` compares them). Change the tutorial first; then copy
-its last step here.
+its last step here. The English file is the English page's last step
+(`docs/en/tutorial/`); `tools/tutorial/tutorial_parity.py` holds it to the
+Portuguese one, name for name.
 
-| Tutorial | File |
-| --- | --- |
-| 01 Primeiro script | `primeiro_script.py` |
-| 02 Pegar estrelas | `pegar_estrelas.py` |
-| 03 Geometria | `ponto_medio.py` |
-| 04 UI Widgets | `cadeia_de_bolas.py`, `desenho.py`, `letreiro.py` |
-| 05 Naves | `naves_1.py` |
-| 06 Naves II · Classes | `bolhas.py`, `naves_2_classes.py` |
-| 07 Naves III · Atlas, explosão, vidas | `naves_3_vidas.py` |
-| 08 Naves IV · Escudo | `naves_4_escudo.py` |
-| 09 Fórmulas | `formulas.py` |
-| 10 Bolas | `bolas.py` |
-| 11 Interação | `interacao.py`, `ceu_estrelado.py` |
-| 12 Movimento | `movimento.py` |
-| 13 Trilhas | `trilhas.py` |
-| 14 Órbitas | `orbitas.py` |
-| 15 Avião | `aviao.py` |
-| 16 Avião II · Profundidade | `aviao_profundidade.py` |
-| 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` |
-| 18 Ninja | `ninja_1.py` |
-| 19 Ninja II · O mundo | `ninja_2_mundo.py` |
-| 20 Colisão | `colisao.py` |
-| 21 Ligue 4 | `ligue4.py` |
-| 22 Estúdio · Piano | `piano.py` |
-| 23 Estúdio II · Voz | `estudio_voz.py` |
-| 24 Naves V · Capítulos e sequências | `naves_5_modos.py` |
-| 25 Naves VI · Atos | `naves_6_atos.py` |
-| 26 Ninja III · O nível | `ninja_3_nivel.py` |
-| 27 Ninja IV · Perigos | `ninja_4_perigos.py` |
-| 28 Ninja V · Espada | `ninja_5_espada.py` |
-| 29 Corredor infinito | `corredor.py` |
-| 30 Giros | `barras_girando.py`, `osciloscopio.py` |
-| 31 Duelo | `duelo.py` |
-| 32 Corrida | `corrida.py` |
+| Tutorial | File | English |
+| --- | --- | --- |
+| 01 Primeiro script | `primeiro_script.py` | `first_script.py` |
+| 02 Pegar estrelas | `pegar_estrelas.py` | `catch_stars.py` |
+| 03 Geometria | `ponto_medio.py` | `midpoint.py` |
+| 04 UI Widgets | `cadeia_de_bolas.py`, `desenho.py`, `letreiro.py` | `ball_chain.py`, `drawing.py`, `banner.py` |
+| 05 Naves | `naves_1.py` |  |
+| 06 Naves II · Classes | `bolhas.py`, `naves_2_classes.py` |  |
+| 07 Naves III · Atlas, explosão, vidas | `naves_3_vidas.py` |  |
+| 08 Naves IV · Escudo | `naves_4_escudo.py` |  |
+| 09 Fórmulas | `formulas.py` |  |
+| 10 Bolas | `bolas.py` |  |
+| 11 Interação | `interacao.py`, `ceu_estrelado.py` |  |
+| 12 Movimento | `movimento.py` |  |
+| 13 Trilhas | `trilhas.py` |  |
+| 14 Órbitas | `orbitas.py` |  |
+| 15 Avião | `aviao.py` |  |
+| 16 Avião II · Profundidade | `aviao_profundidade.py` |  |
+| 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` |  |
+| 18 Ninja | `ninja_1.py` |  |
+| 19 Ninja II · O mundo | `ninja_2_mundo.py` |  |
+| 20 Colisão | `colisao.py` |  |
+| 21 Ligue 4 | `ligue4.py` |  |
+| 22 Estúdio · Piano | `piano.py` |  |
+| 23 Estúdio II · Voz | `estudio_voz.py` |  |
+| 24 Naves V · Capítulos e sequências | `naves_5_modos.py` |  |
+| 25 Naves VI · Atos | `naves_6_atos.py` |  |
+| 26 Ninja III · O nível | `ninja_3_nivel.py` |  |
+| 27 Ninja IV · Perigos | `ninja_4_perigos.py` |  |
+| 28 Ninja V · Espada | `ninja_5_espada.py` |  |
+| 29 Corredor infinito | `corredor.py` |  |
+| 30 Giros | `barras_girando.py`, `osciloscopio.py` |  |
+| 31 Duelo | `duelo.py` |  |
+| 32 Corrida | `corrida.py` |  |
 
 The appendices (`A-…` to `G-…` in the same folder) are reference pages made of
 short programs; they end in no file here.

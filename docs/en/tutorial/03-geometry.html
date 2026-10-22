@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometry — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "03",
+  title: "Geometry",
+  steps: [
+    {
+      title: "Two circles",
+      part: "Script 1 · Circles and lines",
+      body: `
+        <p>This tutorial is about geometry, in two scripts. In the first, you drag circles and a rectangle with the mouse and connect them with lines that follow them. In the second, you build the midpoint of a segment using only circles, the way it is done with a compass.</p>
+        <p>We start with two circles, written in two different ways.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometry")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+
+run()
+`,
+      notes: [
+        {
+          at: "radius=60",
+          text: "The way you already know: a <code>center</code> and a <code>radius</code>."
+        },
+        {
+          at: "perimeter_point=(620, 400)",
+          text: "<code>perimeter_point</code> (a point on the perimeter, that is, on the edge) replaces the radius with a point the outline passes through. Scena measures the distance from the center to that point and uses it as the radius."
+        }
+      ],
+      after: `
+        <p>Run it: two circles, nothing different to see. The difference is in what Scena keeps:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 160" role="img" aria-label="Two circles: the one on the left has a point at the center and the radius, 60, as a number; the one on the right has two points, the center and a point on the edge">
+            <circle class="bar" cx="100" cy="74" r="50"/>
+            <line class="ray" x1="100" y1="74" x2="150" y2="74"/>
+            <circle class="dot" cx="100" cy="74" r="4"/>
+            <text x="125" y="68" text-anchor="middle">60</text>
+            <circle class="bar" cx="290" cy="74" r="50"/>
+            <line class="ray" x1="290" y1="74" x2="320" y2="34"/>
+            <circle class="dot" cx="290" cy="74" r="4"/>
+            <circle class="dot" cx="320" cy="34" r="4"/>
+            <text x="100" y="146" text-anchor="middle">center + radius</text>
+            <text x="290" y="146" text-anchor="middle">center + perimeter_point</text>
+          </svg>
+          <figcaption>On the left, a point and a number. On the right, two points, and the radius is the distance between them.</figcaption>
+        </figure>
+        <p>You will see this once you can grab them with the mouse.</p>
+      `,
+      try: [
+        {
+          note: "Other shapes and other ways to write them, one at a time, in place of the circles. Notice the ones built from two points: the <code>Circle</code> with <code>p1</code> and <code>p2</code> (the ends of a diameter), the <code>Rect</code> with two opposite corners, the <code>Line</code> from one point to another. <code>Polygon</code> connects its list of <code>points</code>.",
+          code: `Circle(p1=(500, 340), p2=(680, 460))
+Rect(center=(400, 350), width=160, height=80, color="coral")
+Rect(p1=(300, 280), p2=(520, 420), color="coral")
+Square(center=(400, 350), length=90, color="gold")
+Line(p1=(250, 250), p2=(550, 450), color="white")
+Ellipse(center=(400, 350), width=180, height=90, color="turquoise")
+Polygon(points=[(320, 280), (480, 290), (500, 420), (300, 400)], color="violet")
+RegularPolygon(n=5, center=(400, 350), radius=70, color="sky blue")
+Triangle(center=(400, 350), radius=70, color="gold")`
+        }
+      ]
+    },
+    {
+      title: "Handles",
+      body: `
+        <p>Now let's grab the circles with the mouse, by their handles.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometry")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+c1.show_handles()
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+c2.show_handles()
+
+run()
+`,
+      notes: [
+        {
+          at: "c1.show_handles()",
+          text: "<code>show_handles</code> draws a small dot on each <em>free</em> point of the shape, and you can drag each dot. Free means a point you gave Scena, not one it computes."
+        }
+      ],
+      after: `
+        <p>Run it and drag the handles of both circles:</p>
+        <div class="tbl"><table><thead><tr><th>Circle</th><th>Handles</th><th>When you drag</th></tr></thead><tbody>
+          <tr><td><code>c1</code></td><td>one, at the center: the radius is a number, and there is nothing to grab</td><td>the circle moves along, always with radius 60</td></tr>
+          <tr><td><code>c2</code></td><td>two: the center and the point on the edge</td><td>by the edge, the circle grows or shrinks; by the center, the edge point stays put, and the radius changes</td></tr>
+        </tbody></table></div>
+        <p>The handles show which points each shape is made of.</p>
+      `,
+      try: [
+        {
+          note: "The same comparison with rectangles. With <code>p1</code> and <code>p2</code>, the <code>Rect</code> is made of two opposite corners, and each corner becomes a handle. With <code>center</code>, <code>width</code> and <code>height</code>, only the center is a point; width and height are numbers.",
+          code: `block = Rect(p1=(200, 200), p2=(380, 320), color="coral")
+block.show_handles()
+
+other = Rect(center=(600, 280), width=140, height=80, color="gold")
+other.show_handles()`
+        }
+      ]
+    },
+    {
+      title: "The whole shape",
+      body: `
+        <p>A handle moves one point at a time. Sometimes you want to move the whole shape somewhere else.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometry")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+c1.show_handles()
+c1.draggable = True
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+c2.show_handles()
+c2.draggable = True
+
+run()
+`,
+      notes: [
+        {
+          at: "c1.draggable = True",
+          text: "With <code>draggable</code> set to <code>True</code>, you grab the circle anywhere on its body, and it moves as a whole, points and all."
+        }
+      ],
+      after: `
+        <p>The two gestures work together. On the second circle, grab the edge handle and it changes size; grab the body, away from the handles, and it changes place without changing size.</p>
+      `
+    },
+    {
+      title: "Live lines",
+      body: [
+        `
+        <p>So far, each shape lives on its own. Now come shapes that depend on others: lines that connect the shapes and follow them as you drag. The secret is in the ends:</p>
+        `,
+        {
+          snip: `l3 = Line(p1=lambda: c1.center, p2=lambda: c2.center, color="white")`
+        },
+        `
+        <p>A <code>Line</code> goes from <code>p1</code> to <code>p2</code>. Given fixed points, it would stay put; here, each end gets a <code>lambda</code>, a short function that computes a value from what it reads. <code>lambda: c1.center</code> reads the center of <code>c1</code>. Scena keeps this math and redoes it every frame: when the circle moves, the end of the line moves with it.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Geometry")
+Wallpaper("dark navy")
+
+c1 = Circle(center=(300, 500), radius=60, color="deep sky blue")
+c1.show_handles()
+c1.draggable = True
+
+c2 = Circle(center=(600, 350), perimeter_point=(620, 400), color="orchid")
+c2.show_handles()
+c2.draggable = True
+
+block = Rect(p1=(200, 150), p2=(500, 250), color="gold")
+block.show_handles()
+block.draggable = True
+
+l1 = Line(p1=lambda: block.top_left, p2=lambda: c1.center, color="white")
+l2 = Line(p1=lambda: block.bottom_right, p2=lambda: c2.center, color="white")
+l3 = Line(p1=lambda: c1.center, p2=lambda: c2.center, color="white")
+
+l1.visual = ElectricBolt()
+l2.visual = ElectricBolt()
+l3.visual = ElectricBolt()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "block = Rect(",
+          text: "One more shape to connect: a <code>Rect</code> written with two corners, <code>p1</code> and <code>p2</code> (point 1 and point 2). With handles and <code>draggable</code>, you can stretch it by its corners or move it whole."
+        },
+        {
+          at: "block.top_left",
+          text: "<code>top_left</code> and <code>bottom_right</code> are corners Scena computes from <code>p1</code> and <code>p2</code>. The line reads them the same way it reads the center of a circle."
+        },
+        {
+          at: "l1.visual = ElectricBolt()",
+          text: "<code>ElectricBolt</code> is a visual for lines: sparks running along the stroke."
+        }
+      ],
+      after: `
+        <p>Run it and drag any shape. The three lines follow: <code>l1</code> and <code>l2</code> connect the box to the circles, <code>l3</code> connects one circle to the other.</p>
+      `,
+      try: [
+        {
+          note: "The two ways side by side. Without <code>lambda</code>, Python reads <code>block.top_left</code> once, when the line is created, and the end stays in that place forever. With <code>lambda</code>, the end follows the corner. Paste them and drag the box.",
+          code: `Line(p1=block.top_left, p2=c1.center)           # copied now — does not follow
+Line(p1=lambda: block.top_left, p2=lambda: c1.center)  # live`
+        }
+      ],
+      recap: `
+        <ul>
+          <li><code>center</code> and <code>radius</code>, or <code>perimeter_point</code> — two ways to write the same circle; in the second, the point on the edge is a piece you own too.</li>
+          <li><code>show_handles</code> — a handle on each free point; dragging a handle moves only that point.</li>
+          <li><code>draggable</code> — grabs the whole shape anywhere on its body.</li>
+          <li><code>lambda</code> on an end of a <code>Line</code> — the line reads the point every frame and follows it; without it, the end is a copy taken now.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#ptr-handle">Drag handles</a> · <a href="../guide/index.html#ptr-drag">Drag / drop</a> · <a href="../guide/index.html#shape-line">Line</a> · <a href="../guide/index.html#reativo-lambda">Lambda</a>.</p>
+        <p><strong>Next script:</strong> the midpoint of a segment, built from nothing but circles and crossings.</p>
+      `
+    },
+    {
+      title: "The segment",
+      part: "Script 2 · Midpoint",
+      fresh: true,
+      body: `
+        <p>A new script, in a new file: the <strong>midpoint</strong> of a segment, the point exactly in the middle, at the same distance from both ends. You could compute it by adding the ends and dividing by two. But we won't do any math at all: only circles and the points where they cross, the way Greek geometers did it with straightedge and compass more than two thousand years ago.</p>
+        <p>Each piece of the construction will be a Scena shape, tied to the earlier ones with <code>lambda</code>. At the end, you drag one end of the segment, the whole construction rebuilds itself, and the midpoint stays in the middle: a proof from the geometry book becomes a figure you test with the mouse.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 220" role="img" aria-label="A horizontal segment; a circle centered on each end, passing through the other; the circles cross above and below the segment; the line between the crossings cuts the segment in the middle">
+            <circle class="guide" cx="140" cy="110" r="100"/>
+            <circle class="guide" cx="240" cy="110" r="100"/>
+            <line class="ray" x1="190" y1="23.4" x2="190" y2="196.6"/>
+            <rect class="bar" x="140" y="108.5" width="100" height="3"/>
+            <circle class="dot" cx="140" cy="110" r="4.5"/>
+            <circle class="dot" cx="240" cy="110" r="4.5"/>
+            <circle class="dot" cx="190" cy="23.4" r="3.5"/>
+            <circle class="dot" cx="190" cy="196.6" r="3.5"/>
+            <circle class="hot" cx="190" cy="110" r="5"/>
+            <text x="134" y="128" text-anchor="end">end1</text>
+            <text x="246" y="128">end2</text>
+            <text x="197" y="100">mid</text>
+            <text x="197" y="78">chord</text>
+            <text x="30" y="36">circle1</text>
+            <text x="350" y="36" text-anchor="end">circle2</text>
+          </svg>
+          <figcaption>The full construction. Each circle is centered on one end and passes through the other. The line between the two crossings cuts the segment in the middle.</figcaption>
+        </figure>
+        <p>We will build it piece by piece, starting with the segment.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Midpoint")
+Wallpaper("dark navy")
+
+end1 = Anchor(420, 320)
+end2 = Anchor(580, 380)
+
+segment = Line(p1=lambda: end1.center, p2=lambda: end2.center, color="white")
+segment.line_width = 3
+
+run()
+`,
+      notes: [
+        {
+          at: "end1 = Anchor(420, 320)",
+          text: "An <code>Anchor</code> is a point that starts out visible and draggable, with its own handle: the starting point of a construction, the piece the mouse moves. It takes x and y."
+        },
+        {
+          at: "segment = Line(",
+          text: "A <code>Line</code> with <code>lambda</code> on its ends, like the lines in the first script: it follows the anchors."
+        },
+        {
+          at: "segment.line_width = 3",
+          text: "<code>line_width</code> is the thickness of the stroke: 3 makes the segment thicker than the lines that come later."
+        }
+      ],
+      after: `
+        <p>Run it and drag the two red dots. The segment has no handles and no <code>draggable</code>: the anchors are what move, and it just follows them.</p>
+      `,
+      try: [
+        {
+          note: "The comparison from the first script, now with the anchors. Paste them and drag one end: the line without <code>lambda</code> stays where it was created.",
+          code: `Line(p1=end1.center, p2=end2.center)         # copied now — does not follow
+Line(p1=lambda: end1.center, p2=lambda: end2.center)  # live`
+        }
+      ]
+    },
+    {
+      title: "Compass",
+      body: `
+        <p>First move of the compass: the needle on <code>end1</code>, opened out to <code>end2</code>. In code, it is the two-point circle from the first script, now with a <code>lambda</code> on each point.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Midpoint")
+Wallpaper("dark navy")
+
+end1 = Anchor(420, 320)
+end2 = Anchor(580, 380)
+
+segment = Line(p1=lambda: end1.center, p2=lambda: end2.center, color="white")
+segment.line_width = 3
+
+# Compass: center on one end, radius to the other
+circle1 = Circle(
+    center=lambda: end1.center,
+    perimeter_point=lambda: end2.center,
+    color="deep sky blue",
+)
+circle1.fill = None
+circle1.line_width = 2
+
+run()
+`,
+      notes: [
+        {
+          at: "circle1 = Circle(",
+          text: "The call spans several lines, one piece of information per line: while a parenthesis is open, Python keeps reading on the next line. This keeps a long call easy to read."
+        },
+        {
+          at: "perimeter_point=lambda: end2.center,",
+          text: "The center on one end, the edge on the other: the radius is always the length of the segment. Move the anchors apart, and the circle grows."
+        },
+        {
+          at: "circle1.fill = None",
+          text: "<code>fill</code> is the paint inside the shape, and <code>None</code> is Python's value for “nothing”. The circle becomes hollow, just its outline, which is what matters in the construction; a painted disc would cover the rest."
+        },
+        {
+          at: "circle1.line_width = 2",
+          text: "A slightly thicker outline, so it stands out against the background."
+        }
+      ],
+      after: `
+        <p>Run it: the segment starts at the center of the circle and ends exactly on the edge.</p>
+      `,
+      try: [
+        {
+          note: "The same goes for the circle. Without <code>lambda</code>, the center and the edge are read once and the circle stays where it was created; with <code>lambda</code>, it follows the anchors.",
+          code: `Circle(center=end1.center, perimeter_point=end2.center)  # copied now
+Circle(
+    center=lambda: end1.center,
+    perimeter_point=lambda: end2.center,
+)  # live`
+        }
+      ]
+    },
+    {
+      title: "The other circle",
+      body: `
+        <p>Second move of the compass, with the ends swapped: center on <code>end2</code>, edge on <code>end1</code>. The radius is the same as the first circle's, the length of the segment.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Midpoint")
+Wallpaper("dark navy")
+
+end1 = Anchor(420, 320)
+end2 = Anchor(580, 380)
+
+segment = Line(p1=lambda: end1.center, p2=lambda: end2.center, color="white")
+segment.line_width = 3
+
+# Compass: center on one end, radius to the other
+circle1 = Circle(
+    center=lambda: end1.center,
+    perimeter_point=lambda: end2.center,
+    color="deep sky blue",
+)
+circle1.fill = None
+circle1.line_width = 2
+
+circle2 = Circle(
+    center=lambda: end2.center,
+    perimeter_point=lambda: end1.center,
+    color="orchid",
+)
+circle2.fill = None
+circle2.line_width = 2
+
+run()
+`,
+      after: `
+        <p>Run it: the two outlines cross at two points, one on each side of the segment. Drag the anchors and watch the crossings move.</p>
+        <details class="ask"><summary>Can the circles stop crossing?</summary><p>No. The center of each circle is on the edge of the other, so they are never too far apart, and neither is ever inside the other.</p></details>
+        <p>For now, the crossings are just a drawing: Scena does not know yet where they are.</p>
+      `
+    },
+    {
+      title: "Crossings",
+      body: `
+        <p>To attach a line to the crossings, we need them as points that follow the circles.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Midpoint")
+Wallpaper("dark navy")
+
+end1 = Anchor(420, 320)
+end2 = Anchor(580, 380)
+
+segment = Line(p1=lambda: end1.center, p2=lambda: end2.center, color="white")
+segment.line_width = 3
+
+# Compass: center on one end, radius to the other
+circle1 = Circle(
+    center=lambda: end1.center,
+    perimeter_point=lambda: end2.center,
+    color="deep sky blue",
+)
+circle1.fill = None
+circle1.line_width = 2
+
+circle2 = Circle(
+    center=lambda: end2.center,
+    perimeter_point=lambda: end1.center,
+    color="orchid",
+)
+circle2.fill = None
+circle2.line_width = 2
+
+# The two crossings (shown before the chord)
+crossing1 = Point(lambda: intersection(circle1, circle2, 0))
+crossing1.visible = True
+crossing1.color = "white"
+
+crossing2 = Point(lambda: intersection(circle1, circle2, 1))
+crossing2.visible = True
+crossing2.color = "white"
+
+run()
+`,
+      notes: [
+        {
+          at: "crossing1 = Point(",
+          text: "A <code>Point</code> is a position, with no body. With the <code>lambda</code>, the position comes from the formula: every frame, Scena redoes the math, and the point goes there."
+        },
+        {
+          at: "intersection(circle1, circle2, 0)",
+          text: "<code>intersection</code> returns a place where the outlines of the two shapes cross, as <code>(x, y)</code>. Two circles cross in up to two places, and the last number picks which one: <code>0</code> is the first, <code>1</code> is the second."
+        },
+        {
+          at: "crossing1.visible = True",
+          text: "A <code>Point</code> starts out invisible, because it is almost always just a support for other shapes. <code>visible</code> shows a small mark on it."
+        }
+      ],
+      after: `
+        <p>Run it and drag the anchors: the two white marks stick to the crossings.</p>
+      `
+    },
+    {
+      title: "The chord",
+      body: `
+        <p>Now the line that finds the middle: the <code>chord</code>, from one crossing to the other. In geometry, a chord is a line connecting two points on the edge of a circle; this one is a chord of both circles at once.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Midpoint")
+Wallpaper("dark navy")
+
+end1 = Anchor(420, 320)
+end2 = Anchor(580, 380)
+
+segment = Line(p1=lambda: end1.center, p2=lambda: end2.center, color="white")
+segment.line_width = 3
+
+# Compass: center on one end, radius to the other
+circle1 = Circle(
+    center=lambda: end1.center,
+    perimeter_point=lambda: end2.center,
+    color="deep sky blue",
+)
+circle1.fill = None
+circle1.line_width = 2
+
+circle2 = Circle(
+    center=lambda: end2.center,
+    perimeter_point=lambda: end1.center,
+    color="orchid",
+)
+circle2.fill = None
+circle2.line_width = 2
+
+# The two crossings (shown before the chord)
+crossing1 = Point(lambda: intersection(circle1, circle2, 0))
+crossing1.visible = True
+crossing1.color = "white"
+
+crossing2 = Point(lambda: intersection(circle1, circle2, 1))
+crossing2.visible = True
+crossing2.color = "white"
+
+# Chord between the crossings (perpendicular bisector)
+chord = Line(p1=lambda: crossing1, p2=lambda: crossing2, color="gold")
+chord.line_width = 2
+chord.dash = "dash"  # or "dot", "dot-dash", "solid"
+
+run()
+`,
+      notes: [
+        {
+          at: "p1=lambda: crossing1,",
+          text: "Each <code>lambda</code> returns the point itself, without <code>.center</code>: a <code>Point</code> already is a position."
+        },
+        {
+          at: "chord.dash = \"dash\"",
+          text: "<code>dash</code> changes the pattern of the stroke; <code>\"dash\"</code> draws it in short dashes. Dashed, the chord reads as a construction line, a support, and not as part of the figure."
+        }
+      ],
+      after: `
+        <p>Run it and turn the segment by dragging one end: the chord turns along and stays at a right angle to it.</p>
+        <details class="ask"><summary>Why does the chord always pass through the middle of the segment?</summary><p>Each crossing is on the edge of both circles, so it is one radius away from <code>end1</code> and the same distance from <code>end2</code>. The points at the same distance from both ends form a straight line, the <strong>perpendicular bisector</strong> of the segment, which crosses it right in the middle and at a right angle. The chord connects two points of that line, so it lies on it.</p></details>
+      `
+    },
+    {
+      title: "The midpoint",
+      example: "midpoint.py",
+      body: `
+        <p>All that is left is to mark the middle. It is where the chord crosses the segment, and that place comes from the same <code>intersection</code>, now between two lines.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Midpoint")
+Wallpaper("dark navy")
+
+end1 = Anchor(420, 320)
+end2 = Anchor(580, 380)
+
+segment = Line(p1=lambda: end1.center, p2=lambda: end2.center, color="white")
+segment.line_width = 3
+
+# Compass: center on one end, radius to the other
+circle1 = Circle(
+    center=lambda: end1.center,
+    perimeter_point=lambda: end2.center,
+    color="deep sky blue",
+)
+circle1.fill = None
+circle1.line_width = 2
+
+circle2 = Circle(
+    center=lambda: end2.center,
+    perimeter_point=lambda: end1.center,
+    color="orchid",
+)
+circle2.fill = None
+circle2.line_width = 2
+
+# The two crossings (shown before the chord)
+crossing1 = Point(lambda: intersection(circle1, circle2, 0))
+crossing1.visible = True
+crossing1.color = "white"
+
+crossing2 = Point(lambda: intersection(circle1, circle2, 1))
+crossing2.visible = True
+crossing2.color = "white"
+
+# Chord between the crossings (perpendicular bisector)
+chord = Line(p1=lambda: crossing1, p2=lambda: crossing2, color="gold")
+chord.line_width = 2
+chord.dash = "dash"  # or "dot", "dot-dash", "solid"
+
+# Midpoint = where the chord crosses the segment
+mid = Circle(
+    center=lambda: intersection(chord, segment, 0),
+    radius=8,
+    color="gold",
+)
+mid.glow = True
+
+run()
+`,
+      notes: [
+        {
+          at: "mid = Circle(",
+          text: "A <code>Circle</code> of radius 8 instead of a <code>Point</code>: a bigger mark, gold and with a <code>glow</code>."
+        },
+        {
+          at: "intersection(chord, segment, 0)",
+          text: "Two straight lines cross in only one place, so <code>0</code> is enough. The result goes straight into the mark's <code>center</code>."
+        }
+      ],
+      after: `
+        <p>Run it and drag the anchors far apart, close together, one around the other: the gold mark never leaves the middle.</p>
+        <p>Each piece reads the earlier ones, and an anchor that moves rebuilds the whole construction:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 410 116" role="img" aria-label="Who reads whom: the anchors feed the segment and the circles; the circles feed the crossings; the crossings, the chord; the chord and the segment, the midpoint">
+            <rect class="bar" x="8" y="45" width="72" height="26"/>
+            <rect class="bar" x="110" y="10" width="84" height="26"/>
+            <rect class="bar" x="110" y="80" width="84" height="26"/>
+            <rect class="bar" x="214" y="80" width="92" height="26"/>
+            <rect class="bar" x="330" y="80" width="70" height="26"/>
+            <rect class="bar child" x="330" y="10" width="70" height="26"/>
+            <path class="ray" fill="none" d="M80 58 H95 V23 H104"/>
+            <path class="ray" fill="none" d="M95 58 V93 H104"/>
+            <line class="ray" x1="194" y1="93" x2="208" y2="93"/>
+            <line class="ray" x1="306" y1="93" x2="324" y2="93"/>
+            <line class="ray" x1="365" y1="80" x2="365" y2="42"/>
+            <line class="ray" x1="194" y1="23" x2="324" y2="23"/>
+            <polygon class="dot" points="110,23 104,20 104,26"/>
+            <polygon class="dot" points="110,93 104,90 104,96"/>
+            <polygon class="dot" points="214,93 208,90 208,96"/>
+            <polygon class="dot" points="330,93 324,90 324,96"/>
+            <polygon class="dot" points="365,36 362,42 368,42"/>
+            <polygon class="dot" points="330,23 324,20 324,26"/>
+            <text x="44" y="62" text-anchor="middle">anchors</text>
+            <text x="152" y="27" text-anchor="middle">segment</text>
+            <text x="152" y="97" text-anchor="middle">circles</text>
+            <text x="260" y="97" text-anchor="middle">crossings</text>
+            <text x="365" y="97" text-anchor="middle">chord</text>
+            <text x="365" y="27" text-anchor="middle">midpoint</text>
+          </svg>
+          <figcaption>Each arrow goes from a piece to the piece that reads it. When an anchor moves, the change runs along the arrows all the way to the midpoint.</figcaption>
+        </figure>
+        <p>No line of the script computes the midpoint: it came from nothing but circles and crossings.</p>
+      `,
+      closing: `
+        <p>Drag the anchors at the ends of the segment. The circles, the chord and the midpoint follow.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Anchor</code> — the two ends you drag; the rest of the construction reads them.</li>
+          <li><code>fill = None</code> — a shape that is only an outline, so you see what is behind it.</li>
+          <li><code>intersection</code> — where the outlines of two shapes cross; the last number picks which crossing.</li>
+          <li><code>Point</code> — a position with no body, computed by a <code>lambda</code>.</li>
+          <li>Each piece reads the one before: move an anchor and the whole construction rebuilds itself.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#geo-intersecoes">Crossings</a> · <a href="../guide/index.html#geo-helpers">Points</a> · <a href="../guide/index.html#shape-point">Point</a> · <a href="../guide/index.html#reativo-lambda">Lambda</a>.</p>
+        <p><strong>Next:</strong> widgets — sliders, lists, boxes, buttons and menus to change a program while it runs.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add a second segment, with its own anchors, and mark where it crosses the first.</li>
+          <li>Can you draw a triangle with three anchors and connect the midpoints of its sides into a smaller triangle that follows the big one?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

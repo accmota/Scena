@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI Widgets — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "04",
+  title: "UI Widgets",
+  steps: [
+    {
+      title: "A ball that chases",
+      part: "Script 1 · Ball chain",
+      body: [
+        `
+        <p>This tutorial is about <strong>widgets</strong> (controls): sliders, lists, boxes, buttons and menus, the panel you use to change a program while it runs. There are three scripts: a chain of balls that follows the mouse, with a panel to tune it; a drawing program, where the mouse is the pen; and a banner that shows what you type.</p>
+        <p>To have something to control, we start with a single ball, the head of the chain to come, which goes after the mouse. What moves it is <code>chase</code>:</p>
+        `,
+        {
+          snip: `x = chase(head.center.x, mouse.x, rate=8)`
+        },
+        `
+        <p><code>chase</code> brings one number closer to another, by a share of what is left, every frame. Far from the target, the share is big; close to it, the share is small. That is why the ball rushes when the mouse is far away and brakes gently as it arrives. <code>rate</code> is the hurry: the bigger it is, the faster the ball catches up.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="A row of dots going from a ball to the target; the dots get closer and closer together near the target">
+            <line class="guide" x1="40" y1="50" x2="340" y2="50"/>
+            <circle class="dot" cx="40" cy="50" r="4"/>
+            <circle class="dot" cx="100" cy="50" r="4"/>
+            <circle class="dot" cx="148" cy="50" r="4"/>
+            <circle class="dot" cx="186" cy="50" r="4"/>
+            <circle class="dot" cx="217" cy="50" r="4"/>
+            <circle class="dot" cx="242" cy="50" r="4"/>
+            <circle class="dot" cx="261" cy="50" r="4"/>
+            <circle class="dot" cx="277" cy="50" r="4"/>
+            <circle class="dot" cx="290" cy="50" r="4"/>
+            <circle class="dot" cx="300" cy="50" r="4"/>
+            <circle class="hot" cx="340" cy="50" r="7"/>
+            <text x="40" y="84" text-anchor="middle">the ball</text>
+            <text x="340" y="84" text-anchor="middle">the mouse</text>
+            <text x="190" y="26" text-anchor="middle">one dot per frame</text>
+          </svg>
+          <figcaption>Where the ball is on each frame. Each step covers a share of what is left: far away, long steps; near the mouse, short ones.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+head = Circle(center=canvas.game_view.center, radius=16, color="tomato")
+head.visual = Halo(style="pulse")
+
+
+def update(dt):
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Plasma(speed=0.2)",
+          text: "<code>Plasma</code> is a colored haze over the gradient; a low <code>speed</code> makes it drift slowly."
+        },
+        {
+          at: "center=canvas.game_view.center",
+          text: "The ball starts at the center of the game view: <code>canvas.game_view</code> is the rectangle the window shows, and <code>center</code> is its middle."
+        },
+        {
+          at: "Halo(style=\"pulse\")",
+          text: "<code>Halo</code> is a halo visual, a glowing ring; <code>style=\"pulse\"</code> makes it pulse."
+        },
+        {
+          at: "head.move_to(x, y)",
+          text: "One <code>chase</code> call brings x closer, another brings y, and <code>move_to</code> puts the ball at the new point."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse: the ball goes after the pointer and brakes as it arrives.</p>
+      `,
+      try: [
+        {
+          note: "In place of the three lines of <code>update</code>. <code>approach</code> moves toward the target at a constant speed, here 300 units per second, and arrives exactly: the ball does not brake. It takes the whole point, not x and y separately.",
+          replaces: ['x = chase(', 'y = chase(', 'head.move_to('],
+          code: `head.move_to(approach(head.center, mouse, 300))`
+        }
+      ]
+    },
+    {
+      title: "The chain",
+      body: [
+        `
+        <p>Now, thirty balls in a row. Only the first one chases the mouse; each of the others chases the ball ahead of it:</p>
+        `,
+        {
+          snip: `for i in range(1, balls.count):
+    ball = balls[i]
+    ahead = balls[i - 1]`
+        },
+        `
+        <p><code>balls.count</code> is how many balls there are, and <code>range(1, balls.count)</code> counts from 1 up to one less than that count: it skips ball 0, which already follows the mouse, and goes through all the others. On each pass of the loop, <code>balls[i - 1]</code> is the ball ahead: ball 5 chases ball 4, 4 chases 3, and so on down to 1, which chases the head.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 100" role="img" aria-label="Six balls in a row, numbered 5 to 0, with the mouse in front; each arrow goes from a ball to the one ahead, and ball 0 points at the mouse">
+            <circle class="dot" cx="40" cy="44" r="12"/>
+            <circle class="dot" cx="96" cy="44" r="12"/>
+            <circle class="dot" cx="152" cy="44" r="12"/>
+            <circle class="dot" cx="208" cy="44" r="12"/>
+            <circle class="dot" cx="264" cy="44" r="12"/>
+            <circle class="bar child" cx="320" cy="44" r="12"/>
+            <polygon class="hot" points="370,34 370,56 386,50"/>
+            <line class="ray" x1="55" y1="44" x2="81" y2="44"/>
+            <line class="ray" x1="111" y1="44" x2="137" y2="44"/>
+            <line class="ray" x1="167" y1="44" x2="193" y2="44"/>
+            <line class="ray" x1="223" y1="44" x2="249" y2="44"/>
+            <line class="ray" x1="279" y1="44" x2="305" y2="44"/>
+            <line class="ray" x1="335" y1="44" x2="361" y2="44"/>
+            <polygon class="dot" points="83,44 76,40 76,48"/>
+            <polygon class="dot" points="139,44 132,40 132,48"/>
+            <polygon class="dot" points="195,44 188,40 188,48"/>
+            <polygon class="dot" points="251,44 244,40 244,48"/>
+            <polygon class="dot" points="307,44 300,40 300,48"/>
+            <text x="40" y="82" text-anchor="middle">5</text>
+            <text x="96" y="82" text-anchor="middle">4</text>
+            <text x="152" y="82" text-anchor="middle">3</text>
+            <text x="208" y="82" text-anchor="middle">2</text>
+            <text x="264" y="82" text-anchor="middle">1</text>
+            <text x="320" y="82" text-anchor="middle">0</text>
+            <text x="378" y="82" text-anchor="middle">mouse</text>
+          </svg>
+          <figcaption>Who chases whom. Each ball reaches the position of the one ahead a little late, and these delays down the line make the chain ripple.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+# --- chain: the head follows the mouse; each ball follows the one ahead ----
+def build():
+    color = Color("tomato")
+    center = canvas.game_view.center
+    for i in range(30):
+        ball = Circle(center=center, radius=16, color=color, group="balls")
+        ball.visual = Halo(style="pulse")
+        color = color.darker(0.02)
+
+
+build()
+
+
+def update(dt):
+    balls = group["balls"]
+
+    # the first one follows the mouse
+    head = balls[0]
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+    # the others follow the one ahead
+    for i in range(1, balls.count):
+        ball = balls[i]
+        ahead = balls[i - 1]
+        x = chase(ball.center.x, ahead.center.x, rate=8)
+        y = chase(ball.center.y, ahead.center.y, rate=8)
+        ball.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def build():",
+          text: "The balls are made inside a function, not in loose lines, so that the function can be called again to rebuild the chain."
+        },
+        {
+          at: "for i in range(30):",
+          text: "<code>range(30)</code> gives the numbers 0, 1, 2, …, 29: thirty passes, counting from 0, as Python always does."
+        },
+        {
+          at: "color = color.darker(0.02)",
+          text: "<code>darker</code> darkens the color a little on each pass: the tail comes out darker than the head."
+        },
+        {
+          at: "head = balls[0]",
+          text: "<code>group[\"balls\"]</code> gives the balls in the order they were made, and <code>balls[0]</code> is the first one. It chases the mouse, like the ball in the previous step."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse in circles.</p>
+      `
+    },
+    {
+      title: "Slider",
+      body: [
+        `
+        <p>First widget: a control for the number of balls. Right now that number is written in the code, in <code>range(30)</code>. For a widget to be able to change it, the number moves into <code>st</code>, where both the widget and <code>build</code> can see it.</p>
+        <p>A <code>Slider</code> is a bar with a button you drag along it:</p>
+        `,
+        {
+          snip: `Slider(st["n_balls"], label="Balls", min_value=5, max_value=60, only_int=True)`
+        },
+        `
+        <div class="tbl"><table><thead><tr><th>In the line</th><th>What it does</th></tr></thead><tbody>
+          <tr><td><code>st["n_balls"]</code></td><td>where the slider writes: dragging changes <code>st.n_balls</code></td></tr>
+          <tr><td><code>label="Balls"</code></td><td>the name next to the bar</td></tr>
+          <tr><td><code>min_value=5</code>, <code>max_value=60</code></td><td>the smallest and the largest value</td></tr>
+          <tr><td><code>only_int=True</code></td><td>moves in steps of 1, because there is no such thing as 12.4 balls</td></tr>
+        </tbody></table></div>
+        <p>The brackets matter. <code>st["n_balls"]</code> hands over the field, the place where the value lives. Without them, the slider gets only the number that is there right now, 30, and has nowhere to write; Scena stops with an error that shows the spelling with brackets:</p>
+        `,
+        {
+          snip: `Slider(st.n_balls, label="Balls", min_value=5, max_value=60, only_int=True)`,
+          alt: true
+        }
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_balls = 30
+
+# --- chain: the head follows the mouse; each ball follows the one ahead ----
+def build():
+    color = Color("tomato")
+    center = canvas.game_view.center
+    for i in range(st.n_balls):
+        ball = Circle(center=center, radius=16, color=color, group="balls")
+        ball.visual = Halo(style="pulse")
+        color = color.darker(0.02)
+
+
+Slider(st["n_balls"], label="Balls", min_value=5, max_value=60, only_int=True)
+
+build()
+
+
+def update(dt):
+    balls = group["balls"]
+
+    # the first one follows the mouse
+    head = balls[0]
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+    # the others follow the one ahead
+    for i in range(1, balls.count):
+        ball = balls[i]
+        ahead = balls[i - 1]
+        x = chase(ball.center.x, ahead.center.x, rate=8)
+        y = chase(ball.center.y, ahead.center.y, rate=8)
+        ball.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.n_balls = 30",
+          text: "The number of balls leaves the <code>range</code> and moves into <code>st</code>, which holds the program's values."
+        },
+        {
+          at: "range(st.n_balls)",
+          text: "<code>build</code> reads the stored value instead of the 30 written in the code."
+        },
+        {
+          at: "Slider(st[\"n_balls\"]",
+          text: "Without a position (<code>top_left</code>, the top-left corner), the widget goes into a column in the corner of the window, and the next ones stack below it."
+        }
+      ],
+      after: `
+        <p>Run it and drag the slider.</p>
+        <details class="ask"><summary>Does the number of balls change?</summary><p>The number next to the slider changes, but the balls do not. <code>build</code> ran once, at the start, and does not run again by itself: the slider only stores the value.</p></details>
+      `
+    },
+    {
+      title: "The Run button",
+      body: [
+        `
+        <p>For the slider to have an effect, something has to call <code>build</code> again. That is a button's job:</p>
+        `,
+        {
+          snip: `Button(label="Run", on_click=build)`
+        },
+        `
+        <p><code>Button</code> takes its text in <code>label</code> and, in <code>on_click</code>, the function a click calls. Notice that <code>build</code> goes without parentheses. That way you hand the function to the button, and Scena calls it on every click. With parentheses, it would run once, right now, while the button is being made, and the button would get whatever it returns:</p>
+        `,
+        {
+          snip: `Button(label="Run", on_click=build())`,
+          alt: true
+        }
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_balls = 30
+
+# --- chain: the head follows the mouse; each ball follows the one ahead ----
+def build():
+    group["balls"].destroy()
+
+    color = Color("tomato")
+    center = canvas.game_view.center
+    for i in range(st.n_balls):
+        ball = Circle(center=center, radius=16, color=color, group="balls")
+        ball.visual = Halo(style="pulse")
+        color = color.darker(0.02)
+
+
+Slider(st["n_balls"], label="Balls", min_value=5, max_value=60, only_int=True)
+ui.gap()
+Button(label="Run", on_click=build)
+
+build()
+
+
+def update(dt):
+    balls = group["balls"]
+
+    # the first one follows the mouse
+    head = balls[0]
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+    # the others follow the one ahead
+    for i in range(1, balls.count):
+        ball = balls[i]
+        ahead = balls[i - 1]
+        x = chase(ball.center.x, ahead.center.x, rate=8)
+        y = chase(ball.center.y, ahead.center.y, rate=8)
+        ball.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"balls\"].destroy()",
+          text: "Calling <code>build</code> again would add new balls to the old ones. So it now starts by clearing up: <code>destroy</code> removes every ball in the group."
+        },
+        {
+          at: "ui.gap()",
+          text: "<code>gap</code> opens a space in the column, so the button does not stick to the slider."
+        }
+      ],
+      after: `
+        <p>Drag the slider to 10 and press Run: the chain is reborn at the center, with ten balls.</p>
+      `
+    },
+    {
+      title: "DropDown",
+      body: `
+        <p>Now, choosing the balls' visual. To pick one of several names, the widget is the <code>DropDown</code>: a box that opens a list when you click it.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_balls = 30
+st.effect = "Halo"
+
+
+def ball_visual():
+    if st.effect == "Flame":
+        return Flame()
+    if st.effect == "Sphere":
+        return Sphere()
+    if st.effect == "Shield":
+        return Shield()
+    if st.effect == "Metal":
+        return Metal()
+    if st.effect == "Aurora":
+        return Aurora()
+    if st.effect == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- chain: the head follows the mouse; each ball follows the one ahead ----
+def build():
+    group["balls"].destroy()
+
+    color = Color("tomato")
+    center = canvas.game_view.center
+    for i in range(st.n_balls):
+        ball = Circle(center=center, radius=16, color=color, group="balls")
+        ball.visual = ball_visual()
+        color = color.darker(0.02)
+
+
+Slider(st["n_balls"], label="Balls", min_value=5, max_value=60, only_int=True)
+DropDown(st["effect"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Run", on_click=build)
+
+build()
+
+
+def update(dt):
+    balls = group["balls"]
+
+    # the first one follows the mouse
+    head = balls[0]
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+    # the others follow the one ahead
+    for i in range(1, balls.count):
+        ball = balls[i]
+        ahead = balls[i - 1]
+        x = chase(ball.center.x, ahead.center.x, rate=8)
+        y = chase(ball.center.y, ahead.center.y, rate=8)
+        ball.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.effect = \"Halo\"",
+          text: "The choice from the list lives here, and it starts as <code>\"Halo\"</code>."
+        },
+        {
+          at: "def ball_visual():",
+          text: "The list stores a text, but the ball needs a visual. This function translates: it compares <code>st.effect</code> with each name and gives back (<code>return</code>) the visual for that name."
+        },
+        {
+          at: "if st.effect == \"Flame\":",
+          text: "<code>==</code> asks whether two values are equal, and the answer is true or false. Do not confuse it with <code>=</code>, which stores a value in a name."
+        },
+        {
+          at: "return Halo(style=\"pulse\")",
+          text: "If no name matches, the last line gives back the <code>Halo</code> from before."
+        },
+        {
+          at: "ball.visual = ball_visual()",
+          text: "Here the function does take parentheses, unlike in <code>on_click</code>: we want the result now, a new visual for each ball."
+        },
+        {
+          at: "DropDown(st[\"effect\"]",
+          text: "<code>options</code> are the names in the list. As with the slider, the brackets say where the choice goes: <code>st.effect</code>."
+        }
+      ],
+      after: `
+        <p>Like the slider, the list only stores the value. Pick <code>Flame</code> and press Run.</p>
+      `,
+      try: [
+        {
+          note: "More visuals to try, one at a time: replace the last line of <code>ball_visual</code> (the <code>return</code> of the <code>Halo</code>) with one of them and press Run with <code>Halo</code> selected. To pick it from the panel, add an <code>if</code> and the name to the <code>DropDown</code> list.",
+          code: `return Neon()
+return Wave()
+return ElectricField()
+return Bolt()`
+        }
+      ]
+    },
+    {
+      title: "Lines",
+      body: [
+        `
+        <p>A decoration: joining each ball to the one before it with a line, like beads on a necklace. Each line is made with both ends at the center, and right after that the ends attach to the balls:</p>
+        `,
+        {
+          snip: `line["p1"] @= previous.center
+line["p2"] @= ball.center`
+        },
+        `
+        <p><code>p1</code> and <code>p2</code> are the two ends of the line. <code>@=</code> links each end to the center of a ball: end 1 to the previous ball, end 2 to the new ball. When the balls move, the ends move with them.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_balls = 30
+st.effect = "Halo"
+
+
+def ball_visual():
+    if st.effect == "Flame":
+        return Flame()
+    if st.effect == "Sphere":
+        return Sphere()
+    if st.effect == "Shield":
+        return Shield()
+    if st.effect == "Metal":
+        return Metal()
+    if st.effect == "Aurora":
+        return Aurora()
+    if st.effect == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- chain: the head follows the mouse; each ball follows the one ahead ----
+def build():
+    group["balls"].destroy()
+    group["lines"].destroy()
+
+    color = Color("tomato")
+    center = canvas.game_view.center
+    previous = None
+    for i in range(st.n_balls):
+        ball = Circle(center=center, radius=16, color=color, group="balls")
+        ball.visual = ball_visual()
+        color = color.darker(0.02)
+
+        if previous is not None:
+            line = Line(p1=center, p2=center, color="tomato", group="lines", layer=-1)
+            line["p1"] @= previous.center
+            line["p2"] @= ball.center
+            line.color = Gradient("red", "orange")
+            line.set_alpha(0.3)
+            line.blend = "add"
+
+        previous = ball
+
+
+Slider(st["n_balls"], label="Balls", min_value=5, max_value=60, only_int=True)
+DropDown(st["effect"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Run", on_click=build)
+
+build()
+
+
+def update(dt):
+    balls = group["balls"]
+
+    # the first one follows the mouse
+    head = balls[0]
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+    # the others follow the one ahead
+    for i in range(1, balls.count):
+        ball = balls[i]
+        ahead = balls[i - 1]
+        x = chase(ball.center.x, ahead.center.x, rate=8)
+        y = chase(ball.center.y, ahead.center.y, rate=8)
+        ball.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"lines\"].destroy()",
+          text: "<code>build</code> also removes the old lines. Otherwise they would pile up with every Run."
+        },
+        {
+          at: "previous = None",
+          text: "To join them, <code>build</code> needs to remember the previous ball. <code>previous</code> starts as <code>None</code> (nothing), because the first ball has no previous one."
+        },
+        {
+          at: "if previous is not None:",
+          text: "If there is already a previous ball, a line is made. On the first pass there is none, and the line is left out: thirty balls, twenty-nine lines."
+        },
+        {
+          at: "layer=-1",
+          text: "<code>layer</code> <code>-1</code> draws the lines behind the balls."
+        },
+        {
+          at: "line.blend = \"add\"",
+          text: "This line and the two above it are decoration: a gradient from red to orange, nearly transparent (<code>set_alpha(0.3)</code>), and <code>blend=\"add\"</code> (additive blending), which makes the light brighter where several lines cross."
+        },
+        {
+          at: "previous = ball",
+          text: "At the end of each pass, the ball just made becomes the previous one for the next pass."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse: the lines stretch between the balls.</p>
+        <details class="ask"><summary>And without the <code>@=</code>?</summary><p>The ends would stay where the line was made, both at the center of the screen. Each line would be a dot standing still, and none would follow the balls.</p></details>
+      `
+    },
+    {
+      title: "CheckBox",
+      body: `
+        <p>The lines are pretty, but you do not always want to see them. To turn them on and off, the widget is the <code>CheckBox</code>: a little square, checked or unchecked.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_balls = 30
+st.lines = True
+st.effect = "Halo"
+
+
+def ball_visual():
+    if st.effect == "Flame":
+        return Flame()
+    if st.effect == "Sphere":
+        return Sphere()
+    if st.effect == "Shield":
+        return Shield()
+    if st.effect == "Metal":
+        return Metal()
+    if st.effect == "Aurora":
+        return Aurora()
+    if st.effect == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- chain: the head follows the mouse; each ball follows the one ahead ----
+def build():
+    group["balls"].destroy()
+    group["lines"].destroy()
+
+    color = Color("tomato")
+    center = canvas.game_view.center
+    previous = None
+    for i in range(st.n_balls):
+        ball = Circle(center=center, radius=16, color=color, group="balls")
+        ball.visual = ball_visual()
+        color = color.darker(0.02)
+
+        if st.lines and previous is not None:
+            line = Line(p1=center, p2=center, color="tomato", group="lines", layer=-1)
+            line["p1"] @= previous.center
+            line["p2"] @= ball.center
+            line.color = Gradient("red", "orange")
+            line.set_alpha(0.3)
+            line.blend = "add"
+
+        previous = ball
+
+
+Slider(st["n_balls"], label="Balls", min_value=5, max_value=60, only_int=True)
+CheckBox(st["lines"], label="Lines")
+DropDown(st["effect"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Run", on_click=build)
+
+build()
+
+
+def update(dt):
+    balls = group["balls"]
+
+    # the first one follows the mouse
+    head = balls[0]
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+    # the others follow the one ahead
+    for i in range(1, balls.count):
+        ball = balls[i]
+        ahead = balls[i - 1]
+        x = chase(ball.center.x, ahead.center.x, rate=8)
+        y = chase(ball.center.y, ahead.center.y, rate=8)
+        ball.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.lines = True",
+          text: "The box stores <code>True</code> or <code>False</code> in <code>st.lines</code>. It starts as <code>True</code>: the box starts checked."
+        },
+        {
+          at: "if st.lines and previous is not None:",
+          text: "The line's condition gets one more part. <code>and</code> requires both things at once: the box checked and a previous ball."
+        }
+      ],
+      after: `
+        <p>Uncheck the box and press Run: the chain is reborn without lines.</p>
+      `,
+    },
+    {
+      title: "Pause menu",
+      body: `
+        <p>The last widget is different from the others. The slider, list, box and button always stay in the column. A <code>Menu</code> is a question: it appears in the middle of the screen, waits for an answer and goes away. Here, a pause menu, opened with the Esc key.</p>
+      `,
+      example: "ball_chain.py",
+      code: `from scena import *
+
+init(width=1000, height=700, title="Mouse and keyboard")
+Wallpaper(Gradient("navy", "cyan"))
+Plasma(speed=0.2)
+
+st.n_balls = 30
+st.lines = True
+st.effect = "Halo"
+
+
+def ball_visual():
+    if st.effect == "Flame":
+        return Flame()
+    if st.effect == "Sphere":
+        return Sphere()
+    if st.effect == "Shield":
+        return Shield()
+    if st.effect == "Metal":
+        return Metal()
+    if st.effect == "Aurora":
+        return Aurora()
+    if st.effect == "Gel":
+        return Gel()
+    return Halo(style="pulse")
+
+
+# --- chain: the head follows the mouse; each ball follows the one ahead ----
+def build():
+    group["balls"].destroy()
+    group["lines"].destroy()
+
+    color = Color("tomato")
+    center = canvas.game_view.center
+    previous = None
+    for i in range(st.n_balls):
+        ball = Circle(center=center, radius=16, color=color, group="balls")
+        ball.visual = ball_visual()
+        color = color.darker(0.02)
+
+        if st.lines and previous is not None:
+            line = Line(p1=center, p2=center, color="tomato", group="lines", layer=-1)
+            line["p1"] @= previous.center
+            line["p2"] @= ball.center
+            line.color = Gradient("red", "orange")
+            line.set_alpha(0.3)
+            line.blend = "add"
+
+        previous = ball
+
+
+Slider(st["n_balls"], label="Balls", min_value=5, max_value=60, only_int=True)
+CheckBox(st["lines"], label="Lines")
+DropDown(st["effect"], options=["Halo", "Flame", "Sphere", "Shield", "Metal", "Aurora", "Gel"])
+ui.gap()
+Button(label="Run", on_click=build)
+
+build()
+
+
+def choose(option):
+    if option == "Restart":
+        build()
+
+
+def update(dt):
+    if keyp.once("ESC"):
+        Menu(
+            options=["Continue", "Restart"],
+            title="Pause",
+            pause=True,
+            on_choose=choose,
+        )
+
+    balls = group["balls"]
+
+    # the first one follows the mouse
+    head = balls[0]
+    x = chase(head.center.x, mouse.x, rate=8)
+    y = chase(head.center.y, mouse.y, rate=8)
+    head.move_to(x, y)
+
+    # the others follow the one ahead
+    for i in range(1, balls.count):
+        ball = balls[i]
+        ahead = balls[i - 1]
+        x = chase(ball.center.x, ahead.center.x, rate=8)
+        y = chase(ball.center.y, ahead.center.y, rate=8)
+        ball.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def choose(option):",
+          text: "Scena calls this function with the option that was clicked. It only needs to handle <code>\"Restart\"</code>, by calling <code>build</code> like the Run button. <code>\"Continue\"</code> needs nothing: closing the menu is already continuing."
+        },
+        {
+          at: "if keyp.once(\"ESC\"):",
+          text: "<code>keyp.once</code> is true only on the frame the key is pressed. With <code>keyp(\"ESC\")</code>, which is true while the key is held, we would open a new menu every frame."
+        },
+        {
+          at: "title=\"Pause\",",
+          text: "Making the <code>Menu</code> already shows it. <code>options</code> are the buttons, and <code>title</code> is the strip at the top. Without <code>center</code>, it appears in the middle of the view."
+        },
+        {
+          at: "pause=True,",
+          text: "<code>pause</code> stops the game clock while the menu is open and gives it back as it was when the menu closes: the balls freeze."
+        },
+        {
+          at: "on_choose=choose,",
+          text: "A click on an option closes the menu and calls <code>on_choose</code>. <code>choose</code> goes without parentheses, like the button's <code>build</code>."
+        }
+      ],
+      after: `
+        <p>Press Esc and try both options.</p>
+      `,
+      closing: `
+        <p>In this script, the slider, list and box only store values in <code>st</code>. What applies them is <code>build</code>, called by the Run button or by the menu's Restart: the chain is made again, whole, with the panel's values. It is simple and safe.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>st</code> is the bridge: the widget writes to it and the drawing reads from it.</li>
+          <li><code>Slider</code> — a number within a range; <code>DropDown</code> — one text out of several; <code>CheckBox</code> — true or false.</li>
+          <li><code>Button</code> — takes the function in <code>on_click</code>, without parentheses; <code>ui.gap</code> opens a space in the column.</li>
+          <li><code>Menu</code> — a question that appears, waits for the answer and goes away; <code>keyp.once</code> opens it once per press.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#ui-widgets">Widgets</a> · <a href="../guide/index.html#ui-slider">Slider</a> · <a href="../guide/index.html#ui-dropdown">DropDown</a> · <a href="../guide/index.html#ui-checkbox">CheckBox</a> · <a href="../guide/index.html#ui-button">Button</a> · <a href="../guide/index.html#ui-menu">Menu</a> · <a href="../guide/index.html#ui-stack">Column</a>.</p>
+        <p><strong>Next script:</strong> a drawing program, with the mouse as the pen.</p>
+      `
+    },
+    {
+      title: "The marker",
+      part: "Script 2 · Drawing",
+      fresh: true,
+      body: `
+        <p>A new script, in a new file: a drawing program. You hold the button down and drag, and the mouse's path becomes a stroke of light, with a color of its own, that fades away by itself after a few seconds. This time there is no panel: the mouse itself is the control.</p>
+        <p>First, a small ball that follows the pointer and shows where the tip of the pen is.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Drawing")
+
+marker = Circle(center=lambda: mouse, radius=10)
+marker.visual = Neon("cyan")
+
+run()
+`,
+      notes: [
+        {
+          at: "center=lambda: mouse",
+          text: "<code>mouse</code> is the point where the pointer is now. The <code>lambda</code> is a one-line function that reads that point, and Scena asks it every frame: the circle's center goes along with the mouse."
+        },
+        {
+          at: "Neon(\"cyan\")",
+          text: "<code>Neon</code> is the visual of a glowing tube, in the color you pass."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse: the small cyan ball follows the pointer.</p>
+      `,
+      try: [
+        {
+          note: "Without <code>lambda</code>, Python reads <code>mouse</code> once, when the circle is made, and the marker stays still where the pointer was at that moment. Swap the line and compare.",
+          replaces: ['marker = Circle('],
+          code: `marker = Circle(center=mouse, radius=10)`
+        }
+      ]
+    },
+    {
+      title: "Press and release",
+      body: `
+        <p>The marker should appear only while the button is held down. For that, Scena has to tell us two things: when the button goes down and when it comes back up.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Drawing")
+
+marker = Circle(center=lambda: mouse, radius=10)
+marker.visual = Neon("cyan")
+marker.visible = False
+
+
+def on_mouse_down():
+    marker.visible = True
+
+
+def on_mouse_up():
+    marker.visible = False
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_down():",
+          text: "<code>on_mouse_down</code> is a special name, like <code>update</code>: you just write the function, with that exact name, and Scena calls it at the right moment. It works for the whole window; you do not need to hit a shape."
+        },
+        {
+          at: "marker.visible = True",
+          text: "<code>visible</code> turns the drawing on and off. The marker starts hidden and appears here. While hidden, it still exists and follows the mouse; it just is not drawn."
+        },
+        {
+          at: "def on_mouse_up():",
+          text: "<code>on_mouse_up</code> is its partner: Scena calls it when you let go, and the marker hides again."
+        }
+      ],
+      after: `
+        <p>Run it, then press and hold the button: the marker appears. Let go: it disappears.</p>
+      `,
+      try: [
+        {
+          note: "The function can also ask where the click happened: with <code>x</code> and <code>y</code> between the parentheses, Scena passes them in. Here, each click leaves a small white dot. In place of the line <code>def on_mouse_down():</code>.",
+          replaces: ['def on_mouse_down():'],
+          code: `def on_mouse_down(x, y):
+    Circle(center=(x, y), radius=4, color="white")`
+        }
+      ]
+    },
+    {
+      title: "The trail",
+      body: `
+        <p>Now the stroke. A <code>Contrail</code> (named after the white streak a plane leaves in the sky) draws a continuous line through the points you keep giving it. It does not follow anything by itself: you are the one who says when to store a point.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 170" role="img" aria-label="A curved line passes through a row of dots; the last dot, at the tip of the line, is the mouse now">
+            <polyline class="ray" fill="none" points="30,100 56,79 82,64 108,60 134,68 160,85 186,106 212,126 238,138 264,139 290,128 316,109 342,88"/>
+            <circle class="dot" cx="30" cy="100" r="3.5"/>
+            <circle class="dot" cx="56" cy="79" r="3.5"/>
+            <circle class="dot" cx="82" cy="64" r="3.5"/>
+            <circle class="dot" cx="108" cy="60" r="3.5"/>
+            <circle class="dot" cx="134" cy="68" r="3.5"/>
+            <circle class="dot" cx="160" cy="85" r="3.5"/>
+            <circle class="dot" cx="186" cy="106" r="3.5"/>
+            <circle class="dot" cx="212" cy="126" r="3.5"/>
+            <circle class="dot" cx="238" cy="138" r="3.5"/>
+            <circle class="dot" cx="264" cy="139" r="3.5"/>
+            <circle class="dot" cx="290" cy="128" r="3.5"/>
+            <circle class="dot" cx="316" cy="109" r="3.5"/>
+            <circle class="hot" cx="342" cy="88" r="6"/>
+            <text x="24" y="122">first point</text>
+            <text x="350" y="70" text-anchor="end">mouse now</text>
+            <text x="190" y="160" text-anchor="middle">one snapshot every 0.03 s</text>
+          </svg>
+          <figcaption>Each <code>snapshot</code> stores a point; the <code>Contrail</code> draws one line through all of them.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Drawing")
+
+marker = Circle(center=lambda: mouse, radius=10)
+marker.visual = Neon("cyan")
+marker.visible = False
+
+trail = Contrail(color="white")
+
+
+@every(0.03)
+def sketch():
+    trail.snapshot(mouse)
+
+
+def on_mouse_down():
+    marker.visible = True
+
+
+def on_mouse_up():
+    marker.visible = False
+
+
+run()
+`,
+      notes: [
+        {
+          at: "@every(0.03)",
+          text: "<code>@every</code>, above the function, makes Scena run it at regular intervals: here every 0.03 s, about 33 times per second. The shorter the interval, the more points, and the more the stroke looks like the mouse's path."
+        },
+        {
+          at: "trail.snapshot(mouse)",
+          text: "<code>snapshot</code> (like a photo) stores a copy of where the mouse is at this moment. Then the mouse moves on, and the stored point stays where it was."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse without pressing anything.</p>
+        <details class="ask"><summary>Does the stroke wait for the button?</summary><p>No: it always draws, with or without the button pressed. The <code>@every</code> started along with the program and never stops.</p></details>
+      `
+    },
+    {
+      title: "Pen on, pen off",
+      body: [
+        `
+        <p>The pen should draw only while the button is held. An <code>@every</code> above a function starts with the program and lasts until the end; for a timer that starts at one moment and stops at another, Scena has the same word written as a call:</p>
+        `,
+        {
+          snip: `marker.pen = every(0.03, sketch)
+...
+marker.pen.cancel()`
+        },
+        `
+        <p><code>every(0.03, sketch)</code> starts calling <code>sketch</code> every 0.03 seconds, from now on. <code>sketch</code> goes without parentheses, like the <code>build</code> of the Run button: you hand over the function, and Scena calls it. The call gives back a handle to the timer, and <code>cancel()</code> turns it off.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="A timeline; the button goes down, the timer stores points at equal intervals, and the button comes up; before and after, no points">
+            <line class="guide" x1="20" y1="56" x2="104" y2="56"/>
+            <line class="guide" x1="296" y1="56" x2="380" y2="56"/>
+            <rect class="bar" x="110" y="51" width="180" height="10"/>
+            <circle class="dot" cx="110" cy="56" r="4"/>
+            <circle class="dot" cx="140" cy="56" r="4"/>
+            <circle class="dot" cx="170" cy="56" r="4"/>
+            <circle class="dot" cx="200" cy="56" r="4"/>
+            <circle class="dot" cx="230" cy="56" r="4"/>
+            <circle class="dot" cx="260" cy="56" r="4"/>
+            <circle class="hot" cx="110" cy="56" r="6"/>
+            <circle class="hot" cx="290" cy="56" r="6"/>
+            <text x="110" y="32" text-anchor="middle">down: every(…)</text>
+            <text x="290" y="32" text-anchor="middle">up: cancel()</text>
+            <text x="200" y="88" text-anchor="middle">one point every 0.03 s</text>
+          </svg>
+          <figcaption>The timer lives from the press to the release. Outside that stretch, no point is stored.</figcaption>
+        </figure>
+        <p>Turning it off is a must. The timer does not know you let go of the button: without the <code>cancel</code>, it would store points forever, and every click would start one more. After ten clicks, there would be ten timers storing the same point at the same time.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Drawing")
+
+marker = Circle(center=lambda: mouse, radius=10)
+marker.visual = Neon("cyan")
+marker.visible = False
+
+trail = Contrail(color="white")
+
+
+def sketch():
+    trail.snapshot(mouse)
+
+
+def on_mouse_down():
+    marker.visible = True
+    marker.pen = every(0.03, sketch)
+
+
+def on_mouse_up():
+    marker.pen.cancel()
+    marker.visible = False
+
+
+run()
+`,
+      notes: [
+        {
+          at: "marker.pen = every(0.03, sketch)",
+          text: "The timer starts here, but the one that turns it off is <code>on_mouse_up</code>, and a variable created inside a function belongs to that function alone. So the handle goes in a <strong>field</strong> of the marker: a name attached to an object, written with a dot, like <code>marker.visible</code>. To create a new field, you just assign to it. The marker exists for the whole program, and both functions can see it."
+        }
+      ],
+      after: `
+        <p>Run it and draw: now a stroke comes out only while the button is held.</p>
+        <details class="ask"><summary>Let go, move the mouse to another corner and press again. What shows up?</summary><p>A straight line joins the end of the previous stroke to the start of the new one. It is still a single trail, and it carries on from where it stopped.</p></details>
+      `
+    },
+    {
+      title: "One stroke per click",
+      body: [
+        `
+        <p>To keep the strokes apart, each click gets its own trail. The <code>Contrail</code> line leaves the top of the file and moves into <code>on_mouse_down</code>: one click, one new trail.</p>
+        `,
+        {
+          snip: `trail = Contrail(color=Color.random())
+marker.pen = every(0.03, lambda: trail.snapshot(mouse))`
+        },
+        `
+        <p>The <code>sketch</code> function up top no longer works: <code>trail</code> is now a variable inside <code>on_mouse_down</code>, and a function outside cannot see it. The way out is to write the function right there, with <code>lambda</code>: <code>lambda: trail.snapshot(mouse)</code> is a one-line function that stores the mouse in the trail. Since it is made inside <code>on_mouse_down</code>, it sees this click's <code>trail</code>. Each click has its own trail and its own timer, and one click's timer feeds only that click's trail.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Drawing")
+
+marker = Circle(center=lambda: mouse, radius=10)
+marker.visual = Neon("cyan")
+marker.visible = False
+
+
+def on_mouse_down():
+    marker.visible = True
+
+    trail = Contrail(color=Color.random())
+    marker.pen = every(0.03, lambda: trail.snapshot(mouse))
+
+
+def on_mouse_up():
+    marker.pen.cancel()
+    marker.visible = False
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Color.random()",
+          text: "<code>Color.random()</code> picks a random color for each trail."
+        }
+      ],
+      after: `
+        <p>Run it and draw several strokes: each one comes out separate, in its own color. The old ones stay on screen, where they were drawn.</p>
+      `
+    },
+    {
+      title: "The stroke that fades",
+      example: "drawing.py",
+      body: `
+        <p>Last, each stroke fades away by itself and gets a glow. The settings all go in the <code>Contrail</code>, which now takes several lines, one setting per line.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Drawing")
+
+marker = Circle(center=lambda: mouse, radius=10)
+marker.visual = Neon("cyan")
+marker.visible = False
+
+
+def on_mouse_down():
+    marker.visible = True
+
+    trail = Contrail(
+        duration=5,
+        fade=True,
+        line_width=4,
+        visual=Rim(Color.random()),
+    )
+    marker.pen = every(0.03, lambda: trail.snapshot(mouse))
+
+
+def on_mouse_up():
+    marker.pen.cancel()
+    marker.visible = False
+
+
+run()
+`,
+      notes: [
+        {
+          at: "duration=5,",
+          text: "<code>duration</code> is how long each point stays stored. At 5 seconds old, a point drops out, and the stroke wears away from the tail until it is gone."
+        },
+        {
+          at: "fade=True,",
+          text: "<code>fade</code> makes the line transparent at the tail and solid at the head, like a comet."
+        },
+        {
+          at: "line_width=4,",
+          text: "<code>line_width</code> makes the stroke thicker."
+        },
+        {
+          at: "visual=Rim(Color.random()),",
+          text: "<code>Rim</code> swaps the plain line for a glowing edge, in the random color. The <code>color=</code> is gone: now the visual holds the color, and <code>Contrail</code> does not accept both together."
+        }
+      ],
+      after: `
+        <p>Draw all you like: each stroke glows in its own color and disappears five seconds later.</p>
+      `,
+      try: [
+        {
+          note: "Other line visuals, one at a time, in place of <code>Rim(Color.random())</code>. More in the Guide: <a href='../guide/index.html#aparencia-visual'>Visual</a>.",
+          code: `Laser(Color.random())
+Ink(Color.random())
+ElectricBolt(Color.random())
+Tracer(Color.random())
+Halo(Color.random())`
+        }
+      ],
+      dive: [
+        {
+          title: "Contrail settings",
+          body: `
+            <p>A <code>Contrail</code> stores points and draws a line through them. There are two ways for an old point to drop out: by age or by queue. The parameters say which one, and how to draw the line:</p>
+            <div class="tbl"><table><thead><tr><th>Parameter</th><th>What it does</th></tr></thead><tbody>
+              <tr><td><code>duration</code></td><td>how many seconds each point lives. Without it, the points stay forever, as in the earlier steps.</td></tr>
+              <tr><td><code>max_points</code></td><td>how many points fit; past that, the oldest one drops out. The stroke stays short and travels along with the pen, like a snake.</td></tr>
+              <tr><td><code>fade</code></td><td>fades from head to tail.</td></tr>
+              <tr><td><code>line_width</code>, <code>color</code> ou <code>visual</code></td><td>the look of the line.</td></tr>
+            </tbody></table></div>
+            <p>In the Guide: <a href="../guide/index.html#contrail">Contrail</a>.</p>
+          `,
+          try: [
+            {
+              note: "A snake: only the last 40 points, with no time limit. In place of the step's <code>Contrail</code>.",
+              replaces: ['trail = Contrail(', 'duration=5,', 'fade=True,', 'line_width=4,', 'visual=Rim(', ')'],
+              code: `trail = Contrail(
+    max_points=40,
+    fade=True,
+    line_width=4,
+    visual=Rim(Color.random()),
+)`
+            },
+            {
+              note: "Points joined by straight lines, and a slower timer (every 0.15 s) so the corners show. In place of the <code>Contrail</code> and the <code>every</code>.",
+              replaces: ['trail = Contrail(', 'duration=5,', 'fade=True,', 'line_width=4,', 'visual=Rim(', ')', 'marker.pen = every('],
+              code: `trail = Contrail(
+    duration=5,
+    smooth=0,
+    line_width=4,
+    visual=Rim(Color.random()),
+)
+marker.pen = every(0.15, lambda: trail.snapshot(mouse))`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Hold the button and drag to draw. Each stroke gets a random color and fades away in five seconds.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>center=lambda: mouse</code> — the marker reads the mouse every frame and goes along with it.</li>
+          <li><code>on_mouse_down</code> / <code>on_mouse_up</code> — Scena calls them when the button goes down and when it comes up, anywhere in the window.</li>
+          <li><code>visible</code> — hides and shows, without destroying.</li>
+          <li><code>Contrail</code> — a line through the points stored with <code>snapshot</code>; <code>duration</code> and <code>fade</code> make the stroke fade away.</li>
+          <li><code>every</code> as a call — the timer starts when you ask and stops with <code>cancel()</code>; the handle goes in a field, <code>marker.pen</code>.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#reagir-callbacks">Script callbacks</a> · <a href="../guide/index.html#frame-mouse">Mouse</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#agendar-handle">Handle</a> · <a href="../guide/index.html#aparencia-visual">Visual</a>.</p>
+        <p><strong>Next script:</strong> a box to type in and a banner that wanders around the screen.</p>
+      `
+    },
+    {
+      title: "The banner and the box",
+      part: "Script 3 · Banner",
+      fresh: true,
+      body: `
+        <p>The last script, in a new file, and one more widget: a box to type in. You write a phrase, press Enter, and it becomes a colorful banner that wanders around the screen tracing a figure eight. First, the banner and the box, still separate.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Banner")
+Wallpaper(Gradient("black", "navy", angle=90))
+
+banner = Text("Hello!", center=(500, 350), font_size=80)
+
+TextInput(placeholder="Type here", width=400)
+
+run()
+`,
+      notes: [
+        {
+          at: "angle=90",
+          text: "<code>angle=90</code> stands the gradient upright: the first color at the bottom, the second at the top."
+        },
+        {
+          at: "center=(500, 350)",
+          text: "With <code>center</code>, the middle of the text sits at that point. A <code>font_size</code> of 80 makes the letters big."
+        },
+        {
+          at: "TextInput(",
+          text: "<code>TextInput</code> is a one-line box you type in. <code>placeholder</code> is the gray hint shown while the box is empty, and <code>width</code> is how wide the box is. Without a position, it goes into the corner column, like the chain's widgets."
+        }
+      ],
+      after: `
+        <p>Run it and click the box: a blinking cursor appears. The box has the <strong>focus</strong>, which means it gets the keyboard: every letter you type goes to it. Esc, or a click outside the box, gives the keyboard back to the program.</p>
+        <details class="ask"><summary>Type something and press Enter. Does the banner change?</summary><p>Not yet. The box and the banner are not connected: nothing in the script says what to do with the text.</p></details>
+      `,
+      dive: [
+        {
+          title: "The keyboard while the box has the focus",
+          body: `
+            <p>While the box has the focus, the text keys belong to it: letters, numbers, space, arrows, Backspace, Enter, Esc. The rest of the program does not see them: <code>keyp("LEFT")</code> answers false, even with the arrow held. That is on purpose. Otherwise, in a game where the hero walks with A and D, typing the name "Dana" would also make the hero walk.</p>
+            <p>So in a game with a text box, after typing, press Enter or Esc, or click outside the box, to give the keyboard back to the game.</p>
+            <p>In the Guide: <a href="../guide/index.html#ui-textinput">TextInput</a> · <a href="../guide/index.html#frame-teclado">Keyboard</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Enter",
+      body: `
+        <p>Now Enter sends the text to the banner. The box gets a function for Enter, the same way the button got one for the click.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Banner")
+Wallpaper(Gradient("black", "navy", angle=90))
+
+banner = Text("Hello!", center=(500, 350), font_size=80)
+
+
+def show(caption):
+    banner.text = caption
+
+
+TextInput(placeholder="Type and press Enter", width=400, on_submit=show)
+
+run()
+`,
+      notes: [
+        {
+          at: "def show(caption):",
+          text: "Scena calls <code>show</code> with what was written in the box, in <code>caption</code>, just as the menu handed the option to <code>choose</code>."
+        },
+        {
+          at: "banner.text = caption",
+          text: "Changes the banner's text. The center stays in the same place, and the new text settles around it."
+        },
+        {
+          at: "on_submit=show",
+          text: "<code>on_submit</code> takes the Enter function, without parentheses, like <code>on_click</code> and <code>on_choose</code>. The function comes before this line because Python reads the file from top to bottom: <code>show</code> has to exist when it is handed to the box."
+        }
+      ],
+      after: `
+        <p>Run it, click the box, type and press Enter: the banner changes. After Enter, the box lets go of the focus; for another phrase, click it again.</p>
+      `
+    },
+    {
+      title: "Ready for the next one",
+      body: `
+        <p>Two touch-ups to the box. After Enter, it empties and keeps the keyboard, ready for the next phrase. And it starts with the focus: you can type without clicking. To change the box later on, it gets a name.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Banner")
+Wallpaper(Gradient("black", "navy", angle=90))
+
+banner = Text("Hello!", center=(500, 350), font_size=80)
+
+
+def show(caption):
+    banner.text = caption
+    field.text = ""
+    field.focus()
+
+
+field = TextInput(placeholder="Type and press Enter", width=400, on_submit=show)
+field.focus()
+
+run()
+`,
+      notes: [
+        {
+          at: "field.text = \"\"",
+          text: "Like a shape, a widget has fields and actions. <code>field.text</code> is the text in the box, and storing <code>\"\"</code> (an empty text) there clears it. On the line below, <code>focus()</code> gives the focus back to the box, like a click on it."
+        },
+        {
+          at: "field = TextInput(",
+          text: "The box gets a variable, and the line right below gives it the focus at the start."
+        }
+      ],
+      after: `
+        <p>Run it and type several phrases in a row, with Enter between them.</p>
+        <details class="ask"><summary><code>show</code> uses <code>field</code>, which is only made further down. Why does it work?</summary><p>A function's body runs only when the function is called. By the time you press Enter, the whole file has been read, and <code>field</code> already exists. But <code>on_submit=show</code> needs <code>show</code> right away, and that is why the function still comes first.</p></details>
+      `
+    },
+    {
+      title: "Stylish letters",
+      body: `
+        <p>Now the banner starts to look like a banner: font, gradient and glow, three settings of <code>Text</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Banner")
+Wallpaper(Gradient("black", "navy", angle=90))
+
+banner = Text("Hello!", center=(500, 350), font_size=80, font="fonts/kenvector_future.ttf")
+banner.fill = Gradient("sunset", angle=90)
+banner.glow = "orange"
+
+
+def show(caption):
+    banner.text = caption
+    field.text = ""
+    field.focus()
+
+
+field = TextInput(placeholder="Type and press Enter", width=400, on_submit=show)
+field.focus()
+
+run()
+`,
+      notes: [
+        {
+          at: "font=\"fonts/kenvector_future.ttf\"",
+          text: "<code>font</code> is the design of the letters, and a <code>.ttf</code> file holds a whole font. This one has only capital letters: whatever you type shows up in capitals."
+        },
+        {
+          at: "banner.fill = Gradient(",
+          text: "<code>fill</code> is the paint inside the letters, and a <code>Gradient</code> there paints each letter with a gradient. Instead of two colors, it takes a ready-made name: <code>\"sunset\"</code>, a sequence of colors Scena already knows. With <code>angle=90</code>, the colors change vertically, within each letter."
+        },
+        {
+          at: "banner.glow = \"orange\"",
+          text: "<code>glow</code> lights an orange halo around the letters."
+        }
+      ],
+      after: `
+        <p>Run it and type something: the new text comes out with the font, gradient and glow already on. They belong to the banner, not to one text, and they stay when the text changes.</p>
+      `,
+      try: [
+        {
+          note: "Other ready-made gradients, one at a time, in place of <code>\"sunset\"</code>. Two colors work too, as in the background. More in the Guide: <a href='../guide/index.html#aparencia-cor'>Color / Gradient / Texture</a>.",
+          code: `banner.fill = Gradient("ocean", angle=90)
+banner.fill = Gradient("candy", angle=90)
+banner.fill = Gradient("gold", angle=90)
+banner.fill = Gradient("retrowave", angle=90)
+banner.fill = Gradient("cyan", "magenta")`
+        },
+        {
+          note: "The glow, fine-tuned: <code>Glow</code> takes the color, the radius (<code>radius</code>) and the strength (<code>amount</code>). One at a time, in place of <code>\"orange\"</code>.",
+          code: `banner.glow = Glow("gold", radius=20)
+banner.glow = Glow("cyan", radius=8, amount=2)`
+        }
+      ],
+      dive: [
+        {
+          title: "More Text options",
+          body: `
+            <p>The banner uses <code>center</code>: the text is centered on that point. A <code>Text</code> has a few more settings, useful for scoreboards, notices and instructions.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Option</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td><code>top_left</code>, <code>top_center</code>, <code>top_right</code></td><td>Where the text is pinned: the top-left corner, the top middle, the top-right corner. The text grows downward from there.</td></tr>
+                <tr><td><code>width</code></td><td>The width of the text's box. With it, a long sentence wraps onto new lines by itself instead of running off the screen.</td></tr>
+                <tr><td><code>align</code></td><td>The alignment of the lines within that width: <code>"left"</code> (the default), <code>"center"</code> or <code>"right"</code>.</td></tr>
+                <tr><td><code>background</code></td><td>A background color behind the letters: the text stays readable over any scenery.</td></tr>
+              </tbody>
+            </table></div>
+            <p>In the Guide: <a href="../guide/index.html#desenhar-text">Text</a>.</p>
+          `,
+          try: [
+            {
+              note: "An instruction near the bottom corner that wraps by itself, and a centered notice with a background. At the end of the program.",
+              code: `Text("Type in the box and press Enter. Esc lets go of the keyboard.", top_left=(40, 120), width=320)
+Text("New!", top_center=(500, 200), width=200, align="center", background="#3A4A6B")`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "The track",
+      example: "banner.py",
+      body: `
+        <p>What is missing is the stroll. For an object to travel along a path, Scena has two pieces: the track and the verb that travels it.</p>
+        <p>A <code>Track</code> is a path: a curve that holds a shape. It is not a drawing, and so it is invisible: it does not appear on screen, it is only there for something to travel along.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 160" role="img" aria-label="A dashed figure eight lying on its side; the starting point is at the crossing, in the middle; an arrow shows that the first loop goes up and to the right">
+            <polyline class="guide" points="190.0,80.0 209.6,67.1 228.8,55.0 247.4,44.6 265.0,36.7 281.3,31.7 296.1,30.0 309.0,31.7 319.9,36.7 328.6,44.6 334.9,55.0 338.7,67.1 340.0,80.0 338.7,92.9 334.9,105.0 328.6,115.4 319.9,123.3 309.0,128.3 296.1,130.0 281.3,128.3 265.0,123.3 247.4,115.4 228.8,105.0 209.6,92.9 190.0,80.0 170.4,67.1 151.2,55.0 132.6,44.6 115.0,36.7 98.7,31.7 83.9,30.0 71.0,31.7 60.1,36.7 51.4,44.6 45.1,55.0 41.3,67.1 40.0,80.0 41.3,92.9 45.1,105.0 51.4,115.4 60.1,123.3 71.0,128.3 83.9,130.0 98.7,128.3 115.0,123.3 132.6,115.4 151.2,105.0 170.4,92.9 190.0,80.0"/>
+            <circle class="hot" cx="190" cy="80" r="5"/>
+            <line class="ray" x1="200" y1="73" x2="222" y2="58"/>
+            <line class="ray" x1="222" y1="58" x2="213" y2="58"/>
+            <line class="ray" x1="222" y1="58" x2="218" y2="66"/>
+            <text x="190" y="108" text-anchor="middle">start</text>
+            <text x="350" y="150" text-anchor="end">width = 600</text>
+            <text x="30" y="20">height = 250</text>
+          </svg>
+          <figcaption><code>Track.eight</code>: the invisible track. The banner starts at the crossing, where it already was, and goes around the eight.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Banner")
+Wallpaper(Gradient("black", "navy", angle=90))
+
+banner = Text("Hello!", center=(500, 350), font_size=80, font="fonts/kenvector_future.ttf")
+banner.fill = Gradient("sunset", angle=90)
+banner.glow = "orange"
+
+track = Track.eight(width=600, height=250)
+banner.move_along(track, time=8, loops="forever")
+
+
+def show(caption):
+    banner.text = caption
+    field.text = ""
+    field.focus()
+
+
+field = TextInput(placeholder="Type and press Enter", width=400, on_submit=show)
+field.focus()
+
+run()
+`,
+      notes: [
+        {
+          at: "Track.eight(",
+          text: "Scena comes with ready-made tracks, the <em>presets</em>. <code>Track.eight</code> is a figure eight on its side, with a <code>width</code> and a <code>height</code>. Given only its size, the eight has no fixed place: it starts wherever the object that travels it is, here at the center, where the banner is."
+        },
+        {
+          at: "banner.move_along(",
+          text: "<code>move_along</code> makes the banner travel the track. <code>time</code> is how long one lap takes, in seconds, and <code>loops=\"forever\"</code> starts the lap again each time it ends."
+        }
+      ],
+      after: `
+        <p>Run it and type a phrase: the banner changes its text without stopping.</p>
+        <p><code>move_along</code> was called only once, and there is no <code>update</code> touching the banner. Scena is the one moving it every frame, until the program ends.</p>
+      `,
+      try: [
+        {
+          note: "The track made visible (in magenta) and the banner tilted toward the direction it travels: <code>face=True</code>. On the left half of the eight, it turns upside down. In place of the <code>move_along</code> line.",
+          replaces: ['banner.move_along('],
+          code: `show_tracks(True)
+banner.move_along(track, time=8, loops="forever", face=True)`
+        }
+      ],
+      dive: [
+        {
+          title: "Other ready-made tracks",
+          body: `
+            <p>The eight is just one of the ready-made tracks of <code>Track</code>. There are others, each with its own sizes, and the examples below show a few: a circle, a star, a back-and-forth, a spiral. They all start where the banner is.</p>
+            <p>To see a track while you test, <code>show_tracks(True)</code> draws all of them in magenta. It is a help for you, not a decoration: remove the line when the program is done.</p>
+            <p>In the Guide: <a href="../guide/index.html#desenhar-track">Track</a> · <a href="../guide/index.html#mover-move-along">move_along</a>.</p>
+          `,
+          try: [
+            {
+              note: "One at a time, in place of the eight.",
+              replaces: ['track = Track.eight('],
+              code: `track = Track.circle(radius=150)
+track = Track.star(points=5, radius=200)
+track = Track.shuttle(length=500)`
+            },
+            {
+              note: "The spiral is open: it ends far from where it began. <code>yoyo=True</code> makes every next lap run backward, back to the start, with no jump. In place of the two track lines.",
+              replaces: ['track = Track.eight(', 'banner.move_along('],
+              code: `track = Track.spiral(turns=3, radius=200)
+banner.move_along(track, time=8, loops="forever", yoyo=True)`
+            }
+          ]
+        },
+        {
+          title: "A box linked to a field",
+          body: `
+            <p>The banner gets the phrase through <code>on_submit</code>: the Enter function copies the text into it. There is another way, the same one as the chain's <code>Slider</code>. <code>Slider(st["n_balls"])</code> wrote the number into a field of <code>st</code>; a <code>TextInput</code> can write into a field too: <code>TextInput(st["subtitle"])</code>.</p>
+            <p>When you press Enter, or click outside the box, what you typed goes into the <code>subtitle</code> field. And <code>Text(st["subtitle"])</code> is a text that shows that field: it changes by itself on every Enter, with no Enter function at all.</p>
+          `,
+          try: [
+            {
+              note: "A subtitle below the banner, linked to a field. Without a position, the new box goes into the column, right below the first one. At the end of the program.",
+              code: `st.subtitle = "a banner"
+TextInput(st["subtitle"], label="Subtitle", width=400)
+Text(st["subtitle"], center=(500, 250), font_size=30)`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Type in the box and press Enter: the phrase becomes the banner, which wanders around the screen in a figure eight. Esc lets go of the box; a click on it gives the keyboard back.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>TextInput</code> — a box to type in; while it has the focus, the keyboard belongs to it.</li>
+          <li><code>on_submit</code> — the Enter function; it receives the typed text.</li>
+          <li><code>field.text</code> and <code>field.focus()</code> — read or clear the box, and give the keyboard back to it.</li>
+          <li><code>font</code>, <code>fill</code> with <code>Gradient</code>, and <code>glow</code> — the font, gradient and glow of a <code>Text</code>.</li>
+          <li><code>Track</code> — an invisible path; <code>Track.eight</code> is a ready-made shape.</li>
+          <li><code>move_along</code> — travels the track; <code>loops="forever"</code> keeps going around without end.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#ui-textinput">TextInput</a> · <a href="../guide/index.html#desenhar-text">Text</a> · <a href="../guide/index.html#aparencia-cor">Color / Gradient / Texture</a> · <a href="../guide/index.html#aparencia-selos">Add-ons</a> · <a href="../guide/index.html#desenhar-track">Track</a> · <a href="../guide/index.html#mover-move-along">move_along</a>.</p>
+        <p><strong>Next:</strong> a real game, with a ship, a fleet and shots from both sides.</p>
+      `,
+      explore: `
+        <ul>
+          <li>In the ball chain, one more widget: a <code>Slider</code> for the size of the balls, or a list for their color.</li>
+          <li>In the drawing program, make a key change the color of the pen.</li>
+          <li>Can you make a button that erases the whole drawing?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

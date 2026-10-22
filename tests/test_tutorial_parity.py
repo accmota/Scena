@@ -152,6 +152,10 @@ class TestPageNames(unittest.TestCase):
         _names, race = tp.page_names(tp.pages(tp.PT_DIR)["32"].read_text(encoding="utf-8"))
         self.assertNotIn("º", race)
         self.assertTrue(tp._engine_word("ease_out"))
+        for key in ("SPACE", "UP", "ESC", "ESCAPE", "A", "F1"):
+            self.assertTrue(tp._engine_word(key), key)
+        # A word in capitals is not a key: "RELÂMPAGO" is a track's name on screen.
+        self.assertFalse(tp._engine_word("RELÂMPAGO"))
 
     def test_an_error_is_reported_once_per_page(self):
         pt = SAMPLE.replace("run()\n`", "def atualiza(dt):\n    pass\nrun()\n`")      # in both steps
@@ -193,7 +197,7 @@ Tutorial.mount({
   steps: [
     {
       title: "Um",
-      body: `<p>Você cria a barra.</p>`,
+      body: `<p>Você cria a <code>barra</code>.</p>`,
       code: `from scena import *
 
 barra = Rect(center=(500, 60), width=120, height=20)  # a barra
@@ -202,7 +206,7 @@ run()
       notes: [
         {
           at: "barra = Rect(",
-          text: "A barra."
+          text: "A barra, <code>group[\\"heroi\\"]</code>."
         }
       ]
     },
@@ -224,7 +228,7 @@ run()
 </html>
 '''
 NAMES = {"pages": {"99": "99-sample.html"}, "examples": {"amostra.py": "sample.py"},
-         "series": {"amostra": {"pages": ["99"], "names": {"barra": "paddle"}}}}
+         "series": {"amostra": {"pages": ["99"], "names": {"barra": "paddle"}, "strings": {"heroi": "hero"}}}}
 
 
 class TestDraftAndCheck(unittest.TestCase):
@@ -254,6 +258,8 @@ class TestDraftAndCheck(unittest.TestCase):
         self.assertIn('paddle = Rect(center=(500, 60)', text)
         self.assertIn('at: "paddle = Rect("', text)
         self.assertIn('example: "sample.py"', text)
+        self.assertIn("<code>paddle</code>", text, "inline code names what the code names")
+        self.assertIn('<code>group[\\"hero\\"]</code>', text, "inline code inside a quoted field")
         self.assertIn("# a barra", text, "comments are the translator's")
         self.assertEqual(self.check({}), [], "a draft passes while its units are pending")
 
@@ -263,9 +269,9 @@ class TestDraftAndCheck(unittest.TestCase):
         errs = self.check(state)
         self.assertTrue(any("ainda tem português" in e for e in errs), errs)
         text = (out.read_text(encoding="utf-8")
-                .replace("Você cria a barra.", "You make the paddle.")
+                .replace("Você cria a <code>paddle</code>.", "You make the <code>paddle</code>.")
                 .replace("# a barra", "# the paddle")
-                .replace("A barra.", "The paddle.")
+                .replace("A barra, ", "The paddle, ")
                 .replace("uma forma.", "a shape.")
                 .replace('title: "Amostra"', 'title: "Sample"'))
         out.write_text(text, encoding="utf-8")
@@ -318,6 +324,32 @@ class TestRealPages(unittest.TestCase):
                     for (ats, snips), step in zip(pages.step_notes(str(out)), steps):
                         for at in ats:
                             self.assertEqual(sum(at in ln for ln in step.code.split("\n")), 1, at)
+
+    def test_the_glossary_drafts_every_page_cleanly(self):
+        # names_en.json renames every page without merging two names or landing
+        # on a Scena name: a Portuguese edit that adds a clashing name, or a
+        # glossary edit, fails here before any page is translated by hand.
+        names = tp.read_names()
+        with tempfile.TemporaryDirectory() as folder:
+            en = Path(folder) / "docs" / "en" / "tutorial"
+            for key, path in tp.pages(tp.PT_DIR).items():
+                with self.subTest(page=key):
+                    out = tp.draft(key, tp.PT_DIR, en, names)
+                    self.assertEqual(tp.check_page(key, path.read_text(encoding="utf-8"),
+                                                   out.read_text(encoding="utf-8"), {}, names), [])
+                    out.unlink()
+
+    def test_english_level_files_follow_the_portuguese(self):
+        names = tp.read_names()
+        self.assertEqual(tp.check_levels(names), [])
+        level = "levels/duelo.json"
+        page = names["levels"][level]["page"]
+        trimmed = {**names, "series": {k: {**v, "strings": {w: e for w, e in (v.get("strings") or {}).items()
+                                                           if w != "parede"}}
+                                       for k, v in names["series"].items()}}
+        text, missing = tp.level_twin(level, trimmed)
+        self.assertEqual(missing, ["parede"], f"page {page}: a level word with no English is named")
+        self.assertTrue(any("parede" in e for e in tp.check_levels(trimmed)))
 
     def test_a_renaming_draft_keeps_notes_on_their_lines(self):
         # Tutorial 02 with a real glossary: every note and snippet still hits
