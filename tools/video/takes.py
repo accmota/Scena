@@ -85,6 +85,23 @@ TAKES = {
     "corredor/runs_b": dict(program="examples/corredor.py", pilot="run_robot",
                             args=dict(runs=(60.0,) * 4, ends=("crate", "hole"), seed=2),
                             seed=2, end="done", seconds=300),
+    # Duelo: both players browse the ships and confirm; a match to its end;
+    # the victory screen, SPACE back to the choice. The side with more skill
+    # (steadier aim, more firing and dodging) usually wins.
+    "duelo/blue_wins": dict(program="examples/duelo.py", pilot="duel_match",
+                            args=dict(ships=(1, 2), skill=(0.9, 0.5), seed=1), seed=1,
+                            end="done", seconds=180),
+    "duelo/red_wins": dict(program="examples/duelo.py", pilot="duel_match",
+                           args=dict(ships=(2, 1), skill=(0.5, 0.9), seed=2), seed=2,
+                           end="done", seconds=180),
+    "duelo/even": dict(program="examples/duelo.py", pilot="duel_match",
+                       args=dict(ships=(2, 2), skill=(0.8, 0.8), seed=3), seed=3,
+                       end="done", seconds=180),
+    # Ligue 4: three games in a row (red's row, blue's column, red's
+    # diagonal), "Novo jogo" between them; one ball let go off the board.
+    "ligue4/three_games": dict(program="examples/ligue4.py", pilot="play_connect4",
+                               args=dict(misdrop=(1, 2), seed=1), seed=1, end="done",
+                               seconds=180),
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),

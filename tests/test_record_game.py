@@ -374,7 +374,7 @@ def _play(tid, seconds, watch=None):
                "circles": len(circles)}
         if "st" in ns:
             out["st"] = {k: getattr(ns["st"], k, None)
-                         for k in ("pontos", "perdidas", "score", "venceu", "vidas")}
+                         for k in ("pontos", "perdidas", "score", "venceu", "vidas", "vencedor")}
         if "triangulo" in ns:
             out.update(triangle=ns["triangulo"].color, radius=ns["circulo"].radius,
                        colors={k: ns[k].color for k in before})

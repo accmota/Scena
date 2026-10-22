@@ -18,6 +18,7 @@ what it remembers between frames in ``memo(game)``.
 """
 from __future__ import annotations
 
+import math
 import random
 
 
@@ -539,5 +540,197 @@ def run_robot(game, t, *, runs=(45.0,), ends=("crate",), wait=2.5, seed=0, eager
     game.hold("UP" if jump else None)
 
 
+# ── Ligue 4 ─────────────────────────────────────────────────────────────────
+
+# Moves are columns (0-6), red first; each game ends in the named win.
+CONNECT4_GAMES = {
+    "red_row": (3, 3, 4, 4, 2, 5, 1),                      # red: bottom row 1-4
+    "blue_column": (0, 6, 1, 6, 0, 6, 5, 6),               # blue: four up column 6
+    "red_diagonal": (0, 1, 1, 2, 3, 2, 2, 3, 4, 3, 3),     # red: (0,0) (1,1) (2,2) (3,3)
+}
+
+
+def play_connect4(game, t, *, games=("red_row", "blue_column", "red_diagonal"), seed=0,
+                  think=(0.4, 1.2), hesitate=0.25, misdrop=None, win_hold=3.0, end_hold=3.5):
+    """Games of Ligue 4, one after another, each to its win (``CONNECT4_GAMES``):
+    grab the waiting ball, carry it over the column, let go; after a win the
+    board glows ``win_hold`` s and the pointer clicks "Novo jogo".
+
+    ``think``: seconds before a move (random in the range); ``hesitate``: the
+    chance a move first hovers over a neighbour column; ``misdrop``: (game,
+    move) where the ball is let go off the board and slides back, once.
+    """
+    m = memo(game)
+    if "rng" not in m:
+        m.update(rng=random.Random(seed), g=0, move=0, phase="wait", t0=t, path=None,
+                 misdropped=False)
+    rng = m["rng"]
+    ns = game.ns
+    st, ball, start = ns["st"], ns["proxima"], ns["INICIO"]
+    game.cursor = True
+    game.hold()
+    moves = CONNECT4_GAMES[games[m["g"]]]
+    k = t - m["t0"]
+
+    def above(col):
+        # The top cell of the column: the game reads the column from the cell
+        # under the drop, so a point above the board is a drop off it.
+        c = ns["grade"].cell(col, 0).center
+        return c.x, c.y
+
+    if m["phase"] == "wait":                     # the next ball is up: think, then grab
+        if st.fim:
+            m.update(phase="won", t0=t)
+            return
+        if m["move"] >= len(moves) or not ball.visible:
+            return
+        if "pause" not in m:
+            m["pause"] = rng.uniform(*think)
+        if k < m["pause"]:
+            return
+        col = moves[m["move"]]
+        keys = [(0.0, start)]
+        if rng.random() < hesitate:              # over a neighbour first
+            other = col + rng.choice((-1, 1)) if 0 < col < 6 else (1 if col == 0 else 5)
+            keys += [(0.45, above(other)), (0.75, above(other))]
+        drop = above(col)
+        if misdrop == (m["g"], m["move"]) and not m["misdropped"]:
+            drop = (drop[0], drop[1] + 260)      # off the board: the ball slides back
+            m["misdropped"] = True
+            m["redo"] = True
+        keys.append((keys[-1][0] + 0.45, drop))
+        m.update(phase="drag", t0=t, path=keys)
+        m.pop("pause", None)
+        game.mouse(*start)
+        game.press()
+        return
+    if m["phase"] == "drag":
+        game.mouse(*path_point(m["path"], k))
+        if k >= m["path"][-1][0] + 0.1:
+            game.release()
+            if m.pop("redo", False):
+                m.update(phase="wait", t0=t + 0.4)
+            else:
+                m.update(phase="wait", t0=t, move=m["move"] + 1)
+        return
+    if m["phase"] == "won":                      # glow, then "Novo jogo" (or the end)
+        if m["g"] + 1 >= len(games):
+            game.done = k >= end_hold
+            return
+        if k < win_hold:
+            return
+        button = game.run.widget_center("Novo jogo")
+        game.mouse(*path_point([(0, game._at), (0.6, button)], k - win_hold))
+        if at(k, win_hold + 0.8):
+            game.press()
+        if at(k, win_hold + 0.9):
+            game.release()
+        if k >= win_hold + 1.2:
+            m.update(phase="wait", t0=t, g=m["g"] + 1, move=0)
+
+
+# ── Duelo ───────────────────────────────────────────────────────────────────
+
+def _duel_side(game, m, t, me, other, side, *, skill, rng):
+    """One ship's keys this frame: wander on the rail, step aside from a laser
+    coming at it, aim at the other ship (or a star, now and then) with an
+    error that sweeps, and fire when the aim is close."""
+    ns = game.ns
+    s = m.setdefault(side, {"rng": random.Random(rng.random()), "goal": 0.5, "next_goal": 0.0,
+                            "phase": rng.uniform(0, 6.28)})
+    k = me.teclas
+    keys = []
+    # 1. a laser coming: slide along the rail to the side farther from its line
+    threat = None
+    for shot in ns["group"]["tiros"]:
+        if getattr(shot, "dono", None) is me or shot.vel.length < 1:
+            continue
+        v = shot.vel
+        rx, ry = me.center.x - shot.center.x, me.center.y - shot.center.y
+        along = (rx * v.x + ry * v.y) / v.length
+        side_off = abs(rx * v.y - ry * v.x) / v.length
+        if 0 < along < 420 and side_off < 48:
+            threat = shot
+            break
+    if threat is not None and s["rng"].random() < 0.6 + 0.4 * skill:
+        v = threat.vel
+
+        def miss(u):
+            p = me.trilho.at(min(1, max(0, u)))
+            rx, ry = p[0] - threat.center.x, p[1] - threat.center.y
+            return abs(rx * v.y - ry * v.x) / v.length
+
+        keys.append(k["cima"] if miss(me.u + 0.12) > miss(me.u - 0.12) else k["baixo"])
+    else:                                        # 2. wander to a goal on the rail
+        if t >= s["next_goal"]:
+            s["goal"] = s["rng"].uniform(0.1, 0.9)
+            s["next_goal"] = t + s["rng"].uniform(1.5, 3.5)
+        keys.append(steer(s, (s["goal"] - me.u) * 400, start=20, stop=6,
+                          keys=(k["baixo"], k["cima"])))
+    # 3. aim (the other ship, or a star now and then) and fire when close
+    stars = list(ns["group"]["alvo"])
+    target = other
+    if stars and s.get("hunt", False):
+        target = stars[0]
+    if t >= s.get("next_hunt", 0.0):
+        s["hunt"] = s["rng"].random() < 0.4
+        s["next_hunt"] = t + 3.0
+    sweep = (6 + 30 * (1 - skill)) * math.sin(t * 1.7 + s["phase"])
+    want = ns["heading"](me, target) + sweep
+    err = (want - me.angle + 180) % 360 - 180
+    turn = {"_steer": s.get("_turn")}
+    keys.append(steer(turn, err, start=8, stop=3, keys=(k["direita"], k["esquerda"])))
+    s["_turn"] = turn["_steer"]
+    if abs(err) < 14 and bursts(s, t, 0.45 + 0.5 * skill):
+        keys.append(k["tiro"])
+    return keys
+
+
+def duel_match(game, t, *, ships=(1, 2), skill=(0.8, 0.8), seed=0, victory_hold=4.0,
+               title_hold=2.0):
+    """A whole Duelo match: on the choice screen each player browses the two
+    ships and confirms ``ships`` (blue, red); the match to its end; the
+    victory screen; SPACE back to the choice (the run is over there).
+
+    ``skill`` (blue, red), 0-1: a steadier aim (smaller sweep), more firing,
+    more dodging. The side with more skill usually wins.
+    """
+    m = memo(game)
+    if "rng" not in m:
+        m.update(rng=random.Random(seed))
+    name = act_name()
+    game.cursor = False
+    if name == "Escolha":
+        if m.get("over"):
+            game.hold()
+            if t - m.setdefault("back", t) >= title_hold:
+                game.done = True
+            return
+        k = t - m.setdefault("choice", t)
+        taps = [(0.8, "D"), (1.0, "RIGHT"), (1.4, "A"), (1.6, "LEFT")]
+        if ships[0] == 2:
+            taps.append((2.0, "D"))
+        if ships[1] == 2:
+            taps.append((2.2, "RIGHT"))
+        taps += [(2.8, "TAB"), (3.3, "ENTER")]
+        game.hold(*[key for when, key in taps if at(k, when, 3)])
+        return
+    if name == "Vitoria":
+        m["over"] = True
+        game.hold("SPACE" if at(t - m.setdefault("end", t), victory_hold, 3) else None)
+        return
+    if name != "Duelo":
+        game.hold()
+        return
+    act = current_act()
+    blue, red = act.azul, act.vermelha
+    if not (blue.is_alive and red.is_alive):     # the explosion, then the victory screen
+        game.hold()
+        return
+    keys = _duel_side(game, m, t, blue, red, "blue", skill=skill[0], rng=m["rng"])
+    keys += _duel_side(game, m, t, red, blue, "red", skill=skill[1], rng=m["rng"])
+    game.hold(*keys)
+
+
 PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, fly_plane,
-                                  race, run_robot)}
+                                  race, run_robot, play_connect4, duel_match)}

@@ -17,6 +17,9 @@ Bug classes guarded:
 * **A race take skips a screen.** Each race clicks its players and track
   buttons (the take's mode and track are the ones raced), finishes, shows
   the results and goes back to the opening.
+* **A duel or a Ligue 4 take ends with another winner.** ``duelo/blue_wins``
+  is won by blue with the chosen ships; Ligue 4 plays its three games to
+  their named wins, and its off-board drop slides back without a move.
 * **A runner take stops after one run.** The corredor takes are several runs
   with SPACE between them; the record never goes down and grows past the
   first run.
@@ -131,6 +134,38 @@ class TestWholeGames(unittest.TestCase):
         records = [e[2] for e in runs]
         self.assertEqual(records, sorted(records), "the record never goes down")
         self.assertGreater(records[-1], 0)
+
+    def test_duels_end_as_named(self):
+        for tid, winner in (("duelo/blue_wins", "AZUL"), ("duelo/red_wins", "VERMELHO")):
+            spec = tk.take(tid)
+            flown = {}
+
+            def watch(ns, t):
+                if rg_act() == "Duelo":
+                    flown.update(ships=(ns["st"].tipo_azul, ns["st"].tipo_vermelha))
+
+            r = _play(tid, 180, watch)
+            self.assertTrue(r["done"], tid)
+            self.assertEqual(flown["ships"], tuple(spec["args"]["ships"]), tid)
+            self.assertEqual(r["st"]["vencedor"], winner, tid)
+
+    def test_connect4_games_end_as_named(self):
+        import pilots
+        spec = tk.take("ligue4/three_games")
+        ends, seen = [], {"fim": False}
+
+        def watch(ns, t):
+            st = ns["st"]
+            if st.fim and not seen["fim"]:
+                ends.append((st.vez, len(list(ns["group"]["jogadas"]))))
+            seen["fim"] = st.fim
+
+        r = _play("ligue4/three_games", 180, watch)
+        self.assertTrue(r["done"])
+        names = pilots.play_connect4.__kwdefaults__["games"]
+        want = [("vermelho" if n.startswith("red") else "azul", len(pilots.CONNECT4_GAMES[n]))
+                for n in names]
+        self.assertEqual(ends, want, "each game ends in its win, the misdrop is no move")
 
 
 if __name__ == "__main__":
