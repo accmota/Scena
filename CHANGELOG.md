@@ -10,6 +10,32 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Breaking
+
+- A pointer decorator (`@click`, `@hover`, `@hover_exit`, `@drag_to`,
+  `@drag_over`, `@drop_by`) above a method in a class body raises
+  `TypeError`, as `@collide` already did. There it made a rule for the whole
+  tag when the class was defined, not for each object, and the target
+  arrived as `self` (in an act, `self` was the button, not the act).
+  Before: `class Bola(Circle): @click(group["bolas"]) def tocou(self): …`.
+  After: `def on_click(self): …` (the class hook), or
+  `self.on_click = self.tocou` in `setup()`; in an act, `@click(botao)`
+  inside `setup()`. The error names the hook for the gesture.
+
+### Fixed
+
+- A decorator written without its parentheses (`@every`, `@after`, `@when`,
+  `@on_change`, `@exit_mode`, `@collide_with`, `@collide_with_stay`,
+  `@collide_with_exit`, `@click` and the other pointer verbs, and
+  `@self.every` / `@self.after` in a method) did nothing, with no message: Python
+  passed the function to the decorator as its argument and the function
+  never ran. It now raises `TypeError` naming the function and the spelling
+  with parentheses: at the line, or, for `@when` / `@on_change` /
+  `@exit_mode`, at the class line or at `run()`. `@click()` with no target
+  raises too (it wired nothing).
+
 ## 0.9.0 — 2026-10-22
 
 ### Breaking

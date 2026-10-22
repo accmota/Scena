@@ -212,10 +212,56 @@ def _reset_tag_rules() -> None:
     _reg._POINTER_TAG_HOOK = None
 
 
+_CLASS_HOOK = {
+    "click": "on_click(self)",
+    "hover": "on_hover(self)",
+    "hover_exit": "on_hover_exit(self)",
+    "drag_to": "on_drag_to(self, to_shape, pos)",
+    "drag_over": "on_drag_over(self, to_shape, pos)",
+    "drop_by": "on_drop_by(self, from_shape, pos)",
+}
+
+
+def _refuse_no_targets(verb: str, targets) -> None:
+    """``@click()`` wired nothing; ``@click`` (bare) left the function bound
+    to the inner decorator. Both were silent (BD1)."""
+    example = f'@{verb}(bola) or @{verb}(group["botoes"])'
+    if not targets:
+        raise TypeError(
+            f"@{verb}() names no target, so it wires nothing: write "
+            f"{example}. In a Shape or Sprite class, the method "
+            f"{_CLASS_HOOK[verb]} is the hook."
+        )
+    from .validate import refuse_bare_decorator
+    for target in targets:
+        refuse_bare_decorator(verb, target, what="what it acts on", example=example)
+
+
+def _refuse_class_body(verb: str, func: Callable) -> None:
+    """In a class body there is no object yet: the handler became a rule of
+    the whole tag, made at the class line, with the target as ``self`` (on an
+    act, the button, not the act). ``@collide`` refuses the same way."""
+    name = getattr(func, "__name__", "the method")
+    other = ""
+    if verb in ("click", "hover", "hover_exit"):
+        other = f", or keep this name and set it in setup(): self.on_{verb} = self.{name}"
+    raise TypeError(
+        f"@{verb} cannot decorate the method {name}: a class body has no "
+        f"object yet, so the handler would not be this instance's. In a Shape "
+        f"or Sprite class, name the method {_CLASS_HOOK[verb]} (the class "
+        f"hook){other}. In an Act class, put @{verb}(...) inside setup() for "
+        f"this act only, or at the top of the file for the whole game."
+    )
+
+
 def _pointer_decorator(verb: str, attr: str, passes, targets):
+    _refuse_no_targets(verb, targets)
+
     def decorator(func: Callable) -> Callable:
-        from .process import _claim_decorator_role
+        from .process import _claim_decorator_role, _in_executing_class_body
         from . import process as _process
+        if _in_executing_class_body():
+            _refuse_class_body(verb, func)
         check_pointer_handler(func, passes, what=f"@{verb}")
         items = _collect_targets(verb, *targets)
         _claim_decorator_role(func, "pointer")

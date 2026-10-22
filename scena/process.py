@@ -31,7 +31,7 @@ from .easing import Ease, TWEEN_EASES, resolve_ease
 from types import CoroutineType as _CoroutineType
 
 from .validate import (
-    NO_FN, refuse_called_function,
+    NO_FN, refuse_called_function, refuse_bare_decorator,
     HINT_SCALE, clamp_magnitude, is_async_callable, magnitude, fixed_magnitude,
     payload_arity, refuse_async, refuse_coroutine_result, seconds,
 )
@@ -626,7 +626,10 @@ def exit_mode(enter_fn):
         target._exit_mode = exit_fn
         return exit_fn
 
-    return deco
+    # A bare ``@exit_mode`` passes the cleanup itself as the mode: found
+    # where the name is bound (class line, run()), BD1.
+    from .validate import mark_bare_candidate
+    return mark_bare_candidate(deco, "exit_mode", enter_fn)
 
 
 def _fn_and_then(fn, then, *, call_name: str, on_done=None):
@@ -3710,6 +3713,8 @@ def after(
     if _SOLVER_READING:
         refuse_if_solver_reading('after()')
     refuse_called_function("after", fn)
+    refuse_bare_decorator("after", delay, what="its delay",
+                          example="@after(2)")
     if fn is NO_FN:
         fn = None
     if fn is None and then is None and on_done is None:
@@ -3756,6 +3761,8 @@ def every(
     if _SOLVER_READING:
         refuse_if_solver_reading('every()')
     refuse_called_function("every", fn)
+    refuse_bare_decorator("every", interval, what="its interval",
+                          example="@every(1.5)")
     if fn is NO_FN:
         fn = None
     if fn is None:
@@ -3796,6 +3803,8 @@ def after_on(
     if _SOLVER_READING:
         refuse_if_solver_reading('after()')
     refuse_called_function("after", fn)
+    refuse_bare_decorator("after", delay, what="its delay",
+                          example="@self.after(2)")
     if fn is NO_FN:
         fn = None
     if fn is None and then is None and on_done is None:
@@ -3822,6 +3831,8 @@ def every_on(
     if _SOLVER_READING:
         refuse_if_solver_reading('every()')
     refuse_called_function("every", fn)
+    refuse_bare_decorator("every", interval, what="its interval",
+                          example="@self.every(1.5)")
     if fn is NO_FN:
         fn = None
     if fn is None:

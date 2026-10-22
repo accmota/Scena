@@ -9,7 +9,7 @@ too. Author writes raise; formula and tween results clamp magnitudes to 0.
 from __future__ import annotations
 
 import math
-from types import CoroutineType as _CoroutineType, FunctionType as _FunctionType
+from types import CoroutineType as _CoroutineType, FunctionType as _FunctionType, MethodType
 from collections.abc import Mapping
 import numbers
 from enum import Enum
@@ -282,6 +282,64 @@ def refuse_called_function(verb: str, fn) -> None:
             f"{verb}(0.6, spawn()) runs spawn now and passes what it returns. "
             f"Pass the function itself, without parentheses: {verb}(0.6, spawn)."
         )
+
+
+def refuse_bare_decorator(verb: str, arg, *, what: str, example: str) -> None:
+    """A decorator written without its arguments (``@every`` above a ``def``)
+    gets the function itself as its first argument and returns its inner
+    decorator, which nothing calls: the name is rebound to that closure and
+    the function never runs, without a word (BD1, 2026-10-22). Raise where
+    the argument can never be a function (a target, an interval)."""
+    if not isinstance(arg, (_FunctionType, MethodType)):
+        return
+    name = getattr(arg, "__name__", "the function")
+    head = (f"@{verb} needs {what} in parentheses: {example}." if name == "<lambda>"
+            else f"@{verb} got the function {name}() where {what} goes. "
+                 f"Write {example} above def {name}(): written without "
+                 f"parentheses, Python hands {name} itself to @{verb} and "
+                 f"{name} never runs.")
+    raise TypeError(head)
+
+
+def mark_bare_candidate(decorator: Callable, verb: str, arg) -> Callable:
+    """``@when`` / ``@on_change`` / ``@exit_mode`` take a function as their
+    argument, so the bare form cannot be refused at the call. Record it on the
+    returned decorator: a class body or a script namespace that binds the
+    function's own name to it is the bare form (``bare_decorator_message``)."""
+    if isinstance(arg, _FunctionType) and arg.__name__ != "<lambda>":
+        decorator._scena_bare_of = (verb, arg)
+    return decorator
+
+
+_BARE_EXAMPLES = {     # what goes in the parentheses, (top of the file, class method)
+    "when": ("condition", "@when(lambda: st.vidas == 0)", "@when(lambda self: self.vidas == 0)"),
+    "on_change": ("watched value", "@on_change(lambda: st.pontos)",
+                  "@on_change(lambda self: self.vidas)"),
+    "exit_mode": ("mode", "@exit_mode(andando)", "@exit_mode(andando)"),
+}
+
+
+def bare_decorator_message(name: str, value) -> Optional[str]:
+    """The refusal for ``name`` bound to a Scena decorator that was never
+    applied because it was written bare (``@when`` above ``def morreu``), or
+    None. Only a plain function's own ``__dict__`` is read: a script
+    namespace holds objects whose ``__getattr__`` makes what it is asked."""
+    if not isinstance(value, _FunctionType):
+        return None
+    spec = value.__dict__.get("_scena_bare_of")
+    if spec is None:
+        return None
+    verb, fn = spec
+    if fn.__name__ != name:
+        return None     # ``deco = when(cond)`` kept for later: not the bare form
+    in_class = "." in getattr(fn, "__qualname__", "")
+    what, example = _BARE_EXAMPLES[verb][0], _BARE_EXAMPLES[verb][1 + in_class]
+    return (
+        f"{name}() is never called: @{verb} above it was written without its "
+        f"{what}, so Python handed {name} itself to @{verb} as the {what} "
+        f"and {name} now names the unused decorator. Write {example} above "
+        f"def {name}(…) (line {fn.__code__.co_firstlineno})."
+    )
 
 
 def did_you_mean(

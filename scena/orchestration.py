@@ -4238,6 +4238,15 @@ class ScenaFramework:
             if callback in namespace and callable(namespace[callback]):
                 refuse_async(namespace[callback], what="script hook")
 
+        # ``@when`` / ``@on_change`` written bare: the name holds the unused
+        # decorator and the function never runs (BD1).
+        from .validate import bare_decorator_message
+        bare = [m for m in (bare_decorator_message(k, v) for k, v in list(namespace.items())
+                            if isinstance(k, str)) if m]
+        if bare:
+            raise TypeError(bare[0] if len(bare) == 1 else
+                            "Functions Scena will never call:\n" + "\n".join(f"  {m}" for m in bare))
+
         # A plain ``def on_click(x, y):`` is never called (persona probes PP).
         misses = _top_level_near_misses(namespace)
         if misses:

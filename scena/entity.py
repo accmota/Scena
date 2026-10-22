@@ -423,6 +423,8 @@ def _check_class_hook_names(cls) -> None:
       and the construction crashed deep in ``state._batch_update``.
     * The top-of-file input callbacks (``on_key_down``, ``on_mouse_click``, …)
       in a class body: never called.
+    * A ``@when`` / ``@on_change`` written without its condition: the
+      method's name holds the unused decorator (BD1).
     * A near miss of a hook (``on_colide``, ``on_updat``, ``on_destory``: one
       edit or one swap away), another engine's spelling (``on_collision``),
       and a plain method named ``collide_with`` (the decorator's name).
@@ -518,6 +520,10 @@ def _file_calls(fn, name: str, cls=None) -> bool:
 def _class_hook_refusal(cls, name: str, raw, is_act: bool, who: str) -> Optional[str]:
     """The refusal for one class-body method, or None (``_check_class_hook_names``)."""
     from ._pkg import is_framework_module
+    from .validate import bare_decorator_message
+    bare = bare_decorator_message(name, raw)     # ``@when`` above it, bare (BD1)
+    if bare is not None:
+        return f"{who}.{bare}"
     if name == "update":
         # Any signature: ``update`` is ``Container.update`` (the graph
         # recalculation) on an act as on an actor, so even a helper

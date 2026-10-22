@@ -662,7 +662,10 @@ def when(condition: Condition):
             return func
         return _decorate(condition, EventKind.WHEN, "when")(func)
 
-    return decorator
+    # A bare ``@when`` passes the function as the condition: found where the
+    # name is bound (class line, run()), BD1.
+    from .validate import mark_bare_candidate
+    return mark_bare_candidate(decorator, "when", condition)
 
 
 def on_change(target: Condition):
@@ -716,7 +719,10 @@ def on_change(target: Condition):
             return func
         return _decorate(target, EventKind.ON_CHANGE, "on_change")(func)
 
-    return decorator
+    # A bare ``@on_change`` passes the function as the target: found where the
+    # name is bound (class line, run()), BD1.
+    from .validate import mark_bare_candidate
+    return mark_bare_candidate(decorator, "on_change", target)
 
 
 def unregister_event(func: Callable) -> None:

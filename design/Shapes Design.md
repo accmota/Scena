@@ -1291,6 +1291,19 @@ every target **before** any is touched (no half-applied decorator):
 | `@hover` / `@hover_exit` | yes | yes | yes |
 | `@drag_to` / `@drag_over` / `@drop_by` | yes | `TypeError` | `TypeError` |
 
+**Targets are required, and a class body is not a place** (BD1,
+2026-10-22). `@click()` (no target) and `@click` written bare above a `def`
+(Python hands the function itself to `click`, which returns its inner
+decorator; the name is rebound to it and the handler never runs) raise at the
+line (`interaction._refuse_no_targets`, `validate.refuse_bare_decorator`). A
+pointer decorator above a method raises too (`_refuse_class_body`), as
+`@collide` does: the class body has no object yet, so `@click(group["x"])`
+there made a rule of the whole tag at the class line with the target as
+`self` (on an act, the button, not the act). The message names the class hook
+(`on_click(self)`, …, the table in `_CLASS_HOOK`), `self.on_click =
+self.name` in `setup()` for click and hover, and, for an act, `@click(...)`
+inside `setup()`. Guard: `tests/test_bare_decorators.py`.
+
 Before this, `@click(group)` silently skipped widgets and `@click(button)`
 raised. `on_click` lives on `Button` only: `checkbox.on_click = f` raises (it
 used to be stored and never called). Button calls `call_truncated(fn,

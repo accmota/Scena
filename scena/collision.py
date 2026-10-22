@@ -12788,6 +12788,11 @@ def _pair_method_adapter(bound: Callable) -> Callable:
 
 def _collide_with_decorator(phase: str, target):
     """Tag a method; construct registers ``add_pair_handler(item, target, …)``."""
+    from .validate import refuse_bare_decorator
+    refuse_bare_decorator(
+        _with_decorator_name(phase), target, what="the other side",
+        example=f'@{_with_decorator_name(phase)}("inimigos")',
+    )
     rights = _normalize_side(target)
     if not rights:
         raise TypeError(f"@{_with_decorator_name(phase)} target must not be empty")

@@ -385,6 +385,7 @@ run()
                 <tr><td><code>on_mouse_click</code>, <code>on_key_down</code>…</td><td>só no topo; na classe, <code>keyp</code> no <code>on_update</code></td></tr>
               </tbody>
             </table></div>
+            <p>Os gestos do mouse não aceitam <code>@click</code> acima de um método: na classe ainda não há objeto para clicar. O Scena recusa e diz o nome do método. Se quiser outro nome, ligue no <code>setup</code>: <code>self.on_click = self.pegar</code>.</p>
             <p>Qual escolher? O que é de cada um (o clique num vaga-lume, o piscar dele, a saída da tela) vai na classe. O que é do conjunto (a contagem, um placar, uma regra entre dois grupos) fica no topo, ou num objeto como a noite.</p>
             <p>No Guia: <a href="../guide/index.html#reagir-callbacks-entity">Callbacks da Entity</a> · <a href="../guide/index.html#reagir-pointer">Clique / arraste</a>.</p>
           `,
