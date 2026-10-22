@@ -13,6 +13,12 @@ Two roots: tests/ (framework) and scena_editor/tests/ (level editor, a
 companion app). Name either kind the same way:
   python tests/run_tiers.py focused test_editor_tools test_level
 
+Memory: tier workers run modules that start their own pools of Python
+children (laws, scripts, tutorials: up to 8 each). On Windows every child
+commits its heap; on a 16 GB machine the default gate -j (CPUs - 2) ran out
+of commit (native aborts, rc=3221227274, and timeouts; WP30). There:
+  python tests/run_tiers.py gate -j 4
+
 Job budget: each job gets the tier's timeout (quick 300 s, gate 30 min). A
 module past ~15 s at dev joins SLOW in run_tiers.py (quick skips it; gate and
 deep run it); a gate job that dominates the wall joins SPLIT (one job per

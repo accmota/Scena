@@ -198,7 +198,7 @@ class TestLinksNeedNoPrivilege(unittest.TestCase):
             with tempfile.TemporaryDirectory() as twin, mock.patch.object(os, "symlink", refused):
                 link_entry(keep, os.path.join(twin, "media"))
                 link_entry(os.path.join(keep, "art.txt"), os.path.join(twin, "art.txt"))
-            self.assertEqual(os.listdir(keep), ["art.txt"])
+            self.assertEqual([os.path.basename(f) for f in iter_files(keep)], ["art.txt"])
 
     def test_tests_link_through_the_helper(self):
         bad = []
