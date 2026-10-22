@@ -1175,7 +1175,7 @@
  "spatial-orb": {
   "card": "thumbs/spatial-orb.card.webp",
   "h": 300,
-  "hash": "9d8807e2c9e142e1",
+  "hash": "4f5d13be7eeb8d3a",
   "scene": "spatial",
   "src": "thumbs/spatial-orb.webp",
   "w": 480
@@ -1184,7 +1184,7 @@
   "anim": "thumbs/spatial-portal.anim.webp",
   "card": "thumbs/spatial-portal.card.webp",
   "h": 300,
-  "hash": "97db3b1337da8a01",
+  "hash": "48d624a4b08e8339",
   "scene": "spatial",
   "src": "thumbs/spatial-portal.webp",
   "w": 480
@@ -1229,7 +1229,7 @@
   "anim": "thumbs/spatial-warp.anim.webp",
   "card": "thumbs/spatial-warp.card.webp",
   "h": 300,
-  "hash": "b8fd0fc7b5d02ec6",
+  "hash": "63ece950965a78cf",
   "scene": "spatial",
   "src": "thumbs/spatial-warp.webp",
   "w": 480
