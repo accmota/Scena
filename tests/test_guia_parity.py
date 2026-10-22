@@ -91,8 +91,13 @@ class TestRepo(Base):
 
 class TestPending(Base):
     def test_pt_edit_to_pending_unit_is_not_an_error(self):
+        # Any section nobody has translated yet (none left: nothing to test).
+        pending = [n for n, t in gp.units_of("page", self.pt["page"])
+                   if n not in self.state and "<h2>" in t]
+        if not pending:
+            self.skipTest("every section is translated")
         pt = dict(self.pt)
-        unit = _unit(pt["page"], "page", "outro-motor")
+        unit = _unit(pt["page"], "page", pending[0])
         pt["page"] = pt["page"].replace(unit, unit.replace("<h2>", "<h2>Novo ", 1))
         self.assertEqual(gp.check(pt, self.en, self.state), [])
         self.assertEqual(gp.out_of_sync(pt, self.en, self.state), ["page"])

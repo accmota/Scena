@@ -1349,47 +1349,47 @@
   <!-- ═══════════════ COMEÇAR ═══════════════ -->
   <article class="chapter active" id="comecar" data-chapter="comecar">
   <header class="chapter-head">
-    <p class="eyebrow">Guia de referência</p>
-    <h1>Começar</h1>
-    <p class="lede">Como um script Scena começa — o import, a janela, o loop do jogo — e as regras e palavras que o resto do Guia usa.</p>
+    <p class="eyebrow">Reference guide</p>
+    <h1>Start</h1>
+    <p class="lede">How a Scena script starts — the import, the window, the game loop — and the rules and words the rest of the Guide uses.</p>
     <p class="which">
-      Script mínimo / <code>init</code> → <a href="#script-minimo">Script mínimo</a><br>
-      Vindo do Scratch, da Unity ou do Pygame → <a href="#outro-motor">De outro motor</a><br>
-      Regras → <a href="#regras">Regras</a><br>
-      Unidades, Entity, ponto, frame… → <a href="#vocabulario">Vocabulário</a><br>
-      Arquivo PNG / SVG → <a href="#arquivos-imagem">Arquivos de imagem</a><br>
-      st / canvas / clock… → <a href="#globais">Objetos globais únicos</a><br>
-      setup / update / on_key → <a href="#reagir-callbacks">Callbacks do script</a><br>
-      Fórmula, pergunta, aviso ou processo? → <a href="#qual-usar">Qual usar</a>
+      Minimal script / <code>init</code> → <a href="#script-minimo">Minimal script</a><br>
+      Coming from Scratch, Unity or Pygame → <a href="#outro-motor">From another engine</a><br>
+      Rules → <a href="#regras">Rules</a><br>
+      Units, Entity, point, frame… → <a href="#vocabulario">Vocabulary</a><br>
+      PNG / SVG file → <a href="#arquivos-imagem">Image files</a><br>
+      st / canvas / clock… → <a href="#globais">Global singletons</a><br>
+      setup / update / on_key → <a href="#reagir-callbacks">Script callbacks</a><br>
+      Formula, check, event or process? → <a href="#qual-usar">Which to use</a>
     </p>
-    <p class="note">Os exemplos do Guia assumem <code>from scena import *</code> e <code>init(…)</code> no começo e <code>run()</code> no fim. <code>from scena import *</code> é o único import: tudo o que o Guia mostra vem dele.</p>
+    <p class="note">The Guide's examples assume <code>from scena import *</code> and <code>init(…)</code> at the start and <code>run()</code> at the end. <code>from scena import *</code> is the only import: everything the Guide shows comes from it.</p>
   </header>
 
   <section class="section prose" id="outro-motor">
-    <h2>De outro motor</h2>
-    <p class="one-liner">O jeito do Scratch, da Unity, da Godot ou do Pygame, e o jeito do Scena. A ideia é a mesma; a grafia muda.</p>
+    <h2>From another engine</h2>
+    <p class="one-liner">The Scratch, Unity, Godot or Pygame way, and the Scena way. The idea is the same; the spelling changes.</p>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Você escreveria</th><th>No Scena</th></tr></thead>
+        <thead><tr><th>You would write</th><th>In Scena</th></tr></thead>
         <tbody>
-          <tr><td>“sempre” (Scratch), <code>while running:</code> com <code>pygame.event.get()</code></td><td><code>def update(dt):</code> roda a cada frame; o Scena faz o laço. Um <code>while</code> dentro de <code>update</code> trava a janela: use <code>if</code>. Uma sequência com esperas é uma <a href="#mode-task">tarefa</a> (<code>async def</code> + <code>await wait(1)</code>, com <code>run_task</code>)</td></tr>
-          <tr><td>“espere 1 segundo”, <code>time.sleep(1)</code></td><td><code>after(1, f)</code>; numa tarefa, <code>await wait(1)</code>. <code>time.sleep</code> para o jogo inteiro</td></tr>
-          <tr><td><code>clock.tick(60)</code></td><td>Não precisa: <code>update(dt)</code> recebe o tempo do frame. A taxa é <code>canvas.framerate = 60</code></td></tr>
-          <tr><td><code>Update()</code> / <code>FixedUpdate()</code> numa classe</td><td><code>on_update(self, dt)</code></td></tr>
+          <tr><td>“forever” (Scratch), <code>while running:</code> with <code>pygame.event.get()</code></td><td><code>def update(dt):</code> runs every frame; Scena runs the loop. A <code>while</code> inside <code>update</code> freezes the window: use <code>if</code>. A sequence with waits is a <a href="#mode-task">task</a> (<code>async def</code> + <code>await wait(1)</code>, with <code>run_task</code>)</td></tr>
+          <tr><td>“wait 1 seconds”, <code>time.sleep(1)</code></td><td><code>after(1, f)</code>; in a task, <code>await wait(1)</code>. <code>time.sleep</code> stops the whole game</td></tr>
+          <tr><td><code>clock.tick(60)</code></td><td>Not needed: <code>update(dt)</code> receives the frame's time. The rate is <code>canvas.framerate = 60</code></td></tr>
+          <tr><td><code>Update()</code> / <code>FixedUpdate()</code> in a class</td><td><code>on_update(self, dt)</code></td></tr>
           <tr><td><code>Start()</code> / <code>Awake()</code></td><td><code>setup(self)</code></td></tr>
-          <tr><td>Godot: <code>_process(delta)</code>, <code>_ready()</code>, <code>queue_free()</code></td><td><code>on_update(self, dt)</code>, <code>setup(self)</code>, <code>self.destroy()</code>. Um filho que anda com o pai: <code>filho["center"] @= lambda: pai.center + Vec2(20, 0)</code></td></tr>
-          <tr><td><code>OnTriggerEnter2D(other)</code>, <code>OnCollisionEnter2D</code>, <code>rect.colliderect(outro)</code> a cada frame</td><td><code>on_collide(self, other)</code> na classe, ou <code>@collide("heroi", "moeda")</code>: roda quando começam a se tocar. Para perguntar agora: <code>test_collision(a, b)</code></td></tr>
-          <tr><td><code>OnMouseDown()</code>, “quando este ator for clicado”</td><td><code>on_click(self)</code>, ou <code>@click(obj)</code>. Um clique em qualquer lugar: <code>def on_mouse_click(x, y, button):</code> no topo do arquivo</td></tr>
-          <tr><td><code>Destroy(obj, 0.4)</code>, “apague este clone”</td><td><code>obj.destroy()</code>; depois de um tempo, <code>after(0.4, obj.destroy)</code></td></tr>
-          <tr><td><code>transform.position</code>, <code>transform.rotation</code></td><td><code>.center</code> (mova com <code>move_to</code> / <code>move_by</code>), <code>.angle</code>, <code>.scale</code></td></tr>
-          <tr><td>“esconda” / “mostre”, <code>SetActive(false)</code></td><td><code>visible = False</code> / <code>True</code> some só o desenho (ainda colide); <code>active = False</code> para tudo</td></tr>
-          <tr><td>“deslize em 1 s até x: y:”</td><td><code>move_to(x, y, time=1)</code> (o tempo vai pelo nome)</td></tr>
-          <tr><td>“aponte para”</td><td><code>obj.rotate_to(heading(obj, alvo))</code></td></tr>
-          <tr><td>“transmita mensagem” / “quando receber”</td><td>Chame a função. Ou conte: <code>st.ondas += 1</code> com <code>@on_change(st["ondas"])</code>, que compara uma vez por frame (duas escritas que voltam ao valor antigo no mesmo frame não disparam)</td></tr>
-          <tr><td>“crie clone de mim”</td><td><code>obj.clone()</code>; veja o que a cópia leva na tabela de <code>clone</code></td></tr>
-          <tr><td><code>x += vel * dt</code></td><td>Funciona: <code>obj.move_by(obj.vel.x * dt, obj.vel.y * dt)</code> no <code>update</code> (ou <code>on_update</code>). O Scena não move ninguém sozinho pela <code>vel</code>; ela é a velocidade que <code>bounce=</code> lê e reescreve</td></tr>
-          <tr><td><code>self.vel = 200</code> (a rapidez, um número)</td><td><code>vel</code> é a velocidade 2D de todo ator (<code>self.vel = (200, 0)</code>), a que <code>resolve(…, bounce=)</code> usa; quem move é você, com <code>move_by(vel.x * dt, vel.y * dt)</code>. Um número seu precisa de outro nome: <code>self.rapidez = 200</code></td></tr>
-          <tr><td><code>cooldown -= dt</code> … <code>if cooldown &lt;= 0: cooldown = 0.6</code></td><td>Funciona, mas joga fora o que passou de zero, e o ritmo muda com a taxa de quadros. <code>@every(0.6)</code> ou <code>ready("tiro", 0.6)</code> guardam o resto</td></tr>
+          <tr><td>Godot: <code>_process(delta)</code>, <code>_ready()</code>, <code>queue_free()</code></td><td><code>on_update(self, dt)</code>, <code>setup(self)</code>, <code>self.destroy()</code>. A child that moves with its parent: <code>child["center"] @= lambda: parent.center + Vec2(20, 0)</code></td></tr>
+          <tr><td><code>OnTriggerEnter2D(other)</code>, <code>OnCollisionEnter2D</code>, <code>rect.colliderect(other)</code> every frame</td><td><code>on_collide(self, other)</code> in the class, or <code>@collide("hero", "coin")</code>: runs when they start touching. To ask right now: <code>test_collision(a, b)</code></td></tr>
+          <tr><td><code>OnMouseDown()</code>, “when this sprite clicked”</td><td><code>on_click(self)</code>, or <code>@click(obj)</code>. A click anywhere: <code>def on_mouse_click(x, y, button):</code> at the top of the file</td></tr>
+          <tr><td><code>Destroy(obj, 0.4)</code>, “delete this clone”</td><td><code>obj.destroy()</code>; after a while, <code>after(0.4, obj.destroy)</code></td></tr>
+          <tr><td><code>transform.position</code>, <code>transform.rotation</code></td><td><code>.center</code> (move it with <code>move_to</code> / <code>move_by</code>), <code>.angle</code>, <code>.scale</code></td></tr>
+          <tr><td>“hide” / “show”, <code>SetActive(false)</code></td><td><code>visible = False</code> / <code>True</code> hides only the drawing (it still collides); <code>active = False</code> stops everything</td></tr>
+          <tr><td>“glide 1 secs to x: y:”</td><td><code>move_to(x, y, time=1)</code> (the time goes by name)</td></tr>
+          <tr><td>“point towards”</td><td><code>obj.rotate_to(heading(obj, target))</code></td></tr>
+          <tr><td>“broadcast message” / “when I receive”</td><td>Call the function. Or count: <code>st.waves += 1</code> with <code>@on_change(st["waves"])</code>, which compares once per frame (two writes that go back to the old value in the same frame do not fire it)</td></tr>
+          <tr><td>“create clone of myself”</td><td><code>obj.clone()</code>; see what the copy takes along in the <code>clone</code> table</td></tr>
+          <tr><td><code>x += vel * dt</code></td><td>Works: <code>obj.move_by(obj.vel.x * dt, obj.vel.y * dt)</code> in <code>update</code> (or <code>on_update</code>). Scena does not move anything by its <code>vel</code> on its own; <code>vel</code> is the velocity that <code>bounce=</code> reads and rewrites</td></tr>
+          <tr><td><code>self.vel = 200</code> (the speed, a number)</td><td><code>vel</code> is every object's 2D velocity (<code>self.vel = (200, 0)</code>), the one <code>resolve(…, bounce=)</code> uses; you do the moving, with <code>move_by(vel.x * dt, vel.y * dt)</code>. A number of your own needs another name: <code>self.speed = 200</code></td></tr>
+          <tr><td><code>cooldown -= dt</code> … <code>if cooldown &lt;= 0: cooldown = 0.6</code></td><td>Works, but it throws away whatever went past zero, and the rhythm changes with the frame rate. <code>@every(0.6)</code> or <code>ready("shot", 0.6)</code> keep the remainder</td></tr>
         </tbody>
       </table>
     </div>
@@ -1397,11 +1397,11 @@
 
 
   <section class="section prose" id="script-minimo">
-    <h2>Script mínimo</h2>
-    <p class="one-liner">Todo script tem três partes. <code>from scena import *</code> e <code>init(…)</code> preparam o espaço do jogo. O corpo do arquivo cria os objetos — cada construtor já põe o seu objeto na tela. <code>run()</code> abre a janela e roda o jogo, chamando <code>update(dt)</code> a cada frame.</p>
+    <h2>Minimal script</h2>
+    <p class="one-liner">Every script has three parts. <code>from scena import *</code> and <code>init(…)</code> set up the game's space. The body of the file creates the objects — each constructor already puts its object on the screen. <code>run()</code> opens the window and runs the game, calling <code>update(dt)</code> every frame.</p>
 
     <div class="code-panel">
-      <button class="copy-btn" type="button">copiar</button>
+      <button class="copy-btn" type="button">copy</button>
 <pre>from scena import *
 init(width=1200, height=800)
 
@@ -1418,63 +1418,63 @@ run()</pre>
     <details class="spec" open id="init">
       <summary>init</summary>
       <p class="sig"><code>init(width=2000, height=1200, title="Scena", window_scale=0.8, display="windowed", ui_scale=, ui_font=)</code></p>
-      <p class="sig-hint">Define o espaço de design e a janela; não abre a janela (isso é o <code>run()</code>). Já roda sozinho no <code>import scena</code> com os padrões. Chame de novo logo após <code>from scena import *</code> se o script lê <code>canvas.width</code> / <code>.height</code> antes de <code>run()</code>. <code>run()</code> não aceita tamanho.</p>
+      <p class="sig-hint">Sets up the design space and the window; it does not open the window (<code>run()</code> does). It already runs on its own at <code>import scena</code>, with the defaults. Call it again right after <code>from scena import *</code> if the script reads <code>canvas.width</code> / <code>.height</code> before <code>run()</code>. <code>run()</code> takes no size.</p>
       <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
+            <tr><th>Parameter</th><th>Pass</th><th>Type (default)</th><th>Meaning</th></tr>
           </thead>
           <tbody>
-<tr><td><code>width</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">2000</span></td><td>Largura do <strong>espaço de design</strong> (<code>canvas.width</code>). Não é a janela OS em pixels.</td></tr>
-<tr><td><code>height</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">1200</span></td><td>Altura do espaço de design (<code>canvas.height</code>). y-up, origem no canto inferior esquerdo.</td></tr>
-<tr><td><code>title</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"Scena"</span></td><td>Título da janela OS.</td></tr>
-<tr><td><code>window_scale</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0.8</span></td><td>Fração da <strong>maior janela windowed</strong> que cabe na área de trabalho (aspecto do design, decorações ligadas, taskbar visível). <code>1.0</code> = tão grande quanto a área permite. <code>0.8</code> = 80% disso, centrada. Só no arranque: consumido quando a janela abre. Não existe <code>canvas.window_scale</code>.</td></tr>
-<tr><td><code>display</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"windowed"</span></td><td>Atalho para <a href="#mundo-apresentacao"><code>canvas.display</code></a>. Só <code>"windowed"</code> · <code>"maximized"</code> · <code>"fullscreen"</code>. A janela windowed é criada primeiro (escala, centro); depois entra no modo.</td></tr>
-<tr><td><code>ui_scale</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">atual</span></td><td>Escreve <code>ui.scale</code>. Omitir deixa o valor atual (padrão de import: 1).</td></tr>
-<tr><td><code>ui_font</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">atual</span></td><td>Escreve <code>ui.font</code> (família ou arquivo <code>.ttf</code> / <code>.otf</code>). Omitir deixa o valor atual.</td></tr>
+<tr><td><code>width</code></td><td>name=</td><td class="type"><span class="t">number</span><span class="ex">2000</span></td><td>Width of the <strong>design space</strong> (<code>canvas.width</code>). Not the OS window in pixels.</td></tr>
+<tr><td><code>height</code></td><td>name=</td><td class="type"><span class="t">number</span><span class="ex">1200</span></td><td>Height of the design space (<code>canvas.height</code>). y-up, origin at the bottom-left corner.</td></tr>
+<tr><td><code>title</code></td><td>name=</td><td class="type"><span class="t">str</span><span class="ex">"Scena"</span></td><td>The OS window's title.</td></tr>
+<tr><td><code>window_scale</code></td><td>name=</td><td class="type"><span class="t">number</span><span class="ex">0.8</span></td><td>Fraction of the <strong>largest windowed window</strong> that fits the desktop (the design's aspect, decorations on, taskbar visible). <code>1.0</code> = as large as the area allows. <code>0.8</code> = 80% of that, centered. Startup only: used up when the window opens. There is no <code>canvas.window_scale</code>.</td></tr>
+<tr><td><code>display</code></td><td>name=</td><td class="type"><span class="t">str</span><span class="ex">"windowed"</span></td><td>Shortcut for <a href="#mundo-apresentacao"><code>canvas.display</code></a>. Only <code>"windowed"</code> · <code>"maximized"</code> · <code>"fullscreen"</code>. The windowed window is created first (scale, centered); then it switches to the mode.</td></tr>
+<tr><td><code>ui_scale</code></td><td>name=</td><td class="type"><span class="t">number</span><span class="ex">current</span></td><td>Writes <code>ui.scale</code>. Leaving it out keeps the current value (import default: 1).</td></tr>
+<tr><td><code>ui_font</code></td><td>name=</td><td class="type"><span class="t">str</span><span class="ex">current</span></td><td>Writes <code>ui.font</code> (a family, or a <code>.ttf</code> / <code>.otf</code> file). Leaving it out keeps the current value.</td></tr>
           </tbody>
         </table>
       </div>
-      <p>A janela OS deriva do aspecto do design, da área de trabalho do monitor, das bordas reais da janela e de <code>window_scale</code>. Sempre começa centrada. Não há <code>x=</code> / <code>y=</code> / <code>window_width=</code> em pixels — arraste se precisar de um lugar específico.</p>
+      <p>The OS window follows from the design's aspect, the monitor's desktop area, the window's real borders and <code>window_scale</code>. It always starts centered. There is no <code>x=</code> / <code>y=</code> / <code>window_width=</code> in pixels — drag the window if you need a specific spot.</p>
     </details>
-    <p class="name-group">Não confundir</p>
+    <p class="name-group">Don't confuse</p>
     <div class="tbl-wrap confuse-wrap">
 <table class="confuse">
-<thead><tr><th>Parece</th><th>É</th><th>Não é</th></tr></thead>
+<thead><tr><th>Looks like</th><th>It is</th><th>It is not</th></tr></thead>
 <tbody>
-<tr><td><code>init(width=, height=)</code> é o tamanho da janela OS</td><td>é o espaço de design. A janela windowed cabe na área de trabalho com o mesmo aspecto; <code>window_scale=1</code> é o maior encaixe windowed. <code>display="maximized"</code> preenche a área (faixas pretas). <code>display="fullscreen"</code> cobre o monitor.</td><td><code>canvas.window_scale</code></td></tr>
+<tr><td><code>init(width=, height=)</code> is the OS window's size</td><td>the design space. The windowed window fits the desktop with the same aspect; <code>window_scale=1</code> is the largest windowed fit. <code>display="maximized"</code> fills the area (black bars). <code>display="fullscreen"</code> covers the monitor.</td><td><code>canvas.window_scale</code></td></tr>
 </tbody>
 </table>
 </div>
   </section>
 
   <section class="section prose" id="regras">
-    <h2>Regras</h2>
-    <p class="one-liner">Cinco regras que valem em todo o Scena.</p>
+    <h2>Rules</h2>
+    <p class="one-liner">Five rules that hold everywhere in Scena.</p>
 
     <ol class="rules">
       <li>
-        Construtor coloca.
-        <span><code>Circle()</code> já aparece. <code>Rain()</code>, <code>Vignette()</code>, <code>Slider()</code> também.</span>
+        A constructor places.
+        <span><code>Circle()</code> shows up right away. So do <code>Rain()</code>, <code>Vignette()</code>, <code>Slider()</code>.</span>
       </li>
       <li>
-        Material e efeito só aparecem aplicados num objeto (ou no fundo).
-        <span><code>Gradient</code>, <code>Color</code>, <code>Blur</code>, <code>Neon</code>, <code>Sheet</code> sozinhos não desenham nada: vão em <code>.fill</code>, <code>.visual</code>, <code>set_color</code>, <code>Sprite(sheet)</code> ou <code>canvas.background</code>.</span>
+        Materials and effects only show up applied to an object (or to the background).
+        <span><code>Gradient</code>, <code>Color</code>, <code>Blur</code>, <code>Neon</code>, <code>Sheet</code> draw nothing on their own: they go in <code>.fill</code>, <code>.visual</code>, <code>set_color</code>, <code>Sprite(sheet)</code> or <code>canvas.background</code>.</span>
       </li>
       <li>
-        <code>=</code> copia agora. <code>@=</code> liga ao vivo.
-        <span><code>c.radius = 10</code> · <code>c["radius"] @= lambda: player.hp * 10</code> — ver <a href="#reativo">Reativo</a>.</span>
+        <code>=</code> copies now. <code>@=</code> links live.
+        <span><code>c.radius = 10</code> · <code>c["radius"] @= lambda: player.hp * 10</code> — see <a href="#reativo">Reactive</a>.</span>
       </li>
       <li>
-        Propriedade é estado. Método é ação.
+        A property is state. A method is an action.
         <span><code>c.visible = False</code> · <code>c.move_by(20, 0)</code></span>
       </li>
       <li>
-        Medidas em unidades de design, y para cima, ângulos em graus.
-        <span>A origem é o canto inferior esquerdo; 0° aponta para a direita. Ver <a href="#unidades">unidades</a>. Widgets ficam presos à janela e ignoram a câmera.</span>
+        Sizes in design units, y up, angles in degrees.
+        <span>The origin is the bottom-left corner; 0° points right. See <a href="#unidades">units</a>. Widgets are pinned to the window and ignore the camera.</span>
       </li>
     </ol>
-    <p class="note">Cada tabela de parâmetros se explica sozinha: parâmetros comuns (<code>layer=</code>, <code>group=</code>, o 1º argumento dos widgets) aparecem de novo em cada uma, para você não precisar pular de seção.</p>
+    <p class="note">Each parameter table explains itself: common parameters (<code>layer=</code>, <code>group=</code>, a widget's 1st argument) appear again in every table, so you never have to jump to another section.</p>
   </section>
 
   <section class="section prose" id="vocabulario">
@@ -1509,55 +1509,55 @@ run()</pre>
 
 
   <section class="section prose" id="arquivos-imagem">
-    <h2>Arquivos de imagem</h2>
-    <p class="one-liner">Onde o Scena procura os arquivos de imagem (PNG, JPG, SVG e atlas XML / JSON) que você passa por nome: ao lado do script ou na pasta <code>media/</code> dele.</p>
-    <p><code>Sprite</code>, <code>Sheet</code>, <code>Svg</code>, <code>Texture</code> e <code>Wallpaper</code> usam a mesma busca. O nome entra como está — o framework não desce em subpastas sozinho.</p>
+    <h2>Image files</h2>
+    <p class="one-liner">Where Scena looks for the image files (PNG, JPG, SVG and XML / JSON atlases) you pass by name: next to the script or in its <code>media/</code> folder.</p>
+    <p><code>Sprite</code>, <code>Sheet</code>, <code>Svg</code>, <code>Texture</code> and <code>Wallpaper</code> use the same search. The name is used as given — the framework does not look into subfolders on its own.</p>
     <ol class="rules">
       <li>
-        Caminho absoluto.
-        <span>Só aquele arquivo. Existe ou falta.</span>
+        An absolute path.
+        <span>Only that file. It exists or it is missing.</span>
       </li>
       <li>
-        Pasta do script.
-        <span>Ao lado do <code>.py</code> que você rodou.</span>
+        The script's folder.
+        <span>Next to the <code>.py</code> you ran.</span>
       </li>
       <li>
-        <code>media/</code> ao lado do script.
-        <span><code>Sprite("nave.png")</code> acha <code>media/nave.png</code>.</span>
+        <code>media/</code> next to the script.
+        <span><code>Sprite("ship.png")</code> finds <code>media/ship.png</code>.</span>
       </li>
       <li>
-        Pasta de onde você rodou o Python.
-        <span>O cwd. Último recurso.</span>
+        The folder you ran Python from.
+        <span>The cwd. Last resort.</span>
       </li>
     </ol>
     <div class="code-panel">
-      <button class="copy-btn" type="button">copiar</button>
-<pre>Sprite("nave.png")
-Sprite("sprites/nave.png")   # media/sprites/nave.png ao lado do script
-Texture("chao.png")
-Wallpaper("ceu.jpg")</pre>
+      <button class="copy-btn" type="button">copy</button>
+<pre>Sprite("ship.png")
+Sprite("sprites/ship.png")   # media/sprites/ship.png next to the script
+Texture("floor.png")
+Wallpaper("sky.jpg")</pre>
     </div>
-    <p class="gotcha">Um arquivo que não existe não para o jogo: aparece um quadriculado no lugar da imagem e um aviso, e o objeto funciona normalmente. No REPL ou com <code>python -c</code>, a busca começa na pasta atual. Atlas: o PNG fica ao lado do XML / JSON que o descreve. Um padrão com <code>*</code> (<code>Sheet</code> e <code>strip</code>, <a href="#spr-padrao">Padrão de arquivos</a>) procura nas mesmas pastas e usa só a primeira que tiver algum arquivo que casa.</p>
+    <p class="gotcha">A missing file does not stop the game: a checkerboard shows in place of the image, with a warning, and the object works normally. In the REPL or with <code>python -c</code>, the search starts in the current folder. Atlases: the PNG sits next to the XML / JSON that describes it. A pattern with <code>*</code> (<code>Sheet</code> and <code>strip</code>, <a href="#spr-padrao">File patterns</a>) searches the same folders and uses only the first one that has a matching file.</p>
   </section>
 
   <section class="section prose" id="globais">
-    <h2>Objetos globais únicos</h2>
-    <p class="one-liner">Estes objetos já existem depois de <code>from scena import *</code> — não se constroem, só se usam. As classes, funções e efeitos vêm pelo mesmo import; a busca no topo da página é o índice de todos.</p>
+    <h2>Global singletons</h2>
+    <p class="one-liner">These objects already exist after <code>from scena import *</code> — you don't build them, you just use them. The classes, functions and effects come with the same import; the search box at the top of the page indexes all of them.</p>
     <div class="tbl-wrap wrap-first">
       <table>
           <thead>
-          <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
+          <tr><th>Property</th><th>Type (typical value)</th><th>Read/Write</th><th>Meaning</th></tr>
         </thead>
           <tbody>
-          <tr><td><code>st</code></td><td class="type"><span class="t">State</span></td><td>lê / escreve</td><td>Os seus valores do jogo (placar, vidas, fase), acompanhados pelo Scena. <a href="#reativo-entity">Guardar valores</a>.</td></tr>
-          <tr><td><code>canvas</code></td><td class="type"><span class="t">Canvas</span></td><td>lê / escreve</td><td>A tela: câmera, fundo, efeitos de tela inteira, camadas. <a href="#mundo">Mundo</a>.</td></tr>
-          <tr><td><code>clock</code></td><td class="type"><span class="t">Clock</span></td><td>lê / escreve</td><td>O tempo do jogo: <code>dt</code>, <code>time</code>, pausa e câmera lenta. <a href="#frame-clock">clock</a>.</td></tr>
-          <tr><td><code>keyp</code></td><td class="type"><span class="t">KeyPressed</span></td><td>lê</td><td>Teclado: que tecla está segurada, qual acabou de ser apertada. <a href="#frame-teclado">Teclado</a>.</td></tr>
-          <tr><td><code>mouse</code></td><td class="type"><span class="t">Mouse</span></td><td>lê</td><td>Ponteiro: posição no mundo e botões. <a href="#frame-mouse">Mouse</a>.</td></tr>
-          <tr><td><code>audio</code></td><td class="type"><span class="t">mixer</span></td><td>lê / escreve</td><td>O som como um todo: volume geral, mudo, medidores. <a href="#som-audio">audio</a>.</td></tr>
-          <tr><td><code>ui</code></td><td class="type"><span class="t">pilha</span></td><td>lê / escreve</td><td>Tamanho e fonte dos widgets e a coluna onde eles se empilham. <a href="#ui">UI</a>.</td></tr>
-          <tr><td><code>group</code></td><td class="type"><span class="t">grupos</span></td><td>lê / escreve</td><td>Acha objetos pela tag: <code>group["inimigo"]</code>. <a href="#mundo-grupos">Grupos</a>.</td></tr>
-          <tr><td><code>collision</code></td><td class="type"><span class="t">consultas</span></td><td>lê / escreve</td><td>Perguntas de colisão (quem está neste ponto?) e o desenho dos colisores. <a href="#colisao-aux">Colisão</a>.</td></tr>
+          <tr><td><code>st</code></td><td class="type"><span class="t">State</span></td><td>read / write</td><td>Your game's values (score, lives, level), tracked by Scena. <a href="#reativo-entity">Keeping values</a>.</td></tr>
+          <tr><td><code>canvas</code></td><td class="type"><span class="t">Canvas</span></td><td>read / write</td><td>The screen: camera, background, full-screen effects, layers. <a href="#mundo">World</a>.</td></tr>
+          <tr><td><code>clock</code></td><td class="type"><span class="t">Clock</span></td><td>read / write</td><td>Game time: <code>dt</code>, <code>time</code>, pause and slow motion. <a href="#frame-clock">clock</a>.</td></tr>
+          <tr><td><code>keyp</code></td><td class="type"><span class="t">KeyPressed</span></td><td>read</td><td>Keyboard: which key is held, which one was just pressed. <a href="#frame-teclado">Keyboard</a>.</td></tr>
+          <tr><td><code>mouse</code></td><td class="type"><span class="t">Mouse</span></td><td>read</td><td>Pointer: position in the world, and buttons. <a href="#frame-mouse">Mouse</a>.</td></tr>
+          <tr><td><code>audio</code></td><td class="type"><span class="t">mixer</span></td><td>read / write</td><td>Sound as a whole: master volume, mute, meters. <a href="#som-audio">audio</a>.</td></tr>
+          <tr><td><code>ui</code></td><td class="type"><span class="t">stack</span></td><td>read / write</td><td>The widgets' size and font, and the column they stack in. <a href="#ui">UI</a>.</td></tr>
+          <tr><td><code>group</code></td><td class="type"><span class="t">groups</span></td><td>read / write</td><td>Finds objects by tag: <code>group["enemy"]</code>. <a href="#mundo-grupos">Groups</a>.</td></tr>
+          <tr><td><code>collision</code></td><td class="type"><span class="t">queries</span></td><td>read / write</td><td>Collision questions (what is at this point?) and drawing the colliders. <a href="#colisao-aux">Collision</a>.</td></tr>
         </tbody>
         </table>
     </div>
@@ -1565,10 +1565,10 @@ Wallpaper("ceu.jpg")</pre>
 
 
   <section class="section prose" id="comecar-callbacks">
-    <h2>Callbacks do script</h2>
-    <p class="one-liner">Funções com nome fixo que você escreve no script e o <code>run()</code> chama na hora certa: <code>setup</code> uma vez, quando a janela abre; <code>update</code> a cada frame; <code>on_key_down</code> quando uma tecla é apertada, e assim por diante. A tabela completa está em <a href="#reagir-callbacks">Callbacks do script</a>.</p>
+    <h2>Script callbacks</h2>
+    <p class="one-liner">Functions with fixed names that you write in the script and <code>run()</code> calls at the right moment: <code>setup</code> once, when the window opens; <code>update</code> every frame; <code>on_key_down</code> when a key is pressed; and so on. The full table is in <a href="#reagir-callbacks">Script callbacks</a>.</p>
     <div class="code-panel">
-      <button class="copy-btn" type="button">copiar</button>
+      <button class="copy-btn" type="button">copy</button>
 <pre>def setup(canvas):
     canvas.fx_quality = "high"
 
@@ -1584,31 +1584,31 @@ def on_mouse_scroll(xoffset, yoffset):
     factor = 1.1 if yoffset > 0 else 1 / 1.1
     canvas.zoom_by(factor, about=(mouse.x, mouse.y))</pre>
     </div>
-    <p>Cada função pede só os parâmetros que quiser: o Scena passa os que ela declara. <code>update(dt)</code> e <code>update(dt, canvas)</code> valem os dois. Catálogo: <a href="#reagir-callbacks">Callbacks do script</a> e <a href="#reagir-callbacks-entity">Callbacks da Entity</a>.</p>
+    <p>Each function asks only for the parameters it wants: Scena passes the ones it declares. <code>update(dt)</code> and <code>update(dt, canvas)</code> both work. Catalog: <a href="#reagir-callbacks">Script callbacks</a> and <a href="#reagir-callbacks-entity">Entity callbacks</a>.</p>
   </section>
   <section class="section prose" id="qual-usar">
-    <h2>Qual usar</h2>
-    <p class="one-liner">O seu código roda de três jeitos: a <strong>fórmula</strong> fica valendo, a <strong>pergunta</strong> é feita a cada frame, o <strong>aviso</strong> roda uma vez, num instante. O que leva tempo é um <strong>processo</strong>, e todo processo tem um <strong>dono</strong>. Escolha pelo que o jogo precisa: nenhum deles é só para começar, e um jogo grande usa todos.</p>
+    <h2>Which to use</h2>
+    <p class="one-liner">Your code runs in three ways: a <strong>formula</strong> stays true, a <strong>check</strong> is made every frame, an <strong>event</strong> runs once, at one instant. What takes time is a <strong>process</strong>, and every process has an <strong>owner</strong>. Choose by what the game needs: none of them is just for beginners, and a big game uses them all.</p>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Quero</th><th>Uso</th></tr></thead>
+        <thead><tr><th>I want</th><th>I use</th></tr></thead>
         <tbody>
-<tr><td>que algo fique sempre igual a outra coisa (a cor da lâmpada)</td><td>uma fórmula: <code>lambda</code>, <a href="#reativo"><code>@=</code></a></td></tr>
-<tr><td>saber um estado a cada frame (a tecla está apertada?)</td><td>uma pergunta no <a href="#frame"><code>update</code></a> ou no <a href="#reagir-callbacks-entity"><code>on_update</code></a></td></tr>
-<tr><td>reagir a um instante (uma tecla, um clique, uma batida, a saída da tela)</td><td>um aviso: <a href="#reagir-callbacks"><code>on_key_down</code></a>, <a href="#reagir-pointer"><code>on_click</code></a>, <a href="#colisao"><code>@collide</code></a>, <a href="#reagir-bounds"><code>@leave_playfield</code></a></td></tr>
-<tr><td>reagir quando uma condição vira sim</td><td><a href="#reagir-when"><code>@when</code></a></td></tr>
-<tr><td>uma vez, mais tarde</td><td><a href="#agendar-timers"><code>after</code></a></td></tr>
-<tr><td>de novo e de novo</td><td><a href="#agendar-timers"><code>every</code></a></td></tr>
-<tr><td>uma sequência com esperas, do que o objeto está fazendo</td><td>um <a href="#mode-async">mode <code>async</code></a></td></tr>
-<tr><td>uma sequência a mais, ou que não é de nenhum objeto</td><td><a href="#mode-task"><code>run_task</code></a></td></tr>
+<tr><td>something to always match something else (the lamp's color)</td><td>a formula: <code>lambda</code>, <a href="#reativo"><code>@=</code></a></td></tr>
+<tr><td>to know a state every frame (is the key held?)</td><td>a check in <a href="#frame"><code>update</code></a> or in <a href="#reagir-callbacks-entity"><code>on_update</code></a></td></tr>
+<tr><td>to react to an instant (a key, a click, a hit, leaving the screen)</td><td>an event: <a href="#reagir-callbacks"><code>on_key_down</code></a>, <a href="#reagir-pointer"><code>on_click</code></a>, <a href="#colisao"><code>@collide</code></a>, <a href="#reagir-bounds"><code>@leave_playfield</code></a></td></tr>
+<tr><td>to react when a condition becomes true</td><td><a href="#reagir-when"><code>@when</code></a></td></tr>
+<tr><td>once, later</td><td><a href="#agendar-timers"><code>after</code></a></td></tr>
+<tr><td>again and again</td><td><a href="#agendar-timers"><code>every</code></a></td></tr>
+<tr><td>a sequence with waits, for what the object is doing</td><td>an <a href="#mode-async"><code>async</code> mode</a></td></tr>
+<tr><td>one more sequence, or one that belongs to no object</td><td><a href="#mode-task"><code>run_task</code></a></td></tr>
         </tbody>
       </table>
     </div>
-    <p><strong>Pergunta ou aviso.</strong> Para um estado (a tecla está apertada?), a pergunta; para um instante (a tecla acabou de descer), o aviso. Um <code>flash</code> dentro de <code>if keyp("SPACE")</code> recomeça em todo frame em que a tecla está segurada.</p>
-    <p><strong>Processos.</strong> <code>after</code>, <code>every</code>, um movimento com <code>time=</code>, um som, uma sequência: todos devolvem o mesmo <a href="#agendar-handle">Handle</a>. Uma coisa só no fim de um processo: <a href="#agendar-fim"><code>then=</code> / <code>on_done=</code></a>. Duas esperas ou mais: uma função <code>async</code> — um mode, quando é o que o objeto está fazendo (um de cada vez), ou uma <a href="#mode-task">tarefa</a>, quando corre ao lado ou não é de nenhum objeto.</p>
-    <p><strong>Dono.</strong> O dono de um processo é o lugar onde ele começou — o jogo ou o ato, um objeto, um mode — e o processo acaba quando o dono acaba: trocar de mode cancela o que o mode antigo começou. Ver <a href="#mode-cancela">escopo e cancelamento</a>.</p>
+    <p><strong>Check or event.</strong> For a state (is the key held?), the check; for an instant (the key just went down), the event. A <code>flash</code> inside <code>if keyp("SPACE")</code> restarts on every frame the key is held.</p>
+    <p><strong>Processes.</strong> <code>after</code>, <code>every</code>, a movement with <code>time=</code>, a sound, a sequence: they all return the same <a href="#agendar-handle">Handle</a>. One thing at the end of a process: <a href="#agendar-fim"><code>then=</code> / <code>on_done=</code></a>. Two waits or more: an <code>async</code> function — a mode, when it is what the object is doing (one at a time), or a <a href="#mode-task">task</a>, when it runs alongside or belongs to no object.</p>
+    <p><strong>Owner.</strong> A process's owner is the place where it started — the game or the act, an object, a mode — and the process ends when its owner ends: changing mode cancels what the old mode started. See <a href="#mode-cancela">scope and cancelling</a>.</p>
   </section>
-    <p class="more"><strong>Onde mais procurar</strong> — <a href="#reativo">Reativo</a> · <a href="#desenhar">Desenhar</a> · <a href="#frame">Frame</a> · <a href="#reagir-callbacks">Callbacks do script</a></p>
+    <p class="more"><strong>Where else to look</strong> — <a href="#reativo">Reactive</a> · <a href="#desenhar">Draw</a> · <a href="#frame">Frame</a> · <a href="#reagir-callbacks">Script callbacks</a></p>
 </article>
 
 

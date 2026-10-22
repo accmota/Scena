@@ -1,8 +1,16 @@
 {
+ "arquivos-imagem": "6d7fc5185d64",
  "body": "17b48e21b616",
+ "chapter:comecar": "8fe18442323f",
+ "comecar-callbacks": "a75161b7b10e",
+ "globais": "0783273a5578",
  "head": "8845dfcebf59",
  "js:head": "9e60b6c01384",
  "js:render": "5fc455ae1ff6",
+ "outro-motor": "b0f627cecfe3",
+ "qual-usar": "1cd4d4d03afc",
+ "regras": "d90cc7920e37",
+ "script-minimo": "1188682867f6",
  "tail": "9c0b29507dbb",
  "vocabulario": "0a1147eac5b7"
 }

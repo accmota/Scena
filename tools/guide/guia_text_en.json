@@ -119,5 +119,12 @@
    "scroll": "Drift in design units / s",
    "enabled": "Hides the drawing without taking it off the stack"
  },
- "oneLiners": {}
+ "oneLiners": {
+   "st#globais": "Global bag of the game's state.",
+   "canvas#globais": "The window: camera, post, background, views.",
+   "init#init": "Design space, window_scale and display. No OS window yet.",
+   "run#script-minimo": "Enters the loop. run(Title) starts with the class Title(Act).",
+   "Clock#globais": "Type of the clock singleton.",
+   "KeyPressed#globais": "Type of the keyp singleton."
+ }
 }
