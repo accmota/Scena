@@ -7635,7 +7635,7 @@ ship.confine(canvas.game_view, action="wrap")</pre>
             <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>region</code></td><td>1º</td><td class="type"><span class="t">Box ou Graphic</span><span class="ex">PLAY</span></td><td>A região onde o objeto deve ficar. Pode estar girada: os lados (<code>"left"</code> / <code>"right"</code> / <code>"top"</code> / <code>"bottom"</code>) giram junto com ela (como em <code>inset</code> / <code>grid</code> / <code>contains_point</code>). Aceita também Rect / Square / Ellipse / Circle / Sprite / Svg (mesmo contrato de <code>box=</code>).</td></tr>
+<tr><td><code>region</code></td><td>1º</td><td class="type"><span class="t">Box ou Graphic</span><span class="ex">PLAY</span></td><td>A região onde o objeto deve ficar. Pode estar girada: os lados (<code>"left"</code> / <code>"right"</code> / <code>"top"</code> / <code>"bottom"</code>) giram junto com ela (como em <code>inset</code> / <code>grid</code> / <code>contains_point</code>). Aceita também Rect / Square / Ellipse / Circle / Sprite / Svg (mesmo contrato de <code>box=</code>). A região é sempre um retângulo: um Ellipse ou um Circle vale pela moldura (o retângulo da elipse, girado com ela; o quadrado do diâmetro, girado até o ponto da borda <code>p1</code>), não pela curva.</td></tr>
 <tr><td><code>by=</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"center"</span></td><td>O que é comparado à região. Ver aba <em>by=</em>.</td></tr>
 <tr><td><code>action=</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"clamp"</span></td><td>O que fazer ao cruzar a borda efetiva. Ver aba <em>action=</em>.</td></tr>
           </tbody>
@@ -7671,7 +7671,7 @@ enemy.confine(platform, by="box")
 # permitir sair até desaparecer, aí wrap / destroy
 sides = shot.confine(view, by="overlap", action="wrap")</pre>
           </div>
-          <p>Para Sprite, <code>graphic.box</code> é o retângulo da imagem desenhada (o tamanho que você pediu com <code>height=</code> / <code>box=</code>), <strong>não</strong> a silhueta. Silhueta é só <code>hitbox_shape="auto"</code> na colisão. <code>by="box"</code> / <code>"overlap"</code> em Line / Polygon livre / Track / Point levanta o mesmo <code>TypeError</code> de <code>graphic.box</code>.</p>
+          <p>Para Sprite, <code>graphic.box</code> é o retângulo da imagem desenhada (o tamanho que você pediu com <code>height=</code> / <code>box=</code>), <strong>não</strong> a silhueta. Silhueta é só <code>hitbox_shape="auto"</code> na colisão. Line / Polygon livre / Track / Point não têm <code>.box</code>, mas <code>by="box"</code> / <code>"overlap"</code> funcionam neles: são medidos pelos pontos (as pontas, os vértices, o traçado; um Point é ele mesmo).</p>
         </div>
         <div class="tab-panel" data-panel="cf-action" id="cf-action">
           <p class="one-liner">O que acontece quando a referência cruzou a borda efetiva.</p>

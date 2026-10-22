@@ -402,6 +402,8 @@ across the field).
 Any `Box` or frame-like Graphic as `region` — **any angle** (math runs in the
 region's local frame, same pattern as `inset` / `grid` / `beside` / `strip` /
 `contains_point`).
+The region is always its frame (`box.region_frame`), a rectangle: an Ellipse
+or Circle region is its frame, not its curve.
 
 ```python
 sides = ship.confine(play_area)                       # by="center", action="clamp"
