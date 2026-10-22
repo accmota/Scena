@@ -39,9 +39,23 @@ from scena import STATIC, Circle, Rect, Track, resolve  # noqa: E402
 from scena.collision import get_collision_system, reset_collision_system  # noqa: E402
 from scena.scenamath import Vec2  # noqa: E402
 from tests.floor_support import floor_module  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
 
 # Walkers, ramps, lifts and resting piles: a world with gravity (collision.floor).
-setUpModule, tearDownModule = floor_module()
+_floor_up, _floor_down = floor_module()
+_sweep_up, _sweep_down = module_sweep()
+
+
+def setUpModule():
+    _floor_up()
+    _sweep_up()
+
+
+def tearDownModule():
+    try:
+        _sweep_down()       # the lifts it left (group "lift")
+    finally:
+        _floor_down()
 
 C = sys.modules["scena.collision"]   # the module (``scena.collision`` is the facade)
 FPS = (30, 60, 144, 240)

@@ -6381,6 +6381,29 @@ def _rebind_input_singletons(scena_system: ScenaSystem) -> None:
     for obj in list(vars(builtins).values()):
         if isinstance(obj, Container) and "_scena_system" in getattr(obj, "__dict__", {}):
             obj._scena_system = scena_system
+        elif isinstance(obj, State):
+            _rehome_state_cells(obj, scena_system)
+
+
+def _rehome_state_cells(bag: 'State', scena_system: ScenaSystem) -> None:
+    """Give every cell of a long-lived bag (``st``) a node on ``scena_system``.
+
+    A cell is an ``Attribute`` on the graph it was made on: after a reset its
+    writes notified the discarded graph, and a formula made on the new graph
+    that reads ``st.n`` never re-pulled (deep serial pass 2026-10-22: a cell
+    another test module made before a reset froze every later link on
+    ``st.n`` / ``st.t`` / ``st.pontos``). The value stays; a link the old cell
+    carried does not (its sources live on the discarded graph).
+    """
+    data = bag._data
+    for key, cell in list(data.items()):
+        if cell.__dict__.get("_scena_system") is scena_system:
+            continue
+        value = cell.__dict__.get("_raw_value")
+        try:
+            data[key] = bag._new_cell(key, value)
+        except Exception:  # noqa: BLE001 — a payload the new cell refuses
+            data[key] = bag._new_cell(key, None)
 
 
 def init_scena_system() -> ScenaSystem:

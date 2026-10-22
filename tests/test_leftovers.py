@@ -105,16 +105,17 @@ class TestChildRun(unittest.TestCase):
         class T(unittest.TestCase):
             def test_makes(self):
                 init(width=100, height=100)
-                KEEP.extend(Circle(center=(i, i), radius=2) for i in range({n}))
+                KEEP.extend(Circle(center=(i, i), radius=2{group}) for i in range({n}))
     """
 
-    def _run(self, n, sweep):
+    def _run(self, n, sweep, group=None):
         tmp = tempfile.mkdtemp()
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
         line = ("from tests.leftovers import module_sweep\n"
                 "        setUpModule, tearDownModule = module_sweep()") if sweep else ""
         with open(os.path.join(tmp, "leaky_mod.py"), "w", encoding="utf-8") as fh:
-            fh.write(textwrap.dedent(self.BODY.format(sweep=line, n=n)))
+            fh.write(textwrap.dedent(self.BODY.format(
+                sweep=line, n=n, group=f", group={group!r}" if group else "")))
         runner = rt.Runner(os.path.join(tmp, "logs"), timeout=120, workers=1,
                            stream=io.StringIO())
         (res,) = runner.run([rt.Job("leaky", ["leaky_mod"], {"PYTHONPATH": tmp})])
@@ -135,6 +136,17 @@ class TestChildRun(unittest.TestCase):
 
     def test_a_few_are_tolerated(self):
         res, log = self._run(3, sweep=False)
+        self.assertTrue(res.ok, log)
+
+    def test_one_tagged_leftover_fails(self):
+        """A group name is process-wide: one leftover ``group="heroi"`` answered
+        every later game's ``group["heroi"]`` and moved bodies under every
+        later ``resolve`` on its name (deep serial pass 2026-10-22)."""
+        res, log = self._run(1, sweep=False, group="heroi")
+        self.assertFalse(res.ok, log)
+        self.assertIn("with a group", log)
+        self.assertIn("'heroi'", log)
+        res, log = self._run(1, sweep=True, group="heroi")
         self.assertTrue(res.ok, log)
 
 

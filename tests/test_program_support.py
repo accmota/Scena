@@ -129,6 +129,35 @@ class TestProbesAndTeardown(unittest.TestCase):
             for obj in (shown, marker, hidden):
                 obj.destroy()
 
+    def test_a_program_starts_with_an_empty_st_and_gives_back_the_old_cells(self):
+        # Deep serial pass 2026-10-22: a game wrote ``st.pontos`` over a cell
+        # an earlier module left; the program reused it and the node its HUD
+        # link gave that cell outlived the run (LEFTOVERS graph.nodes 24 -> 25).
+        # A program has its own process: it starts with no cells, and the
+        # cells other modules made come back, the same objects, at close.
+        from scena import st
+        st.pontos = 7
+        old = st._data["pontos"]
+        self.addCleanup(lambda: st._data.get("pontos") is not None and st.remove("pontos"))
+        source = (
+            "from scena import *\n"
+            "SEEN = sorted(st.keys())\n"
+            "st.pontos = 0\n"
+            "placar = Text('')\n"
+            "placar['text'] @= lambda: f'Pontos {st.pontos}'\n"
+            "def update(dt):\n"
+            "    st.pontos += 1\n"
+            "run()\n"
+        )
+        with ProgramRun("input_probe", source=source,
+                        probes={"t": lambda p: p.placar.text}) as run:
+            self.assertEqual(run.ns["SEEN"], [])
+            run.step(2)
+            self.assertEqual(run.trace.end("t"), "Pontos 2")
+        self.assertIs(st._data["pontos"], old)
+        self.assertEqual(st.pontos, 7)
+        self.assertEqual(run.leftovers(), {})
+
     def test_a_program_starts_from_fresh_world_settings(self):
         # O8: test_noop_cost / test_closed_surfaces left the auto playfield
         # pinned to 400x300 edges; naves and galaga (1000x800) lost their shots

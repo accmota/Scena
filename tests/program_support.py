@@ -541,7 +541,14 @@ class ProgramRun:
         self.world = SystemWorld(draw=self.draw, quarantine=False)
         fw = self.world.fw
         self._roster_before = set(registry().live.keys())
-        self._st_before = set(scena.st.keys())
+        # The program starts with an empty ``st``, as in its own process: the
+        # cells other modules left are parked and given back at close. A
+        # program that wrote ``st.pontos`` over a leftover cell reused it, and
+        # the node it gave that cell (a link, a lazy registration) outlived
+        # the run as a graph leftover (deep serial pass 2026-10-22).
+        self._st_parked = dict(scena.st._data)
+        scena.st._data.clear()
+        self._st_before = set()
         reg = registry()
         # Group names are remembered process-wide (did-you-mean hints): one
         # program per process in real use, so each run starts from the names
@@ -707,6 +714,7 @@ class ProgramRun:
                 cm = self.world.fw.canvas_manager
                 for n, v in self._saved_input.items():
                     setattr(cm, n, v)
+            self._give_back_st()
             self.world = None
             self.ns = {}
             self.view = None
@@ -766,6 +774,23 @@ class ProgramRun:
                         self.census_after[key] -= sum(len(table.get(k, ())) for k in box_ids)
                     self.census_after["graph.dep_keys"] -= sum(
                         1 for k in box_ids if g.dependencies.get(k))
+
+    def _give_back_st(self) -> None:
+        """Put back the ``st`` cells parked at start (over any the program left)."""
+        parked = getattr(self, "_st_parked", None)
+        if parked is None:
+            return
+        self._st_parked = None
+        data = scena.st._data
+        with quiet():
+            for k, cell in parked.items():
+                mine = data.get(k)
+                if mine is not None and mine is not cell:
+                    try:
+                        scena.st.remove(k)
+                    except Exception:
+                        data.pop(k, None)
+                data[k] = cell
 
     def leftovers(self) -> Dict[str, Tuple[Any, Any]]:
         """Census keys that moved between program start and ``close()``.

@@ -24,6 +24,9 @@ import scena.entity as entity_mod  # noqa: E402
 from scena import (  # noqa: E402
     Circle, Color, Entity, Gradient, Line, Polygon, Rect, Text, group, init,
 )
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 PAINT_VALUES = ("red", "dark navy", "Light Blue", "#ff0000", (1, 0, 0), (1.0, 0.0, 0.0, 0.5))
 NUMBER_VALUES = (45, 2.5)

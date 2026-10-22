@@ -769,6 +769,39 @@ class TestGraphResetRebindsEverySource(unittest.TestCase):
             dot.destroy()
             canvas.reset_view()
 
+    def test_a_cell_made_before_a_graph_reset_still_drives_links(self):
+        """Deep serial pass (2026-10-22): ``st`` is no ``Container``, so the
+        rebind skipped it; a cell another module made before a reset kept
+        its node on the old graph. Its writes notified nothing on the new
+        one: every later ``lambda: st.n`` link froze (paint links, a HUD
+        score, a query position). Every cell of every bag in builtins moves
+        to the new graph; values stay."""
+        import builtins
+        from scena import Rect, Vec2, st
+        from scena.state import State, get_scena_system, init_scena_system
+        st.gr_n = 0
+        st.gr_v = Vec2(1, 2)
+        st["gr_lk"] @= lambda: st.gr_n + 1
+        self.addCleanup(lambda: [st.remove(k) for k in ("gr_n", "gr_v", "gr_lk")])
+        init_scena_system()
+        ss = get_scena_system()
+        for bag in vars(builtins).values():
+            if isinstance(bag, State):
+                for key, cell in bag._data.items():
+                    self.assertIs(cell._scena_system, ss, f"{bag.name}.{key}")
+        self.assertEqual((st.gr_n, tuple(st.gr_v), st.gr_lk), (0, (1.0, 2.0), 1))
+        r = Rect()
+        self.addCleanup(r.destroy)
+        r["color"] @= lambda: "red" if st.gr_n < 5 else "blue"
+        r.fill
+        st.gr_n = 6
+        self.assertEqual(tuple(round(float(c), 3) for c in r.fill.rgb[:3]), (0.0, 0.0, 1.0))
+        q = Rect()
+        self.addCleanup(q.destroy)
+        q["center"] @= lambda: st.gr_v
+        st.gr_v.x = 9
+        self.assertEqual(tuple(q.center), (9.0, 2.0))
+
 
 
 class TestOnChangeComparesOncePerFrame(unittest.TestCase):

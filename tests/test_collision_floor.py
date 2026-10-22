@@ -35,6 +35,9 @@ from system_support import system_world  # noqa: E402
 
 from scena import STATIC, Circle, Rect, Sprite, Vec2, collision, resolve  # noqa: E402
 from scena.collision import get_collision_system  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 _collision = importlib.import_module("scena.collision")
 

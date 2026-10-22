@@ -116,6 +116,19 @@ def module_sweep():
     return setUpModule, tearDownModule
 
 
+def _tagged(items: List[Any]) -> List[Any]:
+    """The live, non-part actors of ``items`` that carry a group tag."""
+    from scena.entity import is_part
+    out = []
+    for o in items:
+        try:
+            if getattr(o, "is_alive", False) and not is_part(o) and getattr(o, "group", None):
+                out.append(o)
+        except Exception:  # noqa: BLE001 — a half-built item reads as untagged
+            pass
+    return out
+
+
 def describe(items: List[Any], top: int = 6) -> str:
     counts = Counter(type(o).__name__ for o in items)
     return ", ".join(f"{n} {name}" for name, n in counts.most_common(top))
@@ -148,7 +161,7 @@ class LeftoverCheck(unittest.TestCase):
     def test_module_cleans_up(self):
         try:
             left = made_since(self.state["at"])
-            if len(left) > LIMIT:
+            if len(left) > LIMIT or _tagged(left):
                 # Only when it matters: the roster is weak, so garbage still
                 # lists. Drop our own references first, or they keep it alive.
                 left = None
@@ -156,6 +169,20 @@ class LeftoverCheck(unittest.TestCase):
                 left = made_since(self.state["at"])
         finally:
             self.state["at"] = mark()
+        tagged = _tagged(left)
+        if tagged:
+            # LIMIT is for untagged debris. A group name is process-wide: a
+            # tagged leftover answers every later ``group["heroi"]``, and every
+            # later ``resolve`` / ``@collide`` on its name moves bodies against
+            # it (deep serial pass 2026-10-22: test_collision_floor's "heroi"
+            # and "chao" Rects broke test_concave's ride and every game that
+            # reads ``group["heroi"]``).
+            names = sorted({g for o in tagged for g in o.group})
+            self.fail(
+                f"{self.module} left {len(tagged)} live actors with a group "
+                f"({describe(tagged)}; groups {names[:8]}): every later module's "
+                "group[...] and collision rules see them. Destroy what the tests make: "
+                "`setUpModule, tearDownModule = module_sweep()` (tests/leftovers.py)")
         if len(left) > LIMIT:
             self.fail(
                 f"{self.module} left {len(left)} live roster items (limit {LIMIT}): "
