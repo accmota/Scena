@@ -123,9 +123,29 @@ file does not exist.
   "drawable" / "ator"), *ponto* (any place the API accepts: tuple, Point, Vec2,
   Graphic, `mouse`; never "ponto-like"), *campo* (never "célula" for an
   Attribute), *tarefa* (never "job"), *segurando* / *no frame do aperto* (never
-  "borda" for a key edge), *canal* only for transients. Engine words a beginner
+  "borda" for a key edge), *canal* only for transients, *palco* (the top of the
+  file, which lasts the whole game). Engine words a beginner
   cannot know (MTV, AABB, EMA, SDF, manifold, blit, broad-phase, Derivate,
   Container) are explained in plain words, not used as labels.
+- **Vocabulary (English, `you`).** The English Guide uses the same canonical
+  terms, defined once in its Vocabulary section (the same `#vocabulario` id):
+  *design units* / *units* (never "DU", "pixels" or "points"), *frame*,
+  *Entity*, *Graphic*, *object* (never "drawable" / "actor"), *pose*, *point*
+  (any place the API takes; never "point-like"; `Point` in code is the class),
+  *field* (never "cell"), *link* / *linked* (`@=`), *task* (never "job"),
+  *held* / *on the frame it is pressed* (never "edge"), *channel* only for
+  transients, *stage* (palco), *a world with a floor*, *place* × *travel*.
+  "Qual usar" says code runs as a *formula*, a *check* (pergunta) or an
+  *event* (aviso); work that takes time is a *process* with an *owner*. A stamp
+  is an *add-on* (section "Add-ons"). Jargon gets plain English: bake → *compute*
+  (a computed hitbox), sugar → *shortcut*, knob → *parameter* / *setting*, ink →
+  *own field*, no-op → *does nothing*, interned → *shared*; *park*, *one-shot*
+  and *escape hatch* stay. Fixed labels: `Parameters:`, `Returns`,
+  `read / write` · `read` · `read-only`, "Don't confuse" (Looks like · It is ·
+  It is not), "How to", "Reading the parameters", "See X" / "More in X".
+  Spelling is American, matching the API (`color`, `center`, `gray`). Example
+  code is translated (variables, strings, comments); API names and API string
+  values (`"cyan"`, `style="fade"`) are not.
 - **Open with what it is.** A section's first sentence says what the feature is
   and what it is for, in words a first-time reader knows ("A câmera escolhe que
   parte do mundo aparece na janela…"). Negations and contrasts with other
@@ -279,9 +299,8 @@ runs its check in `quick`).
   titles, type words, the core symbols' one-liners) lives in
   `tools/guide/guia_text_en.json`. A missing one-liner is left empty, never
   Portuguese, and the validator lists it.
-- **Vocabulary.** The English column of the vocabulary above is fixed once,
-  before the chapters are translated. Spelling is American, to match the API
-  (`color`, `center`).
+- **Vocabulary.** "Vocabulary (English, `you`)" above. A term a chapter needs
+  that the list lacks is added there first, then used.
 
 ## Editing the README
 
