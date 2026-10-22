@@ -362,13 +362,16 @@ and for having fun doing it.
 - **It's Python.** If you know Python or are learning it, Scena is for you. No
   new language to learn: what you learn here works anywhere, and the rest of
   Python works here, from NumPy to the AI libraries Python is known for.
-- **Smooth games.** Scena has the performance a typical 2D arcade game needs:
+- **Fast enough for its games.** A typical 2D arcade game runs smoothly:
   tens to hundreds of objects at 60 fps on an ordinary computer. When a scene
   asks for more than the machine has, Scena lowers the detail of its effects
   before it drops frames.
-- **What it is not.** It is not trying to be a professional engine: it is 2D
-  only, runs on the desktop, and it is not made for performance. Simple games
-  stay simple, even if that means less power for very large ones.
+- **What it is not.** It is not a professional engine: it is 2D only and runs
+  on the desktop. Most engines are built for speed; Scena is built for
+  learning. Scena itself is written in Python, and where simplicity and raw
+  speed pull apart, it chooses simplicity. It is fast enough for the games it
+  is made for, and no faster. Simple games stay simple, even if that means
+  less power for very large ones.
 
 ## License
 
