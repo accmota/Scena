@@ -98,7 +98,7 @@ SLOW = frozenset({
     "test_example_corrida_deep",
     # quick keeps test_record_game (timing, review, takes, short pilots); the
     # video pilots' whole games (Naves, the plane, a race, runs, duels, Ligue 4,
-    # Ninja V) are ~65 s CPU.
+    # Ninja V) and the demo / editor tours are ~100 s CPU.
     "test_record_game_deep",
     # Laws campaign (tests/laws/): quick runs test_laws_quick (the recorder, its
     # fixtures, the models on synthetic traces); the sweeps over the three

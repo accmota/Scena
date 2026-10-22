@@ -969,6 +969,132 @@ def slider_tour(game, t, *, drags=(), keys=(), end=30.0):
         game.done = True
 
 
+def _target(game, target):
+    """A point (design units) for a tour target: ``(x, y)``; ``("w", x, y)``
+    (a world point of the level editor, through its camera); ``"@name"`` (a
+    global's centre); ``"middle:group"`` / ``"first:group"`` (a group's mean
+    centre / first member); ``"dropdown"`` (the DropDown's box);
+    ``"option:text"`` (a row of the open DropDown); else a widget label (or an
+    open Menu's option)."""
+    if isinstance(target, tuple) and target[0] == "w":   # a world point of the editor
+        from scena_editor.view import view_point
+        return view_point(target[1], target[2])
+    if isinstance(target, tuple):
+        return target
+    ns = game.ns
+    if target.startswith("@"):
+        c = ns[target[1:]].center
+        return c.x, c.y
+    if target.startswith(("middle:", "first:")):
+        kind, name = target.split(":", 1)
+        items = list(ns["group"][name])
+        if kind == "first":
+            return items[0].center.x, items[0].center.y
+        return (sum(i.center.x for i in items) / len(items),
+                sum(i.center.y for i in items) / len(items))
+    if target == "dropdown" or target.startswith("option:"):
+        from scena.uiwidget import DropDown
+        dd = next(w for w in game.run.world.fw.widget_manager.widgets
+                  if isinstance(w, DropDown) and getattr(w, "active", True))
+        if target == "dropdown":
+            return (dd._x1 + dd._x2) / 2, (dd._y1 + dd._y2) / 2
+        i = dd.options.index(target.split(":", 1)[1])
+        return (dd._x1 + dd._x2) / 2, dd._row_y(i) + dd._option_height / 2
+    return game.run.widget_center(target)
+
+
+def _path(kind, params, t, start):
+    """Where a pointer path is at ``t`` (``"orbit"``, ``"eight"``)."""
+    cx, cy, rx, ry, rate = params
+    a = (t - start) * rate * 2 * math.pi
+    if kind == "orbit":
+        return cx + rx * math.cos(a), cy + ry * math.sin(a)
+    if kind == "eight":
+        return cx + rx * math.sin(a), cy + ry * math.sin(2 * a)
+    raise ValueError(f"unknown path {kind!r}")
+
+
+def tour(game, t, *, script=(), end=30.0, glide=0.8):
+    """A tour of a program's controls on a timetable (``script``), the
+    pointer in view. Events:
+
+      ("drag", label, a, b, start, stop)   a Slider from a to b
+      ("click", time, target)              a press and release on a target
+      ("path", start, stop, kind, (cx, cy, rx, ry, rate))  the pointer moves
+                                           ("orbit" / "eight"; rate: turns/s)
+      ("glide", start, stop, target)       the pointer moves there
+      ("press", start, stop)               the button held (wherever it is)
+      ("carry", start, stop, target, (x, y))  grab a target, carry it there
+      ("key", time, key) / ("hold", start, stop, key)
+      ("scroll", time, dy)                 the wheel
+
+    Before a click or a drag the pointer glides to it in ``glide`` s. The
+    button goes down and up on the frames these say (one press per window).
+    """
+    m = memo(game)
+    game.cursor = True
+    point, held_at, down, keys = None, None, False, []
+    for ev in script:
+        kind = ev[0]
+        if kind == "path" and ev[1] <= t <= ev[2]:
+            point = _path(ev[3], ev[4], t, ev[1])
+        elif kind == "glide" and ev[1] <= t <= ev[2]:
+            frm = m.setdefault(("glide", ev[1]), game._at)
+            point = path_point([(ev[1], frm), (ev[2], _target(game, ev[3]))], t)
+        elif kind == "click":
+            when = ev[1]
+            if when - glide <= t < when:
+                frm = m.setdefault(("click", when), game._at)
+                point = path_point([(when - glide, frm), (when - 0.1, _target(game, ev[2]))], t)
+            elif when <= t < when + 0.1:
+                held_at = m.setdefault(("clicked", when), _target(game, ev[2]))
+                down = True
+        elif kind == "drag":
+            _, label, a, b, start, stop = ev
+            if start - glide <= t < start:
+                frm = m.setdefault(("drag", start), game._at)
+                point = path_point([(start - glide, frm),
+                                    (start - 0.1, game.slider_point(label, a))], t)
+            elif start <= t <= stop:
+                k = (t - start) / (stop - start)
+                held_at = game.slider_point(label, a + (b - a) * k)
+                down = True
+        elif kind == "carry":                    # grab a (moving) target, carry it
+            _, start, stop, target, to = ev
+            if start - glide <= t < start:
+                frm = m.setdefault(("carry", start), game._at)
+                point = path_point([(start - glide, frm), (start - 0.05, _target(game, target))], t)
+            elif start <= t <= stop:
+                grab = m.setdefault(("grabbed", start), _target(game, target))
+                held_at = path_point([(start, grab), (stop, _target(game, to))], t)
+                down = True
+        elif kind == "press" and ev[1] <= t < ev[2]:
+            down = True
+        elif kind == "key" and at(t, ev[1], 3):
+            keys.append(ev[2])
+        elif kind == "hold" and ev[1] <= t < ev[2]:
+            keys.append(ev[3])
+        elif kind == "scroll" and at(t, ev[1]):
+            game.run.scroll(0, ev[2])
+    # A pressed click, drag or carry owns the pointer: the next event's glide
+    # (which may start before this press ends) must not pull it off the button.
+    point = held_at if held_at is not None else point
+    if not down and m.get("down"):
+        point = m["held_at"]                     # let go where it was held (a band
+    if down:                                     # select ends at the release point)
+        m["held_at"] = point if point is not None else game._at
+    if point is not None:
+        game.mouse(*point)
+    if down and not m.get("down"):
+        game.press()
+    elif not down and m.get("down"):
+        game.release()
+    m["down"] = down
+    game.hold(*keys)
+    if t >= end:
+        game.done = True
+
+
 PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, fly_plane,
                                   race, run_robot, play_connect4, duel_match, ninja_route,
-                                  slider_tour)}
+                                  slider_tour, tour)}

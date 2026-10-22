@@ -465,6 +465,12 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   ramp, the y 250 and y 420 platforms are reached by jumping down onto
   them), and a crate over the second pit blocks the jump under it until
   the sword breaks it. A route is a chain: trace it whole after each change.
+  A demo's take is a tour of its controls (`pilots.tour`: a timetable of
+  slider drags, clicks on widgets, objects or world points, pointer paths,
+  keys and the wheel). While the button is down, that press owns the
+  pointer, and the release happens where it was held: the next event's
+  glide starts early and would pull a click off its button, or end the
+  editor's band select over nothing.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

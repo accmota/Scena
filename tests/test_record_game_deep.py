@@ -24,6 +24,11 @@ Bug classes guarded:
   and every later step acts somewhere else. The full route ends with every
   star, robot and crate gone and three lives; the mishaps route loses its
   lives in order and the level restarts.
+* **A tour's event does nothing.** A demo tour is a timetable of drags,
+  clicks, keys and the wheel; each one must reach the program (a click
+  pressed while the pointer is pulled to the next target is a click
+  elsewhere; a band select released after the pointer moved on selects
+  nothing). Each tour ends with every value its timetable sets.
 * **A runner take stops after one run.** The corredor takes are several runs
   with SPACE between them; the record never goes down and grows past the
   first run.
@@ -213,6 +218,44 @@ class TestWholeGames(unittest.TestCase):
         self.assertTrue(r["done"])
         self.assertEqual(got, ends)
         self.assertEqual(len(trail), len(spec["args"]["keys"]) + 1, "one toggle per tap")
+
+    def test_demo_tours_reach_the_program(self):
+        def editor(ns):
+            ed = ns["app"].editor
+            return {"items": len(ed.doc.items), "tool": ed.tool, "zoom": round(ns["canvas"].zoom, 2)}
+
+        ends = {
+            "osciloscopio/tour": (lambda ns: {k: round(getattr(ns["st"], k)) for k in
+                                              ("ligado", "n", "x1", "tx1", "y1", "ty1")},
+                                  {"ligado": 1, "n": 5, "x1": 100, "tx1": 9, "y1": -80, "ty1": 7}),
+            "constelacao/tour": (lambda ns: {"cometas": len(list(ns["group"]["cometa"]))},
+                                 {"cometas": 6}),
+            "app_rgb_arena/tour": (lambda ns: {"particulas": len(ns["_particulas"]),
+                                               "rodando": ns["st"].rodando,
+                                               "zoom": round(ns["canvas"].zoom, 2),
+                                               "visual": round(ns["st"].visual, 1),
+                                               "centro": round(ns["st"].centro, 2)},
+                                   {"particulas": 10, "rodando": True, "zoom": 1.0,
+                                    "visual": 7.0, "centro": 1.8}),
+            "revoada/tour": (lambda ns: {k: getattr(ns["st"], k) for k in
+                                         ("separar", "alinhar", "juntar")},
+                             {"separar": True, "alinhar": True, "juntar": True}),
+            "cadeia_de_bolas/tour": (lambda ns: {"n_bolas": ns["st"].n_bolas,
+                                                 "linhas": ns["st"].linhas,
+                                                 "efeito": ns["st"].efeito,
+                                                 "bolas": len(list(ns["group"]["bolas"])),
+                                                 "pausado": ns["clock"].paused},
+                                     {"n_bolas": 55, "linhas": False, "efeito": "Flame",
+                                      "bolas": 55, "pausado": False}),
+            # four shapes drawn, two copies, one deleted, three undone, one redone
+            "scena-editor/session": (editor, {"items": 135, "tool": "select", "zoom": 0.21}),
+        }
+        for tid, (read, want) in ends.items():
+            with self.subTest(take=tid):
+                got = {}
+                r = _play(tid, 90, lambda ns, t: got.update(read(ns)))
+                self.assertTrue(r["done"])
+                self.assertEqual(got, want)
 
 
 if __name__ == "__main__":

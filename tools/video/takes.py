@@ -123,6 +123,88 @@ TAKES = {
                                                 (39.0, "M")),   # the trail starts on
                                           end=41.0),
                                 end="done", seconds=60),
+    # The demos: a tour of each one's controls on a timetable (pilot "tour"),
+    # the pointer in view. Times in seconds from the start.
+    "osciloscopio/tour": dict(program="examples/osciloscopio.py", pilot="tour", end="done",
+                              seconds=70, args=dict(end=46.0, script=(
+        ("click", 1.6, "@bola"),                 # the beam and the trail
+        ("drag", "tx1", 6, 2, 5.0, 7.0), ("drag", "ty1", 6, -3, 9.0, 11.0),
+        ("drag", "x1", 60, 100, 13.0, 15.0), ("drag", "n", 4, 2, 17.0, 19.0),
+        ("drag", "y1", 60, -80, 22.0, 24.0), ("drag", "tx1", 2, 9, 27.0, 30.0),
+        ("drag", "ty1", -3, 7, 33.0, 36.0), ("drag", "n", 2, 5, 39.0, 41.0),
+        ("glide", 41.5, 42.5, (880, 120))))),
+    "constelacao/tour": dict(program="examples/constelacao.py", pilot="tour", end="done",
+                             seconds=70, lead=1.0, args=dict(end=50.0, script=(
+        ("path", 0.0, 30.0, "orbit", (640, 400, 380, 220, 0.06)),
+        ("path", 30.0, 50.0, "eight", (640, 400, 420, 230, 0.05)),
+        ("key", 2.0, "SPACE"), ("key", 4.5, "SPACE"), ("key", 7.0, "SPACE"),   # comets
+        ("key", 9.5, "SPACE"),
+        ("press", 12.0, 16.0),                   # held: the points fall to the mouse;
+        ("press", 22.0, 25.0),                   # let go: a wave pushes them away
+        ("key", 28.0, "T"), ("key", 38.0, "T"),  # the trail of everything
+        ("press", 41.0, 44.5)))),
+    "app_rgb_arena/tour": dict(program="examples/app_rgb_arena.py", pilot="tour", end="done",
+                               seconds=80, args=dict(end=56.0, script=(
+        ("click", 1.6, "Criar"), ("click", 2.2, "Criar"), ("click", 2.8, "Criar"),
+        ("drag", "R", 1.0, 0.15, 4.5, 6.0), ("drag", "G", 0.25, 0.9, 7.0, 8.5),
+        ("drag", "B", 0.12, 0.85, 9.5, 11.0),
+        ("click", 12.3, "Criar"), ("click", 12.9, "Criar"),    # new colours
+        ("drag", "Atração", 1.0, 2.6, 14.5, 16.5), ("drag", "Repulsão", 1.0, 0.3, 18.0, 20.0),
+        ("carry", 23.0, 25.0, "first:hits", (550, 380)),       # grab one, carry it
+        ("drag", "Intensidade", 52.0, 120.0, 27.0, 29.0),      # its own sliders now
+        ("drag", "R", 1.0, 0.1, 30.0, 31.0), ("drag", "G", 0.1, 0.9, 31.8, 32.8),  # red to cyan
+        ("key", 34.0, "SPACE"), ("key", 37.0, "SPACE"),         # pause, run
+        ("glide", 38.0, 38.6, (550, 380)),
+        ("scroll", 39.0, 1), ("scroll", 39.3, 1), ("scroll", 39.6, 1),  # zoom in
+        ("scroll", 42.0, -1), ("scroll", 42.3, -1), ("scroll", 42.6, -1),
+        ("drag", "Visual", 1.0, 7.0, 45.0, 47.5),
+        ("drag", "Centro", 0.35, 1.8, 49.5, 51.5)))),
+    "revoada/tour": dict(program="examples/revoada.py", pilot="tour", end="done", seconds=70,
+                         lead=2.0, args=dict(end=50.0, script=(
+        ("path", 0.0, 50.0, "eight", (640, 400, 480, 260, 0.06)),   # the falcon
+        ("click", 8.0, "middle:passaro"), ("click", 21.0, "middle:passaro"),
+        ("key", 14.0, "S"), ("key", 19.0, "S"),  # separation off, on
+        ("key", 25.0, "J"), ("key", 30.0, "J"),  # cohesion off, on
+        ("click", 34.0, "middle:passaro"),
+        ("key", 38.0, "A"), ("key", 43.0, "A")))),   # alignment off, on
+    "cadeia_de_bolas/tour": dict(program="examples/cadeia_de_bolas.py", pilot="tour",
+                                 end="done", seconds=80, args=dict(end=58.0, script=(
+        ("path", 0.0, 10.0, "eight", (500, 350, 330, 190, 0.22)),
+        ("drag", "Bolas", 30, 55, 11.0, 13.0), ("click", 14.5, "Rodar"),
+        ("path", 15.5, 24.0, "eight", (500, 350, 360, 210, 0.35)),
+        ("click", 25.5, "Linhas"), ("click", 27.0, "Rodar"),   # without the lines
+        ("path", 28.0, 35.0, "orbit", (500, 350, 300, 200, 0.3)),
+        ("click", 36.5, "dropdown"), ("click", 38.0, "option:Flame"),
+        ("click", 39.5, "Rodar"),
+        ("path", 40.5, 49.0, "eight", (500, 350, 330, 190, 0.28)),
+        ("key", 49.5, "ESC"), ("click", 52.0, "Continuar"),     # the pause menu
+        ("path", 53.0, 58.0, "orbit", (500, 350, 280, 180, 0.3))))),
+    # The level editor (as ``scena-editor`` starts it, with Ninja IV's level):
+    # zoom, box-select and lift, then draw, nudge, duplicate, delete, undo,
+    # redo, pan and fit. ("w", x, y): world points, through the editor camera.
+    "scena-editor/session": dict(program="tools/readme/editor_ninja.py", pilot="tour",
+                                 end="done", seconds=60, args=dict(end=31.0, script=(
+        ("glide", 0.0, 1.1, ("w", 1250, 260)),
+        *[("scroll", 0.1 * k, 1) for k in range(1, 11)],     # zoom about the pointer
+        ("carry", 1.6, 2.2, ("w", 1425, 360), ("w", 1695, 250)),   # box select
+        ("carry", 2.8, 4.0, ("w", 1560, 300), ("w", 1560, 390)),   # lift the three
+        ("click", 5.0, ("w", 1100, 330)),        # one star
+        ("key", 6.0, "R"), ("carry", 7.0, 7.8, ("w", 980, 600), ("w", 1180, 680)),
+        ("key", 8.4, "C"), ("carry", 9.3, 9.9, ("w", 1290, 640), ("w", 1350, 700)),
+        ("key", 10.4, "P"), ("click", 11.2, ("w", 1450, 660)),
+        ("key", 11.8, "L"), ("carry", 12.7, 13.4, ("w", 1520, 600), ("w", 1680, 700)),
+        ("key", 14.0, "V"), ("click", 15.0, ("w", 1080, 640)),     # select the rect
+        ("hold", 15.6, 17.0, "LEFT_SHIFT"),      # Shift+arrows: nudge by the grid
+        ("key", 15.8, "RIGHT"), ("key", 16.2, "RIGHT"), ("key", 16.6, "UP"),
+        ("hold", 17.6, 18.6, "LEFT_CMD"), ("key", 17.8, "D"), ("key", 18.2, "D"),  # duplicate
+        ("key", 19.2, "DEL"),                    # delete the last copy
+        ("hold", 20.2, 22.4, "LEFT_CMD"),        # undo three times
+        ("key", 20.4, "Z"), ("key", 21.1, "Z"), ("key", 21.8, "Z"),
+        ("hold", 23.0, 23.8, "LEFT_CMD"), ("hold", 23.0, 23.8, "LEFT_SHIFT"),
+        ("key", 23.3, "Z"),                      # redo
+        ("key", 24.5, "H"), ("carry", 25.4, 26.6, (700, 420), (430, 460)),   # pan
+        ("key", 27.6, "F"),                      # fit the level in view
+        ("key", 29.0, "V"), ("glide", 29.2, 30.4, (1000, 160))))),
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),
