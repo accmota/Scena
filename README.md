@@ -301,16 +301,16 @@ comments.
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_4_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield<br><sub>127 lines of Python</sub></td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ninja_4_perigos.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ninja_perigos.webp" width="380" alt="Ninja IV"></a><br><b>Ninja IV</b>: a platformer built in the level editor, with robots and electric traps<br><sub>192 lines of Python</sub></td>
+    <td align="center" width="50%"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_4_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield<br><sub>127 lines of Python</sub></td>
+    <td align="center" width="50%"><a href="https://github.com/accmota/Scena/blob/main/examples/ninja_4_perigos.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ninja_perigos.webp" width="380" alt="Ninja IV"></a><br><b>Ninja IV</b>: a platformer built in the level editor, with robots and electric traps<br><sub>192 lines of Python</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/aviao_paisagem.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/aviao_paisagem.webp" width="380" alt="Plane"></a><br><b>Plane</b>: fly between pillars over an endless, layered landscape<br><sub>120 lines of Python</sub></td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ligue4.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ligue4.webp" width="380" alt="Connect Four"></a><br><b>Connect Four</b>: a board game for two, played by dragging the balls<br><sub>78 lines of Python</sub></td>
+    <td align="center" width="50%"><a href="https://github.com/accmota/Scena/blob/main/examples/aviao_paisagem.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/aviao_paisagem.webp" width="380" alt="Plane"></a><br><b>Plane</b>: fly between pillars over an endless, layered landscape<br><sub>120 lines of Python</sub></td>
+    <td align="center" width="50%"><a href="https://github.com/accmota/Scena/blob/main/examples/corrida.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/corrida.webp" width="380" alt="Race"></a><br><b>Race</b>: pick the players and the track, then race the CPU cars<br><sub>425 lines of Python</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/corrida.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/corrida.webp" width="380" alt="Race"></a><br><b>Race</b>: pick the players and the track, then race the CPU cars<br><sub>425 lines of Python</sub></td>
-    <td align="center"><a href="https://github.com/accmota/Scena/tree/main/examples"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/mais_exemplos.webp" width="380" alt="And many more"></a><br><b>And many more</b>: an oscilloscope, constellations, a duel, a runner, charges, a flock, a chain<br><sub>39 to 328 lines of Python each</sub></td>
+    <td align="center" width="50%"><a href="https://github.com/accmota/Scena/blob/main/examples/ligue4.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ligue4.webp" width="380" alt="Connect Four"></a><br><b>Connect Four</b>: a board game for two, played by dragging the balls<br><sub>78 lines of Python</sub></td>
+    <td align="center" width="50%"><a href="https://github.com/accmota/Scena/tree/main/examples"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/mais_exemplos.webp" width="380" alt="And many more"></a><br><b>And many more</b>: an oscilloscope, constellations, a duel, a runner, charges, a flock, a chain<br><sub>39 to 328 lines of Python each</sub></td>
   </tr>
 </table>
 
@@ -369,8 +369,7 @@ and for having fun doing it.
 - **What it is not.** It is not a professional engine: it is 2D only and runs
   on the desktop. Most engines are built for speed; Scena is built for
   learning. Scena itself is written in Python, and where simplicity and raw
-  speed pull apart, it chooses simplicity. It is fast enough for the games it
-  is made for, and no faster. Simple games stay simple, even if that means
+  speed pull apart, it chooses simplicity. Simple games stay simple, even if that means
   less power for very large ones.
 
 ## License
