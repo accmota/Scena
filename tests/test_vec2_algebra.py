@@ -360,6 +360,16 @@ class TestHeadingReadersAgree(_Case):
                     self.assertGreater(got, -180.0, name)
                     self.assertLessEqual(got, 180.0, name)
 
+    def test_a_tiny_negative_y_reads_180_too(self):
+        # atan2(-1e-17, -1) rounds to -pi: the -0.0 fold alone does not catch it
+        # (deep tier 2026-10-21: Vec2(0, 1).do_rotation(90) read -180 cold).
+        v = Vec2(0, 1)
+        v.do_rotation(90)
+        self.assertEqual(v.angle, 180.0)
+        for name, got in self._readers(-1.0, -1e-17).items():
+            with self.subTest(reader=name):
+                self.assertEqual(got, 180.0)
+
     def test_line_keeps_its_turns(self):
         from scena import Line
         line = Line(p1=(0, 0), p2=(10, 0))

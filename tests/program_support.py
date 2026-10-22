@@ -63,6 +63,22 @@ from scena.state import Attribute, get_scena_system  # noqa: E402
 PROGRAMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "programs")
 
 _KEY_CODES: Dict[str, int] = {name: code for code, name in _GLFW_NAMED_KEYS.items()}
+
+
+class PressedTwice(AssertionError):
+    """The run was asked to send a key press for a key already down."""
+
+
+def note_press(held: set, code: int, name: str) -> None:
+    """A press of ``code`` joins ``held``; a second press with no release
+    raises: a window never sends one (GLFW turns it into a REPEAT), and the
+    I1 model would read it as an engine fault (``key-down-twice``, chaos
+    caverna/volta: a pilot that tapped two keys in one frame)."""
+    if code in held:
+        raise PressedTwice(f"key {name}: a second press with no release; a window sends "
+                           "REPEAT here: the pilot or the script pressed twice")
+    held.add(code)
+
 # The ``mods`` bit of each modifier key.
 _MOD_BITS: Dict[int, int] = {
     glfw.KEY_LEFT_SHIFT: glfw.MOD_SHIFT, glfw.KEY_RIGHT_SHIFT: glfw.MOD_SHIFT,
@@ -775,7 +791,7 @@ class ProgramRun:
                 code = _KEY_CODES[name]
                 # The event carries the modifiers held, as the OS sends them.
                 if action == glfw.PRESS:
-                    self._held_keys.add(code)
+                    note_press(self._held_keys, code, name)
                 elif action == glfw.RELEASE:
                     self._held_keys.discard(code)
                 mods = 0

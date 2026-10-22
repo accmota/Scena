@@ -518,7 +518,9 @@ its start:
   T3); the per-item re-checks (alive, active, registered) are that rule.
 - **What was made waits for its loop's next pass.** A timer made in the tick
   first counts in the next one (T2); a body made in a handler enters next
-  step. A clone made in a timer fire gets its `on_update` this tick: the
+  step, but it takes part in that step's resolve, which chooses its bodies
+  when it starts, after the handlers (its resolve contact shows in
+  `touching_*` from the next step, with its enter). A clone made in a timer fire gets its `on_update` this tick: the
   fleet's pass starts after the timers'. Flush is the one pass that runs to
   quiet: a watch a callback *affected* fires in the same flush, a watch it
   *made* takes its baseline at registration and waits for a change. An

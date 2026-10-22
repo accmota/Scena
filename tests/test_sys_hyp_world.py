@@ -25,7 +25,9 @@ a group destroy; ``tests/laws/chaos.py``) from the same callbacks as
 Invariants after every step (Actors Design § Protections, Collision Design §
 Handlers, Reactive Design § Destroy, Canvas Design):
 
-* no author hook runs for a destroyed owner (``Probe.dead_calls``);
+* no author hook runs for a destroyed owner (``Probe.dead_calls``), except
+  the rest of the contact it died in (Laws.md C3, L3: ``HypActor.hit``
+  records it as ``collide_rest``);
 * no registry holds a destroyed actor (``zombies``);
 * the collision index holds exactly the enrolled actors that are alive, active
   and collidable (a live, active, collidable ``HypActor`` is always enrolled);
@@ -66,7 +68,7 @@ from system_support import (  # noqa: E402
 )
 
 from scena import (  # noqa: E402
-    Circle, Entity, Rect, Sparks, Sprite, Text, after, canvas, collide, collide_with,
+    Circle, Entity, Rect, Sparks, Sprite, Text, after, canvas, clock, collide, collide_with,
     collide_with_exit, group, leave_playfield, wait, when,
 )
 from scena import hitbox as _hitbox  # noqa: E402
@@ -108,7 +110,10 @@ class HypActor(Circle):
 
     @collide_with("hs_b")
     def hit(self, other, info=None):
-        _rec("collide", self)
+        if _contact_rest(self):
+            _rec("collide_rest", None)   # C3 / L3: allowed on a dead self
+        else:
+            _rec("collide", self)
 
     @collide_with_exit("hs_b")
     def unhit(self, other, info=None):
@@ -117,6 +122,25 @@ class HypActor(Circle):
     @leave_playfield
     def left(self):
         _rec("leave", self)
+
+    def destroy(self, *args, **kwargs):
+        # Note the contact this actor dies in (if a handler destroys it): the
+        # rest of that contact's handlers may still run on it (C3, L3).
+        if self.is_alive:
+            key = get_collision_system()._contact_key
+            if key is not None:
+                self._died_in = (clock.frame, key)
+        return super().destroy(*args, **kwargs)
+
+
+def _contact_rest(actor) -> bool:
+    """True while a destroyed ``actor`` runs the rest of the contact it died
+    in: every handler of a contact runs, chosen before the first, even after
+    one destroys a side (Laws.md C3; L3's exception; Collision Design,
+    Pipeline, PB5). A dead actor's hook anywhere else is still a dead call."""
+    died = getattr(actor, "_died_in", None)
+    return (died is not None and not actor.is_alive
+            and died == (clock.frame, get_collision_system()._contact_key))
 
 
 KINDS = ["hyp", "circle", "rect", "entity", "sparks", "sprite", "text"]
@@ -825,6 +849,69 @@ class WorldMachine(RuleBasedStateMachine):
 
 
 TestWorldMachine = WorldMachine.TestCase
+
+
+class TestRestOfContactExemption(unittest.TestCase):
+    """``collide_rest`` (C3 / L3) excuses only the rest of the contact a
+    dead actor died in; its hook anywhere else is still a dead call."""
+
+    def _world(self):
+        w = SystemWorld(draw=False)
+        _PROBE[0] = w.probe
+        self.addCleanup(lambda: (_PROBE.__setitem__(0, None), w.teardown()))
+        return w
+
+    def _pair(self, w, x=0.0):
+        with quiet():
+            a = HypActor(center=(x, 0.0), radius=6, group="hs_b")
+            b = HypActor(center=(x + 2.0, 0.0), radius=6, group="hs_b")
+        for o in (a, b):
+            w.track(o)
+        return a, b
+
+    def _kill_both_first(self, a, b):
+        # ``on_collide`` runs before the class methods: both ``hit`` run after
+        # the destroy, in the same contact.
+        a.on_collide = lambda me, other, info=None: (me.destroy(), other.destroy())
+
+    def test_the_rest_of_the_contact_is_excused(self):
+        w = self._world()
+        a, b = self._pair(w)
+        self._kill_both_first(a, b)
+        with quiet():
+            w.step(2, dt=1 / 60)
+        self.assertFalse(a.is_alive or b.is_alive)
+        self.assertEqual([r[1] for r in w.probe.records].count("collide_rest"), 2)
+        self.assertEqual(w.probe.dead_calls(), [])
+
+    def test_a_dead_hook_outside_its_contact_is_flagged(self):
+        w = self._world()
+        a, b = self._pair(w)
+        self._kill_both_first(a, b)
+        with quiet():
+            w.step(2, dt=1 / 60)
+        a.hit(b)                                   # a later frame, no contact
+        self.assertEqual(w.probe.dead_calls()[-1][1:], ("collide", False))
+
+    def test_a_dead_hook_in_another_contact_of_the_same_frame_is_flagged(self):
+        w = self._world()
+        c, d = self._pair(w, x=200.0)
+        late = []
+        # Enters run before stays (C2): in the frame (a, b) enters and dies,
+        # (c, d)'s stay runs after, in another contact.
+        c.on_collide_stay = lambda me, other, info=None: (
+            late[0].hit(other) if late and not late[0].is_alive else None)
+        with quiet():
+            w.step(2, dt=1 / 60)                   # (c, d) stays from now on
+        a, b = self._pair(w)
+        self._kill_both_first(a, b)
+        late.append(a)
+        frame = clock.frame
+        with quiet():
+            w.step(1, dt=1 / 60)
+        dead = w.probe.dead_calls()
+        self.assertTrue(dead and dead[0][1:] == ("collide", False), dead)
+        self.assertEqual(dead[0][0], frame + 1)
 
 
 class TestWorldMachineReach(unittest.TestCase):

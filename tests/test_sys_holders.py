@@ -749,7 +749,96 @@ class TestScanner(unittest.TestCase):
             self.assertTrue(any("sched." in p for p in paths), paths)
 
 
+class TestALeftColliderIsLetGo(HolderCase):
+    """A collider that left collision (destroy, park, ``collidable = False``)
+    is never used again (a rejoin builds a new one), so after the next step
+    no engine path may reach it: it still names its partners in
+    ``_pair_targets`` (strong), and a holder that keeps it pins them, dead or
+    alive (HW1: ``_moved_now`` kept the collider of a shapeless body — a Text,
+    an Entity: no valid proxy, the step's early return — and its partner, a
+    destroyed actor, was never collected). The subject is found by walking
+    the engine graph (``scan``), not by a list of per-step sets."""
+
+    @staticmethod
+    def _hunter_class():
+        from scena import collide_with
+
+        class Hunter(Circle):
+            @collide_with("prey")
+            def hit(self, other, info=None):
+                pass
+        return Hunter
+
+    def _prey(self, w, kind, xy=(50.0, 50.0)):
+        from scena import Text
+        with quiet():
+            if kind == "text":
+                return w.track(Text("w", center=xy, group="prey"))
+            if kind == "entity":
+                return w.track(Entity(group="prey"))
+            return w.track(Rect(center=xy, width=8, height=8, group="prey"))
+
+    def test_a_destroyed_hunter_named_by_a_shapeless_prey_is_collected(self):
+        """The HW1 game: the hunter leaves collision, the prey (no geometry)
+        is alone in it for some frames, then both die."""
+        from system_support import assert_collected
+        Hunter = self._hunter_class()
+        for kind in ("text", "entity"):
+            with self.subTest(prey=kind), system_world() as w:
+                with quiet():
+                    hunter = w.track(Hunter(center=(0.0, 0.0), radius=6))
+                prey = self._prey(w, kind)
+                w.step(1)
+                hunter.collidable = False
+                w.step(3)
+                ref = weakref.ref(hunter)
+                with quiet():
+                    prey.destroy()
+                    hunter.destroy()
+                w.objects.clear()
+                del hunter, prey
+                w.step(2)
+                assert_collected(self, ref, "a destroyed hunter")
+
+    def test_no_engine_path_reaches_a_collider_after_it_left(self):
+        Hunter = self._hunter_class()
+        enders = {
+            "destroy": lambda o: o.destroy(),
+            "park": lambda o: setattr(o, "active", False),
+            "collidable_off": lambda o: setattr(o, "collidable", False),
+        }
+        for kind in ("text", "entity", "rect"):
+            for ender, end in enders.items():
+                for alone in (True, False):
+                    label = f"{ender} | {kind} prey{' alone' if alone else ''}"
+                    with self.subTest(label), system_world() as w:
+                        with quiet():
+                            hunter = w.track(Hunter(center=(0.0, 0.0), radius=6))
+                            if not alone:   # a body with a valid proxy: the full step
+                                w.track(Rect(center=(-200.0, 0.0), width=8, height=8,
+                                             group="prey"))
+                        prey = self._prey(w, kind)
+                        w.step(1)
+                        hunter.collidable = False   # the prey may be alone in collision
+                        w.step(2)
+                        col = getattr(prey, "_collider", None)
+                        self.assertIsNotNone(col, f"{label}: the prey never joined collision")
+                        with quiet():
+                            end(prey)
+                        w.step(1)
+                        left = {p: k for p, k in scan(col).items() if k == "strong"}
+                        self.assertFalse(left, f"{label}: the engine still reaches the left "
+                                         f"collider:\n" + _report(left))
+
+
 class TestCanaries(unittest.TestCase):
+    def test_catches_a_step_set_that_keeps_a_left_collider(self):
+        from scena.collision import CollisionSystem
+        assert_catches(self, "test_sys_holders.TestALeftColliderIsLetGo."
+                       "test_no_engine_path_reaches_a_collider_after_it_left",
+                       [(CollisionSystem, "_forget_step_sets", lambda self, c: None)],
+                       "per-step collision sets that keep a collider that left (HW1)")
+
     def test_catches_a_destroy_that_skips_the_pointer(self):
         from scena.orchestration import ShapeInteractionManager
         assert_catches(self, "test_sys_holders.TestGoneEnders.test_destroy_keeps_the_pointer_released",

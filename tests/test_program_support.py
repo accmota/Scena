@@ -20,6 +20,21 @@ from system_support import zombies  # noqa: E402
 
 
 class TestInputDelivery(unittest.TestCase):
+    def test_a_second_press_with_no_release_is_the_harness_error(self):
+        """A window never sends it (GLFW makes it a REPEAT): the run refuses
+        it rather than hand the engine a stream the I1 model reads as an
+        engine fault (chaos caverna/volta ``key-down-twice``)."""
+        from program_support import PressedTwice
+        with ProgramRun("input_probe") as run:
+            run.key_down("SPACE")
+            run.step(1)
+            run.key_up("SPACE")
+            run.key_down("SPACE")            # up then down: a fresh press
+            run.step(1)
+            run.key_down("SPACE")
+            with self.assertRaisesRegex(PressedTwice, "SPACE.*pressed twice"):
+                run.step(1)
+
     def test_key_reaches_callbacks_and_keyp_on_the_next_frame(self):
         with ProgramRun("input_probe") as run:
             run.step(2)

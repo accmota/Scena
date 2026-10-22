@@ -475,5 +475,94 @@ class TestHarnessRules(unittest.TestCase):
                 self.assertIn(sc, sp.scenarios, f"{name}: a table names scenario {sc!r}")
 
 
+class _KeyLog:
+    """A fake ``ProgramRun`` for a pilot: the key stream it sends, per frame."""
+
+    def __init__(self):
+        self.frame, self.stream = 0, []
+
+    def key_down(self, name):
+        self.stream.append((self.frame, name, "down"))
+
+    def key_up(self, name):
+        self.stream.append((self.frame, name, "up"))
+
+
+def _stream_problems(stream):
+    """What a window could never send: a second down with no up between (GLFW
+    turns that into a repeat), an up of a key that is not down."""
+    down, bad = set(), []
+    for f, name, edge in stream:
+        if edge == "down":
+            if name in down:
+                bad.append(f"frame {f}: {name} down twice")
+            down.add(name)
+        else:
+            if name not in down:
+                bad.append(f"frame {f}: {name} up while not down")
+            down.discard(name)
+    return bad
+
+
+class TestPilotKeyStream(unittest.TestCase):
+    """The base pilot sends a stream a window could send: every tap goes up
+    the next frame, also two taps in one frame (deep tier, chaos
+    ``caverna/volta setup:6:destroy.other``: the rock's UP and the robot's X
+    in one frame left UP down forever; its next tap was a second OS down,
+    which the I1 model reads as ``key-down-twice``)."""
+
+    def _drive(self, frames):
+        """``frames``: per frame, the pilot calls ``act`` makes (``("tap", k)``
+        or ``("hold", k, on)``); then two quiet frames and the drive's end."""
+        script = list(frames) + [(), ()]
+
+        class P(gh.Pilot):
+            def act(self, run):
+                for op in script[self.t] if self.t < len(script) else ():
+                    if op[0] == "tap":
+                        self.tap(run, op[1])
+                    else:
+                        self.hold(run, op[1], op[2])
+
+        p, run = P(), _KeyLog()
+        for f in range(len(script)):
+            run.frame = f
+            p(run)
+        run.frame = len(script)
+        for name in sorted(p.held):              # what ``drive`` does at its end
+            run.key_up(name)
+        return run.stream
+
+    def test_two_taps_in_one_frame_both_go_up_next_frame(self):
+        stream = self._drive([[("tap", "UP"), ("tap", "X")], [], [("tap", "UP")]])
+        self.assertEqual(_stream_problems(stream), [])
+        self.assertIn((1, "UP", "up"), stream)
+        self.assertIn((1, "X", "up"), stream)
+
+    def test_any_mix_of_taps_and_holds_is_a_stream_a_window_sends(self):
+        """The whole class: every two-frame mix of taps and holds of two keys."""
+        import itertools
+        ops = [("tap", "UP"), ("tap", "X"), ("hold", "UP", True), ("hold", "UP", False),
+               ("hold", "X", True)]
+        frames = [list(c) for n in range(len(ops) + 1) for c in itertools.combinations(ops, n)]
+        bad = []
+        for a in frames:
+            for b in frames:
+                stream = self._drive([a, b])
+                probs = _stream_problems(stream)
+                taps = [(i, op[1]) for i, fr in enumerate((a, b)) for op in fr if op[0] == "tap"]
+                for i, name in taps:
+                    # the tap's down is the key's last down in frame i; its
+                    # next edge is an up by frame i + 1
+                    mine = [(f, e) for f, n, e in stream if n == name]
+                    at = max(j for j, (f, e) in enumerate(mine) if f == i and e == "down")
+                    nxt = mine[at + 1] if at + 1 < len(mine) else None
+                    if nxt is None or nxt[1] != "up" or nxt[0] > i + 1:
+                        probs.append(f"tap of {name} in frame {i} still down after frame {i + 1}")
+                if probs:
+                    bad.append((a, b, probs))
+        self.assertEqual(bad[:3], [], f"{len(bad)} bad mixes")
+
+
 if __name__ == "__main__":
     unittest.main()

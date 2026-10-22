@@ -87,9 +87,13 @@ def check(tr: Trace, rep: Report) -> None:
             floor = e[3] if len(e) > 3 else True
             continue
         post = {b[0]: b for b in e[2] if b[0]}
+        # A partner the recorder cannot name still counts as a partner: its
+        # pair is not checked, but the bodies it touched are not "answered
+        # only by each other" (a body made during the step once read ``?``
+        # and a three-body solve was checked as a pair: P3, tutorial 31).
         pairs = [p for p in e[3] if "?" not in p]
         partners: Dict[str, List[str]] = {}
-        for a, b in pairs:
+        for a, b in e[3]:
             partners.setdefault(a, []).append(b)
             partners.setdefault(b, []).append(a)
 

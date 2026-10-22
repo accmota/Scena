@@ -490,12 +490,26 @@ def _resolve_start(frame):
         # The world's floor (``collision.floor``): P5 and P6 are laws of a
         # world with one (V10).
         floor = bool(_slot(frame.f_locals.get("self"), "_floor", True))
-        _rec.events.append(("M", "pre", _bodies(frame.f_locals.get("id_to_collider") or {}), floor))
+        _rec.events.append(("M", "pre", _bodies(_live_ids(frame)), floor))
+
+
+def _live_ids(frame) -> dict:
+    """The resolve's colliders by id, read live (``CollisionSystem._colliders``),
+    not from the step's ``id_to_collider`` snapshot: that one is built before
+    the handlers, and a body a handler makes (a clone) is resolved this step
+    (the resolve pass chooses its bodies at its start, F3). Unnamed, it read
+    ``?`` and the motion model took a three-body solve for a pair (P3 on
+    tutorial 31, chaos ``enter:2:sibling``)."""
+    cs = frame.f_locals.get("self")
+    cols = _slot(cs, "_colliders", None)
+    if cols is None:
+        return frame.f_locals.get("id_to_collider") or {}
+    return {id(c): c for c in cols}
 
 
 def _resolve_end(frame, retval):
     if _rec.motion:
-        ids = frame.f_locals.get("id_to_collider") or {}
+        ids = _live_ids(frame)
         solved = _slot(frame.f_locals.get("self"), "_solve_contacts", None) or {}
         pairs = tuple(sorted(_pair_labels(k, ids) for k in solved))
         _rec.events.append(("M", "post", _bodies(ids), pairs))

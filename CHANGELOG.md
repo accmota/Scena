@@ -766,6 +766,15 @@ left out.
   other), the second body's own exit handler (`@collide_with_exit`,
   `on_collide_exit`, `@collide_exit(body, …)`) runs while that body still
   exists; it ran after its destroy had returned.
+- Installing a formula outside a frame (`@=` at the top of the file or in
+  the first act's `setup`) whose first value fires a `@when` / `@on_change`
+  that destroys one of its sources (or the field's object, or relinks or
+  unlinks the field) no longer raises Python's own `AttributeError`; the
+  field acts as after the same command between frames (a destroyed source
+  leaves it at its last value, with the unlink warning).
+- An actor destroyed while the only bodies left in collision had no shape (a
+  `Text` or an `Entity` in a collision group) stayed in memory until a shaped
+  body joined collision again.
 - `heading()`, `Point.heading`, `Line.angle` and a level line's `angle` read
   in (−180, 180] like `Vec2.angle`: pointing left reads 180 (it was −180, and
   `heading` could read −0.0); a zero vector (`-Vec2(0, 0)`) reads 0, not 180.

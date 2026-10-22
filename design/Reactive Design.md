@@ -695,7 +695,7 @@ Upward if **any** of:
 3. Graph cycle check (`would_create_cycle`) before committing
 4. Replace existing self-link with a warning if present
 5. Set `_link`, `_rewire_subtree_structural_edges(upward=True)`
-6. `set_owner` registers formula edges and evaluates. If that raises, the install is rolled back (`_link`, formula edges, structural rewire, and the pull-invalidate flags from before the attempt).
+6. `set_owner` registers formula edges and evaluates. If that raises, the install is rolled back (`_link`, formula edges, structural rewire, and the pull-invalidate flags from before the attempt). Outside a frame the evaluation's write flushes `@when` / `@on_change`; a callback there can end or replace this link (destroy a source or the owner, relink, unlink): `evaluate_and_update` then stops, and the field is left as that command leaves it between frames (CD6).
 
 **Unlink:**
 

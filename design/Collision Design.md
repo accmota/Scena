@@ -1579,7 +1579,11 @@ walks in `step()` now visit only the colliders whose answer can have changed.
 
 A leaving collider is dropped from every one of these sets
 (`_forget_step_sets`): the holders guard (`test_sys_holders`) found
-`_touching_live` still holding a body after an act change.
+`_touching_live` still holding a body after an act change. `_moved_now` too,
+and a step with no valid proxy (only shapeless bodies, a Text or an Entity,
+left in collision) clears it at its early return: a left collider still names
+its partners in `_pair_targets`, so any set that keeps it pins them, dead or
+alive (HW1, deep tier 2026-10-22).
 
 Measured (in-process A/B, M4):
 

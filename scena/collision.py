@@ -5535,6 +5535,10 @@ class CollisionSystem:
         self._snap_hot.discard(c)
         self._timed.discard(c)
         self._unbound.discard(c)
+        # A collider leaves for good (a rejoin builds a new one): no end
+        # center to store, and a dead body's collider may still name live or
+        # dead partners in ``_pair_targets`` (HW1).
+        self._moved_now.discard(c)
         if self._group_rows_cache:
             self._group_rows_cache.clear()  # its candidate lists may hold c
         if self._query_pools:
@@ -7314,6 +7318,10 @@ class CollisionSystem:
         n_proxy = len(live)
         if n_proxy == 0:
             self._store_resolved_aabbs()
+            # No valid proxy: no end center to store, but the snapshot's
+            # visits are this step's only (HW1: a Text / Entity body alone
+            # kept its collider here across every later step).
+            self._moved_now.clear()
             self._last_prims = []
             self._emit_exit_keys(self._prev_contacts)
             self._prev_contacts = set()

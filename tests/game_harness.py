@@ -58,6 +58,7 @@ class Pilot:
         self.held: set = set()
         self.t = 0                  # frames this pilot ran
         self._release_at: Optional[int] = None
+        self._taps: set = set()     # keys tapped this frame (released next frame)
         self.done: List[str] = []   # what it managed to do (debug)
 
     # -- keys -----------------------------------------------------------
@@ -70,10 +71,16 @@ class Pilot:
             self.held.discard(name)
 
     def tap(self, run: ProgramRun, name: str) -> None:
-        """Press now; ``__call__`` releases it next frame."""
+        """Press now; ``__call__`` releases it next frame — every key tapped
+        this frame, not only the last (a key left down made the next tap a
+        second OS down: chaos caverna/volta, I1 ``key-down-twice``)."""
+        if name in self._taps:          # tapped twice in one frame: one press
+            return
+        if name in self.held:           # held by ``hold``: a fresh edge
+            run.key_up(name)
         run.key_down(name)
         self.held.add(name)
-        self._tapped = name
+        self._taps.add(name)
 
     # -- mouse ----------------------------------------------------------
     def click(self, run: ProgramRun, x: float, y: float) -> None:
@@ -81,10 +88,9 @@ class Pilot:
         self._release_at = self.t + 1
 
     def __call__(self, run: ProgramRun) -> None:
-        tapped = getattr(self, "_tapped", None)
-        if tapped is not None:
-            self.hold(run, tapped, False)
-            self._tapped = None
+        for name in sorted(self._taps):
+            self.hold(run, name, False)
+        self._taps.clear()
         if self._release_at is not None and self.t >= self._release_at:
             run.release()
             self._release_at = None
@@ -1078,7 +1084,7 @@ class GameRun(ProgramRun):
         if not self.os_level:
             return super()._deliver(*a)
         import glfw
-        from program_support import _KEY_CODES
+        from program_support import _KEY_CODES, note_press
         pending, self._pending = self._pending, []
         fw = self.world.fw
         for kind, args in pending:
@@ -1087,7 +1093,7 @@ class GameRun(ProgramRun):
                 name, action = args
                 code = _KEY_CODES[name]
                 if action == glfw.PRESS:
-                    self._held_keys.add(code)
+                    note_press(self._held_keys, code, name)
                 elif action == glfw.RELEASE:
                     self._held_keys.discard(code)
                 mods = 0

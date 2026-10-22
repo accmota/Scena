@@ -1002,24 +1002,36 @@ class FormulaLink():
 
         # Containers: silent subtree write (raw hook) then one invalidate below.
         # Non-containers (e.g. EventRegistration): takein + mark dirty + flush effects.
-        if hasattr(self.owner, '_no_update') and hasattr(self.owner, 'update'):
-            with self.owner._no_update():
-                self.owner._takein_impl(result)
-                if self.owner._parts:
-                    self.owner._refresh_after_raw_store()
+        # Outside a frame, ``update()`` / ``_takein`` flush ``@when`` /
+        # ``@on_change``: a callback there can destroy a source or the owner,
+        # which unlinks this link (``clear()`` sets ``owner`` to None) or puts
+        # another in its place. The field froze with this value then; touch
+        # nothing more (CD6 in Testing Design).
+        owner = self.owner
+        if hasattr(owner, '_no_update') and hasattr(owner, 'update'):
+            with owner._no_update():
+                owner._takein_impl(result)
+                if owner._parts:
+                    owner._refresh_after_raw_store()
             self.old_value = result
-            self.owner.update()
+            owner.update()
+            if self.owner is not owner:
+                return
             # Value already applied — clear own dirty so the next read does not
             # re-evaluate; dependents stay dirty until pulled.
-            self.owner._dirty = False
-            if hasattr(self.owner, '_clear_subtree_dirty'):
-                self.owner._clear_subtree_dirty()
+            owner._dirty = False
+            if hasattr(owner, '_clear_subtree_dirty'):
+                owner._clear_subtree_dirty()
         else:
-            self.owner._takein(result)
+            owner._takein(result)
+            if self.owner is not owner:
+                return
             self.old_value = result
-            um = self.owner._scena_system.update_manager
-            um.mark_dirty(self.owner)
-            self.owner._dirty = False
+            um = owner._scena_system.update_manager
+            um.mark_dirty(owner)
+            if self.owner is not owner:
+                return
+            owner._dirty = False
             if not um.deferring:
                 um.flush()
 

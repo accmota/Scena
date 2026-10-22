@@ -1130,7 +1130,8 @@ def heading(origin: Any, target: Any) -> float:
     x2, y2 = _xy_of(target, required=True)
     # ``+ 0.0`` folds a -0.0 difference to 0.0 (F12 of RA 0.9.0): atan2 read
     # −180 for (−1, −0.0) and −0.0 for (1, −0.0).
-    return math.degrees(math.atan2(y2 - y1 + 0.0, x2 - x1 + 0.0))
+    a = math.degrees(math.atan2(y2 - y1 + 0.0, x2 - x1 + 0.0))
+    return 180.0 if a == -180.0 else a     # a tiny negative dy rounds to -180
 
 
 def nearest(

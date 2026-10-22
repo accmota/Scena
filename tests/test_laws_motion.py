@@ -166,6 +166,16 @@ class TestMotionRules(unittest.TestCase):
         a1, b1 = body("A#0", 0, 0, vx=-10, mass=1), body("B#0", 19.9, 0, vx=10, mass=3)
         self.assertTrue(found(frame_pair([a0, b0], [a1, b1], [("A#0", "B#0")]), "P3"))
 
+    def test_p3_an_unnamed_third_partner_is_not_a_pair(self):
+        """A body the recorder cannot name (``?``: registered during the step)
+        resolved against A makes A's solve a three-body one: P3 abstains
+        (tutorial 31, chaos ``enter:2:sibling``: a car's clone made in the
+        car-car handler was resolved that step)."""
+        a0, b0 = body("A#0", 0, 0, vx=10, mass=1), body("B#0", 19.9, 0, vx=-10, mass=3)
+        a1, b1 = body("A#0", 0, 0, vx=-10, mass=1), body("B#0", 19.9, 0, vx=10, mass=3)
+        self.assertEqual(found(frame_pair([a0, b0], [a1, b1], [("A#0", "B#0"), ("?", "A#0")]),
+                               "P3"), [])
+
     def test_p3_a_body_with_no_vel_is_infinite_mass(self):
         """A brick with ``mass = 1`` and no ``.vel`` is a wall in the impulse
         (Collision Design): the ball bouncing off it is not a lost momentum
