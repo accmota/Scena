@@ -1995,6 +1995,22 @@ def _container_dict_init(cls: type) -> bool:
     return ok
 
 
+def _copy_refusal(obj) -> str:
+    """Why ``copy.copy(obj)`` refuses, and what makes a second one."""
+    kind = type(obj).__name__
+    if hasattr(obj, "clone"):
+        how = f"make a second one with shape.clone() (here shape is your {kind})"
+    elif isinstance(obj, Attribute):
+        how = "copy its value instead: v = st.score makes a value of its own"
+    elif getattr(obj, "_scena_is_entity", False):
+        how = f"make a second one with {kind}(…)"
+    else:
+        how = f"there is one {kind}: read the value you need from it"
+    a = "an" if kind[:1] in "AEIOU" else "a"
+    return (f"copy.copy() / copy.deepcopy() cannot copy {a} {kind}: the copy would "
+            f"share its links and its place in the formula graph; {how}.")
+
+
 class Container():
     """
     Mixin class that provides container (owner, parts, name, attr_name) functionality.
@@ -2020,6 +2036,17 @@ class Container():
     _publish_angle_input = None
     # Graph plumbing: never offered in a closed surface's "Writable on …" list.
     _closed_hidden = frozenset({"owner", "parts", "field_type"})
+
+    def __copy__(self):
+        """``copy.copy`` copied ``__dict__`` whole: the copy shared the
+        original's graph node, owner and links, and a vector a cell held kept
+        the cell's write hook (``w = copy.copy(st.v); w.x = 5`` wrote ``st.v``).
+        A value kind (Vec2, Point, Box) copies its value; anything else
+        refuses with the spelling that makes a second one (RA2 follow-up)."""
+        raise TypeError(_copy_refusal(self))
+
+    def __deepcopy__(self, memo):
+        return self.__copy__()
 
     def __init__(self, owner: Optional['Container'] = None, attr_name: Optional[str] = None):
         ephemeral = is_ephemeral_creation()
@@ -2935,6 +2962,20 @@ class Container():
         """
         raise NotImplementedError("Subclasses must implement takein")
     
+    def _author_label(self) -> str:
+        """How a message names this node to the author (error path): an
+        actor's part as ``Circle.vel``, a cell as ``st.pos``, a free vector
+        as ``v`` (its node name, ``vec2``, is nobody's spelling)."""
+        from .entity import _actor_of, _dead_part_field
+        actor = _actor_of(self) if self._owner is not None else None
+        if actor is not None:
+            return f"{type(actor).__name__}.{_dead_part_field(self)}"
+        bag_ref = getattr(self, '_state_bag', None)
+        bag = bag_ref() if bag_ref is not None else None
+        if bag is not None and self.attr_name:
+            return f"{bag.name}.{self.attr_name}"
+        return "v" if self.__class__ is _HELD_BY_VALUE else self.name
+
     def _author_unlink_hint(self) -> str:
         """Bracket unlink spelling for LinkedAttributeError messages."""
         if self._owner is not None and self.attr_name:
@@ -2965,11 +3006,7 @@ class Container():
         blocker = self._linked_write_blocker()
         if blocker is None:
             return
-        hint = blocker._author_unlink_hint()
-        raise LinkedAttributeError(
-            f"{blocker.name} is linked — call {hint} first"
-            + _follows_cell_hint(blocker)
-        )
+        raise LinkedAttributeError(_linked_blocker_message(blocker))
 
     def _assign_value(self, new_value):
         """Set the attribute's value or establish a link."""
@@ -3206,9 +3243,15 @@ class Container():
         if other.__class__ is not tuple and getattr(other, "_destroyed", False):
             # A destroyed source is not a live Scena object: clone() and
             # absorb() refuse it, and so does << (GX12 in Testing Design).
-            from .entity import _destroyed_access_message
+            from .entity import _dead_part_field, _destroyed_access_message
+            # Author names, not node names (``vec2 << Circle_vel``): a dead
+            # part is its owner's field (``Circle.vel``, RA2 follow-up).
+            host = other.__dict__.get("_destroyed_with_host")
+            src = (f"{type(host).__name__}.{_dead_part_field(other)}" if host is not None
+                   else f"the {type(other).__name__}")
+            me = held_field_label(self) or self._author_label()
             raise DestroyedError(_destroyed_access_message(
-                other, f"{self.name} << {other.name}: the source was destroyed; "
+                other, f"{me} << {src}: the source was destroyed; "
                        f"copy it before destroy(), or keep it alive"))
         self._takein(other)
         hook = _PLACEMENT_HOOK
@@ -3571,8 +3614,9 @@ class Container():
                     return
 
             if self._field_is_linked(name):
+                me = held_field_label(self) or self.name
                 raise LinkedAttributeError(
-                    f"{self.name}.{name} is linked — call {self.name}['{name}'].unlink() first"
+                    f"{me}.{name} is linked — call {me}['{name}'].unlink() first"
                     + _follows_cell_hint(self.__dict__.get(name))
                 )
             # Parent / ancestor formulas: author ``=`` raises. Batched
@@ -3581,10 +3625,7 @@ class Container():
             if not self._in_batch_update:
                 blocker = self if self._link is not None else self._formula_driven_ancestor()
                 if blocker is not None:
-                    hint = blocker._author_unlink_hint()
-                    raise LinkedAttributeError(
-                        f"{blocker.name} is linked — call {hint} first"
-                    )
+                    raise LinkedAttributeError(_linked_blocker_message(blocker))
             if slot is not _INK_SLOT and not self._in_batch_update:
                 if self._field_is_derivate(name, slot):
                     raise DerivedAttributeError(
@@ -4954,6 +4995,54 @@ def held_cell(obj) -> Optional["Attribute"]:
         return None
     cell = guard.cell()
     if cell is None or cell.__dict__.get('_raw_value') is not obj:
+        return None
+    return cell
+
+
+def _linked_blocker_message(blocker) -> str:
+    """``X is linked — call … first`` for a write on linked ``blocker``."""
+    label = held_field_label(blocker)
+    if label is not None:
+        # A linked vector an ink field holds has no owner or name of its own:
+        # it said ``vec2 is linked — call unlink() first``.
+        return f"{label} is linked — call {label}.unlink() first"
+    return (f"{blocker.name} is linked — call {blocker._author_unlink_hint()} first"
+            + _follows_cell_hint(blocker))
+
+
+def held_field_label(node) -> Optional[str]:
+    """``circle.mira`` when ``node`` is the vector an Entity's own field holds
+    now, else None. Such a vector has no owner (a field holds it by value), so
+    a message naming ``node`` said ``vec2``. Error path only."""
+    if node.__class__ is not _HELD_BY_VALUE or node.__dict__.get('_owner') is not None:
+        return None
+    hook = node.__dict__.get('_held_payload')
+    holders = [ref() for ref, name in hook.holders if name is not None] if hook else []
+    if not holders:
+        # Held only while a formula reads the field: look for the holder.
+        from .canvas import ScenaCanvas
+        holders = ScenaCanvas.get_current().registry.live_objects()
+    for holder in holders:
+        ink = getattr(holder, '_ink', None)
+        if isinstance(ink, dict):
+            for name, value in ink.items():
+                if value is node:
+                    return f"{_snake_name(type(holder).__name__)}.{name}"
+    return None
+
+
+def linked_holder_cell(obj) -> Optional["Attribute"]:
+    """The **linked** cell whose formula output ``obj`` is (a held Vec2, or a
+    Point the formula made), or None. A door that writes ``obj`` later, from
+    the frame loop (``tween(st.v["x"], …)``), asks at the call: the per-instance
+    guard refused only on the first tick, far from the author's line."""
+    d = getattr(obj, '__dict__', None)
+    guard = d.get('_write_field') if d is not None else None
+    if not isinstance(guard, (_HeldPayloadWrite, _LinkedPointGuard)):
+        return None
+    cell = guard.cell()
+    if (cell is None or cell.__dict__.get('_link') is None
+            or cell.__dict__.get('_raw_value') is not obj):
         return None
     return cell
 

@@ -35,6 +35,28 @@ left out.
   with parentheses: at the line, or, for `@when` / `@on_change` /
   `@exit_mode`, at the class line or at `run()`. `@click()` with no target
   raises too (it wired nothing).
+- `tween(st.v["x"], …)` (or `tween(st.p, …)`) on a linked cell started and
+  then stopped the game from the frame loop on its first frame, with
+  `st.v is linked`. It now raises that `LinkedAttributeError` at the call;
+  `force=True` unlinks the cell with a warning and the tween runs.
+- `copy.copy` and `copy.deepcopy` of a vector a cell held kept the cell's
+  hook: `w = copy.copy(st.v); w.x = 5` changed `st.v`. A copy of a `Vec2`,
+  `Point` or `Box` is now a value of its own (no links, no holder). Every
+  other Scena object refuses with the spelling that makes a second one
+  (`shape.clone()`, `Entity(…)`): its copy shared the original's links and
+  its place in the formula graph.
+- Three refusals named the wrong thing. `st.pos += (1, 1)` with a Point in
+  the cell said `` `ship.center += …` would teleport past walls``; it now
+  names `st.pos` and `st.pos.move_by(dx, dy)` (and `q = q + (dx, dy)` for a
+  point made by arithmetic). A linked vector in an object's own field said
+  `vec2 is linked — call unlink() first`; it now says `circle.mira is linked
+  — call circle.mira.unlink() first` (and `tween` says `circle.mira`).
+  `v << bala.vel` after `bala.destroy()` said `vec2 << Circle_vel`; it now
+  says `v << Circle.vel`.
+- `rect.hitbox_scale = 0.5` (or `hitbox_anchor`, `hitbox_shape`,
+  `hitbox_source`, on any shape or Text) was taken as a field of the
+  object's own and changed nothing. It now raises: those are a Sprite's
+  knobs, and a shape's hitbox is its own geometry.
 
 ## 0.9.0 — 2026-10-22
 

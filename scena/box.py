@@ -837,6 +837,14 @@ class Box(_RectFrame, _RectNames, ClosedSurface, Container):
         "top_center", "bottom_center", "left_center", "right_center",
     )
 
+    def __copy__(self) -> "Box":
+        """A Box over the same region (``Box(box)``), with no links of its own
+        (Container.__copy__)."""
+        return Box(self)
+
+    def __deepcopy__(self, memo) -> "Box":
+        return self.__copy__()
+
     def __init__(self, *args, **kwargs):
         if args:
             if len(args) == 1 and not kwargs:

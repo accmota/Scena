@@ -61,6 +61,7 @@ CONTRACTS: Dict[str, W] = {
     # --- acts, modes, timers ---------------------------------------------------
     "act:_unlink_notice": W(fires="test_act", silent="test_act.TestBatchTeardown.test_hud_and_the_object_it_reads_leave_together_silently"),
     "process:Scheduler._warn_frozen_modes": W(fires="test_process", silent="test_process.TestFrozenModeWarning.test_idle_time_counts_not_mode_age"),
+    "process:_ensure_tween_writable": W(fires="test_held_value_doors", silent="test_held_value_doors.TestTimedDoorsRefuseALinkedHolderAtTheCall.test_an_unlinked_cell_still_tweens"),
     "process:_preempt_tween_keys": W(fires="test_driver_composition", silent="test_process.TestNamedTweenSlotReplacesQuietly.test_same_slot_on_a_cell_is_quiet"),
     "process:Scheduler.add": W(fires="test_process", silent="test_process.TestNamedTweenSlotReplacesQuietly.test_same_slot_on_a_field_is_quiet"),
     "process:Script._cancelled_under_it": W(fires="test_process", silent="test_process.TestAsyncAwait.test_destroy_while_waiting_is_silent"),

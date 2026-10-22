@@ -618,6 +618,7 @@ def _ensure_writable(
 
     no_force = operation in _PERSISTENT_DECLARATION_OPS
     existing = "has an @= formula"
+    unlink_spelling = "unlink() / unlink_all()"
     if isinstance(part, FieldRef):
         if force and not no_force:
             warnings.warn(
@@ -671,10 +672,16 @@ def _ensure_writable(
             return
         linked_names = ", ".join(part_path(n) for n in linked)
         subject = entity_label(part)
+        from .state import held_field_label
+        label = held_field_label(part)
+        if label is not None:
+            # An ink field's vector (``circle.mira``) said ``its vec2``.
+            subject, linked_names = label, type(part).__name__
+            unlink_spelling = f"{label}.unlink()"
         fit = getattr(_actor_of(part) or part, "__dict__", {}).get("_box_fit")
         if fit is not None and any(_link_reads(n._link, fit) for n in linked):
             existing = "follows its box= formula"
-    undo = "Unlink it first (unlink() / unlink_all())"
+    undo = f"Unlink it first ({unlink_spelling})"
     if not no_force:
         undo += ", or pass force=True"
     undo += undo_extra
@@ -802,6 +809,48 @@ _POINT_IADD_MSG = (
     "Use `ship.move_by(dx, dy)` to move, "
     "or `ship.center = ship.center + (dx, dy)` to place."
 )
+
+
+def _refuse_point_iadd(point, op: str) -> None:
+    """``+=`` / ``-=`` on a Point: the formula's output of a linked cell says
+    the cell is linked (``st.L = st.L + …`` would raise too); else the
+    message names the author's spelling."""
+    from .state import linked_holder_cell
+    cell = linked_holder_cell(point)
+    if cell is not None:
+        cell._refuse_author_write()
+    raise TypeError(_point_iadd_message(point, op))
+
+
+def _point_iadd_message(point, op: str) -> str:
+    """``x += …`` on a Point, named as the author wrote ``x`` (error path).
+
+    It always said ``ship.center``: ``st.pos += (1, 1)`` with a Point in the
+    cell was told to move a ship (RA2 follow-up). A part moves through its
+    actor; a free Point actor through ``move_by``; a value (point arithmetic,
+    ephemeral) is replaced by a new one."""
+    import linecache
+    import re
+    from .entity import _author_site
+    site = _author_site()
+    line = linecache.getline(*site) if site else ""
+    found = re.search(rf"([A-Za-z_][\w.]*(?:\[[^\]]*\])?)\s*{re.escape(op)}=", line)
+    expr = found.group(1) if found else None
+    sign = op
+    if point.__dict__.get('_owner') is not None:
+        if expr is None or "." not in expr:
+            return _POINT_IADD_MSG
+        actor = expr.rpartition(".")[0]
+        return (f"`{expr} {sign}= …` would teleport past walls. Use "
+                f"`{actor}.move_by(dx, dy)` to move, or `{expr} = {expr} {sign} "
+                f"(dx, dy)` to place.")
+    name = expr or "point"
+    if point.__dict__.get('_ephemeral'):
+        return (f"`{name} {sign}= …` cannot change a Point in place. Write "
+                f"`{name} = {name} {sign} (dx, dy)`: the sum is a new Point.")
+    return (f"`{name} {sign}= …` would teleport the Point past walls. Use "
+            f"`{name}.move_by(dx, dy)` to move it, or `{name}.move_to(x, y)` to "
+            f"place it.")
 
 
 # ``Point ==`` keeps identity (PE1): the engine needs it (weak sets and weak
@@ -3565,6 +3614,14 @@ class Point(Shape):
         x, y = get_xy(self, bare=True)
         return type(self)(x, y, **kwargs)
 
+    def __copy__(self) -> 'Point':
+        """A free Point with this position, as point arithmetic returns:
+        ``clone()`` makes a second drawn Point (Container.__copy__)."""
+        return Point.temp(self.x, self.y)
+
+    def __deepcopy__(self, memo) -> 'Point':
+        return self.__copy__()
+
     @classmethod
     def temp(cls, x: float = 0.0, y: float = 0.0) -> 'Point':
         """Create an unregistered Point for use as an arithmetic result.
@@ -3824,10 +3881,10 @@ class Point(Shape):
         return Shape.__getitem__(self, key)
 
     def __iadd__(self, other: Any) -> 'Point':
-        raise TypeError(_POINT_IADD_MSG)
+        _refuse_point_iadd(self, "+")
 
     def __isub__(self, other: Any) -> 'Point':
-        raise TypeError(_POINT_IADD_MSG)
+        _refuse_point_iadd(self, "-")
 
     def distance(self, other: Any) -> float:
         """Euclidean distance to another position (same family as the free ``distance``)."""

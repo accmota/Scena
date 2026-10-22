@@ -1178,5 +1178,64 @@ class TestDestroyExitsEveryPart(PartTestCase):
                          "a part key outlived its collider")
 
 
+class TestFlatHitboxNamesOnShapes(PartTestCase):
+    """``rect.hitbox_scale = 0.5`` became ink nothing reads (RA2 follow-up),
+    while ``rect.hitbox.scale = 0.5`` refused. The Sprite keywords, written or
+    read on any other kind, refuse with what to do instead; a Sprite keeps its
+    own hints (``sprite.hitbox.scale``)."""
+
+    _NAMES = ("hitbox_scale", "hitbox_anchor", "hitbox_shape", "hitbox_source",
+              "hitbox_from")
+
+    def _kinds(self):
+        import scena
+        return {
+            "Circle": lambda: Circle(center=(0, 0), radius=3),
+            "Rect": lambda: Rect(center=(0, 0), width=4, height=4),
+            "Line": lambda: scena.Line(p1=(0, 0), p2=(5, 5)),
+            "Point": lambda: scena.Point(1, 1),
+            "Polygon": lambda: scena.Polygon(points=[(0, 0), (4, 0), (0, 4)]),
+            "Text": lambda: scena.Text("oi", center=(0, 0)),
+        }
+
+    def test_every_name_refuses_on_write_and_read(self):
+        for kind, make in self._kinds().items():
+            obj = self.track(make())
+            for name in self._NAMES:
+                with self.subTest(kind=kind, name=name):
+                    with self.assertRaises(AttributeError) as cm:
+                        setattr(obj, name, 0.5)
+                    msg = str(cm.exception)
+                    self.assertIn("own geometry", msg)
+                    self.assertNotIn("hitbox_from=", msg)     # a retired keyword
+                    with self.assertRaises(AttributeError):
+                        getattr(obj, name)
+                    self.assertNotIn(name, obj.__dict__)
+
+    def test_a_sprite_keeps_its_own_hints(self):
+        hero = self.hero()
+        with self.assertRaises(AttributeError) as cm:
+            hero.hitbox_scale = 0.5
+        self.assertIn("sprite.hitbox.scale", str(cm.exception))
+        self.assertNotIn("own geometry", str(cm.exception))
+
+    def test_every_graphic_kind_has_the_names(self):
+        """Sprite's retired hitbox names are the list; every public Graphic
+        kind refuses each of them (its own hint or the shape one)."""
+        import inspect
+        import scena
+        from scena.entity import Graphic
+        sprite_names = {n for n in Sprite._RETIRED_ATTRS if n.startswith("hitbox_")}
+        self.assertEqual(sprite_names, set(self._NAMES))
+        for name in scena.__all__:
+            cls = getattr(scena, name, None)
+            if not (inspect.isclass(cls) and issubclass(cls, Graphic)):
+                continue
+            for knob in self._NAMES:
+                with self.subTest(kind=name, name=knob):
+                    self.assertTrue(any(knob in (k.__dict__.get("_RETIRED_ATTRS") or {})
+                                        for k in cls.__mro__))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4665,6 +4665,18 @@ def _preempt_tween_keys(*keys, slot=None, quiet: bool = False) -> None:
 
 def _ensure_tween_writable(target, *, force: bool) -> None:
     from .shapes import _ensure_writable
+    from .state import FieldRef, linked_holder_cell
+    # The value a linked cell holds (``st.v`` / ``st.p`` after ``st["v"] @=``)
+    # is its formula's output: its guard refused on the first tick, from the
+    # frame loop. Refuse here, or unlink the cell under ``force=True``.
+    payload = target.owner if isinstance(target, FieldRef) else target
+    cell = linked_holder_cell(payload)
+    if cell is not None:
+        if not force:
+            cell._refuse_author_write()
+        warnings.warn(f"{cell._name} was unlinked because tween must write it",
+                      RuntimeWarning, stacklevel=3)
+        cell.unlink()
     _ensure_writable(target, "tween", force=force)
 
 

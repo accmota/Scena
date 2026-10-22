@@ -142,6 +142,14 @@ class Vec2(Container):
         ("lambda",        {"lambda"}),
     ]
 
+    def __copy__(self) -> 'Vec2':
+        """A free Vec2 with this value: no owner, no links, no holder's hooks
+        (``copy.copy(st.v)`` kept the cell's write hook; Container.__copy__)."""
+        return Vec2(self.x, self.y)
+
+    def __deepcopy__(self, memo) -> 'Vec2':
+        return self.__copy__()
+
     @classmethod
     def temp(cls, x: float = 0.0, y: float = 0.0) -> 'Vec2':
         """Create an unregistered Vec2 for use as an arithmetic result.

@@ -708,6 +708,21 @@ _ROTATION_RETIRED = (
     "center (or `about=`). Link with `x['angle'] @= …`."
 )
 
+# ``rect.hitbox_scale = 0.5`` became ink nothing reads (RA2 follow-up): the
+# Sprite keywords, written on a kind whose hitbox is its own geometry. Sprite
+# lists its own hints for the same names (``Sprite._RETIRED_ATTRS``).
+_SHAPE_HITBOX_KNOB = (
+    "{name} is a Sprite's knob: Sprite({kw}=…) when it is made, sprite.hitbox.{knob} "
+    "after. A shape's hitbox is its own geometry, so to change it change the "
+    "shape (its size, points, rotation); a Text has no hitbox."
+)
+_SHAPE_HITBOX_RETIRED = {
+    name: _SHAPE_HITBOX_KNOB.format(name=name, kw=f"hitbox_{knob}", knob=knob)
+    for name, knob in (("hitbox_scale", "scale"), ("hitbox_anchor", "anchor"),
+                       ("hitbox_shape", "shape"), ("hitbox_source", "source"),
+                       ("hitbox_from", "source"))
+}
+
 
 from .purity_check import _READING as _SOLVER_READING, refuse_if_solver_reading
 
@@ -4129,7 +4144,7 @@ class Graphic(Entity, ABC):
     _scena_is_graphic = True
 
     _pose_xy_guard = True
-    _RETIRED_ATTRS = {"rotation": _ROTATION_RETIRED}
+    _RETIRED_ATTRS = {"rotation": _ROTATION_RETIRED, **_SHAPE_HITBOX_RETIRED}
 
     # ``clone(frame=)`` picks a sheet frame (Sprite only; the others refuse it).
     _clone_takes_frame = False

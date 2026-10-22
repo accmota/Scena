@@ -3327,12 +3327,19 @@ Breaking. Lessons for the class, beyond RA's:
 Decided with the user: `x.position =`, `v * True`, `st.pos["x"] @=` and the
 short-property typo rule are Breaking; `Color == "red"` is Fixed, with a static
 warning for a colour looked up in a set or dict of names (`color.warn_color_keys`).
-Open after the audit: `tween` on an axis of a held vector starts and then raises from
-the frame loop; `copy.copy` of a held vector keeps the cell's hooks; `st.pos += …` on
-a held Point and `s.mira.x = …` on a linked ink Vec2 name the wrong subject; an
-undrawn `Entity()` with no variable and a sync mode is collected (an async mode keeps
-it); `obj["field"] @= f` on a Vec2 ink field refuses (the vector links as
-`obj.field @= f`).
+Open after the audit, fixed after 0.9.0 (`tests/test_held_value_doors.py`,
+`test_hitbox_parts.TestFlatHitboxNamesOnShapes`): `tween` on an axis of a linked
+cell's vector (or on its Point) started and then raised from the frame loop; `copy.copy`
+of a held vector kept the cell's hooks, and any Scena object's copy shared its graph
+node; `st.pos += …` on a held Point, `s.mira.x = …` on a linked ink Vec2 and `v <<
+dead.vel` named the wrong subject; `hitbox_scale` on a Rect became ink. Two lessons:
+a door that writes later (a tween, a timer) must ask at the call the guard its first
+tick will meet, or the refusal reaches the author from the frame loop; and a class
+that installs per-instance hooks owns what `copy` does with them (Python's default
+copies `__dict__`, hooks and node id included). Still open, for the user: an undrawn
+`Entity()` with no variable is collected unless an async mode or a timer holds it
+(a sync mode, `on_update` or `group=` do not); `obj["field"] @= f` on a Vec2 ink
+field refuses (the vector links as `obj.field @= f`).
 
 ### AH — async functions where Scena calls one (2026-10-10, 2026-10-12)
 
