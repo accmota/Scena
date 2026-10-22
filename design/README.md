@@ -344,6 +344,13 @@ runs its check in `quick`).
   programs, one short take each, fitted into one size (letterboxed when the
   aspect differs) with the file name in a corner; its hash covers every
   take.
+- **A Gallery row is one shape.** GitHub sizes a table column by its caption
+  and keeps each image's aspect, so mixed shapes make uneven cells. Every
+  Gallery cell is `width="50%"`, and the two clips of a row share an aspect
+  (within 7%). A clip that has no partner of its shape takes a `frame` in
+  `CLIPS` (Connect Four: 500×380 inside 640×360): the game is fitted inside
+  and its own edge colour fills the sides (`widen`), so it suits a game whose
+  background is flat at the edges, not a scene that runs off them.
 - **The code on the page is the code of its picture.** The block right after
   `<!-- clip: <id> -->` is that clip's program (run as a file in `examples/`, so
   its art resolves from `examples/media`). The level editor's clip is no
@@ -383,7 +390,15 @@ runs its check in `quick`).
   take without drawing: `tests/test_record_game_deep.py`, gate). A pilot
   that restarts a game (SPACE after a crash) moves its memory on in the
   same frame: a frame later the game is running again and the pilot's
-  crashed branch never runs.
+  crashed branch never runs. Time a pilot's actions in whole frames
+  (`pilots.at`): a time measured from a screen's first frame carries float
+  error, and a click compared in seconds can miss both candidate frames.
+  A screen held still on purpose (a results screen) sets `game.still`, so
+  the review does not flag it. A pilot plans with what collides (the
+  hitbox), not the picture: the runner's robot is 90 px wide on screen and
+  42 px to the ground. Corredor's random level makes spots no jump clears
+  at the early speeds (a crate, a short strip, a hole), so its takes are
+  several runs, each until the game ends it.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

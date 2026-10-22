@@ -286,6 +286,38 @@ class TestReadmeClips(unittest.TestCase):
         self.assertEqual(tuple(first[2, 2]), mm.LETTERBOX)  # the bar beside the take
         self.assertEqual(tuple(first[2, 30]), (200, 200, 200))
 
+    def test_widen_fills_the_sides_with_the_edge_colour(self):
+        import numpy as np
+        frames = np.full((2, 36, 48, 3), (44, 53, 82), np.uint8)   # a flat background
+        frames[:, 10:20, 20:30] = 250                                # the game in the middle
+        images = mm.widen(frames, (64, 36))
+        self.assertEqual({im.size for im in images}, {(64, 36)})
+        first = np.asarray(images[0])
+        self.assertEqual(tuple(first[5, 2]), (44, 53, 82))   # the side runs on, no bar
+        self.assertEqual(tuple(first[15, 8 + 25]), (250, 250, 250))
+
+    def test_framed_clip_hash_follows_its_frame(self):
+        cid = next(c for c, clip in mm.CLIPS.items() if "frame" in clip)
+        clip = mm.CLIPS[cid]
+        base = mm.entry_hash(cid, text="a")
+        moved = {**clip, "frame": (clip["frame"][0] + 2, clip["frame"][1])}
+        self.assertNotEqual(base, mm.entry_hash(cid, moved, text="a"))
+
+    def test_gallery_rows_share_one_aspect(self):
+        """Two clips side by side in the Gallery have the same shape, so a row's
+        cells are the same height (``frame`` widens a clip to its partner's)."""
+        text = _readme()
+        gallery = text[text.index("## Gallery"):]
+        gallery = gallery[:gallery.index("</table>")]
+        for row in gallery.split("<tr>")[1:]:
+            ids = re.findall(r"docs/assets/readme/([\w-]+)\.webp", row)
+            shapes = [(lambda w, h: w / h)(*mm.CLIPS[c].get("frame", mm.CLIPS[c]["size"]))
+                      for c in ids]
+            with self.subTest(row=ids):     # within 7%: Naves 5:4 beside Ninja 4:3
+                self.assertLess(max(shapes) / min(shapes), 1.07, ids)
+            self.assertNotIn('<td align="center">', row.replace('<td align="center" width="50%">', ""),
+                             "a Gallery cell without width=\"50%\": columns follow caption length")
+
     def test_hash_follows_each_input(self):
         cid = "catch-the-stars"
         base = mm.entry_hash(cid, text="a")

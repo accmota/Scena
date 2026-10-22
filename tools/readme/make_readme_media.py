@@ -60,7 +60,9 @@ BLANK_MIN_DIFF = 8             # a clip must change by more than this (0–255) 
 # One entry per clip. ``program``: an example file, or "README.md#<id>" (the
 # block after the ``<!-- clip: <id> -->`` marker). ``size``: the clip, px (the
 # program's design aspect). ``lead``: seconds played before recording starts.
-# ``pilot``: a function below, ``(game, t)`` each frame.
+# ``pilot``: a function below, ``(game, t)`` each frame. ``frame``: optional,
+# the clip's own box when it shares a README row with clips of another aspect;
+# the game is fitted inside and its edge colour fills the sides (``widen``).
 CLIPS = {
     "catch-the-stars": {"program": "README.md#catch-the-stars", "size": (640, 480),
                         "seconds": 6.0, "lead": 1.5, "pilot": "follow_stars"},
@@ -72,7 +74,7 @@ CLIPS = {
                 "seconds": 11.0, "lead": 0.0, "pilot": "pick_and_race"},
     "ninja_perigos": {"program": "examples/ninja_4_perigos.py", "size": (600, 450),
                       "seconds": 7.2, "lead": 1.0, "pilot": "run_jump_and_throw"},
-    "ligue4": {"program": "examples/ligue4.py", "size": (500, 380),
+    "ligue4": {"program": "examples/ligue4.py", "size": (500, 380), "frame": (640, 360),
                "seconds": 8.5, "lead": 0.0, "pilot": "play_connect_four"},
     "electric-hosts": {"program": "README.md#electric-hosts", "size": (720, 240),
                        "seconds": 3.0, "lead": 0.5, "pilot": "watch"},
@@ -443,6 +445,8 @@ def entry_hash(cid: str, clip: dict | None = None, *, text: str | None = None) -
     if "segments" in clip:   # a montage also hangs on how it is put together
         payload["montage"] = [inspect.getsource(f) for f in (compose, caption_layer)]
         payload["montage"].append([CAPTION_FONT, LETTERBOX])
+    if "frame" in clip:
+        payload["widen"] = inspect.getsource(widen)
     if any(t["pilot"] in _HELPED for t in takes(clip)):
         payload["helpers"] = [inspect.getsource(f) for f in (_at, _glide, _act, _cursor_on)]
     blob = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
@@ -689,9 +693,40 @@ def compose(segments: list, size: tuple[int, int]) -> list:
     return images
 
 
+def widen(frames, size: tuple[int, int]) -> list:
+    """Frames centred in a ``size`` box whose sides take the game's own edge
+    colour (the median of the first frame's outer columns), so a flat
+    background runs on with no bar."""
+    import numpy as np
+    from PIL import Image
+    h, w = frames.shape[1:3]
+    edge = np.concatenate([frames[0][:, :2], frames[0][:, -2:]], axis=1).reshape(-1, 3)
+    fill = tuple(int(c) for c in np.median(edge, axis=0))
+    at = ((size[0] - w) // 2, (size[1] - h) // 2)
+    images = []
+    for f in frames:
+        img = Image.new("RGB", size, fill)
+        img.paste(Image.fromarray(f, "RGB"), at)
+        images.append(img)
+    return images
+
+
 def render(cid: str, *, gpu: bool = True) -> dict:
     clip = CLIPS[cid]
     out = str(OUT_DIR / f"{cid}.webp")
+    if "frame" in clip:
+        import tempfile
+        import numpy as np
+        path, source = program_of(clip)
+        with tempfile.TemporaryDirectory() as tmp:
+            r = _child({"id": cid, "path": path, "source": source, "size": list(clip["frame"]),
+                        "fit": True, "seconds": clip["seconds"], "lead": clip["lead"],
+                        "pilot": clip["pilot"], "gpu": gpu, "out": os.path.join(tmp, "f.npy")})
+            if not r.get("ok"):
+                return r
+            images = widen(np.load(os.path.join(tmp, "f.npy")), tuple(clip["frame"]))
+        _save_webp(images, out)
+        return {**r, "bytes": os.path.getsize(out)}
     if "segments" not in clip:
         path, source = program_of(clip)
         return _child({"id": cid, "path": path, "source": source, "size": list(clip["size"]),
