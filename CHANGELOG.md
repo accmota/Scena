@@ -33,6 +33,12 @@ left out.
   (`filho["center"] @= …`). It raised `TypeError`, naming the dot spelling.
   A field that holds no vector yet says to make it one first
   (`obj.mira = Vec2(0, 0)`).
+- New example `examples/app_rgb_arena.py`: particles of light (`GlowSpot`)
+  carry a colour and a strength, and the colour is a charge with three poles
+  instead of + and −: red pulls green, green pulls blue, blue pulls red, and
+  each pushes the one before it. A well pulls everything to the middle. The
+  panel creates, deletes and recolours particles and tunes the forces;
+  drag a particle to move it, the wheel zooms.
 
 ### Fixed
 
@@ -97,6 +103,11 @@ left out.
 - README: "Built for learning"; the "Simple things are simple" point names it
   as the engine's philosophy; the boss example shows its `fighting` mode; the
   looks table shows `Fire(style="tongues")` instead of `visual = Water()`.
+- README gallery: Corrida (both menus, then the race) takes the
+  Oscilloscope's place, and "And many more" takes the Balls' place: one clip
+  of short takes from the oscilloscope, `constelacao.py`, `duelo.py`,
+  `corredor.py`, `app_rgb_arena.py`, `revoada.py` and `cadeia_de_bolas.py`,
+  each with its file name.
 
 ## 0.9.0 — 2026-10-22
 

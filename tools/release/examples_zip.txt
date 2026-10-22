@@ -3,6 +3,7 @@
 # Guard: tests/test_examples_zip.py (a stale list fails).
 examples/affinity.py
 examples/app_pitagoras.py
+examples/app_rgb_arena.py
 examples/aviao.py
 examples/aviao_paisagem.py
 examples/aviao_profundidade.py

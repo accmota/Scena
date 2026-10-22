@@ -257,7 +257,12 @@ file does not exist.
   Clips are animated WebP at 30 fps (`FPS` in the tool; the game steps at 60).
   Staleness is by input hash (program text, clip spec, pilot source, render
   settings), never pixels; `--check` lists stale clips. Edit an example or a
-  pilot → render again.
+  pilot → render again. A pilot that clicks menus sets `game.cursor = True`
+  and the tool draws the pointer (the window has none to capture). A
+  *montage* (`segments` in `CLIPS`, e.g. "And many more") plays several
+  programs, one short take each, fitted into one size (letterboxed when the
+  aspect differs) with the file name in a corner; its hash covers every
+  take.
 - **The code on the page is the code of its picture.** The block right after
   `<!-- clip: <id> -->` is that clip's program (run as a file in `examples/`, so
   its art resolves from `examples/media`). The level editor's clip is no

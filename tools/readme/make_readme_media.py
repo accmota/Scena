@@ -66,12 +66,10 @@ CLIPS = {
                         "seconds": 6.0, "lead": 1.5, "pilot": "follow_stars"},
     "naves_escudo": {"program": "examples/naves_4_escudo.py", "size": (600, 480),
                      "seconds": 8.0, "lead": 0.5, "pilot": "fly_fire_and_catch"},
-    "bolas": {"program": "examples/bolas.py", "size": (600, 432),
-              "seconds": 6.0, "lead": 1.0, "pilot": "watch"},
     "aviao_paisagem": {"program": "examples/aviao_paisagem.py", "size": (480, 270),
                        "seconds": 7.0, "lead": 3.0, "pilot": "fly_the_gaps"},
-    "osciloscopio": {"program": "examples/osciloscopio.py", "size": (600, 432),
-                     "seconds": 6.0, "lead": 0.3, "pilot": "click_the_ball"},
+    "corrida": {"program": "examples/corrida.py", "size": (640, 360),
+                "seconds": 11.0, "lead": 0.0, "pilot": "pick_and_race"},
     "ninja_perigos": {"program": "examples/ninja_4_perigos.py", "size": (600, 450),
                       "seconds": 7.2, "lead": 1.0, "pilot": "run_jump_and_throw"},
     "ligue4": {"program": "examples/ligue4.py", "size": (500, 380),
@@ -81,13 +79,33 @@ CLIPS = {
     # Not an example: the editor as ``scena-editor`` starts it, with a level open.
     "scena-editor": {"program": "tools/readme/editor_ninja.py", "size": (800, 500),
                      "seconds": 6.0, "lead": 0.0, "pilot": "edit_a_level"},
+    # A montage: one short take of each program, in order, each fitted into
+    # ``size`` (letterboxed when its aspect differs) with its file name in a
+    # corner.
+    "mais_exemplos": {"size": (640, 360), "segments": [
+        {"program": "examples/osciloscopio.py", "seconds": 3.3, "lead": 1.6,
+         "pilot": "click_the_ball"},
+        {"program": "examples/constelacao.py", "seconds": 2.5, "lead": 2.0,
+         "pilot": "pull_the_stars"},
+        {"program": "examples/duelo.py", "seconds": 2.5, "lead": 2.0, "pilot": "duel"},
+        {"program": "examples/corredor.py", "seconds": 2.5, "lead": 1.0, "pilot": "jump_the_gaps"},
+        {"program": "examples/app_rgb_arena.py", "seconds": 3.0, "lead": 1.0,
+         "pilot": "three_reds_and_glow"},
+        {"program": "examples/revoada.py", "seconds": 2.5, "lead": 3.0, "pilot": "falcon"},
+        {"program": "examples/cadeia_de_bolas.py", "seconds": 2.5, "lead": 0.5,
+         "pilot": "lead_the_chain"},
+    ]},
 }
+CAPTION_FONT = "examples/media/fonts/Quantico-Bold.ttf"
+LETTERBOX = (10, 11, 16)
 
 
 # ── Pilots ─────────────────────────────────────────────────────────────────
 # ``game`` is a ``Pilot``: ``game.ns`` (the program's globals), ``hold(*keys)``
 # (exactly these keys down this frame), ``mouse(x, y)``, ``press()`` /
-# ``release()``. Coordinates are design units, y up.
+# ``release()``, ``click(at, now)``. Coordinates are design units, y up.
+# ``game.cursor = True`` draws an arrow where the mouse is (a click on a menu
+# reads better when the viewer sees the pointer).
 
 def watch(game, t):
     """No input: the scene plays by itself."""
@@ -238,9 +256,138 @@ def run_jump_and_throw(game, t):
     game.hold("RIGHT", "UP" if jump else None)
 
 
+def _at(now: float, when: float) -> bool:
+    """``now`` is the one frame (60 Hz) that starts at ``when``."""
+    return when <= now < when + 1 / 60
+
+
+def _glide(game, a, b, *, start: float, end: float, now: float) -> None:
+    """Move the mouse from ``a`` to ``b`` between two times (eased)."""
+    k = min(1.0, max(0.0, (now - start) / (end - start)))
+    k = k * k * (3 - 2 * k)
+    game.mouse(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k)
+
+
+def _act():
+    """The act on stage (an act keeps its actors as fields, not as globals)."""
+    return sys.modules["scena.act"]._manager.current
+
+
+def pick_and_race(game, t):
+    """Click UM JOGADOR, then the Serpentina, with the pointer in view; then the
+    blue car races, driven by the CPU's own brain (``Carro.pensar``) turned
+    into keys: what it wants this frame is what the pilot holds."""
+    one, serpentina = (640, 380), (340, 170)
+    if t < 2.6:
+        game.cursor = True
+        if t < 1.3:
+            _glide(game, (1000, 110), one, start=0.2, end=0.9, now=t)
+        else:
+            _glide(game, one, serpentina, start=1.3, end=2.0, now=t)
+        if _at(t, 1.0) or _at(t, 2.2):
+            game.press()
+        if _at(t, 1.1) or _at(t, 2.3):
+            game.release()
+        return
+    game.cursor = False
+    azul = getattr(_act(), "azul", None)
+    if azul is None or not game.ns["st"].largou:
+        game.hold()
+        return
+    azul.pensar(1 / 60)
+    game.hold("UP" if azul.acelera else None, "DOWN" if azul.freia else None,
+              "LEFT" if azul.vira > 0.25 else "RIGHT" if azul.vira < -0.25 else None,
+              "ENTER" if azul.quer_atirar else None)
+
+
+def pull_the_stars(game, t):
+    """Two more comets, then the mouse circles; held, it pulls the points;
+    let go, a wave pushes them away."""
+    game.mouse(640 + 260 * math.cos(t * 1.4), 400 + 200 * math.sin(t * 1.4))
+    game.hold("SPACE" if _at(t, 0.3) or _at(t, 0.9) else None)
+    if _at(t, 2.4):
+        game.press()
+    if _at(t, 3.6):
+        game.release()
+
+
+def duel(game, t):
+    """Both players confirm their ship, then each one slides along its rail,
+    turns toward the other ship (a little off, sweeping) and fires."""
+    game.hold("TAB" if _at(t, 0.1) else "ENTER" if _at(t, 0.3) else None)
+    act = _act()
+    if not hasattr(act, "azul"):
+        return
+    heading = game.ns["heading"]
+    keys = []
+    for nave, outra, fase in ((act.azul, act.vermelha, 0.0), (act.vermelha, act.azul, 2.0)):
+        if not nave.is_alive or not outra.is_alive:
+            continue
+        k = nave.teclas
+        erro = (heading(nave, outra) + 25 * math.sin(t * 2.3 + fase) - nave.angle + 180) % 360 - 180
+        keys.append(k["esquerda"] if erro > 6 else k["direita"] if erro < -6 else None)
+        keys.append(k["cima"] if math.sin(t * 1.1 + fase) > 0 else k["baixo"])
+        keys.append(k["tiro"])
+    game.hold(*keys)
+
+
+def jump_the_gaps(game, t):
+    """The robot jumps when a hole or a crate is just ahead."""
+    robo = getattr(_act(), "robo", None)
+    if robo is None:
+        return
+    ns = game.ns
+    x = robo.center.x
+    ahead = x + 70
+    hole = not ns["collision"].query_point((ahead, ns["altura"](ahead) - 8), group="chao")
+    crate = any(0 < c.center.x - x < 120 for c in ns["group"]["caixa"])
+    game.hold("UP" if (hole or crate) and "bottom" in robo.touching_sides else None)
+
+
+def three_reds_and_glow(game, t):
+    """Three more red particles (Criar), then the Visual slider goes to 7."""
+    if t < 1.0:
+        game.mouse(*game.run.widget_center("Criar"))
+        for when in (0.2, 0.45, 0.7):
+            if _at(t, when):
+                game.press()
+            if _at(t, when + 0.1):
+                game.release()
+        return
+    game.cursor = t < 2.4
+    game.drag_slider("Visual", 1.0, 7.0, start=1.3, end=2.2, now=t)
+
+
+def falcon(game, t):
+    """The falcon (the mouse) sweeps across the sky; once, a click in the flock."""
+    group = game.ns["group"]
+    if _at(t, 3.8):
+        birds = list(group["passaro"])
+        cx = sum(b.center.x for b in birds) / len(birds)
+        cy = sum(b.center.y for b in birds) / len(birds)
+        game.mouse(cx, cy)
+        game.press()
+        return
+    if _at(t, 3.9):
+        game.release()
+    if t < 3.8 or t > 4.2:
+        game.mouse(640 + 480 * math.sin(t * 0.9), 400 + 260 * math.sin(t * 1.7))
+
+
+def lead_the_chain(game, t):
+    """The mouse draws a figure eight; the chain follows."""
+    game.mouse(500 + 330 * math.sin(t * 1.8), 360 + 190 * math.sin(t * 3.6))
+
+
 PILOTS = {f.__name__: f for f in (watch, follow_stars, fly_fire_and_catch, click_the_ball,
                                    fly_the_gaps, edit_a_level, play_connect_four,
-                                   run_jump_and_throw)}
+                                   run_jump_and_throw, pick_and_race, pull_the_stars, duel,
+                                   jump_the_gaps, three_reds_and_glow, falcon,
+                                   lead_the_chain)}
+# Pilots that use the helpers above (``_at``, ``_glide``, ``_act``) or draw the
+# pointer: the helpers' source is part of their clips' hash.
+_HELPED = {"pick_and_race", "pull_the_stars", "duel", "jump_the_gaps", "three_reds_and_glow",
+           "falcon", "lead_the_chain"}
 
 
 # ── README blocks ──────────────────────────────────────────────────────────
@@ -278,14 +425,26 @@ def program_text(clip: dict) -> str:
 
 # ── Staleness ──────────────────────────────────────────────────────────────
 
+def takes(clip: dict) -> list[dict]:
+    """The programs a clip plays: itself, or each segment of a montage."""
+    return clip.get("segments", [clip])
+
+
 def entry_hash(cid: str, clip: dict | None = None, *, text: str | None = None) -> str:
     clip = CLIPS[cid] if clip is None else clip
     payload = {
         "render": [RENDER_VERSION, FPS, QUALITY, SUPERSAMPLE],
         "clip": {k: v for k, v in clip.items()},
-        "pilot": [inspect.getsource(PILOTS[clip["pilot"]]), inspect.getsource(Pilot)],
-        "program": program_text(clip) if text is None else text,
+        "pilot": [inspect.getsource(PILOTS[t["pilot"]]) for t in takes(clip)]
+                 + [inspect.getsource(Pilot)],
+        "program": text if text is not None else program_text(clip) if "segments" not in clip
+                   else [program_text(t) for t in takes(clip)],
     }
+    if "segments" in clip:   # a montage also hangs on how it is put together
+        payload["montage"] = [inspect.getsource(f) for f in (compose, caption_layer)]
+        payload["montage"].append([CAPTION_FONT, LETTERBOX])
+    if any(t["pilot"] in _HELPED for t in takes(clip)):
+        payload["helpers"] = [inspect.getsource(f) for f in (_at, _glide, _act, _cursor_on)]
     blob = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()[:16]
 
@@ -386,8 +545,25 @@ def _downscale(px, factor: int):
     return blocks.mean(axis=(1, 3)).round().clip(0, 255).astype(np.uint8)
 
 
+def _cursor_on(frame, at):
+    """Draw a mouse arrow with its tip at ``at`` (pixels) on an RGBA frame."""
+    import numpy as np
+    from PIL import Image, ImageDraw
+    x, y = at
+    arrow = [(0, 0), (0, 17), (4.5, 13), (7.5, 19.5), (10, 18.5), (7, 12), (12.5, 12)]
+    img = Image.fromarray(frame, "RGBA")
+    ImageDraw.Draw(img).polygon([(x + ax, y + ay) for ax, ay in arrow],
+                                fill=(255, 255, 255, 255), outline=(0, 0, 0, 255), width=1)
+    return np.asarray(img)
+
+
 def render_one(spec: dict) -> dict:
-    """Child-process body: play one clip and write ``spec['out']``."""
+    """Child-process body: play one clip and write ``spec['out']``.
+
+    ``fit``: ``size`` is a box and the clip is the largest size of the design's
+    aspect inside it. An ``out`` ending in ``.npy`` gets the raw frames (a
+    montage segment), anything else a looping WebP.
+    """
     import random
     import numpy as np
     random.seed(0)
@@ -399,16 +575,19 @@ def render_one(spec: dict) -> dict:
     import skia
     from program_support import ProgramRun  # type: ignore
 
-    ow, oh = spec["size"]
-    rw, rh = ow * SUPERSAMPLE, oh * SUPERSAMPLE
     run = ProgramRun(spec["path"], source=spec["source"], seed=0, draw=True)
     backend = "cpu"
     try:
         run.start()
         fw = run.world.fw
         dw, dh = fw.design_width, fw.design_height
-        if abs(rw / dw - rh / dh) > 1e-6:
+        ow, oh = spec["size"]
+        if spec.get("fit"):
+            k = min(ow / dw, oh / dh)
+            ow, oh = min(ow, round(dw * k)), min(oh, round(dh * k))
+        elif abs(ow / dw - oh / dh) > 1e-6:
             raise ValueError(f"clip size {ow}×{oh} is not the design's aspect ({dw}×{dh})")
+        rw, rh = ow * SUPERSAMPLE, oh * SUPERSAMPLE
         s = rw / dw
         fw.pixel_ratio, fw.view_scale = s, 1.0
         fw._letterbox_pad_x = fw._letterbox_pad_y = 0
@@ -435,7 +614,11 @@ def render_one(spec: dict) -> dict:
                     surf.flushAndSubmit()
                 big = np.asarray(surf.makeImageSnapshot().toarray(
                     colorType=skia.kRGBA_8888_ColorType))
-                frames.append(_downscale(big, SUPERSAMPLE))
+                frame = _downscale(big, SUPERSAMPLE)
+                if getattr(pilot, "cursor", False):     # set by the pilot, frame by frame
+                    mx, my = pilot._at
+                    frame = _cursor_on(frame, (mx * ow / dw, (dh - my) * oh / dh))
+                frames.append(frame)
     except Exception as e:  # noqa: BLE001 — reported to the parent as data
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     finally:
@@ -448,12 +631,18 @@ def render_one(spec: dict) -> dict:
     motion = max(int(np.abs(f.astype(np.int16) - first).max()) for f in frames[1:])
     if motion < BLANK_MIN_DIFF:
         return {"ok": False, "error": f"nothing moves (max diff {motion} over the clip)"}
+    if spec["out"].endswith(".npy"):
+        np.save(spec["out"], np.stack([f[..., :3] for f in frames]))
+        return {"ok": True, "frames": len(frames), "backend": backend}
     from PIL import Image
-    pil = [Image.fromarray(f, "RGBA").convert("RGB") for f in frames]
-    pil[0].save(spec["out"], "WEBP", save_all=True, append_images=pil[1:],
-                duration=int(round(1000 / FPS)), loop=0, quality=QUALITY, method=6)
+    _save_webp([Image.fromarray(f, "RGBA").convert("RGB") for f in frames], spec["out"])
     return {"ok": True, "frames": len(frames), "backend": backend,
             "bytes": os.path.getsize(spec["out"])}
+
+
+def _save_webp(images, out: str) -> None:
+    images[0].save(out, "WEBP", save_all=True, append_images=images[1:],
+                   duration=int(round(1000 / FPS)), loop=0, quality=QUALITY, method=6)
 
 
 def _child(spec: dict) -> dict:
@@ -469,13 +658,65 @@ def _child(spec: dict) -> dict:
     return {"ok": False, "error": f"exit {out.returncode}: {tail}"}
 
 
+def caption_layer(size: tuple[int, int], text: str):
+    """An RGBA layer with ``text`` in a dark pill at the bottom left."""
+    from PIL import Image, ImageDraw, ImageFont
+    font = ImageFont.truetype(str(REPO / CAPTION_FONT), 15)
+    layer = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    x0, y0, x1, y1 = draw.textbbox((0, 0), text, font=font)
+    pad, margin = 6, 10
+    box = (margin, size[1] - margin - (y1 - y0) - 2 * pad,
+           margin + (x1 - x0) + 2 * pad, size[1] - margin)
+    draw.rounded_rectangle(box, radius=6, fill=(0, 0, 0, 160))
+    draw.text((box[0] + pad - x0, box[1] + pad - y0), text, font=font, fill=(255, 255, 255, 235))
+    return layer
+
+
+def compose(segments: list, size: tuple[int, int]) -> list:
+    """Montage frames: each segment's ``(frames, caption)`` centred in a
+    ``size`` box (letterboxed), its caption on top."""
+    from PIL import Image
+    images = []
+    for frames, caption in segments:
+        layer = caption_layer(size, caption)
+        h, w = frames.shape[1:3]
+        at = ((size[0] - w) // 2, (size[1] - h) // 2)
+        for f in frames:
+            img = Image.new("RGBA", size, LETTERBOX + (255,))
+            img.paste(Image.fromarray(f, "RGB"), at)
+            images.append(Image.alpha_composite(img, layer).convert("RGB"))
+    return images
+
+
 def render(cid: str, *, gpu: bool = True) -> dict:
     clip = CLIPS[cid]
-    path, source = program_of(clip)
-    spec = {"id": cid, "path": path, "source": source, "size": list(clip["size"]),
-            "seconds": clip["seconds"], "lead": clip["lead"], "pilot": clip["pilot"],
-            "gpu": gpu, "out": str(OUT_DIR / f"{cid}.webp")}
-    return _child(spec)
+    out = str(OUT_DIR / f"{cid}.webp")
+    if "segments" not in clip:
+        path, source = program_of(clip)
+        return _child({"id": cid, "path": path, "source": source, "size": list(clip["size"]),
+                       "seconds": clip["seconds"], "lead": clip["lead"],
+                       "pilot": clip["pilot"], "gpu": gpu, "out": out})
+    import tempfile
+    import numpy as np
+    with tempfile.TemporaryDirectory() as tmp:
+        specs = []
+        for i, seg in enumerate(clip["segments"]):
+            path, source = program_of(seg)
+            specs.append({"id": f"{cid}/{i}", "path": path, "source": source,
+                          "size": list(clip["size"]), "fit": True, "seconds": seg["seconds"],
+                          "lead": seg["lead"], "pilot": seg["pilot"], "gpu": gpu,
+                          "out": os.path.join(tmp, f"{i}.npy")})
+        with ThreadPoolExecutor(max(1, min(4, (os.cpu_count() or 2) // 2))) as pool:
+            results = list(pool.map(_child, specs))
+        for seg, r in zip(clip["segments"], results):
+            if not r.get("ok"):
+                return {"ok": False, "error": f"{seg['program']}: {r.get('error')}"}
+        images = compose([(np.load(s["out"]), Path(seg["program"]).name)
+                          for s, seg in zip(specs, clip["segments"])], tuple(clip["size"]))
+    _save_webp(images, out)
+    return {"ok": True, "frames": len(images), "backend": results[0]["backend"],
+            "bytes": os.path.getsize(out)}
 
 
 def main(argv: list[str] | None = None) -> int:

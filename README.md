@@ -294,8 +294,8 @@ lift = level["elevador"].make(visual=Metal("gold"))    # or as you choose
 ## Gallery
 
 Every clip below is a program from [`examples/`](https://github.com/accmota/Scena/tree/main/examples),
-played and recorded by the computer (nothing is edited by hand). Each one is the
-last step of a tutorial.
+played and recorded by the computer (nothing is edited by hand). The games are
+the last step of a tutorial.
 
 <table>
   <tr>
@@ -307,8 +307,8 @@ last step of a tutorial.
     <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ligue4.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ligue4.webp" width="380" alt="Connect Four"></a><br><b>Connect Four</b>: a board game for two, played by dragging the balls</td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/osciloscopio.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/osciloscopio.webp" width="380" alt="Oscilloscope"></a><br><b>Oscilloscope</b>: two circles make a curve</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/bolas.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/bolas.webp" width="380" alt="Balls"></a><br><b>Balls</b>: twenty balls bounce off the walls and each other</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/corrida.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/corrida.webp" width="380" alt="Race"></a><br><b>Race</b>: pick the players and the track, then race the CPU cars</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/tree/main/examples"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/mais_exemplos.webp" width="380" alt="And many more"></a><br><b>And many more</b>: an oscilloscope, constellations, a duel, a runner, charges, a flock, a chain</td>
   </tr>
 </table>
 

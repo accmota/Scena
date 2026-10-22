@@ -216,8 +216,9 @@ class TestReadmeClips(unittest.TestCase):
     def test_readme_clips_have_their_block(self):
         blocks = mm.readme_blocks(_readme())
         for cid, clip in mm.CLIPS.items():
-            if clip["program"].startswith("README.md#"):
-                self.assertIn(clip["program"].split("#", 1)[1], blocks)
+            for take in mm.takes(clip):
+                if take["program"].startswith("README.md#"):
+                    self.assertIn(take["program"].split("#", 1)[1], blocks)
         for cid in blocks:
             self.assertIn(cid, mm.CLIPS, f"<!-- clip: {cid} --> has no CLIPS entry")
 
@@ -226,7 +227,10 @@ class TestReadmeClips(unittest.TestCase):
         self.assertEqual(mm.readme_blocks(text), {"a-b": "print(1)\n"})
 
     def test_example_clips_keep_the_design_aspect(self):
+        """A montage letterboxes its takes (``fit``); a single clip must not."""
         for cid, clip in mm.CLIPS.items():
+            if "segments" in clip:
+                continue
             path, source = mm.program_of(clip)
             tree = ast.parse(source if source is not None else
                              open(os.path.join(ROOT, path), encoding="utf-8").read())
@@ -245,7 +249,37 @@ class TestReadmeClips(unittest.TestCase):
 
     def test_every_pilot_exists(self):
         for cid, clip in mm.CLIPS.items():
-            self.assertIn(clip["pilot"], mm.PILOTS, cid)
+            for take in mm.takes(clip):
+                self.assertIn(take["pilot"], mm.PILOTS, cid)
+
+    def test_every_take_is_an_example(self):
+        for cid, clip in mm.CLIPS.items():
+            for take in mm.takes(clip):
+                path, source = mm.program_of(take)
+                if source is None:
+                    self.assertTrue(os.path.isfile(os.path.join(ROOT, path)), f"{cid}: {path}")
+
+    def test_montage_hash_follows_each_take(self):
+        cid = next(c for c, clip in mm.CLIPS.items() if "segments" in clip)
+        clip = mm.CLIPS[cid]
+        base = mm.entry_hash(cid)
+        segs = [dict(s) for s in clip["segments"]]
+        segs[-1]["pilot"] = "watch"
+        self.assertNotEqual(base, mm.entry_hash(cid, {**clip, "segments": segs}))
+        segs = [dict(s) for s in clip["segments"]]
+        segs[0]["seconds"] += 1
+        self.assertNotEqual(base, mm.entry_hash(cid, {**clip, "segments": segs}))
+
+    def test_montage_letterboxes_each_take_with_its_caption(self):
+        import numpy as np
+        tall = np.full((2, 40, 20, 3), 200, np.uint8)     # narrower than the box
+        wide = np.full((1, 30, 60, 3), 90, np.uint8)      # the box's own aspect
+        images = mm.compose([(tall, "a.py"), (wide, "b.py")], (60, 40))
+        self.assertEqual(len(images), 3)
+        self.assertEqual({im.size for im in images}, {(60, 40)})
+        first = np.asarray(images[0])
+        self.assertEqual(tuple(first[2, 2]), mm.LETTERBOX)  # the bar beside the take
+        self.assertEqual(tuple(first[2, 30]), (200, 200, 200))
 
     def test_hash_follows_each_input(self):
         cid = "catch-the-stars"

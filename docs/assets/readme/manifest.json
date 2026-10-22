@@ -3,13 +3,13 @@
   "hash": "b1c8f04053f0dcc3",
   "file": "aviao_paisagem.webp"
  },
- "bolas": {
-  "hash": "08d25e3d9cc753df",
-  "file": "bolas.webp"
- },
  "catch-the-stars": {
   "hash": "2e56333c594957d4",
   "file": "catch-the-stars.webp"
+ },
+ "corrida": {
+  "hash": "8381df701fa7f50c",
+  "file": "corrida.webp"
  },
  "electric-hosts": {
   "hash": "e545104574e15ddb",
@@ -19,6 +19,10 @@
   "hash": "2df684e2e1c6a8ce",
   "file": "ligue4.webp"
  },
+ "mais_exemplos": {
+  "hash": "9cd596f5856005c4",
+  "file": "mais_exemplos.webp"
+ },
  "naves_escudo": {
   "hash": "38cbf1a7fb832933",
   "file": "naves_escudo.webp"
@@ -26,10 +30,6 @@
  "ninja_perigos": {
   "hash": "90160581d041e406",
   "file": "ninja_perigos.webp"
- },
- "osciloscopio": {
-  "hash": "2f1785f5c2a2ffdb",
-  "file": "osciloscopio.webp"
  },
  "scena-editor": {
   "hash": "c964191d9bcceca0",
