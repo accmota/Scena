@@ -455,6 +455,13 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   several runs, each until the game ends it. A pilot drops or clicks on
   what the game reads, not near it: Ligue 4 takes the column from the
   cell under the drop, so a drop just above the board is a drop off it.
+  A level too intricate for a reactive pilot gets a scripted route
+  (`NINJA_ROUTE`: world points, each step ending on its own condition, a
+  "land" step after running off an edge). Ninja V's platforms hold only a
+  landing from above (a jump from below passes through them; the 15°
+  ramp, the y 250 and y 420 platforms are reached by jumping down onto
+  them), and a crate over the second pit blocks the jump under it until
+  the sword breaks it. A route is a chain: trace it whole after each change.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

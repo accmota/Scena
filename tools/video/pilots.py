@@ -732,5 +732,243 @@ def duel_match(game, t, *, ships=(1, 2), skill=(0.8, 0.8), seed=0, victory_hold=
     game.hold(*keys)
 
 
+# ── Ninja V · Espada ────────────────────────────────────────────────────────
+
+# A route is a list of steps the ninja does in order; each one ends on its
+# own condition (``_ninja_step``). Places are world points of
+# ``levels/ninja_perigos.json`` (ground top y = 80; x 0-4000).
+#   ("to", x)          run until the middle is at x
+#   ("jump", dir[, x]) jump, holding dir ("LEFT" / "RIGHT" / None) until landed
+#                      (or until past x, then straight down)
+#   ("drop",)          DOWN through the platform underfoot, until landed
+#   ("land",)          wait until standing (after running off an edge)
+#   ("hit", dir)       face dir, SPACE once: the sword by a crate, else a kunai
+#   ("clear", dir)     kunai at every robot ahead (same level, 520 px) until none
+#   ("barrier", x[, "on"]) wait until the barrier at x has just switched off
+#                      (or on)
+#   ("lose", dir)      walk that way until a life is lost (a pit, a robot, a shock)
+#   ("wait", s)        stand still s seconds
+#   ("lift", top)      wait until the elevator's top is at or below top
+#   ("ride", y)        stand still until the feet are above y (the elevator)
+NINJA_ROUTE = (
+    ("wait", 2.6),                               # the level overview, then the zoom
+    ("to", 168), ("hit", "RIGHT"), ("wait", 0.5),  # the sword breaks the crate
+    ("to", 240), ("wait", 0.3),                  # the gold light: invincible
+    ("to", 300), ("jump", None),                 # onto the low platform (y 220)
+    ("to", 360), ("jump", None),                 # star (360, 300)
+    ("to", 470), ("jump", "RIGHT"),              # onto the mid platform (y 390)
+    ("clear", "RIGHT"),
+    ("to", 720), ("jump", None),                 # star (720, 470)
+    ("to", 610), ("jump", "LEFT"),               # onto the high platform (y 560)
+    ("to", 420), ("jump", None),                 # star (420, 640)
+    ("to", 330), ("drop",), ("drop",),           # down to the ground
+    ("to", 440), ("jump", "RIGHT"),              # over the first pit; star (560, 220)
+    ("clear", "RIGHT"),                          # the ground robots
+    ("to", 960),                                 # star (960, 150)
+    # The ramp (three pieces tilted 15°) only holds a landing from above: it
+    # is reached from the mid platform, so back over the pit and up again.
+    ("to", 655), ("jump", "LEFT"),               # back over the first pit
+    ("to", 300), ("jump", None),                 # onto the low platform
+    ("to", 470), ("jump", "RIGHT"),              # onto the mid platform
+    ("to", 832), ("jump", "RIGHT"),              # down onto the ramp
+    ("to", 1100),                                # star (1100, 330)
+    ("to", 1228), ("jump", "RIGHT"),             # long jump over the barrier, onto the
+                                                 # platform above the second pit
+    ("to", 1530), ("hit", "RIGHT"), ("wait", 0.4),
+    ("to", 1600),                                # the sword, the light: invincible
+    # The high platforms (y 420, y 250) only hold a landing from above:
+    # from here, before going down.
+    ("to", 1660), ("jump", "RIGHT", 1800),       # onto the high platform (y 420)
+    ("to", 1900),                                # star (1900, 500)
+    ("to", 2010), ("jump", "RIGHT", 2110),       # down onto the robot's platform (y 250)
+    ("clear", "RIGHT"),
+    ("to", 2200),                                # star (2200, 330)
+    ("to", 2240), ("drop",),                     # down to the ground
+    ("clear", "RIGHT"), ("clear", "LEFT"),       # the ground robot, either side
+    ("to", 1662), ("jump", "LEFT"),              # back over the second pit (coyote
+    ("to", 1468), ("jump", "RIGHT"),             # time) and over again: star (1560, 220)
+    ("to", 2290), ("barrier", 2350), ("to", 2465),
+    ("jump", "RIGHT", 2530),                     # onto the platform over the third pit
+    ("to", 2640),                                # star (2640, 300)
+    ("to", 2775), ("land",),                     # off its end, to the ground
+    ("to", 2895), ("hit", "RIGHT"), ("wait", 0.4),
+    ("to", 2960),                                # the third crate, the light
+    ("to", 2815), ("jump", "LEFT", 2745),        # back up on the pit's platform
+    ("to", 2780), ("jump", "RIGHT"),             # from its very edge to the robot's
+                                                 # platform (y 300)
+    ("clear", "RIGHT"),
+    ("to", 3100),                                # star (3100, 380)
+    ("to", 3150), ("barrier", 3200),             # the barrier crosses this platform's end
+    ("to", 3205), ("jump", "RIGHT"),             # onto the platform (y 470)
+    ("to", 3400),                                # star (3400, 550)
+    ("to", 3500), ("jump", "RIGHT", 3600),       # down onto the platform (y 260)
+    ("clear", "RIGHT"),
+    ("to", 3815), ("drop",),                     # down to the ground
+    ("to", 3940), ("jump", None),                # star (3940, 200)
+    ("lift", 230), ("jump", None),               # onto the elevator near its bottom
+    ("ride", 540), ("wait", 1.0),                # star (3900, 640) at the top
+)
+
+
+# Three lives lost the three ways, then "Fim de jogo" (the pilot presses R).
+NINJA_MISHAPS = (
+    ("wait", 2.6),
+    ("to", 160), ("jump", "RIGHT"),              # over the crate (its light would make
+    ("wait", 0.4),                               # the ninja invincible: no losses)
+    ("lose", "RIGHT"), ("land",),                # off the low platform into the first
+                                                 # pit: back at the start
+    ("to", 160), ("jump", "RIGHT"),
+    ("to", 440), ("drop",),                      # to the ground (from the platform the
+    ("jump", "RIGHT"),                           # jump meets the robot above); over the pit
+    ("wait", 0.5), ("lose", "RIGHT"),            # into the ground robot
+    ("wait", 1.6), ("clear", "RIGHT"),           # (blinking) then the kunai
+    ("to", 1290), ("barrier", 1350, "on"),
+    ("lose", "RIGHT"),                           # into the barrier: the shock
+)
+
+
+def _ninja_hero():
+    act = current_act()
+    return getattr(act, "heroi", None) if act is not None else None
+
+
+def _ninja_step(game, m, t, hero, step):
+    """Keys for one route step this frame and whether the step is done."""
+    ns = game.ns
+    kind = step[0]
+    x = hero.center.x
+    feet = hero.hitbox.box.bottom
+    on_ground = "bottom" in hero.touching_sides
+    k = t - m["step_t"]
+    if kind == "wait":
+        return [], k >= step[1]
+    if kind == "to":
+        d = step[1] - x
+        if abs(d) <= 6:
+            return [], True
+        return ["RIGHT" if d > 0 else "LEFT"], False
+    if kind == "jump":
+        held = [step[1]] if step[1] else []
+        if len(step) > 2:                       # let go of the direction past x
+            sign = 1 if step[1] == "RIGHT" else -1
+            if (x - step[2]) * sign >= 0:
+                held = []
+        if k < 3 / 60:
+            return held + ["UP"], False
+        return held, k > 0.2 and on_ground
+    if kind == "lift":                           # wait until the elevator is low
+        lift = max(ns["group"]["plataforma"], key=lambda p: p.box.width)
+        return [], lift.box.top <= step[1]
+    if kind == "land":                           # walked off an edge: wait to stand
+        return [], k > 0.1 and on_ground
+    if kind == "drop":
+        if k < 3 / 60:
+            return ["DOWN"], False
+        return [], k > 0.25 and on_ground
+    if kind == "hit":
+        if k < 2 / 60:
+            return [step[1]], False                 # face that way (a tap)
+        if k < 4 / 60:
+            return ["SPACE"], False
+        return [], k > 0.35
+    if kind == "clear":
+        sign = 1 if step[1] == "RIGHT" else -1
+        ahead = [r for r in ns["group"]["robo"]
+                 if 0 < (r.center.x - x) * sign < 520 and abs(r.hitbox.box.bottom - feet) < 40]
+        if not ahead:
+            return [], k > 0.3
+        face = [step[1]] if hero.flip_x == (sign > 0) else []
+        # "When due", not "on that frame": the time is left over from the
+        # last clear step, long past by the next one.
+        fire = ["SPACE"] if not face and t >= m.get("next_throw", 0.0) else []
+        if fire:
+            m["next_throw"] = t + 0.45
+        return face + fire, False
+    if kind == "barrier":
+        bar = min(ns["group"]["raio"], key=lambda b: abs(b.center.x - step[1]))
+        on = len(step) > 2 and step[2] == "on"
+        was = m.get("bar_was")
+        m["bar_was"] = bar.active
+        return [], was is (not on) and bar.active is on
+    if kind == "lose":                           # walk on until a life is lost
+        lives = m.setdefault("lives0", ns["st"].vidas)
+        return [step[1]], ns["st"].vidas < lives
+    if kind == "ride":
+        return [], on_ground and feet >= step[1]
+    raise ValueError(f"unknown ninja step {step!r}")
+
+
+def ninja_route(game, t, *, route="full", end_hold=4.0, restart=False):
+    """Ninja V along a scripted route (``"full"``: ``NINJA_ROUTE``, every
+    star, robot and crate; ``"mishaps"``: ``NINJA_MISHAPS``): the steps run in
+    order, each to its own end. After the last step the run is over
+    (``end_hold`` s later). A route that loses the last life ends on "Fim de
+    jogo"; with ``restart`` the pilot presses R there and the run is over
+    once the level is back."""
+    m = memo(game)
+    if "i" not in m:
+        m.update(i=0, step_t=t)
+    route = {"full": NINJA_ROUTE, "mishaps": NINJA_MISHAPS}.get(route, route)
+    hero = _ninja_hero()
+    st = game.ns["st"]
+    if hero is None:
+        game.hold()
+        return
+    if st.vidas == 0:                            # game over
+        k = t - m.setdefault("over", t)
+        if restart and at(k, 2.5, 3):
+            game.hold("R")
+            m["restarted"] = t
+            return
+        game.hold()
+        if (not restart and k >= end_hold) or ("restarted" in m and t - m["restarted"] >= end_hold):
+            game.done = True
+        return
+    if "restarted" in m:                         # the level is back: hold, then end
+        game.hold()
+        if t - m["restarted"] >= end_hold:
+            game.done = True
+        return
+    if m["i"] >= len(route):
+        game.hold()
+        if t - m.setdefault("end", t) >= end_hold:
+            game.done = True
+        return
+    keys, done = _ninja_step(game, m, t, hero, route[m["i"]])
+    if done:
+        m["i"] += 1
+        m["step_t"] = t
+        m.pop("bar_was", None)
+        m.pop("lives0", None)
+    game.hold(*keys)
+
+
+# ── Demos: a tour of the controls ───────────────────────────────────────────
+
+def slider_tour(game, t, *, drags=(), keys=(), end=30.0):
+    """The pointer drags sliders and keys are tapped, on a timetable:
+    ``drags``: (label, from, to, start, end) each; the pointer glides to the
+    handle in the 0.8 s before ``start``, presses, drags, lets go.
+    ``keys``: (time, key) taps. The run is over at ``end``."""
+    m = memo(game)
+    game.cursor = True
+    for label, a, b, start, stop in drags:
+        if start - 0.9 <= t < start:            # glide to the handle
+            frm = m.setdefault(("from", start), game._at)
+            to = game.slider_point(label, a)
+            game.mouse(*path_point([(start - 0.9, frm), (start - 0.1, to)], t))
+        elif start <= t <= stop:                 # drag
+            k = (t - start) / (stop - start)
+            game.mouse(*game.slider_point(label, a + (b - a) * k))
+            if at(t, start):
+                game.press()
+        if at(t, stop + 1 / 60):
+            game.release()
+    game.hold(*[key for when, key in keys if at(t, when, 3)])
+    if t >= end:
+        game.done = True
+
+
 PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, fly_plane,
-                                  race, run_robot, play_connect4, duel_match)}
+                                  race, run_robot, play_connect4, duel_match, ninja_route,
+                                  slider_tour)}

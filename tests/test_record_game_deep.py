@@ -20,6 +20,10 @@ Bug classes guarded:
 * **A duel or a Ligue 4 take ends with another winner.** ``duelo/blue_wins``
   is won by blue with the chosen ships; Ligue 4 plays its three games to
   their named wins, and its off-board drop slides back without a move.
+* **The ninja route breaks.** A scripted route is a chain: one missed landing
+  and every later step acts somewhere else. The full route ends with every
+  star, robot and crate gone and three lives; the mishaps route loses its
+  lives in order and the level restarts.
 * **A runner take stops after one run.** The corredor takes are several runs
   with SPACE between them; the record never goes down and grows past the
   first run.
@@ -166,6 +170,49 @@ class TestWholeGames(unittest.TestCase):
         want = [("vermelho" if n.startswith("red") else "azul", len(pilots.CONNECT4_GAMES[n]))
                 for n in names]
         self.assertEqual(ends, want, "each game ends in its win, the misdrop is no move")
+
+    def test_ninja_full_route_clears_the_level(self):
+        left = {}
+
+        def watch(ns, t):
+            left.update(robos=len(list(ns["group"]["robo"])), caixas=len(list(ns["group"]["caixa"])))
+
+        r = _play("ninja_5_espada/full", 150, watch)
+        self.assertTrue(r["done"])
+        self.assertEqual(r["st"]["estrelas"], 14)
+        self.assertEqual(r["st"]["vidas"], 3)
+        self.assertEqual(left, {"robos": 0, "caixas": 0})
+
+    def test_ninja_mishaps_lose_three_lives_and_restart(self):
+        lives = []
+
+        def watch(ns, t):
+            if not lives or lives[-1] != ns["st"].vidas:
+                lives.append(ns["st"].vidas)
+
+        r = _play("ninja_5_espada/mishaps", 90, watch)
+        self.assertTrue(r["done"])
+        self.assertEqual(lives, [3, 2, 1, 0, 3], "a life at a time, then R")
+
+    def test_slider_tour_sets_every_value(self):
+        """Each drag ends on its value; each key tap toggles the trail."""
+        spec = tk.take("barras_girando/tour")
+        ends = {round(d[4] + 0.1, 2): (d[0], d[2]) for d in spec["args"]["drags"]}
+        got, trail = {}, []
+
+        def watch(ns, t):
+            for when, (label, value) in ends.items():
+                if abs(t - when) < 1 / 120:
+                    field = {"Velocidade": "velocidade", "Giro": "fator_giro"}[label]
+                    got[when] = (label, round(getattr(ns["st"], field), 2))
+            on = ns["mt"].enabled
+            if not trail or trail[-1] != on:
+                trail.append(on)
+
+        r = _play("barras_girando/tour", 60, watch)
+        self.assertTrue(r["done"])
+        self.assertEqual(got, ends)
+        self.assertEqual(len(trail), len(spec["args"]["keys"]) + 1, "one toggle per tap")
 
 
 if __name__ == "__main__":

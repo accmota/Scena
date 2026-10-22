@@ -102,6 +102,27 @@ TAKES = {
     "ligue4/three_games": dict(program="examples/ligue4.py", pilot="play_connect4",
                                args=dict(misdrop=(1, 2), seed=1), seed=1, end="done",
                                seconds=180),
+    # Ninja V: the whole level by a scripted route (every star, robot and
+    # crate; "Todas as estrelas!" on the elevator), and a run that loses its
+    # three lives three ways (a pit, a robot, a barrier) and restarts with R.
+    "ninja_5_espada/full": dict(program="examples/ninja_5_espada.py", pilot="ninja_route",
+                                args=dict(route="full"), end="done", seconds=150),
+    "ninja_5_espada/mishaps": dict(program="examples/ninja_5_espada.py", pilot="ninja_route",
+                                   args=dict(route="mishaps", restart=True), end="done",
+                                   seconds=90),
+    # Barras girando (tutorial 30): the bars spin; the pointer drags each
+    # slider through its range, M turns the trail on and off.
+    "barras_girando/tour": dict(program="examples/barras_girando.py", pilot="slider_tour",
+                                args=dict(drags=(("Velocidade", 26, 60, 5.0, 7.5),
+                                                 ("Giro", -1.5, 2.0, 12.0, 14.5),
+                                                 ("Velocidade", 60, 12, 20.0, 22.5),
+                                                 ("Giro", 2.0, -3.0, 26.0, 28.5),
+                                                 ("Velocidade", 12, 30, 33.0, 34.5),
+                                                 ("Giro", -3.0, -1.5, 36.0, 37.0)),
+                                          keys=((10.0, "M"), (17.5, "M"), (30.0, "M"),
+                                                (39.0, "M")),   # the trail starts on
+                                          end=41.0),
+                                end="done", seconds=60),
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),
