@@ -46,9 +46,10 @@ WATCHDOG_RESUME_S = 0.5
 WATCHDOG_CHECK_EVERY = 256
 # Default on — beginners need the freeze guard. Prefer ``set_watchdog(False)``.
 WATCHDOG_ENABLED = True
-# Sync hooks (``update(dt)``, ``on_update`` fleet) skip LINE instrumentation by
-# default — arming ``sys.monitoring`` every frame costs ~12–17%% on hot apps.
-# Async mode resume stays guarded. Opt in with ``set_sync_watchdog(True)``.
+# Sync hooks (``update(dt)``, ``on_update`` fleet) are not guarded by default
+# (the guard costs a deadline per frame since the watcher; the default is a
+# behaviour choice). Async mode resume stays guarded. Opt in with
+# ``set_sync_watchdog(True)``.
 SYNC_WATCHDOG_ENABLED = False
 # ``every()`` creations from one owner + call site in one second before a flood warning.
 # Named slots (``name=``) are not counted.
@@ -159,16 +160,17 @@ _WATCHDOG_TOOL_ID = 3
 _WATCHDOG_TOOL_NAME = "scena.watchdog"
 _watchdog_tool_ready = False
 _watchdog_resume_depth = 0
-_wd_deadline = 0.0
+# Outside a guard the deadline is infinite: author code run there (a
+# ``finally`` thrown by a cancel) never trips.
+_wd_deadline = math.inf
 _wd_author_lines = 0
 _wd_check_every = 256
-# The task walk holds the LINE / JUMP events on for all its resumes (one
-# ``set_events`` pair per tick, not per resume): each ``set_events`` re-instruments
-# every function on the stack (the tick, the run loop), which cost ~25 µs per
-# resume. Between resumes the deadline is infinite, so author code the walk
-# runs outside a resume (a ``finally`` thrown by a cancel) never trips.
-_wd_window_open = False
-_wd_window_prev = 0
+# The watcher (see ``_run_with_watchdog``): the budget of the guard running
+# now (the thread polls a quarter of it), whether the thread runs in this
+# process, and whether it has turned the events on.
+_wd_limit = WATCHDOG_RESUME_S
+_wd_watcher_started = False
+_wd_escalated = False
 
 # Scope on a handle. Mode-scoped work is cancelled on ``e.mode = …``.
 # Ownerless work (a bare ``after`` / ``play_sound`` / ``tween`` with no actor)
@@ -2216,7 +2218,7 @@ def set_sync_watchdog(enabled: bool = True) -> None:
 
 
 def _ensure_watchdog_tool() -> None:
-    """Claim monitoring tool id once; register the LINE callback."""
+    """Claim monitoring tool id once; register the LINE / JUMP callbacks."""
     global _watchdog_tool_ready
     if _watchdog_tool_ready:
         return
@@ -2290,7 +2292,7 @@ def _watchdog_on_jump(code, src, dest):
 
 
 # LINE | JUMP: every author line, and every jump (a one-line loop has only
-# jumps). A/B switch for scripts/bench (``_WD_EVENTS = LINE`` is the old guard).
+# jumps). ``_WD_EVENTS = LINE`` is the guard before PA2 (A/B in scripts/bench).
 _WD_EVENTS = None
 
 
@@ -2302,92 +2304,123 @@ def _watchdog_events() -> int:
     return ev
 
 
+# The thread never polls faster than this (a tiny test budget).
+_WD_MIN_POLL_S = 0.002
+
+
+def _wd_watch() -> None:
+    """The watcher thread: turn the events on once a guard is overdue.
+
+    Events first, then the flag: the main thread turns them off only after it
+    sees the flag, so a guard that ends meanwhile leaves them on at worst
+    until the next guard ends or the next poll, never for good."""
+    global _wd_escalated, _wd_author_lines, _wd_check_every
+    while True:
+        time.sleep(max(_WD_MIN_POLL_S, _wd_limit * 0.25))
+        try:
+            if _wd_escalated:
+                if _watchdog_resume_depth == 0:
+                    _wd_deescalate()
+                continue
+            if (
+                _watchdog_resume_depth
+                and WATCHDOG_ENABLED
+                and time.perf_counter() > _wd_deadline
+            ):
+                _wd_author_lines = 0
+                _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
+                sys.monitoring.set_events(_WATCHDOG_TOOL_ID, _watchdog_events())
+                _wd_escalated = True
+        except Exception:
+            pass  # a bad knob must not kill the thread (the guard lives on)
+
+
+def _wd_start_watcher() -> None:
+    global _wd_watcher_started
+    import threading
+    _ensure_watchdog_tool()
+    _wd_watcher_started = True
+    threading.Thread(target=_wd_watch, name="scena-watchdog", daemon=True).start()
+
+
+def _wd_forked() -> None:
+    """A forked child has no watcher thread: the next guard starts one."""
+    global _wd_watcher_started
+    _wd_watcher_started = False
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_wd_forked)
+
+
+def _wd_deescalate() -> None:
+    global _wd_escalated
+    _wd_escalated = False
+    sys.monitoring.set_events(_WATCHDOG_TOOL_ID, 0)
+
+
 def _run_with_watchdog(
     fn, /, *args, budget: Optional[float] = None, sync: bool = False, **kwargs,
 ):
-    """Run ``fn(*args, **kwargs)`` under the LINE-event wall-clock watchdog.
+    """Run ``fn(*args, **kwargs)`` under the wall-clock watchdog.
 
     Raises :class:`_Watchdog` if author code spins longer than ``budget``
-    (default ``WATCHDOG_RESUME_S``) without returning. Nested calls reuse the
-    outer instrumentation. ``set_watchdog(False)`` skips the guard. When
+    (default ``WATCHDOG_RESUME_S``) without returning. Nested calls run under
+    the outer guard. ``set_watchdog(False)`` skips the guard. When
     ``sync=True``, also requires ``set_sync_watchdog(True)`` (off by default).
+
+    A guard costs a deadline: no ``sys.monitoring`` events run while it is on
+    time. The watcher thread (``_wd_watch``) turns LINE | JUMP on, globally,
+    once the deadline passes; the callbacks then raise at the next author
+    line or one-line jump, wherever it was reached from (a helper, a
+    property, a key function called from C). ``set_events`` re-instruments
+    every function on the stack and, lazily, every function run after it
+    (~70 µs per mode switch when it ran per guard): only a trip pays it now.
     """
-    global _watchdog_resume_depth, _wd_deadline, _wd_author_lines, _wd_check_every
+    global _watchdog_resume_depth, _wd_deadline, _wd_limit
 
     if not WATCHDOG_ENABLED or _watchdog_resume_depth > 0:
         return fn(*args, **kwargs)
     if sync and not SYNC_WATCHDOG_ENABLED:
         return fn(*args, **kwargs)
-
+    if not _wd_watcher_started:
+        _wd_start_watcher()
     limit = float(WATCHDOG_RESUME_S if budget is None else budget)
-    if _wd_window_open:
-        return _run_in_watchdog_window(fn, args, kwargs, limit)
-
-    _ensure_watchdog_tool()
-    mon = sys.monitoring
+    _wd_limit = limit
     _wd_deadline = time.perf_counter() + limit
-    _wd_author_lines = 0
-    _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
-    prev_events = mon.get_events(_WATCHDOG_TOOL_ID)
-    _watchdog_resume_depth += 1
-    mon.set_events(_WATCHDOG_TOOL_ID, _watchdog_events())
+    _watchdog_resume_depth = 1
     try:
         return fn(*args, **kwargs)
     finally:
-        mon.set_events(_WATCHDOG_TOOL_ID, prev_events)
-        _watchdog_resume_depth -= 1
-
-
-def _run_in_watchdog_window(fn, args, kwargs, limit: float):
-    """A guarded call while the task walk holds the events on: only this
-    resume's deadline (out of ``_run_with_watchdog``, which is on the stack
-    when the events toggle and so is re-instrumented then)."""
-    global _watchdog_resume_depth, _wd_deadline, _wd_author_lines, _wd_check_every
-    _wd_deadline = time.perf_counter() + limit
-    _wd_author_lines = 0
-    _wd_check_every = max(1, int(WATCHDOG_CHECK_EVERY))
-    _watchdog_resume_depth += 1
-    try:
-        return fn(*args, **kwargs)
-    finally:
-        _watchdog_resume_depth -= 1
+        _watchdog_resume_depth = 0
         _wd_deadline = math.inf
-
-
-def _watchdog_window_open() -> bool:
-    """Turn the watchdog events on for a run of resumes (the task walk).
-
-    Returns whether this call opened the window (close it with
-    :func:`_watchdog_window_close`). No-op when the watchdog is off, a
-    window is open, or a guarded call is already running.
-    """
-    global _wd_window_open, _wd_window_prev, _wd_deadline
-    if not WATCHDOG_ENABLED or _wd_window_open or _watchdog_resume_depth > 0:
-        return False
-    _ensure_watchdog_tool()
-    mon = sys.monitoring
-    _wd_deadline = math.inf
-    _wd_window_prev = mon.get_events(_WATCHDOG_TOOL_ID)
-    mon.set_events(_WATCHDOG_TOOL_ID, _watchdog_events())
-    _wd_window_open = True
-    return True
-
-
-def _watchdog_window_close() -> None:
-    global _wd_window_open
-    _wd_window_open = False
-    sys.monitoring.set_events(_WATCHDOG_TOOL_ID, _wd_window_prev)
+        if _wd_escalated:
+            _wd_deescalate()
 
 
 def _resume_with_watchdog(coro, value=None):
     """``coro.send`` with a wall-clock watchdog so ``while True`` cannot freeze ``run()``.
 
-    Uses ``sys.monitoring`` LINE events (Python 3.12+). Non-author code objects
-    return ``DISABLE`` after first touch so engine work (Sprite/atlas/looks) does
-    not keep paying. Trips when one resume exceeds ``WATCHDOG_RESUME_S`` without
-    an ``await``. ``set_watchdog(False)`` skips instrumentation entirely.
+    ``_run_with_watchdog`` inlined for the hottest guard (every async step):
+    trips when one resume exceeds ``WATCHDOG_RESUME_S`` without an ``await``.
+    ``set_watchdog(False)`` skips it.
     """
-    return _run_with_watchdog(coro.send, value)
+    global _watchdog_resume_depth, _wd_deadline, _wd_limit
+
+    if not WATCHDOG_ENABLED or _watchdog_resume_depth > 0:
+        return coro.send(value)
+    if not _wd_watcher_started:
+        _wd_start_watcher()
+    _wd_limit = WATCHDOG_RESUME_S
+    _wd_deadline = time.perf_counter() + _wd_limit
+    _watchdog_resume_depth = 1
+    try:
+        return coro.send(value)
+    finally:
+        _watchdog_resume_depth = 0
+        _wd_deadline = math.inf
+        if _wd_escalated:
+            _wd_deescalate()
 
 
 # ``Scheduler._every_sites`` sweeps idle keys past this many (flood detector).
@@ -3221,38 +3254,29 @@ class Scheduler:
                 # entered from another task's step is visited this tick too).
                 batch = list(self._tasks)
                 self._task_walk_extras = []
-                # One watchdog window for the whole walk, opened at the first
-                # task that is ready to resume (see _wd_window_open).
-                window = False
-                try:
-                    while batch:
-                        for handle in batch:
-                            # Inlined _tick_task (one call per task per frame).
-                            if handle._done:
+                while batch:
+                    for handle in batch:
+                        # Inlined _tick_task (one call per task per frame).
+                        if handle._done:
+                            continue
+                        owner = handle._owner
+                        if owner is not None and _is_entity(owner):
+                            if not owner.is_alive:
+                                handle.cancel()        # quiet: the owner is dead
                                 continue
-                            owner = handle._owner
-                            if owner is not None and _is_entity(owner):
-                                if not owner.is_alive:
-                                    handle.cancel()        # quiet: the owner is dead
-                                    continue
-                                if not owner.active:
-                                    continue               # parked: the body waits
-                                scale = owner._time_scale
-                                handle._elapsed += world_dt * scale if scale > 0.0 else 0.0
-                            else:
-                                handle._elapsed += world_dt
-                            script = handle._task
-                            awaited = script.waiting_on
-                            if awaited is None or not (awaited._done or awaited._cancelled):
-                                continue               # still waiting
-                            if not window:
-                                window = _watchdog_window_open()
-                            script._advance()
-                        batch = self._task_walk_extras
-                        self._task_walk_extras = []
-                finally:
-                    if window:
-                        _watchdog_window_close()
+                            if not owner.active:
+                                continue               # parked: the body waits
+                            scale = owner._time_scale
+                            handle._elapsed += world_dt * scale if scale > 0.0 else 0.0
+                        else:
+                            handle._elapsed += world_dt
+                        script = handle._task
+                        awaited = script.waiting_on
+                        if awaited is None or not (awaited._done or awaited._cancelled):
+                            continue               # still waiting
+                        script._advance()
+                    batch = self._task_walk_extras
+                    self._task_walk_extras = []
                 self._task_walk_extras = None
             self._tick_on_update(world_dt)
             if world_dt > 0.0:

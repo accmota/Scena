@@ -84,6 +84,10 @@ _parser.add_argument(
     help="protocol snapshot: mix median of 3 + suite single-shot; append sched.md",
 )
 _parser.add_argument(
+    "--watchdog", action="store_true",
+    help="keep the freeze watchdog on (its cost is part of the frame)",
+)
+_parser.add_argument(
     "--no-append", action="store_true",
     help="with --pulse, print markdown only; do not write sched.md",
 )
@@ -461,7 +465,7 @@ init(width=W, height=H, title=f"Bench — sched {args.mode} n={args.n}")
 canvas.background = (0.05, 0.06, 0.09)
 set_fx_auto(False)
 canvas.fx_quality = "medium"
-set_watchdog(False)
+set_watchdog(bool(args.watchdog))
 canvas.framerate = "max"
 
 EVERY_IVL = 0.03 if args.tight else 0.05
@@ -868,7 +872,7 @@ if args.bench:
               f"rides {rides:.1f}  once {extra['once'] / nf:.1f}  "
               f"await {extra['await'] / nf:.1f})")
         print(f"avg events:          {events:.1f}")
-        print(f"avg scripts:         {extra['scripts'] / nf:.2f}")
+        print(f"avg tasks:           {extra['tasks'] / nf:.2f}")
         print(f"fires / s:           every {every_hz:.0f}  after {after_hz:.0f}  "
               f"when {when_hz:.0f}  tween-done {tween_hz:.0f}  exit {exit_hz:.0f}")
         print(f"avg work_ms:         {avg['work_ms']:.3f}")

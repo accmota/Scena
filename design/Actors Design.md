@@ -1552,28 +1552,77 @@ audio device, clock hitches.
 | `if actor:` | Same check as `is_alive`. Boolean context means "usable", the same way an empty group is falsy — not a second lifetime API. `actor or other` skips a dead actor. |
 | `e.after` / `every` / `tween` / timed pose / `move_along` / `play_sound` / `on_update` / a transient on a destroyed actor (e.g. from a dying body’s own `@collide_exit`) | Quiet no-op: the Handle comes back **already cancelled** and is never registered; nothing fires, nothing holds the dead actor. Exception today (DV3, open): a timed `scale_to` / `scale_by` and a Point's timed `move_to` / `move_by` / `move_along` raise `DestroyedError` from their call-time writability probe; they do so before checking an argument (`_refuse_dead_verb`). |
 
-Watchdog uses `sys.monitoring` LINE and JUMP events (Python 3.12+); non-author code
-(`scena.*`, stdlib) returns `DISABLE` after first touch so bulk `Sprite(...)` waves stay
-lean. JUMP is for a loop on one line (`while not st.pronto: pass`, `while n < 10**9:
-n += 1`): it emits no new LINE event, only its back jump, and escaped the guard
-(review 2026-10-14 PA2). Only a back jump that lands on its own line counts; a forward
-jump, or a back jump to another line (LINE already fires every iteration), returns
-`DISABLE` on first touch, so a multi-line loop pays the JUMP callback once
-(`_watchdog_on_jump`; interleaved A/B of 400 async-mode actors, half running a
-20-step loop per frame: within noise, best frames 21.0–21.7 ms either way). Async mode resume is guarded by default; script `update(dt)` and `on_update`
-require `scena.process.set_sync_watchdog(True)` (engine tooling, not in `scena.__all__`; off by default — ~10–15% frame cost when on).
-`set_watchdog(False)` for benchmarks.
+**Freeze watchdog.** A guarded call (an async step: `_resume_with_watchdog`; the
+sync hooks: `_run_with_watchdog(sync=True)`) writes a wall-clock deadline and
+runs; no `sys.monitoring` event is on while it is on time. A daemon thread
+(`scena-watchdog`, `_wd_watch`, started by the first guard; a forked child
+starts its own) polls every quarter of the budget. Once a guard is past its
+deadline, the thread turns the LINE and JUMP events on, globally (tool id 3).
+The callbacks then raise `_Watchdog` at the next author line, in the main
+thread. "Author" means the code object's file is not in `scena.*`, the
+stdlib or site-packages (`_is_ignored_filename`). The guard's end turns the
+events off.
 
-**One watchdog window per task walk.** `sys.monitoring.set_events` re-instruments
-every function on the stack (the tick, the run loop: cost grows with their size), so
-turning the events on and off around each resume cost ~25 µs per resume (300 async
-modes: 2.0 s with the watchdog, 0.5 s without). The task walk opens one window at the
-first task ready to resume (`_watchdog_window_open`) and closes it after the walk;
-inside it `_run_with_watchdog` only resets the deadline and the line counter for each
-resume, and leaves an infinite deadline between resumes (a `finally` a cancel throws
-there never trips). Same 300 modes: 0.53 s (`test_process.TestWatchdogWindow`). A first
-step (mode entry) still toggles around itself; its rare endings live out of
-`Script._advance` (`_cancelled_under_it`, `_tripped_watchdog`) to keep that frame small.
+- **Where the loop sits does not matter.** The loop is caught whatever reached
+  it: a helper, a method, a property, a key function called from C
+  (`sorted(key=…)`), a generator resumed in a later step, an engine hook the
+  step set off.
+- **Engine code pays once per process.** Engine and stdlib lines return
+  `DISABLE`. A global `DISABLE` outlives turning the events off and on, so
+  that code pays once per process, not once per trip.
+- **One-line loops.** JUMP catches a loop written on one line
+  (`while not st.pronto: pass`, `while n < 10**9: n += 1`): it emits no new
+  LINE event, only its back jump, and escaped the guard (review 2026-10-14
+  PA2). Only a back jump that lands on its own line counts. A forward jump,
+  or a back jump to another line (LINE already fires every iteration),
+  returns `DISABLE` on first touch (`_watchdog_on_jump`).
+- **Trip time.** A trip comes between the budget and 1.25× it (0.5–0.63 s by
+  default), plus at most one GIL switch interval. It is wall clock: engine
+  time and a `time.sleep` in a body count, and the step stops at its next
+  author line.
+- **Defaults.** Async mode resume is guarded by default. Script `update(dt)`
+  and `on_update` need `scena.process.set_sync_watchdog(True)` (engine
+  tooling, not in `scena.__all__`; off by default, though it now costs one
+  deadline per frame, not the ~70 % it cost with events per guard). `set_watchdog(False)` is
+  for benchmarks: no guard, and the thread never turns the events on.
+
+**Why a thread, not events per guard (2026-10-19).** `sys.monitoring.set_events`
+re-instruments every function on the stack (cost grows with their size). After
+it, every function run afterwards re-instruments itself at its next call. So
+turning the events on around each guard cost ~70 µs per mode switch (~90 µs
+under a 400-line run-loop frame). The task walk, which turned them on once per
+tick, paid a callback on every author line of every step: ~0.9 µs per waiting
+step, ~4 µs per step that calls a helper.
+
+`set_local_events` on the author's code objects was measured and refused. It
+made a switch ~4 µs, but left the walk where it was, because the line
+callbacks stay. And it cannot see a loop reached from C or engine code: a
+property, `sorted(key=…)`, a generator resumed in a later step. Only a global
+PY_START sees those, and that event would charge every author call in sync
+code.
+
+The watcher pays one deadline per guard. A trip pays the `set_events` once.
+Measured with `scripts/bench/perf_watchdog.py` (headless; each version's
+on-vs-off overhead measured inside one process, 9 rounds, 2026-10-19):
+
+| per frame                                | events per guard / walk | watcher |
+|------------------------------------------|------------------------:|--------:|
+| 50 mode switches                         | +3270 µs                | +13 µs  |
+| 300 waiting steps                        | +310 µs                 | +35–60 µs |
+| 300 steps calling a helper and `move_by` | +1200 µs                | +55 µs  |
+| 300 `on_update`, `set_sync_watchdog(True)` | +760 µs (+71 %)       | +1 µs   |
+
+Windowed (`sched.py --bench --mode process --n 400 --watchdog`, 8 interleaved
+processes): tick 1.337 ms before, 1.251 ms after, 1.250 ms with no watchdog.
+
+**Races.** The thread turns the events on before it sets `_wd_escalated`. A
+guard that ends between the thread's check and its `set_events` therefore
+leaves them on at worst until the next guard ends or the next poll (the
+thread also turns them off when no guard runs), never for good. Tests:
+`test_process.TestWatchdogWatcher`.
+
+A first step's rare endings live out of `Script._advance`
+(`_cancelled_under_it`, `_tripped_watchdog`) to keep that frame small.
 
 
 

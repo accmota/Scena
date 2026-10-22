@@ -477,11 +477,16 @@ left out.
 - The errors for an `async def` where Scena calls a plain function, and for
   `wait()` outside async code, now name `run_task(...)` next to the async
   mode.
-- Async modes cost less per frame. The freeze watchdog used to switch its
-  instrumentation on and off around every resumed mode, which re-instruments
-  every function on the stack; it now does it once per frame for all of them.
-  300 actors in async modes that wait and resume: about 3.7× less scheduler
-  time per frame. Behaviour is unchanged.
+- Async modes cost almost nothing extra per frame. The freeze watchdog used
+  to switch Python's line monitoring on around every resumed mode, which
+  re-instruments every function on the stack and every function run after it.
+  Now it watches the clock from a background thread. It turns line
+  monitoring on only once a step runs past its budget, and the step stops
+  at its next line, as before.
+  - Measured: changing an actor's async mode costs about 65 µs less. Scenes
+    with hundreds of actors in async modes spend 6–26 % less scheduler time
+    per frame, which was the whole cost of the watchdog.
+  - A stuck loop now stops between 0.5 s and about 0.63 s, not at 0.5 s.
 - **Level editor:** with several items selected, the "Add group" and
   "Remove group" inputs are gone. The **Groups** field shows the groups every
   selected item has: type a name to add it to all of them, delete one to
