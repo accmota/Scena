@@ -301,7 +301,12 @@ runs its check in `quick`).
   "Não confundir" tables, headings, signature lines. Per card: id, kind,
   family, name, variants, thumb, parameter names and slots, literal defaults,
   and the Scena names in `code`. Variable names, strings and comments in
-  examples are translated (`nave` → `ship`).
+  examples are translated (`nave` → `ship`). `--examples` runs each page's
+  code with its own names: the sample level is written per language
+  (`validate_guia._LEVEL_NAMES_EN`: `fase1.json` / `level1.json`,
+  `"elevador"` / `"elevator"`…), so an English example reads English names.
+  A new name that is a Scena name (`level`, `wave`, `box`) fails the parity
+  check; pick another word.
 - **No Portuguese left.** A translated unit may not hold Portuguese prose. A
   term quoted on purpose goes in `<span lang="pt">…</span>`.
 - **The validator in English.** `python tools/guide/validate_guia.py --lang en`

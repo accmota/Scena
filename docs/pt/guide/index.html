@@ -7282,7 +7282,7 @@ c.move_to(p)                        # Point no 1º
 c.move_to(400, 200, time=1.2, ease="ease_out")
 c.move_to(400, 200, time=1.0, loops="forever", yoyo=True)
 missile.move_to(target, time=1.2, face=True)
-hero.move_to(mouse.click_pos, speed=220)     # clicar para andar
+hero.move_to(mouse, speed=220)               # num clique: anda até o ponteiro
 nave.move_to(nave.vaga, speed=300, ease="ease_out")   # todas voltam no mesmo passo</pre>
           </div>
           <p class="sig"><code>move_to(x, y, *, time=None, speed=None, ease="linear", loops=1, yoyo=False, face=False, then=, on_done=, about=, force=False)</code> · <code>move_to(ponto, *, …)</code></p>
@@ -7743,14 +7743,14 @@ if "left" in sides or "right" in sides:
 
     <section class="section prose" id="mover-tween">
       <h2>tween</h2>
-      <p class="one-liner"><code>tween(campo, valor, time=)</code> leva um campo do valor atual até <code>valor</code> em <code>time</code> segundos. O valor pode ser número, tupla / lista de números, <code>Vec2</code>, <code>Color</code> (o valor muda aos poucos, em linha reta, do atual ao final — como <a href="#util-lerp"><code>lerp</code></a>) ou um ponto. Para posição, ângulo e tamanho, prefira os verbos próprios (<code>move_to</code>…). Um tween novo no mesmo campo cancela o anterior. Aceita os <a href="#suite">parâmetros de tempo</a> dos verbos de <a href="#mover-pose">mover</a>: <code>time=</code> (obrigatório) / <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code> / <code>force=</code>. Só aqui: <code>start=</code> (valor inicial; sem ele, o valor atual). O que fazer no fim: <a href="#agendar-fim">Ao terminar</a>. A cor, <code>visible</code> e os flips de um objeto não são alvo de tween (<code>TypeError</code> com a receita): anime uma célula de cor e ligue a cor a ela. O <code>glow</code> também não. <code>line_width</code> e o <code>alpha</code> de um Sprite são números e aceitam tween.</p>
+      <p class="one-liner"><code>tween(campo, valor, time=)</code> leva um campo do valor atual até <code>valor</code> em <code>time</code> segundos. O valor pode ser número, tupla / lista de números, <code>Vec2</code>, <code>Color</code> (o valor muda aos poucos, em linha reta, do atual ao final — como <a href="#util-lerp"><code>lerp</code></a>) ou um ponto. Para posição, ângulo e tamanho, prefira os verbos próprios (<code>move_to</code>…). Um tween novo no mesmo campo cancela o anterior. Aceita os <a href="#suite">parâmetros de tempo</a> dos verbos de <a href="#mover-pose">mover</a>: <code>time=</code> (obrigatório) / <code>ease=</code> / <code>loops=</code> / <code>yoyo=</code> / <code>then=</code> / <code>on_done=</code> / <code>force=</code>. Só aqui: <code>start=</code> (valor inicial; sem ele, o valor atual). O que fazer no fim: <a href="#agendar-fim">Ao terminar</a>. A cor, <code>visible</code> e os flips de um objeto não são alvo de tween (<code>TypeError</code> com a receita): anime um campo de cor e ligue a cor a ela. O <code>glow</code> também não. <code>line_width</code> e o <code>alpha</code> de um Sprite são números e aceitam tween.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>tween(ship["radius"], 80, time=0.4, ease="ease_out")
 tween(ship.center, (400, 200), time=1.2)
 tween(ship.center, (400, 200), time=1.2, start=(0, 0))
 ship.tween(ship["hp"], 0, time=0.6)
-# TypeError: tween(ship["color"], …) não vale — anime uma célula de cor e ligue:
+# TypeError: tween(ship["color"], …) não vale — anime um campo de cor e ligue:
 st.cor = Color("red")
 tween(st["cor"], Color("blue"), time=1)
 ship["color"] @= lambda: st.cor
@@ -7765,7 +7765,7 @@ ship["color"] @= lambda: st.cor
             <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><a href="#suite-time"><code>time=</code></a></td><td class="type"><span class="t">número ou None</span><span class="ex">None</span></td><td>parâmetro</td><td class="suite-local"><em>Aqui:</em> segundos. Sem: na hora. Com: interpola. Regra completa: <a href="#suite-time">parâmetros de tempo</a>.</td></tr>
+<tr><td><a href="#suite-time"><code>time=</code></a></td><td class="type"><span class="t">número</span><span class="ex">—</span></td><td>parâmetro</td><td class="suite-local"><em>Aqui:</em> segundos, obrigatório (sem <code>time=</code>, <code>TypeError</code>). Interpola. Regra completa: <a href="#suite-time">parâmetros de tempo</a>.</td></tr>
 <tr><td><a href="#suite-ease"><code>ease=</code></a></td><td class="type"><span class="t">str ou função</span><span class="ex">"linear"</span></td><td>parâmetro</td><td class="suite-local"><em>Aqui:</em> curva do tween. <a href="#suite-ease">parâmetros de tempo</a>.</td></tr>
 <tr><td><code>start=</code></td><td class="type"><span class="t">mesmo tipo de to</span><span class="ex">(0, 0)</span></td><td>parâmetro</td><td>Valor inicial. Sem: usa o valor atual no momento da chamada. Com: a interpolação começa daí — mesmo formato de <code>to</code> (número, ponto, <code>Color</code>, …). Só em <code>tween</code>, não em <code>move_to</code> / <code>rotate_to</code> / <code>scale_to</code>.</td></tr>
 <tr><td><a href="#suite-loops"><code>loops=</code></a></td><td class="type"><span class="t">1, N ou "forever"</span><span class="ex">1</span></td><td>parâmetro</td><td class="suite-local"><em>Aqui:</em> voltas. <code>"forever"</code> nunca dispara <code>then=</code> / <code>on_done=</code>. Exige <code>time=</code>. <a href="#suite-loops">parâmetros de tempo</a>.</td></tr>
@@ -7782,7 +7782,7 @@ ship["color"] @= lambda: st.cor
             <tr><th>Método</th><th>Assinatura</th><th>Retorna</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>tween(target, to, *, time, ease="linear", start=, loops=1, yoyo=False, then=, on_done=, force=False, name=)</code></td><td class="sig"><span class="params">Parâmetros: target (alvo, Attribute ou Point), to (mesmo tipo do valor atual), time (número), ease (str), start (mesmo tipo de to), loops, yoyo, then, on_done, force, name</span></td><td>Handle</td><td>Alvo: um campo (<code>ship["radius"]</code>, <code>ship["hp"]</code>), uma célula (<code>st["t"]</code>; <code>st.t</code> é o número e levanta erro) ou um Point (<code>ship.center</code>). Cor e glow não podem ser alvo. <code>to</code> deve casar com o valor atual — número, tupla/lista plana, <code>Vec2</code>, <code>Color</code>, ponto (Graphic, mouse: copia agora). <code>start=</code> opcional (mesmo formato de <code>to</code>). Vai do início a <code>to</code> aos poucos, em linha reta (como <a href="#util-lerp"><code>lerp</code></a>). Tipo incompatível levanta erro na hora. <code>time=</code> obrigatório.</td></tr>
+<tr><td><code>tween(target, to, *, time, ease="linear", start=, loops=1, yoyo=False, then=, on_done=, force=False, name=)</code></td><td class="sig"><span class="params">Parâmetros: target (alvo, Attribute ou Point), to (mesmo tipo do valor atual), time (número), ease (str), start (mesmo tipo de to), loops, yoyo, then, on_done, force, name</span></td><td>Handle</td><td>Alvo: um campo (<code>ship["radius"]</code>, <code>ship["hp"]</code>), um campo de <code>st</code> (<code>st["t"]</code>; <code>st.t</code> é o número e levanta erro) ou um Point (<code>ship.center</code>). Cor e glow não podem ser alvo. <code>to</code> deve casar com o valor atual — número, tupla/lista plana, <code>Vec2</code>, <code>Color</code>, ponto (Graphic, mouse: copia agora). <code>start=</code> opcional (mesmo formato de <code>to</code>). Vai do início a <code>to</code> aos poucos, em linha reta (como <a href="#util-lerp"><code>lerp</code></a>). Tipo incompatível levanta erro na hora. <code>time=</code> obrigatório.</td></tr>
 <tr><td><code>e.tween(target, to, *, time, ease="linear", start=, loops=1, yoyo=False, then=, on_done=, force=False, name=)</code></td><td class="sig"><span class="params">Parâmetros: target (alvo, Attribute ou Point), to (mesmo tipo do valor atual), time (número), ease (str), start (mesmo tipo de to), loops, yoyo, then, on_done, force, name</span></td><td>Handle</td><td>Igual, neste Entity. Sobrevive a troca de mode; morre no <code>destroy</code>.</td></tr>
           </tbody>
         </table>
@@ -8894,7 +8894,7 @@ play_sound(crunch)</pre>
     <section class="section prose" id="reagir-when">
       <h2>@when</h2>
       <p class="one-liner"><code>@when(condição)</code> roda a função uma vez quando a condição <em>passa</em> de <code>False</code> para <code>True</code> — “quando o HP chegar a 0, morra”. A condição é conferida a cada frame; enquanto continua <code>True</code>, a função não roda de novo.</p>
-      <p>Expressão Python (<code>player.hp &lt;= 0</code>) vale <em>agora</em>, na hora do decorator. Para o Scena conferir a condição a cada frame, passe uma função: <code>lambda: …</code>. Uma célula bool (<code>st["alive"]</code>) pode ir crua no módulo. Na classe: <code>lambda self: …</code>.</p>
+      <p>Expressão Python (<code>player.hp &lt;= 0</code>) vale <em>agora</em>, na hora do decorator. Para o Scena conferir a condição a cada frame, passe uma função: <code>lambda: …</code>. Um campo bool (<code>st["alive"]</code>) pode ir cru no módulo. Na classe: <code>lambda self: …</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.hp = 3
@@ -8926,10 +8926,10 @@ def on_death():
 def on_y():
     restart()</pre>
           </div>
-          <p>Expressão crua (<code>@when(player.hp &lt;= 0)</code>) avalia uma vez, na hora do decorator — não é conferida de novo. No módulo, uma célula bool também vale: <code>@when(st["alive"])</code> (com colchetes: <code>st.alive</code> é o valor de agora).</p>
+          <p>Expressão crua (<code>@when(player.hp &lt;= 0)</code>) avalia uma vez, na hora do decorator — não é conferida de novo. No módulo, um campo bool também vale: <code>@when(st["alive"])</code> (com colchetes: <code>st.alive</code> é o valor de agora).</p>
         </div>
         <div class="tab-panel" data-panel="when-method" id="when-method">
-          <p>Na classe: <code>lambda self: …</code>. Célula crua (<code>st["hp"]</code>) só no módulo.</p>
+          <p>Na classe: <code>lambda self: …</code>. Campo cru (<code>st["hp"]</code>) só no módulo.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>class Ship(Sprite):
@@ -8947,7 +8947,7 @@ def on_y():
               <tr><th>Peça</th><th>Significado</th></tr>
             </thead>
             <tbody>
-              <tr><td><code>@when(cond)</code></td><td>Bool. Precisa de <code>lambda</code> (expressão True/False). Dispara na borda False→True. Enquanto continua True, não dispara de novo. No módulo, célula bool: <code>@when(st["alive"])</code>.</td></tr>
+              <tr><td><code>@when(cond)</code></td><td>Bool. Precisa de <code>lambda</code> (expressão True/False). Dispara na borda False→True. Enquanto continua True, não dispara de novo. No módulo, campo bool: <code>@when(st["alive"])</code>.</td></tr>
               <tr><td>Quando avalia</td><td>Todo frame, e depois de gravações em campos próprios / State. <code>flush()</code> roda agora as conferências pendentes, sem esperar o fim do frame.</td></tr>
               <tr><td>Método</td><td><code>lambda self: …</code>. Vale para cada objeto da classe, desde que ele é criado.</td></tr>
               <tr><td>Vários <code>@when</code> no mesmo <code>def</code></td><td>Ok: as duas expressões disparam o mesmo corpo. Misturar com <code>@on_change</code> é TypeError.</td></tr>
@@ -8964,7 +8964,7 @@ def on_y():
     <section class="section prose" id="reagir-on-change">
       <h2>@on_change</h2>
       <p class="one-liner"><code>@on_change(valor)</code> roda a função toda vez que o valor muda, e pode receber o valor novo. Vale para qualquer tipo: número, texto, tupla.</p>
-      <p>Aceita uma célula (<code>st["wave"]</code>, <code>st["pos"]</code>) ou um <code>lambda</code>. Sem colchetes, <code>st.wave</code> é o número de agora e levanta erro. Campo de objeto precisa de lambda: <code>c.radius</code> cru pega o número de agora. Na classe: <code>lambda self: …</code>.</p>
+      <p>Aceita um campo (<code>st["wave"]</code>, <code>st["pos"]</code>) ou um <code>lambda</code>. Sem colchetes, <code>st.wave</code> é o número de agora e levanta erro. Campo de objeto precisa de lambda: <code>c.radius</code> cru pega o número de agora. Na classe: <code>lambda self: …</code>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.pos = (0, 0)
@@ -8996,7 +8996,7 @@ def on_radius(value):
           </div>
         </div>
         <div class="tab-panel" data-panel="chg-method" id="chg-method">
-          <p>Na classe: <code>lambda self: …</code>. Célula crua (<code>st["hp"]</code>) só no módulo. Callback: <code>def fn(self)</code> ou <code>def fn(self, value)</code>.</p>
+          <p>Na classe: <code>lambda self: …</code>. Campo cru (<code>st["hp"]</code>) só no módulo. Callback: <code>def fn(self)</code> ou <code>def fn(self, value)</code>.</p>
           <div class="code-panel">
             <button class="copy-btn" type="button">copiar</button>
 <pre>class Ship(Sprite):
@@ -9228,7 +9228,7 @@ hud = Rect(center=(930, 170), width=85, height=65, layer="top", color="navy")</p
 <tr><td><code>@hover_exit(card)</code></td><td class="sig"><span class="params">Função recebe: alvo (objeto)</span></td><td>—</td><td>Deixou de ser o alvo de hover (saiu, sumiu, destruído, coberto).</td></tr>
 <tr><td><code>@drag_to(shape)</code></td><td class="sig"><span class="params">Função recebe: from (objeto), to (objeto ou None), pos (ponto)</span></td><td>—</td><td>Soltou o arraste deste shape. Os valores chegam pela posição: uma função de 2 parâmetros recebe <code>(from, to)</code> — o ponto é o 3º (<code>def soltou(carta, alvo, pos)</code>).</td></tr>
 <tr><td><code>@drag_over(shape)</code></td><td class="sig"><span class="params">Função recebe: from (objeto), to (objeto ou None), pos (ponto)</span></td><td>—</td><td>Durante o arraste, a cada movimento do mouse (não a cada quadro): <code>to</code> é o alvo sob a peça, ou <code>None</code> fora de qualquer alvo.</td></tr>
-<tr><td><code>@drop_by(zone)</code></td><td class="sig"><span class="params">Função recebe: from (objeto), to (objeto ou None), pos (ponto)</span></td><td>—</td><td>Liga <code>droppable</code>. Alguém soltou em cima.</td></tr>
+<tr><td><code>@drop_by(zone)</code></td><td class="sig"><span class="params">Função recebe: from (objeto), to (o alvo), pos (ponto)</span></td><td>—</td><td>Liga <code>droppable</code>. Alguém soltou em cima.</td></tr>
           </tbody>
         </table>
         </div>
@@ -9277,7 +9277,7 @@ token.on_drag_to = on_drag</pre>
 <tr><td><code>on_click</code></td><td class="sig"><span class="params">Parâmetros: shape (objeto)</span></td><td>—</td><td>Equivale a <code>@click(shape)</code>. <code>shape.on_click = fn</code> ou método na classe.</td></tr>
 <tr><td><code>on_drag_to</code></td><td class="sig"><span class="params">Parâmetros: from (objeto), to (objeto ou None), pos (ponto)</span></td><td>—</td><td>Equivale a <code>@drag_to(shape)</code>. No shape arrastado, no soltar.</td></tr>
 <tr><td><code>on_drag_over</code></td><td class="sig"><span class="params">Parâmetros: from (objeto), to (objeto ou None), pos (ponto)</span></td><td>—</td><td>Equivale a <code>@drag_over(shape)</code>. No shape arrastado, durante.</td></tr>
-<tr><td><code>on_drop_by</code></td><td class="sig"><span class="params">Parâmetros: from (objeto), to (objeto ou None), pos (ponto)</span></td><td>—</td><td>Equivale a <code>@drop_by(zone)</code>. No alvo droppable, no soltar.</td></tr>
+<tr><td><code>on_drop_by</code></td><td class="sig"><span class="params">Parâmetros: from (objeto), to (o alvo), pos (ponto)</span></td><td>—</td><td>Equivale a <code>@drop_by(zone)</code>. No alvo droppable, no soltar.</td></tr>
 <tr><td><code>on_hover</code></td><td class="sig"><span class="params">Parâmetros: shape (objeto)</span></td><td>—</td><td>Equivale a <code>@hover(shape)</code>. Torna o shape alvo de hover sem torná-lo clicável.</td></tr>
 <tr><td><code>on_hover_exit</code></td><td class="sig"><span class="params">Parâmetros: shape (objeto)</span></td><td>—</td><td>Equivale a <code>@hover_exit(shape)</code>.</td></tr>
           </tbody>
@@ -9325,7 +9325,7 @@ zone = Rect(center=(500, 300), width=120, height=80, color="navy")
 zone.droppable = True</pre>
         </div>
       </details>
-      <p class="gotcha">Invisível não clica. Quem recebe o clique: widgets → objetos na camada <code>ui</code> → mundo. <code>pointer_hover</code> vem de <code>clickable</code> / <code>draggable</code> / <code>on_hover</code>. não há <code>hoverable</code>: <code>@hover</code> já torna alvo. Três testes: <code>contains_point</code> = este desenho; <code>pointer_hover</code> = o alvo mais em cima; <a href="#colisao-aux"><code>collision.query_point</code></a> sem <code>group=</code> = hitboxes inscritos.</p>
+      <p class="gotcha">Invisível não clica. Quem recebe o clique: widgets → objetos na camada <code>ui</code> → mundo. <code>pointer_hover</code> vem de <code>clickable</code> / <code>draggable</code> / <code>on_hover</code>. Não há <code>hoverable</code>: <code>@hover</code> já torna alvo. Três testes: <code>contains_point</code> = este desenho; <code>pointer_hover</code> = o alvo mais em cima; <a href="#colisao-aux"><code>collision.query_point</code></a> sem <code>group=</code> = hitboxes inscritos.</p>
     </section>
 
     <section class="section prose" id="reagir-bounds">
@@ -10406,7 +10406,7 @@ d = distance(player.center, closest_point(wall, player.center))</pre>
     <section class="section prose" id="ui-widgets">
       <h2>Widgets</h2>
       <p class="one-liner">Widgets são os controles de interface — <a href="#ui-slider">Slider</a>, <a href="#ui-button">Button</a>, <a href="#ui-checkbox">CheckBox</a>, <a href="#ui-textinput">TextInput</a>, <a href="#ui-dropdown">DropDown</a> — desenhados na janela, por cima do jogo, sem acompanhar a câmera. Servem para ajustes e ferramentas (volume, opções, nome do jogador).</p>
-      <p>Cada widget fica ligado a um valor: o 1º argumento, uma célula de <code>st</code> com colchetes (<code>Slider(st["volume"])</code>). Sem colchetes, <code>st.volume</code> é o número de agora, e o widget levanta erro com a correção. Os dois andam juntos nos dois sentidos — mexer no controle grava o valor, e gravar o valor no código (<code>st.volume = 0.2</code>) move o controle. Sem <code>top_left=</code>, os widgets se empilham numa <a href="#ui-stack">coluna</a> no canto da janela, junto com os <a href="#desenhar-text">Text</a> de HUD. <code>ui.scale</code> e <code>ui.font</code> mudam o tamanho e a fonte de todos. <a href="#ui-menu">Menu</a> é outra coisa: uma pergunta no centro da tela, fora da coluna. Botão feito da sua arte: <a href="#ui-sprite-button">SpriteButton</a>.</p>
+      <p>Cada widget fica ligado a um valor: o 1º argumento, um campo de <code>st</code> com colchetes (<code>Slider(st["volume"])</code>). Sem colchetes, <code>st.volume</code> é o número de agora, e o widget levanta erro com a correção. Os dois andam juntos nos dois sentidos — mexer no controle grava o valor, e gravar o valor no código (<code>st.volume = 0.2</code>) move o controle. Sem <code>top_left=</code>, os widgets se empilham numa <a href="#ui-stack">coluna</a> no canto da janela, junto com os <a href="#desenhar-text">Text</a> de HUD. <code>ui.scale</code> e <code>ui.font</code> mudam o tamanho e a fonte de todos. <a href="#ui-menu">Menu</a> é outra coisa: uma pergunta no centro da tela, fora da coluna. Botão feito da sua arte: <a href="#ui-sprite-button">SpriteButton</a>.</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>ui.scale = 0.85
@@ -10452,7 +10452,7 @@ Button(label="Reset", on_click=reset)</pre>
             <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td>1º argumento (<code>cell</code>)</td><td>1º</td><td class="type"><span class="t">célula</span><span class="ex">st["volume"]</span></td><td>O valor que o widget mostra e edita. Os dois ficam ligados nos dois sentidos: o gesto grava na célula; gravar no valor (<code>st.volume = 0.2</code>) move o controle. É a própria célula, com colchetes (<code>st["volume"]</code>), não uma fórmula <code>@=</code>; <code>st.volume</code> sem colchetes é o número e levanta erro.</td></tr>
+<tr><td>1º argumento (<code>cell</code>)</td><td>1º</td><td class="type"><span class="t">campo</span><span class="ex">st["volume"]</span></td><td>O valor que o widget mostra e edita. Os dois ficam ligados nos dois sentidos: o gesto grava no campo; gravar no valor (<code>st.volume = 0.2</code>) move o controle. É o próprio campo, com colchetes (<code>st["volume"]</code>), não uma fórmula <code>@=</code>; <code>st.volume</code> sem colchetes é o número e levanta erro.</td></tr>
 <tr><td><code>top_left=</code></td><td>nome=</td><td class="type"><span class="t">ponto</span><span class="ex">(20, 300)</span></td><td>Canto superior esquerdo visual, espaço da janela. Omita para empilhar (mesma coluna que Text HUD); com ele, ainda avança a coluna. Cópia: <code>lambda</code> levanta erro (widget não segue fórmula). Não existe <code>x1=</code> / <code>y1=</code>.</td></tr>
 <tr><td><code>initial=</code></td><td>nome=</td><td class="type"><span class="t">qualquer</span><span class="ex">0.5</span></td><td>Valor de partida. Se vier junto com um Attribute, grava este valor nele.</td></tr>
 <tr><td><code>width=</code> / <code>height=</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">260 / 28</span></td><td>Tamanho do controle, em unidades de design. Omitido: o do tema (260 × 28, vezes <code>ui.scale</code>). Slider só tem <code>width=</code>; CheckBox usa <code>size=</code>.</td></tr>
@@ -10547,7 +10547,7 @@ Button(st["firing"], label="Fire")      # st.firing é True enquanto o botão es
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Opcional (omitida: sem célula; <code>None</code> levanta). Segue o botão: <code>value_on</code> enquanto pressionado, <code>value_off</code> ao soltar (não é toggle — para liga/desliga use <code>CheckBox</code>). Destruído com o botão do mouse segurado (ou <code>change_act</code> no meio), também grava <code>value_off</code>, sem clique: <code>st.firing</code> não fica preso em <code>True</code>. Ex.: <code>Button(st["firing"], …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">campo</span></td><td>Opcional (omitida: sem campo; <code>None</code> levanta). Segue o botão: <code>value_on</code> enquanto pressionado, <code>value_off</code> ao soltar (não é toggle — para liga/desliga use <code>CheckBox</code>). Destruído com o botão do mouse segurado (ou <code>change_act</code> no meio), também grava <code>value_off</code>, sem clique: <code>st.firing</code> não fica preso em <code>True</code>. Ex.: <code>Button(st["firing"], …)</code>.</td></tr>
             <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"Button"</span></td><td>Texto escrito no botão.</td></tr>
             <tr><td><code>on_click</code></td><td>nome=</td><td class="type"><span class="t">função ou None</span></td><td>Callback: <code>fn()</code> ou <code>fn(botao)</code>. Ex.: <code>on_click=reset</code>. Também <code>botao.on_click = fn</code> ou <code>@click(botao)</code>. Só Button tem <code>on_click</code>.</td></tr>
             <tr><td><code>value_on</code> / <code>value_off</code></td><td>nome=</td><td class="type"><span class="t">qualquer ou None</span></td><td>Valores escritos no <code>cell</code> ao pressionar / soltar. Padrão <code>True</code> / <code>False</code>.</td></tr>
@@ -10586,7 +10586,7 @@ sair = SpriteButton("sair.png", hover="sair_hover.png", pressed="sair_down.png",
             </thead>
           <tbody>
             <tr><td><code>source</code></td><td>1º</td><td class="type"><span class="t">arquivo ou Sheet</span></td><td>A arte do botão. Uma Sheet com um clipe anima como num Sprite.</td></tr>
-            <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str, número, célula ou função</span></td><td>Texto centralizado sobre a arte. Encolhe para caber (só no desenho: <code>font_size</code> continua o seu). Uma função ou uma célula liga: <code>label=lambda: f"Vidas {st.vidas}"</code>, <code>label=st["vidas"]</code>.</td></tr>
+            <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str, número, campo ou função</span></td><td>Texto centralizado sobre a arte. Encolhe para caber (só no desenho: <code>font_size</code> continua o seu). Uma função ou um campo liga: <code>label=lambda: f"Vidas {st.vidas}"</code>, <code>label=st["vidas"]</code>.</td></tr>
             <tr><td><code>font</code> / <code>font_size</code></td><td>nome=</td><td class="type"><span class="t">nome ou arquivo / número</span><span class="ex">40 % da altura</span></td><td>Fonte e tamanho do rótulo, como em <a href="#desenhar-text">Text</a>.</td></tr>
             <tr><td><code>label_color</code></td><td>nome=</td><td class="type"><span class="t">cor, Gradient ou Texture</span><span class="ex">branco</span></td><td>Cor do rótulo.</td></tr>
             <tr><td><code>label_inset</code></td><td>nome=</td><td class="type"><span class="t">número ou (esq, cima, dir, baixo)</span><span class="ex">0</span></td><td>Margem da caixa do rótulo dentro da arte — para borda ou "degrau" 3D embaixo. O rótulo centraliza e encaixa nessa caixa.</td></tr>
@@ -10646,7 +10646,7 @@ Slider(st["vidas"], label="Vidas", min_value=1, max_value=9, only_int=True)</pre
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula numérica. Ex.: <code>Slider(st["volume"], …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">campo</span></td><td>Campo numérico. Ex.: <code>Slider(st["volume"], …)</code>.</td></tr>
             <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str ou None</span></td><td>Legenda à esquerda da barra. Omitida: o nome do campo (<code>Slider(st["volume"])</code> mostra <code>st.volume</code>).</td></tr>
             <tr><td><code>min_value</code> / <code>max_value</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">0 / 100</span></td><td>Os dois extremos da barra. Iguais, ou mínimo maior que o máximo, levantam <code>ValueError</code>.</td></tr>
             <tr><td><code>initial</code></td><td>nome=</td><td class="type"><span class="t">número ou None</span><span class="ex">None</span></td><td>Valor de partida; gravado no Attribute. Sem ele e sem Attribute: o meio da faixa.</td></tr>
@@ -10662,7 +10662,7 @@ Slider(st["vidas"], label="Vidas", min_value=1, max_value=9, only_int=True)</pre
 
     <section class="section prose" id="ui-checkbox">
       <h2>CheckBox</h2>
-      <p class="one-liner">Caixa de marcar: liga e desliga um Attribute booleano (<code>True</code> / <code>False</code>). Clicar inverte o valor; gravar o valor marca ou desmarca a caixa. <code>.checked</code> é o valor (<code>True</code> / <code>False</code>), como o <code>.value</code> de um Slider: dá para salvar em JSON. A célula é <code>caixa["checked"]</code> (para ligar com <code>@=</code>).</p>
+      <p class="one-liner">Caixa de marcar: liga e desliga um Attribute booleano (<code>True</code> / <code>False</code>). Clicar inverte o valor; gravar o valor marca ou desmarca a caixa. <code>.checked</code> é o valor (<code>True</code> / <code>False</code>), como o <code>.value</code> de um Slider: dá para salvar em JSON. O campo é <code>caixa["checked"]</code> (para ligar com <code>@=</code>).</p>
       <div class="code-panel">
         <button class="copy-btn" type="button">copiar</button>
 <pre>st.mute = False
@@ -10680,7 +10680,7 @@ CheckBox(st["debug"], label="Colliders", initial=False)</pre>
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula bool. Ex.: <code>CheckBox(st["mute"], …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">campo</span></td><td>Campo bool. Ex.: <code>CheckBox(st["mute"], …)</code>.</td></tr>
             <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">"CheckBox"</span></td><td>Legenda à direita da caixa.</td></tr>
             <tr><td><code>initial</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>Marcada ou não no começo; gravado no Attribute.</td></tr>
             <tr><td><code>size</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">18</span></td><td>Lado da caixa, em unidades de design. Omitido: o do tema (18 × <code>ui.scale</code>).</td></tr>
@@ -10718,7 +10718,7 @@ console = TextInput(on_submit=run, width=400)</pre>
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula de texto ou número. O texto é gravado nela no Enter, no Tab ou ao perder o foco. Célula bool levanta erro: use <code>CheckBox</code>. Ex.: <code>TextInput(st["player_name"], …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">campo</span></td><td>Campo de texto ou número. O texto é gravado nele no Enter, no Tab ou ao perder o foco. Campo bool levanta erro: use <code>CheckBox</code>. Ex.: <code>TextInput(st["player_name"], …)</code>.</td></tr>
             <tr><td><code>placeholder</code></td><td>nome=</td><td class="type"><span class="t">str</span><span class="ex">""</span></td><td>Dica cinza com a caixa vazia</td></tr>
             <tr><td><code>label</code></td><td>nome=</td><td class="type"><span class="t">str ou None</span><span class="ex">None</span></td><td>Legenda à esquerda. <code>width</code> inclui a legenda. Empilhados, Sliders e TextInputs com legenda dividem a mesma coluna de legendas.</td></tr>
             <tr><td><code>max_length</code></td><td>nome=</td><td class="type"><span class="t">int ou None</span><span class="ex">None</span></td><td>Máximo de caracteres ao digitar ou colar. Um valor maior vindo do código aparece inteiro.</td></tr>
@@ -10728,14 +10728,14 @@ console = TextInput(on_submit=run, width=400)</pre>
             <tr><td><code>height</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">28</span></td><td>Altura, em unidades de design. Omitida: a do tema (28 × <code>ui.scale</code>).</td></tr>
             <tr><td><code>enabled</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td><code>False</code>: esmaecida, não recebe foco, Tab pula. Desligar uma caixa focada grava o texto.</td></tr>
             <tr><td><code>.text</code></td><td>—</td><td class="type"><span class="t">str</span></td><td>O texto que está na caixa agora — pode ainda não ter sido gravado no campo. Quando o campo muda, a caixa passa a mostrar o valor novo. Escrever muda o que aparece; Enter ou perder o foco grava como se fosse digitado.</td></tr>
-            <tr><td><code>.is_valid</code></td><td>—</td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>Só leitura. <code>False</code> quando o último texto gravado não converteu para o tipo do Attribute (ex.: <code>"abc"</code> num cell <code>int</code>); o cell fica com o valor anterior, o texto digitado continua na caixa com fundo de inválido até você editar, apertar Esc ou o cell mudar.</td></tr>
+            <tr><td><code>.is_valid</code></td><td>—</td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>Só leitura. <code>False</code> quando o último texto gravado não converteu para o tipo do Attribute (ex.: <code>"abc"</code> num campo <code>int</code>); o campo fica com o valor anterior, o texto digitado continua na caixa com fundo de inválido até você editar, apertar Esc ou o cell mudar.</td></tr>
             <tr><td><code>.focus()</code></td><td>—</td><td class="type"><span class="t">método</span></td><td>Dá o teclado à caixa, com o texto selecionado (tela de nome, console). Levanta erro se a caixa estiver escondida, desligada, destruída ou com um Menu modal aberto.</td></tr>
             <tr><td><code>.focused</code></td><td>—</td><td class="type"><span class="t">bool</span></td><td>Só leitura. <code>True</code> enquanto a caixa tem o teclado.</td></tr>
               </tbody>
         </table>
         </div>
       </details>
-      <p class="gotcha">Teclas: setas, Home / End, Backspace / Del; Shift seleciona; Cmd (macOS) ou Ctrl + A / C / X / V seleciona tudo e usa a área de transferência; Option (macOS) ou Ctrl + setas / Backspace andam por palavra. Arrastar seleciona; clique duplo seleciona a palavra. Esc volta ao valor do cell sem gravar e solta o foco. Tab / Shift+Tab vão para o próximo / anterior TextInput (ordem de criação). Texto maior que a caixa rola.</p>
+      <p class="gotcha">Teclas: setas, Home / End, Backspace / Del; Shift seleciona; Cmd (macOS) ou Ctrl + A / C / X / V seleciona tudo e usa a área de transferência; Option (macOS) ou Ctrl + setas / Backspace andam por palavra. Arrastar seleciona; clique duplo seleciona a palavra. Esc volta ao valor do campo sem gravar e solta o foco. Tab / Shift+Tab vão para o próximo / anterior TextInput (ordem de criação). Texto maior que a caixa rola.</p>
       <p class="gotcha">Clicar e sair sem editar nunca grava: <code>0.125</code> continua <code>0.125</code>. Enquanto focado, <code>keyp</code> e <code>on_key_*</code> não veem as teclas de texto e de edição, nem Cmd/Ctrl + A / C / X / V / Z / Y (Z e Y não fazem nada: a caixa não tem desfazer). Cmd/Ctrl + outra tecla, F1–F12 e Page Up / Down passam para o jogo, depois de a caixa gravar o texto, como um Enter, mas o foco fica e <code>on_submit</code> não roda.</p>
     </section>
 
@@ -10760,7 +10760,7 @@ DropDown(st["weapon"], options=["laser", "rocket"], initial="laser")</pre>
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Célula da seleção. Ex.: <code>DropDown(st["palette"], …)</code>.</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">campo</span></td><td>Campo da seleção. Ex.: <code>DropDown(st["palette"], …)</code>.</td></tr>
             <tr><td><code>options</code></td><td>nome=</td><td class="type"><span class="t">lista</span><span class="ex">["night", "day"]</span></td><td>As escolhas. O texto mostrado é <code>str()</code> de cada item. Sem <code>options=</code>: três opções de exemplo (<code>"Option 1"</code>…). Ex.: <code>options=["night", "sunset", "day"]</code>.</td></tr>
             <tr><td><code>initial</code></td><td>nome=</td><td class="type"><span class="t">um item de options</span><span class="ex">"laser"</span></td><td>Opção marcada no começo; gravada no Attribute. Fora da lista: a primeira.</td></tr>
             <tr><td><code>width</code></td><td>nome=</td><td class="type"><span class="t">número</span><span class="ex">260</span></td><td>Largura da caixa fechada, em unidades de design. Omitida: a do tema (260 × <code>ui.scale</code>).</td></tr>
@@ -10802,7 +10802,7 @@ def update(dt):
               <tr><th>Parâmetro</th><th>Passar</th><th>Tipo (default)</th><th>Significado</th></tr>
             </thead>
           <tbody>
-            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">célula</span></td><td>Opcional. Célula que recebe a opção escolhida. Ex.: <code>Menu(st["nave"], …)</code>. <code>None</code> levanta (seria <code>st.nave</code> ainda vazio, sem colchetes).</td></tr>
+            <tr><td><code>cell</code></td><td>1º</td><td class="type"><span class="t">campo</span></td><td>Opcional. Campo que recebe a opção escolhida. Ex.: <code>Menu(st["nave"], …)</code>. <code>None</code> levanta (seria <code>st.nave</code> ainda vazio, sem colchetes).</td></tr>
             <tr><td><code>options</code></td><td>nome=</td><td class="type"><span class="t">lista</span><span class="ex">["Jogar", "Sair"]</span></td><td>Escolhas. O rótulo é <code>str()</code>. O valor escolhido é o item, não o texto.</td></tr>
             <tr><td><code>on_choose</code></td><td>nome=</td><td class="type"><span class="t">função</span><span class="ex">escolher</span></td><td><code>escolher(opcao)</code>. Roda em todo clique, inclusive a mesma opção de novo. Não roda em <code>destroy()</code>.</td></tr>
             <tr><td><code>title</code></td><td>nome=</td><td class="type"><span class="t">str</span></td><td>Faixa no topo. Omitir = só as opções.</td></tr>

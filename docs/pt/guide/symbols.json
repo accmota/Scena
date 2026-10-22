@@ -8069,7 +8069,7 @@
       "chapter": "ui",
       "section": "ui-button",
       "anchor": "ui-button",
-      "oneLiner": "Botão. 1º argumento é bind.",
+      "oneLiner": "Botão. O 1º argumento é o campo ligado.",
       "public": true,
       "chapterTitle": "UI",
       "sectionTitle": "Button",

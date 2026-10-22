@@ -252,9 +252,15 @@ class TestValidatorEnglish(unittest.TestCase):
         row = '<span class="params">Parâmetros: segundos (número)</span>'
         self.assertEqual(len(vg.check_parameter_keywords(row)), 1)
         vg.set_lang("en")
-        row = '<span class="params">Parameters: seconds (number)</span>'
+        row = ('<tr><td><code>await wait(0.4)</code></td><td class="sig">'
+               '<span class="params">Parameters: seconds (number)</span></td></tr>')
         self.assertEqual(len(vg.check_parameter_keywords(row)), 1)
         self.assertEqual(vg.check_parameter_keywords(row.replace("seconds (", "delay (")), [])
+        # An English word that is a real keyword elsewhere, in a callback you
+        # write (nothing to resolve), is not a placeholder.
+        callback = ('<tr><td><code>on_key_down</code></td><td class="sig">'
+                    '<span class="params">Parameters: key (key name)</span></td></tr>')
+        self.assertEqual(vg.check_parameter_keywords(callback), [])
 
     def test_call_marked_read_write_is_caught(self):
         # Bug: .spectrum(bins=8) / amp_db(x, …) said "lê / escreve".

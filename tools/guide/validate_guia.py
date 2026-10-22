@@ -284,7 +284,7 @@ CORE_SYMBOLS = [
     {"name": "flush", "kind": "function", "chapter": "reagir", "section": "reagir-when",
      "anchor": "reagir-when", "oneLiner": "Roda o pendente de @when / @on_change agora."},
     {"name": "Button", "kind": "class", "chapter": "ui", "section": "ui-button",
-     "anchor": "ui-button", "oneLiner": "Botão. 1º argumento é bind."},
+     "anchor": "ui-button", "oneLiner": "Botão. O 1º argumento é o campo ligado."},
     {"name": "SpriteButton", "kind": "class", "chapter": "ui", "section": "ui-sprite-button",
      "anchor": "ui-sprite-button", "oneLiner": "Botão de jogo feito da sua arte (hover, aperto, desligado)."},
     {"name": "Slider", "kind": "class", "chapter": "ui", "section": "ui-slider",
@@ -1427,12 +1427,25 @@ def _skip_statement(node: ast.AST) -> bool:
     return False
 
 
-_SAMPLE_LEVEL: list = []
+_SAMPLE_LEVEL: dict = {}
+
+
+# The sample level's names in the English Guide (the Portuguese ones are the
+# keys): its Level examples load "level1.json" and read level1["elevator"].
+_LEVEL_NAMES_EN = {
+    "fase1": "level1", "fase": "level1", "chao": "ground", "elevador": "elevator", "plataforma": "platform",
+    "lago": "pond", "estrela": "star", "inicio": "start", "rota_drone": "drone_route",
+    "corda": "rope", "fundo": "backdrop", "agua": "water",
+}
+
+
+def _level_name(name: str) -> str:
+    return _LEVEL_NAMES_EN.get(name, name) if LANG == "en" else name
 
 
 def _sample_level() -> str:
-    """A level file with the names the Guia's Level examples use (made once)."""
-    if not _SAMPLE_LEVEL:
+    """A level file with the names the Guia's Level examples use (one per language)."""
+    if LANG not in _SAMPLE_LEVEL:
         import os
         import tempfile
         items = [
@@ -1454,16 +1467,25 @@ def _sample_level() -> str:
             {"kind": "image", "groups": ["agua"], "sheet": "agua", "frame": 40,
              "center": [96, 32], "width": 64, "height": 64},
         ]
+        for it in items:
+            for key in ("name", "sheet"):
+                if key in it:
+                    it[key] = _level_name(it[key])
+            if "groups" in it:
+                it["groups"] = [_level_name(g) for g in it["groups"]]
+            if "file" in it:
+                it["file"] = _level_name(it["file"][:-4]) + it["file"][-4:]
         ball = REPO / "examples" / "media" / "k-rolling-ball"
-        sheets = [{"name": "agua", "file": str(ball / "rollingBall_sheet.png"),
+        sheets = [{"name": _level_name("agua"), "file": str(ball / "rollingBall_sheet.png"),
                    "atlas": str(ball / "rollingBall_sheet.xml")}]
         doc = {"format": "scena-level", "version": 2, "size": [3600, 1500],
                "sheets": sheets, "items": items}
-        path = os.path.normpath(os.path.join(tempfile.mkdtemp(prefix="guia_level_"), "fase1.json"))
+        path = os.path.normpath(os.path.join(tempfile.mkdtemp(prefix="guia_level_"),
+                                             _level_name("fase1") + ".json"))
         with open(path, "w", encoding="utf-8") as f:
             json.dump(doc, f)
-        _SAMPLE_LEVEL.append(path)
-    return _SAMPLE_LEVEL[0]
+        _SAMPLE_LEVEL[LANG] = path
+    return _SAMPLE_LEVEL[LANG]
 
 
 def run_examples(examples, stats: dict | None = None) -> list[str]:
@@ -1514,7 +1536,7 @@ def run_examples(examples, stats: dict | None = None) -> list[str]:
         ns["x"] = 0
         ns["y"] = 0
         ns["dt"] = 1 / 60
-        ns["fase"] = scena.Level(_sample_level())
+        ns[_level_name("fase")] = scena.Level(_sample_level())
         ns["st"] = scena.State()
         ns["st"].pulse = 0.0
         return ns
@@ -1641,7 +1663,11 @@ def check_parameter_keywords(src: str | None = None) -> list[str]:
         hits = []
         for piece in head.split(","):
             tok = re.match(r"\s*([A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_]*)", piece)
-            if tok and tok.group(1) in words and tok.group(1) not in real:
+            # A Portuguese placeholder is never a keyword. An English one
+            # ("key", "button") often is: it is wrong only where the row's call
+            # is known and lacks it (a callback like on_key_down(key) is yours).
+            if (tok and tok.group(1) in words and tok.group(1) not in real
+                    and (LANG == "pt" or fns)):
                 hits.append(tok.group(1))
         if hits:
             line = src.count("\n", 0, m.start()) + 1
