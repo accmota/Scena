@@ -3018,7 +3018,8 @@ class Shape(Graphic, PaintState):
     ):
         """Strobe the shape's opacity (invulnerability frames, attention).
 
-        Replaces a running ``flash``; a second ``blink`` restarts it.
+        Replaces a running ``flash``; a second ``blink`` extends it (the
+        flicker keeps its phase; the end moves so the new ``duration`` remains).
 
         Args:
             duration: seconds (default 0.8).

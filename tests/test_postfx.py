@@ -227,6 +227,27 @@ class TestPostFxStack(unittest.TestCase):
         release_runtime_children()
         release_motion_trail_children()
 
+    def test_target_is_a_point_or_an_object(self):
+        # The Guia: "target= / center= is a point or an object". The draw read
+        # target[0], so Vortex(target=hero) raised TypeError at the first drawn
+        # frame (headless runs never draw; 2026-10-22). Every effect that aims
+        # goes through _resolve_target_fb, and an object is followed.
+        import skia
+        from scena._sksl_effects import _resolve_target_fb
+        hero = Circle(center=(200, 150), radius=10)
+        self.assertEqual(_resolve_target_fb(hero, 800, 600), _resolve_target_fb((200, 150), 800, 600))
+        hero.center = (400, 300)
+        self.assertEqual(_resolve_target_fb(hero, 800, 600), (400.0, 300.0))
+        self.assertEqual(_resolve_target_fb(Point(400, 300), 800, 600), (400.0, 300.0))
+        with self.assertRaises(TypeError):
+            _resolve_target_fb("hero", 800, 600)
+        img = skia.Surface(8, 8).makeImageSnapshot()
+        for fx in (Vortex(target=hero), ZoomBlur(center=hero), Perspective(target=hero),
+                   Lamp(target=hero), GodRays(target=hero), Spotlight(target=hero),
+                   Spotlight(origin=hero, target=(400, 300))):
+            with self.subTest(fx=type(fx).__name__):
+                fx._draw_shader(skia.Surface(8, 8).getCanvas(), img, 8, 8, 0.0, fw=None)
+
     def test_spotlight_has_range(self):
         s = Spotlight(range=200.0)
         self.assertEqual(s.range, 200.0)

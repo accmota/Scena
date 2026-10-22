@@ -2057,14 +2057,14 @@
           "name": "width",
           "pass": "kw",
           "type": "",
-          "def": "—",
+          "def": "200",
           "doc": "Largura do retângulo"
         },
         {
           "name": "height",
           "pass": "kw",
           "type": "",
-          "def": "—",
+          "def": "160",
           "doc": "Altura do retângulo"
         },
         {
@@ -2215,7 +2215,7 @@
       "section": "desenhar-spatial",
       "sectionTitle": "SpatialFx",
       "anchor": "spatial-glowspot",
-      "oneLiner": "Mancha de luz. Sem corpo, sem hit.",
+      "oneLiner": "Mancha de luz. Colide como um círculo de 0,9 × radius.",
       "search": "glowspot luz",
       "family": "spatial",
       "catalog": true,
@@ -6813,7 +6813,7 @@
           "name": "offset",
           "pass": "kw",
           "type": "",
-          "def": "8",
+          "def": "(8, -8)",
           "doc": "Número ou (dx, dy)"
         },
         {
@@ -6827,7 +6827,7 @@
           "name": "color",
           "pass": "kw",
           "type": "",
-          "def": "—",
+          "def": "(0, 0, 0, 0.55)",
           "doc": "Pigmento"
         },
         {
@@ -6871,7 +6871,7 @@
           "name": "radius",
           "pass": 1,
           "type": "",
-          "def": "—",
+          "def": "4",
           "doc": "Alcance"
         },
         {
@@ -6915,7 +6915,7 @@
           "name": "radius",
           "pass": 1,
           "type": "",
-          "def": "—",
+          "def": "2.5",
           "doc": "Alcance"
         },
         {

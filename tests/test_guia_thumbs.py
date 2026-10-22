@@ -83,6 +83,20 @@ class TestPageData(unittest.TestCase):
         errors, _warnings = vg.check_thumbs(vg.load_catalogs())
         self.assertEqual(errors, [])
 
+    def test_the_english_guide_shares_the_portuguese_pictures(self):
+        # The thumbnails are rendered from the Portuguese cards. The English
+        # cards translate prose defaults ("segue o objeto" → "follows the
+        # object"), which are hash inputs: asked of the English cards, 102
+        # pictures read as stale (2026-10-22).
+        pt_warnings = vg.check_thumbs(vg.load_catalogs())[1]
+        vg.set_lang("en")
+        try:
+            errors, en_warnings = vg.check_thumbs(vg.load_catalogs())
+        finally:
+            vg.set_lang("pt")
+        self.assertEqual(errors, [])
+        self.assertEqual(en_warnings, pt_warnings)
+
     def test_status_sees_stale_and_missing(self):
         bags = vg.load_catalogs()
         manifest = mt.load_manifest()

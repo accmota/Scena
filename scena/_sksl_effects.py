@@ -751,11 +751,15 @@ def _mouse_fb_xy(fb_w: float, fb_h: float) -> Tuple[float, float]:
 
 
 def _resolve_target_fb(target, fb_w, fb_h) -> Tuple[float, float]:
-    """``target=None`` → mouse; else design-space (x,y) → FB pixels."""
+    """``target=None`` → mouse; else a point or an object (its center, read
+    every frame, so the effect follows it) → FB pixels. The Guia promises
+    "a point or an object" for every ``target=`` / ``center=`` here; reading
+    ``target[0]`` raised on an object at the first drawn frame (2026-10-22)."""
     if target is None:
         return _mouse_fb_xy(fb_w, fb_h)
+    from .shapes import _xy_of
     W, H = _design_size()
-    x, y = float(target[0]), float(target[1])
+    x, y = _xy_of(target, required=True)
     return (x / W * fb_w, (1.0 - y / H) * fb_h)
 
 
@@ -838,9 +842,11 @@ class Perspective(PostEffect):
             pitch = max(-1.0, min(1.0, (mx / W - 0.5) * 2.0))
             yaw = max(-1.0, min(1.0, (my / H - 0.5) * 2.0))
         else:
+            from .shapes import _xy_of
             W, H = _design_size()
-            pitch = max(-1.0, min(1.0, (float(self.target[0]) / W - 0.5) * 2.0))
-            yaw = max(-1.0, min(1.0, (float(self.target[1]) / H - 0.5) * 2.0))
+            tx, ty = _xy_of(self.target, required=True)
+            pitch = max(-1.0, min(1.0, (tx / W - 0.5) * 2.0))
+            yaw = max(-1.0, min(1.0, (ty / H - 0.5) * 2.0))
         pitch = max(-1.0, min(1.0, pitch + 0.12 * math.sin(t * 0.7)))
         yaw = max(-1.0, min(1.0, yaw + 0.10 * math.cos(t * 0.55)))
         _tilt_builder.setChild("image", sh)
@@ -1140,7 +1146,8 @@ class Spotlight(PostEffect):
         if self.origin is None:
             ox, oy = W * 0.5, H * 0.95
         else:
-            ox, oy = float(self.origin[0]), float(self.origin[1])
+            from .shapes import _xy_of
+            ox, oy = _xy_of(self.origin, required=True)
         # Design y-up → FB y-down
         origin_fb = (ox / W * w, (1.0 - oy / H) * h)
 
@@ -1336,7 +1343,7 @@ class Vortex(PostEffect):
     Args:
         amount: Twist strength (default 1).
         spin: Automatic spin speed (default 1).
-        target: Center; ``None`` = the mouse.
+        target: Center: a point or an object (followed); ``None`` = the mouse.
     """
 
     _stage = PostEffectStage.SHADER
@@ -1382,7 +1389,7 @@ class ZoomBlur(PostEffect):
 
     Args:
         amount: Radial blur strength (default 0.5).
-        center: Center; ``None`` = the mouse.
+        center: Center: a point or an object (followed); ``None`` = the mouse.
     """
 
     _stage = PostEffectStage.SHADER

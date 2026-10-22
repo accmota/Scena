@@ -878,7 +878,11 @@ def check_thumbs(bags: dict) -> tuple[list[str], list[str]]:
             if f and not (GUIDE / f).exists():   # f is relative to the page
                 errors.append(f"{THUMBS_JS.name}: {iid}.{key} aponta para {f}, que não existe")
     import make_guia_thumbs as mt
-    state = mt.status(mt.select(bags), mt.load_manifest())
+    # The pictures are rendered from the Portuguese cards and shared: the
+    # English cards' translated prose (a default "follows the object") is not
+    # an input of the picture, so freshness is always asked of the Portuguese.
+    source = bags if LANG == "pt" else load_catalogs(DOCS / "pt" / "guide" / "guia-api-catalogs.js")
+    state = mt.status(mt.select(source), mt.load_manifest())
     stale = sorted(k for k, v in state.items() if v == "stale")
     missing = sorted(k for k, v in state.items() if v == "missing")
     if stale:

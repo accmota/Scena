@@ -435,7 +435,7 @@
   "anim": "thumbs/fx-blink.anim.webp",
   "card": "thumbs/fx-blink.card.webp",
   "h": 300,
-  "hash": "d6e663b1fbcbf3e0",
+  "hash": "94938d2bbb4f5be3",
   "scene": "transient",
   "src": "thumbs/fx-blink.webp",
   "w": 480
@@ -905,7 +905,7 @@
   "anim": "thumbs/post-perspective.anim.webp",
   "card": "thumbs/post-perspective.card.webp",
   "h": 300,
-  "hash": "e6769201c172536e",
+  "hash": "24418b58e52b1e7a",
   "scene": "post",
   "src": "thumbs/post-perspective.webp",
   "w": 480
@@ -964,7 +964,7 @@
  "post-spotlight": {
   "card": "thumbs/post-spotlight.card.webp",
   "h": 300,
-  "hash": "d5dc0e85a14473a1",
+  "hash": "73b47059fbdbfc44",
   "scene": "post",
   "src": "thumbs/post-spotlight.webp",
   "w": 480
@@ -981,7 +981,7 @@
   "anim": "thumbs/post-vortex.anim.webp",
   "card": "thumbs/post-vortex.card.webp",
   "h": 300,
-  "hash": "e2cca906a40b7ccc",
+  "hash": "6d2e8104d81e6d9a",
   "scene": "post",
   "src": "thumbs/post-vortex.webp",
   "w": 480
@@ -1057,7 +1057,7 @@
  "post-zoomblur": {
   "card": "thumbs/post-zoomblur.card.webp",
   "h": 300,
-  "hash": "fa64e5b7ca4bb3b3",
+  "hash": "c27faee0cb5d76cd",
   "scene": "post",
   "src": "thumbs/post-zoomblur.webp",
   "w": 480
@@ -1193,7 +1193,7 @@
   "anim": "thumbs/spatial-rain.anim.webp",
   "card": "thumbs/spatial-rain.card.webp",
   "h": 300,
-  "hash": "ab785fdee8d3dd9b",
+  "hash": "f845fde2a4a3080f",
   "scene": "spatial",
   "src": "thumbs/spatial-rain.webp",
   "w": 480
