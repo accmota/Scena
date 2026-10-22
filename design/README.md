@@ -144,7 +144,8 @@ file does not exist.
   and *escape hatch* stay. Fixed labels: `Parameters:`, `Returns`,
   `read / write` · `read` · `read-only`, "Don't confuse" (Looks like · It is ·
   It is not), "How to", "Reading the parameters", "See X" / "More in X",
-  "<X> reference" (the `<summary>Neste X</summary>` tables), "Signature",
+  "<X> reference" (the `<summary>Neste X</summary>` tables), "Constructor",
+  "Construction models", "Call", "Contract", "Topic / Rule", "Signature",
   "No parameters", "Waits (use await)", "Where else to look".
   Spelling is American, matching the API (`color`, `center`, `gray`; but
   *cancelled*, like `Cancelled` and `.cancelled`). Example

@@ -251,6 +251,10 @@ class TestValidatorEnglish(unittest.TestCase):
         # Bug: "Parâmetros: segundos (número)" stood for wait(delay).
         row = '<span class="params">Parâmetros: segundos (número)</span>'
         self.assertEqual(len(vg.check_parameter_keywords(row)), 1)
+        # Bug: "Parâmetros: valor (número)" stood for zoom_to(factor) / rotate_to(angle).
+        zoom = ('<tr><td><code>zoom_to</code></td><td class="sig">'
+                '<span class="params">Parâmetros: valor (número), time</span></td></tr>')
+        self.assertEqual(len(vg.check_parameter_keywords(zoom)), 1)
         vg.set_lang("en")
         row = ('<tr><td><code>await wait(0.4)</code></td><td class="sig">'
                '<span class="params">Parameters: seconds (number)</span></td></tr>')
@@ -261,6 +265,10 @@ class TestValidatorEnglish(unittest.TestCase):
         callback = ('<tr><td><code>on_key_down</code></td><td class="sig">'
                     '<span class="params">Parameters: key (key name)</span></td></tr>')
         self.assertEqual(vg.check_parameter_keywords(callback), [])
+        # A *args callable takes any name (tag(*names)).
+        star = ('<tr><td><code>tag(*names)</code></td><td class="sig">'
+                '<span class="params">Parameters: names (names)</span></td></tr>')
+        self.assertEqual(vg.check_parameter_keywords(star), [])
 
     def test_call_marked_read_write_is_caught(self):
         # Bug: .spectrum(bins=8) / amp_db(x, …) said "lê / escreve".

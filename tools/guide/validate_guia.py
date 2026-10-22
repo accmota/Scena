@@ -50,7 +50,7 @@ WORDS = {
         "read_write": "lê / escreve",
         "placeholders": ("nome", "nomes", "intervalo", "alvo", "tecla", "botão",
                          "ângulo", "ligado", "condição", "outro", "parte", "ponto", "cor",
-                         "segundos"),
+                         "segundos", "valor"),
     },
     "en": {
         "params": "Parameters", "returns": "Returns", "joins": ("or", "and"),
@@ -394,7 +394,7 @@ CORE_SYMBOLS = [
     {"name": "canvas.fx_quality", "kind": "property", "chapter": "mundo", "section": "mundo-apresentacao",
      "anchor": "mundo-apresentacao", "oneLiner": "Qualidade dos efeitos: low, medium, high (padrão) ou max."},
     {"name": "canvas.cull_offscreen", "kind": "property", "chapter": "mundo", "section": "mundo-apresentacao",
-     "anchor": "mundo-apresentacao", "oneLiner": "True: não desenha o que está fora da vista. Padrão False. Só compensa com objetos caros de desenhar."},
+     "anchor": "mundo-apresentacao", "oneLiner": "Padrão True: não desenha o que está fora da vista. False desenha tudo."},
     {"name": "canvas.background", "kind": "property", "chapter": "mundo", "section": "mundo-background",
      "anchor": "mundo-background", "oneLiner": "O fundo do mundo: cor, gradiente ou um campo de fundo."},
     {"name": "canvas.effects", "kind": "property", "chapter": "mundo", "section": "mundo-post",
@@ -1038,7 +1038,7 @@ def core_symbols() -> list[dict]:
         "spr-hit": "Hitbox do Sprite", "sprite-extras": "Recursos adicionais do Sprite",
         "desenhar-entity": "Entity", "desenhar-track": "Track",
         "desenhar-history": "History / Contrail",
-        "desenhar-spatial": "SpatialFx", "desenhar-drawable": "Todo drawable",
+        "desenhar-spatial": "SpatialFx", "desenhar-drawable": "Todo objeto na tela",
         "colocar-box": "Box", "colocar-grid": "Grid", "colocar-fase": "Level",
         "aparencia-cor": "Cor / Gradient / Texture", "mundo-background": "Background",
         "mundo-camera": "Câmera", "mundo-grupos": "Grupos", "mundo-sem-fim": "Mundo sem fim", "mundo-post": "Post",
@@ -1659,6 +1659,9 @@ def check_parameter_keywords(src: str | None = None) -> list[str]:
             if callable(obj):
                 fns.append(obj)
         real = {p for fn in fns for p in real_parameters(fn)[0]}
+        # *args / **kwargs take any name (``tag(*names)``, ``snapshot(*args)``).
+        if any(any(real_parameters(fn)[1:]) for fn in fns):
+            continue
         head = re.sub(r"\([^)]*\)", " ", m.group(1).split(".")[0])
         hits = []
         for piece in head.split(","):

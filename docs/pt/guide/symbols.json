@@ -8839,7 +8839,7 @@
       "chapter": "mundo",
       "section": "mundo-apresentacao",
       "anchor": "mundo-apresentacao",
-      "oneLiner": "True: não desenha o que está fora da vista. Padrão False. Só compensa com objetos caros de desenhar.",
+      "oneLiner": "Padrão True: não desenha o que está fora da vista. False desenha tudo.",
       "public": true,
       "chapterTitle": "Mundo",
       "sectionTitle": "Apresentação",
