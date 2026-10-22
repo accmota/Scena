@@ -164,8 +164,10 @@ file does not exist.
   class's published `__signature__` too — `Fire(angle=, rate=, tongues=)` was
   invisible to the gap check before.
 - **Code in `<pre>` runs.** `python tools/guide/validate_guia.py --examples` executes every
-  block; make each one self-contained (create the group members, clips, … it
-  reads). The page highlighter handles quotes inside comments.
+  block; make each one self-contained (create the group members, clips, `st`
+  cells, … it reads). Each block gets a fresh `st`, so a fragment never leans
+  on a cell an earlier chapter made: chapters can move. The page highlighter
+  handles quotes inside comments.
 - **Catalog JS must parse.** `guia-api-catalogs.js` is data the page runs: one
   stray bracket makes the file invalid and the Guia shows **no catalog at all**
   (the page has no error UI). `validate_guia.check_catalog_js` reads it as a JS

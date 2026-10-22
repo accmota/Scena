@@ -461,6 +461,9 @@ const Tutorial = {
       const recap = step.recap
         ? `<aside class="recap"><h2>O que vimos</h2>${step.recap}</aside>`
         : "";
+      const explore = step.explore
+        ? `<aside class="explore"><h2>Agora é com você</h2>${step.explore}</aside>`
+        : "";
 
       main.innerHTML = `
         <div class="kicker">${part ? `${esc(part.part)} · ` : ""}Passo ${idx + 1} de ${steps.length}</div>
@@ -473,6 +476,7 @@ const Tutorial = {
         ${renderDive(step.dive)}
         ${closing}
         ${recap}
+        ${explore}
         <div class="step-nav">
           <button type="button" class="nav-btn" data-prev ${idx === 0 ? "disabled" : ""}>← Anterior</button>
           <button type="button" class="nav-btn primary" data-next ${idx === steps.length - 1 ? "disabled" : ""}>Próximo →</button>

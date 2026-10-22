@@ -591,6 +591,60 @@ def step_focus(path: str) -> List[Optional[List[str]]]:
     return out
 
 
+_EXPLORE = re.compile(r"^      explore:\s*`((?:\\.|[^`\\])*)`", re.M | re.S)
+
+
+def step_explores(path: str) -> List[Optional[str]]:
+    """The ``explore`` HTML per step object (``None`` when the step has none)."""
+    out = []
+    for chunk in step_chunks(path):
+        m = _EXPLORE.search(chunk)
+        out.append(None if m is None else m.group(1))
+    return out
+
+
+class TestTutorialExplore(unittest.TestCase):
+    """"Agora é com você": every tutorial and interlude ends by handing the reader the keyboard.
+
+    The box looks forward (tutorial-authoring.md, "Agora é com você"): two to
+    four short ideas or challenges the reader can build with what the page
+    taught. It closes the page, once, on its last step; an appendix is
+    reference, not a lesson, and has none.
+    """
+
+    def test_engine_draws_the_box(self):
+        js = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.js"))
+        css = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.css"))
+        self.assertIn("step.explore", js)
+        self.assertIn('class="explore"', js)
+        self.assertIn("Agora é com você", js)
+        self.assertIn(".explore", css)
+
+    def test_the_last_step_of_every_lesson_has_one_and_no_other_step(self):
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            explores = step_explores(path)
+            with self.subTest(page=page):
+                have = [i for i, e in enumerate(explores) if e is not None]
+                if is_appendix(path):
+                    self.assertEqual(have, [], f"{page}: an appendix has no explore box")
+                    continue
+                self.assertEqual(have, [len(explores) - 1],
+                                 f"{page}: the explore box goes on the last step, and only there")
+
+    def test_the_box_is_short(self):
+        for path in tutorial_pages():
+            page = os.path.basename(path)
+            for i, box in enumerate(step_explores(path)):
+                if box is None:
+                    continue
+                with self.subTest(page=page, step=i + 1):
+                    items = re.findall(r"<li>(.*?)</li>", box, re.S)
+                    self.assertTrue(2 <= len(items) <= 4,
+                                    f"{page}: {len(items)} ideas; the box holds two to four <li>")
+                    self.assertNotIn("${", box)
+
+
 class TestTutorialFocus(unittest.TestCase):
     """A reading step (``focus``) lights paragraphs of the script the reader already has."""
 

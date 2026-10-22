@@ -1,4 +1,4 @@
-"""Duelo — tutorial 30.
+"""Duelo — tutorial 31.
 
 Dois jogadores no mesmo teclado, uma arena fechada lida de um arquivo de
 fase (levels/duelo.json). Cada nave anda presa a um trilho curvo, para

@@ -58,6 +58,31 @@ left out.
   object's own and changed nothing. It now raises: those are a Sprite's
   knobs, and a shape's hitbox is its own geometry.
 
+### Documentation
+
+- Guia: the error catalog moved from Começar to the end of Debug (same
+  anchor, `#erros-catalogo`), and the Reativo chapter now comes after
+  Aparência, before Mundo.
+- Tutorials: Ninja V · Espada moved up to 28, right after Ninja IV; Corredor
+  infinito, Giros, Duelo and Corrida are now 29–32. Their page names changed
+  with the numbers (`28-ninja-espada.html`, `29-corredor-infinito.html`,
+  `30-giros.html`, `31-duelo.html`, `32-corrida.html`); a link to an old name
+  lands on a missing page.
+- Every tutorial and interlude ends with a short "Agora é com você" box: two
+  or three things to build with what the page taught, some open (a new
+  weapon, a power-up), some a specific challenge. In Ligue 4 it replaces the
+  old "Para continuar" box.
+- Interlude "Ganchos na classe" has a new step, "Um morcego na noite": a bat
+  that eats fireflies with `@collide_with` in its class, next to the
+  top-of-file spelling and the `_stay` / `_exit` pair.
+- Tutorial 25 (Naves VI) ends with a "Pausa" step: P toggles `clock.paused`,
+  and the hero leaves its `on_update` while paused so Space does not fire
+  into a frozen screen (`examples/naves_6_atos.py`). Apêndice B keeps the full
+  account of the clock.
+- README: "Built for learning"; the "Simple things are simple" point names it
+  as the engine's philosophy; the boss example shows its `fighting` mode; the
+  looks table shows `Fire(style="tongues")` instead of `visual = Water()`.
+
 ## 0.9.0 — 2026-10-22
 
 ### Breaking

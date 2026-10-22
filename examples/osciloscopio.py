@@ -1,4 +1,4 @@
-"""Osciloscópio — uma ponta gira em volta da bola e deixa rastro. Tutorial 29.
+"""Osciloscópio — uma ponta gira em volta da bola e deixa rastro. Tutorial 30.
 
 A ponta é um Point com fórmula: um círculo de raio 200 em volta da bola,
 mais um círculo menor (x1, y1) que dá tx1 / ty1 voltas a cada volta grande.

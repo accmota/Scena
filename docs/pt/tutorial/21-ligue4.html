@@ -832,20 +832,6 @@ def arrastando(bola, alvo, pos):
         faixa.center = (casa.center.x, 340)`
           }
         ],
-      dive: [
-        {
-          title: "Para continuar",
-          body: `
-            <p>O jogo tem as regras mínimas. Daqui em diante, ele é seu. Algumas ideias, da mais simples para a mais trabalhosa:</p>
-            <ul>
-              <li>Um empate: as sete colunas cheias e ninguém com quatro. No <code>pousou</code>, conte as bolas das listas; 42 é o tabuleiro cheio.</li>
-              <li>Um placar com as vitórias de cada jogador, guardadas em <code>st</code> e mostradas num texto com <code>@=</code>. O <code>novo_jogo</code> não as zera.</li>
-              <li>Uma festa para quem ganhou: as quatro bolas pulsando (<code>scale_to</code> com <code>loops="forever"</code>), ou um efeito no meio delas.</li>
-              <li>Um adversário que joga sozinho na vez do azul. A função <code>soltou</code> é sua, e dá para chamá-la à mão: <code>soltou(proxima, None, casa.center)</code> joga na coluna daquela casa. No <code>pousou</code>, um <code>after</code> espera um pouco, e o computador escolhe uma coluna. Comece sorteando uma coluna que não esteja cheia; depois, ensine-o a completar as suas linhas de três e a fechar as do outro.</li>
-            </ul>
-          `,
-        }
-      ],
       closing: `
         <p>Arraste a bola do lado esquerdo e solte-a em cima de uma coluna: ela cai até a casa livre mais baixa, e a vez passa para o outro jogador. Quatro bolas da mesma cor em linha, deitadas, em pé ou na diagonal, ganham o jogo e acendem. <strong>Novo jogo</strong> limpa o tabuleiro.</p>
       `,
@@ -860,6 +846,13 @@ def arrastando(bola, alvo, pos):
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#colocar-box">Box</a> · <a href="../guide/index.html#colocar-grid">Grid</a> · <a href="../guide/index.html#ptr-drag">Arrastar</a> · <a href="../guide/index.html#mover-pose">Mover</a> · <a href="../guide/index.html#agendar-fim">Ao terminar</a>.</p>
         <p><strong>No próximo:</strong> o som vira entrada: um piano tocado pelo teclado.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Um empate: as sete colunas cheias e ninguém com quatro. No <code>pousou</code>, 42 bolas é o tabuleiro cheio.</li>
+          <li>Um placar com as vitórias de cada jogador, guardado em <code>st</code>, que o <code>novo_jogo</code> não zera.</li>
+          <li>Você consegue fazer um adversário que joga sozinho na vez do azul? A função <code>soltou</code> é sua, e dá para chamá-la à mão.</li>
+        </ul>
       `
     }
   ]

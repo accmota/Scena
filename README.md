@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>2D games and creative graphics in Python.</b><br>
-  Built for learning to program, and for fun. Easy to begin, room to grow.
+  Built for learning. Easy to begin, room to grow.
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 </p>
 
 Scena is a Python framework for 2D games and creative graphics, built for
-learning to program and for making good games without the complications.
+learning and for making good games without the complications.
 
 You write the game: what is on the screen, how it moves, what happens when two
 things touch, what comes next. Scena gives you a vocabulary in which each of
@@ -87,7 +87,9 @@ clean up. The label is a formula (`@=`): it keeps up with the score by itself.
 - **Simple things are simple.** `Circle()` draws a circle. `Sprite("ship.png")`
   shows a ship. Parameters are gradual: start with `Circle()`, then
   `Circle(center=(200, 150), radius=40)`, then `circle.visual = Neon("cyan")`.
-  Add detail only when you want it.
+  Add detail only when you want it. This is the philosophy of the whole
+  engine: nearly every feature works in a short, simple form, and has the
+  vocabulary for more when you want it. Easy to begin, room to grow.
 - **Code that says what it means.** `@collide`, `@when`, `@every` and `@click`
   read like the rules of the game. A formula (`@=`) states a relation once, and
   it stays true. A health bar that rides above the hero and shrinks with each
@@ -166,6 +168,10 @@ class Boss(Sprite):
         await wait(0.5)
         self.pop(scale=1.3)
         self.mode = self.fighting
+
+    @on_mode
+    async def fighting(self):
+        ...
 ```
 
 **Formulas.** Link a value to others once, in the constructor or later with
@@ -230,7 +236,7 @@ run()
   </tr>
   <tr>
     <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/bg-stardust.webp" width="240" alt="A stardust background"><br><code>Stardust()</code></td>
-    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/visual-water.anim.webp" width="240" alt="A shape with the Water look"><br><code>visual = Water()</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/spatial-fire~style-tongues.anim.webp" width="240" alt="Tongues of fire licking upward"><br><code>Fire(style="tongues")</code></td>
     <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/fx-dissolve-out.anim.webp" width="240" alt="A ship dissolving"><br><code>ship.dissolve_out(0.5)</code></td>
   </tr>
 </table>

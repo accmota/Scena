@@ -382,15 +382,15 @@ CORE_SYMBOLS = [
      "anchor": "aparencia-visual", "oneLiner": "Ponto de luz do Extrude no mundo."},
     {"name": "LinkedAttributeError", "kind": "exception", "chapter": "reativo", "section": "reativo-liga",
      "anchor": "reativo-liga", "oneLiner": "Escreveu com = num campo ligado. Unlink, ou force=True no verbo."},
-    {"name": "DerivedAttributeError", "kind": "exception", "chapter": "comecar", "section": "erros-catalogo",
+    {"name": "DerivedAttributeError", "kind": "exception", "chapter": "atalhos", "section": "erros-catalogo",
      "anchor": "erros-catalogo", "oneLiner": "Tentou gravar num campo derivado."},
-    {"name": "CallableAssignError", "kind": "exception", "chapter": "comecar", "section": "erros-catalogo",
+    {"name": "CallableAssignError", "kind": "exception", "chapter": "atalhos", "section": "erros-catalogo",
      "anchor": "erros-catalogo", "oneLiner": "Atribuiu uma função com =. Use ['campo'] @= …."},
-    {"name": "DestroyedError", "kind": "exception", "chapter": "comecar", "section": "erros-catalogo",
+    {"name": "DestroyedError", "kind": "exception", "chapter": "atalhos", "section": "erros-catalogo",
      "anchor": "erros-catalogo", "oneLiner": "O ator já foi destruído."},
-    {"name": "ParallaxLayerError", "kind": "exception", "chapter": "comecar", "section": "erros-catalogo",
+    {"name": "ParallaxLayerError", "kind": "exception", "chapter": "atalhos", "section": "erros-catalogo",
      "anchor": "erros-catalogo", "oneLiner": "Clique ou colisão numa camada de parallax."},
-    {"name": "UiLayerError", "kind": "exception", "chapter": "comecar", "section": "erros-catalogo",
+    {"name": "UiLayerError", "kind": "exception", "chapter": "atalhos", "section": "erros-catalogo",
      "anchor": "erros-catalogo", "oneLiner": "Colisão ou SpatialFx na camada ui."},
     {"name": "Visual", "kind": "class", "chapter": "aparencia", "section": "aparencia-visual",
      "anchor": "aparencia-visual", "oneLiner": "Base dos looks (Neon, Glow, …)."},
@@ -1404,7 +1404,11 @@ def run_examples(examples, stats: dict | None = None) -> list[str]:
     import warnings
     warnings.simplefilter("ignore")
     base = {n: getattr(scena, n) for n in scena.__all__}
-    # Shared names examples assume (player, c, ship, …). Rebuilt per block.
+    # Shared names examples assume (player, c, ship, …). Rebuilt per block,
+    # with a fresh ``st``: the singleton's cells outlive a block, so a fragment
+    # reading ``st.score`` passed only because a block earlier in the page
+    # made the cell, and moving a chapter (Reativo after Aparência,
+    # 2026-10-22) broke it. Each block creates the cells it reads.
     def _prelude():
         scena.canvas.layers.clear(hard=True)
         ns = dict(base)
@@ -1427,7 +1431,8 @@ def run_examples(examples, stats: dict | None = None) -> list[str]:
         ns["y"] = 0
         ns["dt"] = 1 / 60
         ns["fase"] = scena.Level(_sample_level())
-        scena.st.pulse = 0.0
+        ns["st"] = scena.State()
+        ns["st"].pulse = 0.0
         return ns
     known_builtins = set(dir(builtins))
     failures = []

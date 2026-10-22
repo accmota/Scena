@@ -2185,7 +2185,6 @@ run(Titulo)
     },
     {
       title: "A fase em sequência",
-      example: "naves_6_atos.py",
       body: [
         `
         <p>A fase também é uma história: a frota, depois o chefe, depois a vitória. Um ato pode ter modos, como um inimigo, e um modo <code>async</code> conta uma sequência em ordem:</p>
@@ -2567,9 +2566,355 @@ Orb(center=self.center, radius=60, color="gold")`
             <p>No Guia: <a href="../guide/index.html#atos-palco">o palco e o ato</a> · <a href="../guide/index.html#atos-regras">regras do ato</a>.</p>
           `
         }
+      ]
+    },
+    {
+      title: "Pausa",
+      example: "naves_6_atos.py",
+      body: `
+        <p>Um jogo com tanta coisa acontecendo precisa de uma pausa. A tecla P para o jogo, e a mesma tecla o faz continuar.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Naves")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+folha = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosao = Sheet("explosions/exp4.png", cols=12)
+explosao.clip("explode", range(12), fps=24)
+
+
+
+def jogo_novo():
+    st.pontos = 0
+    st.vidas = 3
+    st.energia = 0
+    st.velocidade = 80
+    st.venceu = False
+
+
+st.recorde = 0
+jogo_novo()
+
+class Explosao(Sprite, source=explosao, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Tiro(Sprite, source=folha, frame="laserBlue03.png", height=28, group="tiros"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class TiroInimigo(Sprite, source=folha, frame="laserRed01.png", height=28, group="tiros_inimigos"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jato = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jato.active = False
+
+    @on_mode
+    async def chegando(self):
+        await wait(self.espera)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formacao
+
+    @on_mode
+    def formacao(self):
+        every(uniform(5, 12), self.atirar)
+        after(uniform(3, 12), then=self.mergulho)
+
+    @on_mode
+    def mergulho(self):
+        alvo = self.center.x
+        heroi = group["heroi"].nearest(self)
+        if heroi:
+            alvo = heroi.center.x
+        self.jato.active = True
+        self.move_to(alvo, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formacao)
+        after(0.9, self.atirar)
+
+    @exit_mode(mergulho)
+    def fim_do_mergulho(self):
+        self.jato.active = False
+
+    def atirar(self):
+        TiroInimigo(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("tiros")
+    def atingido(self, tiro):
+        Explosao(center=self.center)
+        if chance(0.2):
+            Poder(center=self.center)
+        tiro.destroy()
+        self.destroy()
+        st.pontos += 1
+
+    def on_destroy(self):
+        self.jato.destroy()
+
+
+class Chefe(Sprite, source=folha, frame="ufoRed.png", height=110, group="chefe"):
+    def setup(self):
+        self.vida = 0
+        self.barra = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.barra["width"] @= lambda: self.vida * 20
+        self.mode = self.chegando
+
+    @on_mode
+    async def chegando(self):
+        aviso = Text(text="CUIDADO: O CHEFE", center=(500, 400), font_size=40, color="tomato")
+        aviso.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        aviso.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for vez in range(20):
+            self.vida += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.lutando
+
+    @on_mode
+    def lutando(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.rajada)
+
+    def rajada(self):
+        for dx in [-40, 0, 40]:
+            TiroInimigo(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("tiros")
+    def atingido(self, tiro, info):
+        tiro.destroy()
+        if self.mode != self.lutando:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.vida -= 1
+        if self.vida == 0:
+            self.mode = self.morrendo
+
+    @on_mode
+    async def morrendo(self):
+        for vez in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosao(center=self.center)
+        st.pontos += 20
+        Starburst(center=self.center, radius=110)
+        self.destroy()
+
+    def on_destroy(self):
+        self.barra.destroy()
+
+
+class Poder(Sprite, source=folha, frame="powerupBlue_shield.png", height=30, group="poderes"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class Escudo(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("tiros_inimigos")
+    def bloqueou(self, tiro, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        tiro.destroy()
+        st.energia -= 20
+
+
+class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45, group="heroi"):
+    def setup(self):
+        self.glow = True
+        self.propulsor = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.escudo = Escudo(center=lambda: self.center)
+        self.escudo.active = False
+
+    def on_update(self, dt):
+        if clock.paused:
+            return
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("tiro", 0.2):
+            Tiro(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("tiros_inimigos")
+    def atingido(self, tiro):
+        tiro.destroy()
+        if not ready("dano", 1.5):
+            return
+        st.vidas -= 1
+        canvas.shake(8)
+        if st.vidas > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("poderes")
+    def pegou(self, poder):
+        poder.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energia = 100
+
+    @on_change(lambda self: st.energia)
+    def energia_mudou(self):
+        self.escudo.active = st.energia > 0
+        if st.energia == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.propulsor.destroy()
+        self.escudo.destroy()
+
+
+FROTA = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+def comecar():
+    jogo_novo()
+    change_act(Fase)
+
+
+class Titulo(Act):
+    def setup(self):
+        Text(text="NAVES", center=(500, 520), font_size=80)
+        Text(text=f"Recorde {st.recorde}", center=(500, 430), font_size=24)
+        SpriteButton("k-rolling-ball/button_blue.png", center=(500, 330), width=180,
+                     label="JOGAR", label_inset=(0, 0, 0, 8), on_click=comecar)
+
+
+class Fase(Act):
+    def setup(self):
+        placar = Text(text="", top_left=(20, 780), font_size=20)
+        placar["text"] @= lambda: f"Pontos {st.pontos}"
+
+        Sprite(folha, frame="playerLife1_red.png", height=24, center=(900, 768))
+        vidas = Text(text="", top_left=(920, 780), font_size=20)
+        vidas["text"] @= lambda: f"x {st.vidas}"
+
+        barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        barra["width"] @= lambda: st.energia * 2
+
+        self.pausa = Text(text="PAUSA", center=(500, 420), font_size=56)
+        self.pausa.visible = False
+
+        Heroi(center=(500, 70))
+        self.mode = self.batalha
+
+    @on_mode
+    async def batalha(self):
+        for linha in range(3):
+            for coluna in range(8):
+                inimigo = Inimigo(frame=FROTA[linha], center=(185 + coluna * 90, 1220 - linha * 70))
+                inimigo.hue = coluna / 8
+                inimigo.espera = (2 - linha) * 0.6 + coluna * 0.08
+                inimigo.mode = inimigo.chegando
+        await until_empty("inimigos")
+        await wait(1)
+        Chefe(center=(750, 1000))
+        await until_empty("chefe")
+        await wait(2)
+        st.venceu = True
+        change_act(FimDeJogo)
+
+    def on_update(self, dt):
+        group["inimigos"].move_by(st.velocidade * dt, 0)
+
+        for inimigo in group["inimigos"]:
+            if inimigo.center.x > 960:
+                st.velocidade = -80
+            if inimigo.center.x < 40:
+                st.velocidade = 80
+
+        if keyp.once("P"):
+            clock.paused = not clock.paused
+            self.pausa.visible = clock.paused
+        if keyp.once("R"):
+            comecar()
+
+    @when(lambda self: st.vidas == 0)
+    def perdeu(self):
+        self.after(2, lambda: change_act(FimDeJogo))
+
+
+class FimDeJogo(Act):
+    def setup(self):
+        st.recorde = max(st.recorde, st.pontos)
+        if st.venceu:
+            Text(text="VOCÊ VENCEU", center=(500, 480), font_size=56, color="gold")
+        else:
+            Text(text="FIM DE JOGO", center=(500, 480), font_size=56, color="tomato")
+        Text(text=f"Pontos {st.pontos}   Recorde {st.recorde}", center=(500, 400), font_size=24)
+        Text(text="aperte ESPAÇO", center=(500, 330), font_size=18)
+        self.after(10, lambda: change_act(Titulo))
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Titulo)
+
+
+@leave_playfield("tiros", "tiros_inimigos", "poderes")
+def saiu(tiro):
+    tiro.destroy()
+
+
+run(Titulo)
+`,
+      notes: [
+        {
+          at: "clock.paused = not clock.paused",
+          text: "<code>clock</code> (relógio) é o tempo do jogo, e <code>clock.paused</code> (pausado) o para com <code>True</code>. <code>not</code> inverte o valor: a mesma tecla pausa e continua."
+        },
+        {
+          at: "self.pausa.visible = clock.paused",
+          text: "O aviso aparece com a pausa e some com ela. Ele nasceu escondido no <code>setup</code> da fase."
+        },
+        {
+          at: "if clock.paused:",
+          text: "Durante a pausa, os <code>on_update</code> continuam sendo chamados, com <code>dt</code> igual a 0. Mover não faz nada, mas o espaço ainda criaria um tiro. O herói sai logo no começo e não lê o teclado."
+        }
       ],
+      after: `
+        <p>Rode, espere a frota mergulhar e aperte P no meio de um ataque. Tudo congela: os inimigos no caminho, os tiros no ar, o chefe no meio da chegada. Os <code>every</code>, as viagens com <code>time=</code> e os <code>await wait</code> andam no tempo do jogo, e o tempo parou. Aperte P de novo: cada um continua de onde estava.</p>
+        <details class="ask"><summary>Por que a tecla P ainda funciona com o jogo parado?</summary><p>Porque o <code>on_update</code> da fase continua sendo chamado a cada quadro; só o tempo parou. Câmera lenta, a pausa por tempo e o que mais o relógio faz estão no Apêndice B.</p></details>
+      `,
       closing: `
-        <p>Clique em JOGAR. Setas movem a nave, espaço atira, R recomeça. A frota chega, mergulha e atira; derrubada a frota, chega o chefe. Sem vidas, o jogo vai ao fim de jogo; derrotado o chefe, à vitória. Os dois mostram os pontos e o recorde e voltam ao título com espaço (ou sozinhos, em 10 segundos).</p>
+        <p>Clique em JOGAR. Setas movem a nave, espaço atira, P pausa e continua, R recomeça. A frota chega, mergulha e atira; derrubada a frota, chega o chefe. Sem vidas, o jogo vai ao fim de jogo; derrotado o chefe, à vitória. Os dois mostram os pontos e o recorde e voltam ao título com espaço (ou sozinhos, em 10 segundos).</p>
       `,
       recap: `
         <ul>
@@ -2580,9 +2925,17 @@ Orb(center=self.center, radius=60, color="gold")`
           <li><code>@when</code> no ato — uma regra que liga quando o ato começa e sai com ele.</li>
           <li><code>SpriteButton</code> — um botão feito de uma imagem.</li>
           <li><code>until_empty</code> — num modo <code>async</code>, espera um grupo ficar vazio.</li>
+          <li><code>clock.paused</code> — para o tempo do jogo: o <code>dt</code> vale 0, e timers, viagens e esperas param juntos.</li>
         </ul>
-        <p><strong>No Guia:</strong> <a href="../guide/index.html#atos-classe">Act</a> · <a href="../guide/index.html#atos-trocar">change_act</a> · <a href="../guide/index.html#atos-palco">o palco e o ato</a> · <a href="../guide/index.html#atos-dados">dados do jogo</a> · <a href="../guide/index.html#atos-regras">regras do ato</a> · <a href="../guide/index.html#ui-sprite-button">SpriteButton</a> · <a href="../guide/index.html#mode-async">until_empty</a>.</p>
+        <p><strong>No Guia:</strong> <a href="../guide/index.html#atos-classe">Act</a> · <a href="../guide/index.html#atos-trocar">change_act</a> · <a href="../guide/index.html#atos-palco">o palco e o ato</a> · <a href="../guide/index.html#atos-dados">dados do jogo</a> · <a href="../guide/index.html#atos-regras">regras do ato</a> · <a href="../guide/index.html#ui-sprite-button">SpriteButton</a> · <a href="../guide/index.html#mode-async">until_empty</a> · <a href="../guide/index.html#frame-clock">clock</a>.</p>
         <p><strong>No próximo:</strong> outro jogo. O ninja volta, num nível maior que a tela, desenhado num editor, com uma câmera que o segue.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Uma segunda fase depois do chefe, com outra frota e outro fundo.</li>
+          <li>Um menu de pausa com <code>Menu</code>: Continuar ou voltar ao título.</li>
+          <li>Você consegue mostrar um aviso “Fase 2” entre uma fase e outra, num ato só para isso?</li>
+        </ul>
       `
     }
   ]

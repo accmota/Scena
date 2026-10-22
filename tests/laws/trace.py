@@ -499,7 +499,7 @@ def _live_ids(frame) -> dict:
     the handlers, and a body a handler makes (a clone) is resolved this step
     (the resolve pass chooses its bodies at its start, F3). Unnamed, it read
     ``?`` and the motion model took a three-body solve for a pair (P3 on
-    tutorial 31, chaos ``enter:2:sibling``)."""
+    tutorial 32, chaos ``enter:2:sibling``)."""
     cs = frame.f_locals.get("self")
     cols = _slot(cs, "_colliders", None)
     if cols is None:

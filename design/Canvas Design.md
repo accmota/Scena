@@ -1416,7 +1416,7 @@ at construction, unchanged; a piece that is only a group's member, such as
 `Rect(..., group="chao")` under a standing `resolve(hero, "chao")`, has no
 body there and is skipped silently, Collision Design S9-1, so a hero falls
 through ground built on a `pan_response=` / `scroll=` layer: the collidable
-world goes on a neutral layer, tutorial 28); a returned piece the author put on another layer is
+world goes on a neutral layer, tutorial 29); a returned piece the author put on another layer is
 moved. `Endless` **never moves** its pieces.
 
 **Image size.** An image piece is `Sprite(path)`, so it takes Sprite's

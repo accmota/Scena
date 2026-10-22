@@ -11,6 +11,7 @@ Controles
   clique em JOGAR      começar
   ESQUERDA / DIREITA   mover
   ESPAÇO               atirar; no fim de jogo, voltar ao título
+  P                    pausar e continuar
   R                    recomeçar
 
 Uso
@@ -198,6 +199,8 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45, group=
         self.escudo.active = False
 
     def on_update(self, dt):
+        if clock.paused:
+            return
         if keyp("LEFT"):
             self.move_by(-340 * dt, 0)
         if keyp("RIGHT"):
@@ -272,6 +275,9 @@ class Fase(Act):
         barra = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
         barra["width"] @= lambda: st.energia * 2
 
+        self.pausa = Text(text="PAUSA", center=(500, 420), font_size=56)
+        self.pausa.visible = False
+
         Heroi(center=(500, 70))
         self.mode = self.batalha
 
@@ -300,6 +306,9 @@ class Fase(Act):
             if inimigo.center.x < 40:
                 st.velocidade = 80
 
+        if keyp.once("P"):
+            clock.paused = not clock.paused
+            self.pausa.visible = clock.paused
         if keyp.once("R"):
             comecar()
 

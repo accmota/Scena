@@ -691,6 +691,34 @@ details.ask[open] summary { margin-bottom: 0.4rem; }
   color: var(--muted);
 }
 
+/* ── Agora é com você (the reader's own next program) ── */
+.explore {
+  margin-top: 1.25rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--ok-line);
+  border-radius: var(--radius);
+  background: var(--ok-dim);
+  font-size: 0.95rem;
+}
+
+.explore h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ok);
+}
+
+.explore ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.explore li { margin: 0.3rem 0; }
+.explore li::marker { color: var(--ok); }
+
 .menu-btn {
   display: none;
   position: fixed;

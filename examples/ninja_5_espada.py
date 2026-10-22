@@ -1,4 +1,4 @@
-"""Ninja V · Espada — tutorial 32.
+"""Ninja V · Espada — tutorial 28.
 
 A fase do tutorial 27 (media/levels/ninja_perigos.json): as caixas, que lá
 são enfeite, aqui só a espada quebra. Ao lado de uma caixa, ESPAÇO é um

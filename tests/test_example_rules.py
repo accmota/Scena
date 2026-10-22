@@ -34,12 +34,16 @@ Bug classes guarded (catalogue: Testing Design, TU):
   width and color are ``@=`` formulas on the chosen ball's ``vel``, which
   only ``resolve`` changes (a ball-ball hit). Each frame the bar agrees with
   the speed, and the speed does change, so the check is not vacuous.
-* **A hitbox switched by the animation** (tutorial 32, Ninja V): the sword's
+* **A hitbox switched by the animation** (tutorial 28, Ninja V): the sword's
   part is on only in the cut's frames, so a crate the ninja leans on does
   not break until Space; the crate leaves a light; the light makes the ninja
   invincible for 6 s, the Aura blinks in the last 2 and goes; a shock just
   before the light does not take the Aura away when its 2.5 s end.
-* **Two players no step run moves** (tutorial 30, Duelo): the choice act
+* **A pause that only looks paused** (tutorial 25, "Pausa"): with
+  ``clock.paused`` the fleet and the shots stop, but ``on_update`` still runs,
+  so Space must not fire into the frozen screen; R during the pause starts
+  the next act unpaused.
+* **Two players no step run moves** (tutorial 31, Duelo): the choice act
   hands the chosen ship to the duel; a ship rides its rail (always on the
   curve, stopping at the ends, coasting after the key); a laser bounces three
   times and goes on the fourth; a big asteroid splits in two and a small one
@@ -280,7 +284,7 @@ class TestNinjaEspada(unittest.TestCase):
 
 
 class TestDueloRules(unittest.TestCase):
-    """Tutorial 30: the rules two players reach, played on purpose."""
+    """Tutorial 31: the rules two players reach, played on purpose."""
 
     PATH = "examples/duelo.py"
 
@@ -435,6 +439,63 @@ class TestDueloRules(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNavesPause(unittest.TestCase):
+    """Tutorial 25, "Pausa": P stops the battle and P goes on.
+
+    The pause is ``clock.paused``: ``dt`` is 0, so the fleet, the shots, the
+    timers and the ``await wait`` stop. The ``on_update`` hooks still run, so
+    the hero's own ``if clock.paused: return`` is what keeps Space from firing
+    into a frozen screen. R during the pause starts a fresh act, not paused.
+    """
+
+    PATH = "examples/naves_6_atos.py"
+
+    def _tap(self, run, name):
+        run.key_down(name)
+        run.step(1)
+        run.key_up(name)
+        run.step(1)
+
+    def _shots(self, ns):
+        return len(list(ns["group"]["tiros"]))
+
+    def test_p_freezes_the_battle_and_p_resumes_it(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns = run.ns
+            ns["comecar"]()
+            run.step(240)                   # the fleet has arrived
+            inimigo = list(ns["group"]["inimigos"])[0]
+            self._tap(run, "P")
+            self.assertTrue(ns["clock"].paused)
+            run.step(2)
+            antes = tuple(inimigo.center)
+            tiros = self._shots(ns)
+            run.key_down("SPACE")
+            run.step(60)
+            run.key_up("SPACE")
+            run.step(1)
+            self.assertEqual(tuple(inimigo.center), antes, "an enemy moved during the pause")
+            self.assertEqual(self._shots(ns), tiros, "Space fired during the pause")
+            self._tap(run, "P")
+            self.assertFalse(ns["clock"].paused)
+            run.step(30)
+            self.assertNotEqual(tuple(inimigo.center), antes, "the fleet did not go on after P")
+
+    def test_r_during_the_pause_starts_unpaused(self):
+        with ProgramRun(self.PATH) as run:
+            run.step(2)
+            ns = run.ns
+            ns["comecar"]()
+            run.step(60)
+            self._tap(run, "P")
+            self.assertTrue(ns["clock"].paused)
+            self._tap(run, "R")
+            run.step(2)
+            self.assertFalse(ns["clock"].paused, "the new act started paused")
+            self.assertEqual(len(list(ns["group"]["heroi"])), 1)
 
 
 class TestCeuEstreladoMouseOnTheCanvas(unittest.TestCase):

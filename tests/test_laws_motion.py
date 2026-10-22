@@ -169,7 +169,7 @@ class TestMotionRules(unittest.TestCase):
     def test_p3_an_unnamed_third_partner_is_not_a_pair(self):
         """A body the recorder cannot name (``?``: registered during the step)
         resolved against A makes A's solve a three-body one: P3 abstains
-        (tutorial 31, chaos ``enter:2:sibling``: a car's clone made in the
+        (tutorial 32, chaos ``enter:2:sibling``: a car's clone made in the
         car-car handler was resolved that step)."""
         a0, b0 = body("A#0", 0, 0, vx=10, mass=1), body("B#0", 19.9, 0, vx=-10, mass=3)
         a1, b1 = body("A#0", 0, 0, vx=-10, mass=1), body("B#0", 19.9, 0, vx=10, mass=3)

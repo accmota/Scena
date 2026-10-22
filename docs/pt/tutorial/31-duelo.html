@@ -14,7 +14,7 @@
 <script src="../../assets/tutorial/tutorial.js"></script>
 <script>
 Tutorial.mount({
-  n: "30",
+  n: "31",
   title: "Duelo",
   steps: [
     {
@@ -1247,7 +1247,7 @@ run(Duelo)
       title: "Fim do duelo",
       body: `
         <p>Sem energia, a nave explode, e três segundos depois a tela diz quem venceu. <kbd>ESPAÇO</kbd> começa outro duelo.</p>
-        <p>Como no Corredor (28), o fim é uma troca de ato: um ato <code>Vitoria</code>, só com o aviso, e de volta ao <code>Duelo</code>, que monta tudo de novo.</p>
+        <p>Como no Corredor (29), o fim é uma troca de ato: um ato <code>Vitoria</code>, só com o aviso, e de volta ao <code>Duelo</code>, que monta tudo de novo.</p>
       `,
       code: `from scena import *
 
@@ -3519,6 +3519,13 @@ run(Escolha)
         </ul>
         <p><strong>No Guia:</strong> <a href="../guide/index.html#track-sample">Amostrar a trilha</a> · <a href="../guide/index.html#track-mod">Modificadores</a> · <a href="../guide/index.html#util-chase">chase</a> · <a href="../guide/index.html#colisao-bounce">bounce</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a> · <a href="../guide/index.html#aparencia-blend">Blend</a> · <a href="../guide/index.html#colocar-fase">Level</a> · <a href="../guide/index.html#mundo-impactos">Impactos</a>.</p>
         <p><strong>E agora?</strong> Por enquanto a série acaba aqui, mas o Guia continua: cada recurso que você viu tem lá a sua seção, com tudo o que ele sabe fazer. Dê às duas naves jeitos diferentes de andar, ou escolha um jogo de que você gosta e faça a sua versão.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Uma arma nova: um tiro que não quica, mas é mais rápido, ou uma mina que fica parada no trilho.</li>
+          <li>Um placar de rodadas: quem ganhar duas leva o duelo.</li>
+          <li>O que mais você consegue fazer com o que já aprendeu? Invente um poder e teste com um amigo.</li>
+        </ul>
       `
     }
   ]

@@ -40,11 +40,11 @@ its last step here.
 | 25 Naves VI · Atos | `naves_6_atos.py` |
 | 26 Ninja III · O nível | `ninja_3_nivel.py` |
 | 27 Ninja IV · Perigos | `ninja_4_perigos.py` |
-| 28 Corredor infinito | `corredor.py` |
-| 29 Giros | `barras_girando.py`, `osciloscopio.py` |
-| 30 Duelo | `duelo.py` |
-| 31 Corrida | `corrida.py` |
-| 32 Ninja V · Espada | `ninja_5_espada.py` |
+| 28 Ninja V · Espada | `ninja_5_espada.py` |
+| 29 Corredor infinito | `corredor.py` |
+| 30 Giros | `barras_girando.py`, `osciloscopio.py` |
+| 31 Duelo | `duelo.py` |
+| 32 Corrida | `corrida.py` |
 
 The appendices (`A-…` to `G-…` in the same folder) are reference pages made of
 short programs; they end in no file here.

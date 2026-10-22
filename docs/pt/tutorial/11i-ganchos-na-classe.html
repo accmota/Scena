@@ -295,6 +295,106 @@ run()
       `
     },
     {
+      title: "Um morcego na noite",
+      body: `
+        <p>A noite tem um perigo: um morcego cruza a tela de um lado para o outro, e o vaga-lume que ele toca é comido. Tocar é colisão, e a colisão também tem a sua forma na classe.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Vaga-lumes")
+Wallpaper("#0a0f1e")
+
+st.pegos = 0
+Text(lambda: f"Pegos: {st.pegos}", top_left=(20, 680))
+
+
+class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.pegos += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def piscar(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def fugiu(self):
+        self.destroy()
+
+
+class Morcego(Circle, radius=24, color="#5b4b8a", group="morcegos"):
+    def setup(self):
+        self.velocidade = 260
+
+    def on_update(self, dt):
+        self.move_by(self.velocidade * dt, 0)
+        if self.center.x > 950:
+            self.velocidade = -260
+        if self.center.x < 50:
+            self.velocidade = 260
+
+    @collide_with("vagalumes")
+    def comer(self, vagalume):
+        vagalume.destroy()
+        self.pop()
+
+
+class Noite(Entity):
+    @every(0.8)
+    def soltar(self):
+        Vagalume(center=(uniform(50, 950), uniform(20, 300)))
+
+
+for i in range(6):
+    Vagalume(center=(uniform(100, 900), uniform(100, 600)))
+
+noite = Noite()
+morcego = Morcego(center=(100, 450))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.velocidade = -260",
+          text: "Na borda direita, a velocidade fica negativa: o morcego volta. Na esquerda, positiva de novo. Dizer o lado (<code>-260</code>, não <code>-self.velocidade</code>) evita que ele fique preso tremendo na borda."
+        },
+        {
+          at: "@collide_with(\"vagalumes\")",
+          text: "<code>@collide_with</code> (colidir com), em cima de um método: quando <em>este</em> morcego tocar alguém do grupo <code>\"vagalumes\"</code>, <code>comer</code> roda. Só um grupo entre parênteses: o outro lado é o próprio objeto."
+        },
+        {
+          at: "def comer(self, vagalume):",
+          text: "O método recebe o <code>self</code>, o morcego, e o outro: o vaga-lume que ele tocou. O morcego destrói o vaga-lume e dá um pulinho (<code>pop</code>)."
+        }
+      ],
+      after: [
+        `
+        <p>Rode e veja o morcego varrer o meio da tela. Os vaga-lumes que sobem passam por ele, e alguns não chegam ao alto.</p>
+        <p>No topo do arquivo, a mesma regra nomearia os dois grupos, e a função receberia os dois objetos:</p>
+        `,
+        {
+          snip: `@collide("morcegos", "vagalumes")
+def comer(morcego, vagalume):`,
+          alt: true
+        },
+        `
+        <p>Na classe, um dos dois é sempre o <code>self</code>. Como o <code>on_hover</code> tem o seu <code>on_hover_exit</code>, a colisão tem o seu par: <code>@collide_with_stay</code> roda a cada quadro em que os dois continuam se tocando, e <code>@collide_with_exit</code>, quando eles se separam.</p>
+        <details class="ask"><summary>A regra podia ficar no vaga-lume?</summary><p>Podia: <code>@collide_with("morcegos")</code> num método do <code>Vagalume</code>, que destrói o <code>self</code>. Os dois funcionam. Ponha a regra em quem age: aqui quem come é o morcego, e o vaga-lume não precisa saber que morcegos existem.</p></details>
+        `
+      ]
+    },
+    {
       title: "Uma condição na classe",
       body: `
         <p>Com dez vaga-lumes pegos, o pote enche: aparece um aviso, e a noite acaba.</p>
@@ -334,6 +434,23 @@ class Vagalume(Circle, radius=10, color="khaki", group="vagalumes"):
         self.destroy()
 
 
+class Morcego(Circle, radius=24, color="#5b4b8a", group="morcegos"):
+    def setup(self):
+        self.velocidade = 260
+
+    def on_update(self, dt):
+        self.move_by(self.velocidade * dt, 0)
+        if self.center.x > 950:
+            self.velocidade = -260
+        if self.center.x < 50:
+            self.velocidade = 260
+
+    @collide_with("vagalumes")
+    def comer(self, vagalume):
+        vagalume.destroy()
+        self.pop()
+
+
 class Noite(Entity):
     @every(0.8)
     def soltar(self):
@@ -349,6 +466,7 @@ for i in range(6):
     Vagalume(center=(uniform(100, 900), uniform(100, 600)))
 
 noite = Noite()
+morcego = Morcego(center=(100, 450))
 
 
 run()
@@ -401,7 +519,14 @@ def assustar(self, valor):
         }
       ],
       closing: `
-        <p>Pegue os vaga-lumes com o mouse; eles brilham quando o mouse passa e piscam sozinhos. A noite solta um novo a cada 0,8 segundo, até o pote encher com dez.</p>
+        <p>Pegue os vaga-lumes com o mouse antes do morcego; eles brilham quando o mouse passa e piscam sozinhos. A noite solta um novo a cada 0,8 segundo, até o pote encher com dez.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Ponha um segundo morcego, mais rápido, voando em outra altura.</li>
+          <li>Vaga-lumes de duas cores, que valem pontos diferentes.</li>
+          <li>Você consegue criar uma teia parada no meio da tela, que prende o vaga-lume que a toca até você clicar nele?</li>
+        </ul>
       `
     }
   ]
