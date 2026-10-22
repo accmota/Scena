@@ -15,11 +15,12 @@ Fields (``DEFAULTS`` fills the rest):
   end       "done": the pilot ends the run (``game.done``), ``seconds`` is a cap;
             "cap": the program never ends, the take is ``seconds`` long
   seconds   length (or cap), lead (played before the take), tail (after done)
+  layout    None, or "code": the program's code on the left, the game on the right
 """
 from __future__ import annotations
 
 DEFAULTS = dict(args={}, lead=0.0, tail=2.0, seed=0, size=(2560, 1440), fps=60, crf=14,
-                end="cap", seconds=60.0)
+                end="cap", seconds=60.0, layout=None)
 
 # half: the bar's half width plus the star's (they touch inside it). Stars fall
 # faster than a bar crosses the screen: even a perfect player misses some.
@@ -205,6 +206,16 @@ TAKES = {
         ("key", 24.5, "H"), ("carry", 25.4, 26.6, (700, 420), (430, 460)),   # pan
         ("key", 27.6, "F"),                      # fit the level in view
         ("key", 29.0, "V"), ("glide", 29.2, 30.4, (1000, 160))))),
+    # "This code → this game": the one-screen programs with their code beside
+    # the game (the same runs as their plain takes).
+    "primeiro_script/code": dict(program="examples/primeiro_script.py",
+                                 pilot="tour_first_script", end="done", seconds=30,
+                                 layout="code"),
+    "pegar_estrelas/code": dict(program="examples/pegar_estrelas.py", pilot="catch_falling",
+                                args=dict(_PEGAR, miss=0.08, seed=1), seed=1, layout="code"),
+    "catch-the-stars/code": dict(program="README.md#catch-the-stars", pilot="catch_falling",
+                                 args=dict(_CATCH, miss=0.1, seed=3), seed=3, lead=0.5,
+                                 layout="code"),
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),

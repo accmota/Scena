@@ -471,6 +471,12 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   pointer, and the release happens where it was held: the next event's
   glide starts early and would pull a click off its button, or end the
   editor's band select over nothing.
+- **"This code → this game".** A take with `layout="code"` shows the
+  program's code (no module docstring; Pygments colours; the largest font
+  that fits every line, so meant for one-screen programs) on the left 40 %
+  of the frame and the game on the right; the 01, 02 and catch-the-stars
+  takes have a `code` twin. The font is the system's monospace (Menlo,
+  DejaVu Sans Mono, Consolas): the repository ships none.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

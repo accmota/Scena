@@ -168,6 +168,84 @@ def draw_cursor(frame, at, scale: float):
     return np.asarray(img)
 
 
+# ── The code panel ("this code → this game") ───────────────────────────────
+
+CODE_FONTS = ("/System/Library/Fonts/Menlo.ttc",                       # macOS
+              "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",   # Linux
+              "C:/Windows/Fonts/consola.ttf")                          # Windows
+CODE_STYLE = "one-dark"
+CODE_BG = (24, 26, 33)
+CODE_SHARE = 0.4               # the panel's share of the frame's width
+
+
+def program_code(source: str) -> str:
+    """The program as the viewer reads it: no module docstring, no blank
+    lines before the first line of code."""
+    import ast
+    lines = source.splitlines()
+    tree = ast.parse(source)
+    first = tree.body[0] if tree.body else None
+    if (isinstance(first, ast.Expr) and isinstance(getattr(first, "value", None), ast.Constant)
+            and isinstance(first.value.value, str)):
+        lines = lines[first.end_lineno:]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def code_panel(source: str, size: tuple, title: str = "", font_path: str | None = None):
+    """An RGBA picture of ``source``, syntax-coloured (Pygments, ``CODE_STYLE``),
+    the largest font that fits every line in ``size``, ``title`` on top."""
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+    from pygments.lexers import PythonLexer
+    from pygments.styles import get_style_by_name
+    path = font_path or next((p for p in CODE_FONTS if os.path.exists(p)), None)
+    if path is None:
+        raise SystemExit("no monospace font found: pass a font file (--code-font)")
+    w, h = size
+    pad = round(h * 0.04)
+    lines = source.rstrip("\n").split("\n")
+    longest = max((len(line.expandtabs(4)) for line in lines), default=1)
+    rows = len(lines) + (2 if title else 0)
+    probe = ImageFont.truetype(path, 100)
+    char_w = probe.getlength("M") / 100            # per point of size
+    size_w = (w - 2 * pad) / (max(longest, 1) * char_w)
+    size_h = (h - 2 * pad) / (rows * 1.35)
+    # Always fits: a long program gets a small font (the layout is meant for
+    # one-screen programs; at 1440 px a 60-line one reads at about 20 px).
+    pt = max(4, min(int(size_w), int(size_h), round(h / 40)))
+    font = ImageFont.truetype(path, pt)
+    step = round(pt * 1.35)
+    style = get_style_by_name(CODE_STYLE)
+    default = "#abb2bf"
+
+    def color(ttype):
+        while ttype is not None:
+            c = style.style_for_token(ttype).get("color")
+            if c:
+                return "#" + c
+            ttype = ttype.parent
+        return default
+
+    img = Image.new("RGBA", (w, h), CODE_BG + (255,))
+    draw = ImageDraw.Draw(img)
+    y = pad
+    if title:
+        draw.text((pad, y), title, font=font, fill="#7f848e")
+        y += 2 * step
+    x = pad
+    for ttype, text in PythonLexer().get_tokens(source):
+        for k, part in enumerate(text.split("\n")):
+            if k:
+                x, y = pad, y + step
+            if part:
+                part = part.expandtabs(4)
+                draw.text((x, y), part, font=font, fill=color(ttype))
+                x += font.getlength(part)
+    return np.asarray(img)
+
+
 def load_pilot(spec: str):
     """A video pilot (``pilots.py``) or README pilot by name, or ``file.py:function``."""
     if ":" in spec and spec.split(":", 1)[0].endswith(".py"):
@@ -390,7 +468,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
            seconds: float = 10.0, lead: float = 0.0, tail: float = 2.0,
            size: tuple = (1920, 1080), fps: int = GAME_FPS, supersample: int = 1,
            gpu: bool = True, seed: int = 0, progress: bool = True,
-           source: str | None = None) -> dict:
+           source: str | None = None, layout: str | None = None,
+           code_font: str | None = None) -> dict:
     """Play ``program`` and hand each video frame and the sound to a sink.
 
     ``sink_factory(size, fps)`` builds the sink once the frame size is known.
@@ -402,6 +481,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
     ``fps``: 60, or 30 (every second game frame; the sound keeps every frame).
     ``source``: run this text as if it were the file ``program`` (its media
     resolve from the file's folder).
+    ``layout``: ``"code"`` puts the program's code on the left of the frame
+    (``code_panel``, ``CODE_SHARE`` of the width) and the game on the right.
     """
     import numpy as np
     import skia
@@ -418,6 +499,9 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
         path, source = mm.program_of({"program": program})
     else:
         path = program
+    if layout not in (None, "code"):
+        raise ValueError(f"layout is None or 'code', got {layout!r}")
+    text = source if source is not None else (REPO / path).read_text(encoding="utf-8")
     run = ProgramRun(path, source=source, seed=seed, draw=True)
     sink = None
     backend = "cpu"
@@ -425,7 +509,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
         run.start()
         fw = run.world.fw
         dw, dh = fw.design_width, fw.design_height
-        gw, gh = fit_size((dw, dh), size)
+        panel_w = round(size[0] * CODE_SHARE) // 2 * 2 if layout == "code" else 0
+        gw, gh = fit_size((dw, dh), (size[0] - panel_w, size[1]))
         rw, rh = gw * supersample, gh * supersample
         s = rw / dw
         fw.pixel_ratio, fw.view_scale = s, 1.0
@@ -441,7 +526,11 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
 
         canvas = np.empty((size[1], size[0], 4), dtype=np.uint8)
         canvas[...] = LETTERBOX + (255,)
-        x0, y0 = (size[0] - gw) // 2, (size[1] - gh) // 2
+        x0, y0 = panel_w + (size[0] - panel_w - gw) // 2, (size[1] - gh) // 2
+        if layout == "code":
+            title = program if program.startswith("README") else path
+            canvas[:, :panel_w] = code_panel(program_code(text), (panel_w, size[1]),
+                                             title=title, font_path=code_font)
         sink = sink_factory(size, fps)
         game = mm.Pilot(run)
         step = GAME_FPS // fps
@@ -546,7 +635,8 @@ def run_take(tid: str, *, review_only: bool = False, gpu: bool = True,
 
     r = record(spec["program"], factory, pilot=spec["pilot"], args=spec["args"],
                seconds=spec["seconds"], lead=spec["lead"], tail=spec["tail"], size=size,
-               fps=fps, seed=spec["seed"], gpu=gpu, progress=progress)
+               fps=fps, seed=spec["seed"], gpu=gpu, progress=progress,
+               layout=spec["layout"])
     review = reviews[0]
     tail_from = r["frames"] / fps - spec["tail"] if r["ended"] == "done" else None
     rep = review.report(tail_from=tail_from)

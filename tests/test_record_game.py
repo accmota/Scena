@@ -19,6 +19,9 @@ Bug classes guarded:
 * **A stall goes unnoticed.** The review counts still and silent seconds and
   flags a long still stretch, except in the tail after the run is over
   (``TestReview``).
+* **The code beside the game is not the program, or does not fit.** The
+  code panel drops only the module docstring, and every line fits its
+  width and height; the game is drawn right of it (``TestCodePanel``).
 * **The shot list rots, or a pilot does not do what it says.** Every take
   names a program that exists, a pilot that loads and keywords the pilot
   accepts (``TestTakes``). The tutorial-01 tour must reach every feature it
@@ -278,6 +281,54 @@ class TestReview(unittest.TestCase):
         t = np.arange(200) / 100
         rv.finish(np.stack([np.sin(t * 40), np.sin(t * 40)], axis=1).astype(np.float32) * 0.3, 100)
         self.assertEqual(rv.report()["silent"], 0)
+
+
+def _code_font():
+    return next((p for p in rg.CODE_FONTS if os.path.exists(p)), None)
+
+
+class TestCodePanel(unittest.TestCase):
+    """The "this code → this game" layout: the code the viewer reads is the
+    program's code, all of it, and it sits beside the game, not over it."""
+
+    def test_program_code_drops_only_the_docstring(self):
+        src = '"""Title.\n\nControls.\n"""\n\nfrom scena import *\n\nx = 1  # one\n'
+        self.assertEqual(rg.program_code(src), "from scena import *\n\nx = 1  # one\n")
+        self.assertEqual(rg.program_code("x = 1\n"), "x = 1\n")
+
+    def test_every_line_fits_the_panel(self):
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        code = "from scena import *\n" + "\n".join(
+            f"v{i} = Rect(center=({i}, {i}), width=90, height=70, color='coral')"
+            for i in range(60)) + "\n"
+        size = (420, 360)
+        panel = rg.code_panel(code, size, title="examples/x.py")
+        self.assertEqual(panel.shape, (360, 420, 4))
+        ink = np.argwhere((np.abs(panel[..., :3].astype(int) - rg.CODE_BG).sum(axis=2)) > 30)
+        self.assertGreater(len(ink), 100, "no text drawn")
+        self.assertLess(ink[:, 1].max(), size[0] - 2, "a line runs off the right edge")
+        self.assertLess(ink[:, 0].max(), size[1] - 2, "lines run off the bottom")
+
+    def test_game_sits_right_of_the_code(self):
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        sinks = []
+
+        def factory(size, fps):
+            sinks.append(_Memory(size, fps))
+            return sinks[-1]
+
+        r = rg.record("examples/ping.py", factory, source=_PING, size=(400, 180), gpu=False,
+                      progress=False, seconds=0.1, layout="code")
+        frame = sinks[0].frames[-1]
+        panel_w = round(400 * rg.CODE_SHARE) // 2 * 2
+        self.assertTrue((frame[:, :panel_w, :3] == rg.CODE_BG).any(axis=2).mean() > 0.8)
+        gw, gh = r["game_size"]
+        self.assertLessEqual(gw, 400 - panel_w)
+        # the blue dot of the game is drawn right of the panel
+        blue = np.argwhere((frame[..., 2] > 200) & (frame[..., 0] < 80))
+        self.assertTrue(len(blue) and blue[:, 1].min() >= panel_w)
 
 
 class TestPilotClock(unittest.TestCase):
