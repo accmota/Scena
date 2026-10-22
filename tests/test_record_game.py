@@ -22,6 +22,9 @@ Bug classes guarded:
 * **The code beside the game is not the program, or does not fit.** The
   code panel drops only the module docstring, and every line fits its
   width and height; the game is drawn right of it (``TestCodePanel``).
+* **A build-up marks the wrong lines.** Each step's marked lines are what it
+  adds or changes since the step before (none for a step that only
+  explains), and every step spec names a real step (``TestBuildup``).
 * **The shot list rots, or a pilot does not do what it says.** Every take
   names a program that exists, a pilot that loads and keywords the pilot
   accepts (``TestTakes``). The tutorial-01 tour must reach every feature it
@@ -329,6 +332,63 @@ class TestCodePanel(unittest.TestCase):
         # the blue dot of the game is drawn right of the panel
         blue = np.argwhere((frame[..., 2] > 200) & (frame[..., 0] < 80))
         self.assertTrue(len(blue) and blue[:, 1].min() >= panel_w)
+
+
+class TestBuildup(unittest.TestCase):
+    """Build-up videos: a tutorial's steps in order, each marking what it adds."""
+
+    @classmethod
+    def setUpClass(cls):
+        import buildup
+        cls.bu = buildup
+        cls.steps = {bid: buildup.page_steps(b["page"]) for bid, b in tk.BUILDUPS.items()}
+
+    def test_steps_and_titles_come_from_the_page(self):
+        first = self.steps["primeiro_script"]
+        self.assertEqual([n for n, _, _ in first], list(range(1, len(first) + 1)))
+        self.assertTrue(all(title for _, title, _ in first))
+        self.assertEqual(first[0][1], "A janela")
+        self.assertIn("run()", first[-1][2])
+
+    def test_marks_what_a_step_adds_or_changes(self):
+        steps = self.steps["primeiro_script"]
+        before, after = steps[2][2], steps[3][2]          # 3 Três formas -> 4 Cor
+        shown = __import__("record_game").program_code(after).splitlines()
+        marked = [shown[k].strip() for k in self.bu.new_lines(before, after)]
+        self.assertEqual(marked, ['retangulo.color = "coral"', 'circulo.color = "#FF83FA"',
+                                  'triangulo.color = "gold"'])
+        first = steps[0][2]
+        self.assertEqual(len(self.bu.new_lines("", first)),
+                         sum(1 for line in first.splitlines() if line.strip()))
+        same = self.steps["pegar_estrelas"]                # 7 Além da tela changes no code
+        self.assertEqual(self.bu.new_lines(same[5][2], same[6][2]), [])
+
+    def test_every_step_spec_is_a_step_with_a_pilot(self):
+        import inspect
+        for bid, b in tk.BUILDUPS.items():
+            for n in b["steps"]:
+                with self.subTest(buildup=bid, step=n):
+                    self.assertTrue(1 <= n <= len(self.steps[bid]))
+                    spec = self.bu.step_spec(bid, n)
+                    inspect.signature(rg.load_pilot(spec["pilot"])).bind(
+                        object(), 0.0, **spec["args"])
+
+    def test_highlight_marks_only_its_lines(self):
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        code = "a = 1\nb = 2\nc = 3\nd = 4\n"
+
+        def band(**kw):
+            panel = rg.code_panel(code, (300, 400), **kw)
+            return np.flatnonzero((panel[:, :3, :3] == rg.CODE_MARK_EDGE).all(axis=2).any(axis=1))
+
+        self.assertEqual(len(band()), 0, "no mark without a highlight")
+        first, third = band(highlight=[0]), band(highlight=[2])
+        for rows in (first, third):
+            self.assertTrue(len(rows))
+            self.assertEqual(rows.max() - rows.min() + 1, len(rows), "one band")
+        self.assertEqual(len(first), len(third))
+        self.assertEqual(third.min() - first.min(), 2 * len(first), "two lines lower")
 
 
 class TestPilotClock(unittest.TestCase):

@@ -60,7 +60,7 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index; `--lang en`), `make_guia_thumbs.py` (thumbnails), `guia_parity.py` (the English Guide mirrors the Portuguese, unit by unit; state in `guia_en_state.json`, English index text in `guia_text_en.json`) | Contributors |
 | `tools/tutorial/` | The English tutorials' checks: `tutorial_parity.py` (each English page mirrors a Portuguese one, step by step, and its code is the Portuguese code renamed; state in `tutorial_en_state.json`), `names_en.json` (the glossary: English page and example names, one English name per Portuguese name in a series) | Contributors |
 | `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show; `editor_ninja.py`, the level editor's clip program | Contributors |
-| `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline; `takes.py`, the shot list; `pilots.py`, pilots that play whole runs; output and review sheets in `recordings/` (git-ignored) | Contributors |
+| `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline; `takes.py`, the shot list; `pilots.py`, pilots that play whole runs; `buildup.py`, a tutorial's steps one after another; output and review sheets in `recordings/` (git-ignored) | Contributors |
 | `tools/release/` | `make_examples_zip.py`: `scena-examples.zip` (the examples and only the media they use), zipped on a release from the list `examples_zip.txt` | Contributors |
 | `examples/` | Published beginner games; each tutorial ends in one of them | Authors |
 | `drafts/` | Private: game examples in development (a `media` link to `examples/media` lets them run). A game moves to `examples/` when it is ready | The maintainer |
@@ -477,6 +477,16 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   of the frame and the game on the right; the 01, 02 and catch-the-stars
   takes have a `code` twin. The font is the system's monospace (Menlo,
   DejaVu Sans Mono, Consolas): the repository ships none.
+- **Build-up videos are read from the tutorial pages.**
+  `python tools/video/buildup.py <id>` plays a tutorial's steps in order
+  (the steps `tests/test_tutorials.extract_steps` reads, titled by the
+  page data's `title:`), each in the code layout with the lines it adds or
+  changes marked, each driven by its own pilot (`BUILDUPS` in
+  `tools/video/takes.py`: a step that needs input to show its new part
+  gets a short timetable). One clip per step, joined by ffmpeg without
+  re-encoding into `recordings/buildup/<id>.mp4`. An edited tutorial step
+  is in the next build-up with no edit here; a step added or moved shifts
+  the numbers in `BUILDUPS`.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

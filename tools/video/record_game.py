@@ -193,9 +193,16 @@ def program_code(source: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def code_panel(source: str, size: tuple, title: str = "", font_path: str | None = None):
+CODE_MARK = (44, 49, 60)          # the band behind a highlighted line
+CODE_MARK_EDGE = (229, 192, 123)  # and its mark at the left edge
+
+
+def code_panel(source: str, size: tuple, title: str = "", font_path: str | None = None,
+               highlight=()):
     """An RGBA picture of ``source``, syntax-coloured (Pygments, ``CODE_STYLE``),
-    the largest font that fits every line in ``size``, ``title`` on top."""
+    the largest font that fits every line in ``size``, ``title`` on top.
+    ``highlight``: line numbers (0-based) drawn on a band with a mark at the
+    left (a build-up's new lines)."""
     import numpy as np
     from PIL import Image, ImageDraw, ImageFont
     from pygments.lexers import PythonLexer
@@ -234,6 +241,10 @@ def code_panel(source: str, size: tuple, title: str = "", font_path: str | None 
     if title:
         draw.text((pad, y), title, font=font, fill="#7f848e")
         y += 2 * step
+    for k in highlight:
+        top = y + k * step - round(step * 0.12)
+        draw.rectangle((0, top, w, top + step - 1), fill=CODE_MARK + (255,))
+        draw.rectangle((0, top, max(3, pad // 4), top + step - 1), fill=CODE_MARK_EDGE + (255,))
     x = pad
     for ttype, text in PythonLexer().get_tokens(source):
         for k, part in enumerate(text.split("\n")):
@@ -469,7 +480,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
            size: tuple = (1920, 1080), fps: int = GAME_FPS, supersample: int = 1,
            gpu: bool = True, seed: int = 0, progress: bool = True,
            source: str | None = None, layout: str | None = None,
-           code_font: str | None = None) -> dict:
+           code_font: str | None = None, code_title: str | None = None,
+           code_highlight=()) -> dict:
     """Play ``program`` and hand each video frame and the sound to a sink.
 
     ``sink_factory(size, fps)`` builds the sink once the frame size is known.
@@ -482,7 +494,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
     ``source``: run this text as if it were the file ``program`` (its media
     resolve from the file's folder).
     ``layout``: ``"code"`` puts the program's code on the left of the frame
-    (``code_panel``, ``CODE_SHARE`` of the width) and the game on the right.
+    (``code_panel``, ``CODE_SHARE`` of the width) and the game on the right;
+    ``code_title`` (default: the file) heads it, ``code_highlight`` marks lines.
     """
     import numpy as np
     import skia
@@ -528,9 +541,10 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
         canvas[...] = LETTERBOX + (255,)
         x0, y0 = panel_w + (size[0] - panel_w - gw) // 2, (size[1] - gh) // 2
         if layout == "code":
-            title = program if program.startswith("README") else path
+            title = code_title or (program if program.startswith("README") else path)
             canvas[:, :panel_w] = code_panel(program_code(text), (panel_w, size[1]),
-                                             title=title, font_path=code_font)
+                                             title=title, font_path=code_font,
+                                             highlight=code_highlight)
         sink = sink_factory(size, fps)
         game = mm.Pilot(run)
         step = GAME_FPS // fps

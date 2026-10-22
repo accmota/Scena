@@ -222,6 +222,48 @@ TAKES = {
 }
 
 
+# Build-up videos (``buildup.py``): a tutorial's steps one after another, each
+# step's code beside the step running. ``steps``: per step (from 1) a pilot,
+# its args and seconds; a step not listed plays 4 s with no input.
+_RIGHT = (("hold", 1.0, 3.0, "RIGHT"),)
+BUILDUPS = {
+    "primeiro_script": dict(page="docs/pt/tutorial/01-primeiro-script.html",
+                            program="examples/primeiro_script.py", steps={
+        1: dict(seconds=3.0), 2: dict(seconds=3.0),
+        5: dict(seconds=4.5),                    # the looks animate
+        7: dict(seconds=4.5),                    # the star moves by itself
+        8: dict(pilot="tour", seconds=5.0, args=dict(script=_RIGHT)),
+        9: dict(pilot="tour", seconds=5.0, args=dict(script=(
+            ("hold", 0.8, 1.4, "RIGHT"), ("hold", 1.4, 2.0, "UP"),
+            ("hold", 2.0, 2.6, "LEFT"), ("hold", 2.6, 3.2, "DOWN")))),
+        10: dict(pilot="tour", seconds=5.5, args=dict(script=(
+            ("click", 1.5, "@triangulo"), ("click", 2.7, "@triangulo"),
+            ("click", 3.9, "@triangulo")))),
+        11: dict(pilot="tour", seconds=6.0, args=dict(script=(
+            ("click", 1.4, "@retangulo"), ("click", 2.4, "@circulo"),
+            ("click", 3.4, "@triangulo"), ("click", 4.4, "@circulo")))),
+        12: dict(pilot="tour", seconds=6.0, args=dict(script=(
+            ("glide", 0.3, 1.0, (620, 610)), ("key", 1.1, "D"),
+            ("glide", 1.3, 1.9, (770, 530)), ("key", 2.0, "D"),
+            ("glide", 2.2, 2.8, (890, 620)), ("key", 2.9, "D"),
+            ("glide", 3.1, 3.7, (850, 330)), ("key", 3.8, "D")))),
+        13: dict(pilot="tour", seconds=5.0, args=dict(script=(
+            ("hold", 1.0, 2.4, "RIGHT"),))),     # past x = 800: the @when fires
+    }),
+    "pegar_estrelas": dict(page="docs/pt/tutorial/02-pegar-estrelas.html",
+                           program="examples/pegar_estrelas.py", steps={
+        1: dict(pilot="tour", seconds=4.5, args=dict(script=(
+            ("hold", 0.8, 1.8, "LEFT"), ("hold", 2.2, 3.6, "RIGHT")))),
+        2: dict(seconds=4.5),                    # one star falls
+        3: dict(seconds=4.5), 4: dict(seconds=5.0), 5: dict(seconds=5.0),
+        **{n: dict(pilot="catch_falling", seconds=secs,
+                   args=dict(_PEGAR, miss=miss, seed=n))
+           for n, secs, miss in ((6, 7.0, 0.1), (7, 5.0, 0.1), (8, 5.0, 0.2),
+                                 (9, 7.0, 0.3), (10, 8.0, 0.3))},
+    }),
+}
+
+
 def take(tid: str) -> dict:
     """The take ``tid`` with every field filled in."""
     spec = {**DEFAULTS, **TAKES[tid]}
