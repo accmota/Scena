@@ -1,0 +1,320 @@
+"""
+The English tutorials mirror the Portuguese ones (``tools/tutorial/tutorial_parity.py``).
+
+Bug classes guarded:
+
+* **The English code drifts from the Portuguese** (a fix lands in pt only, or
+  a translator changes a number): ``code_parity`` pairs every block under one
+  rename for the page.
+* **A rename changes what the program does**: two Portuguese names become one
+  English name; ``def atualiza`` becomes ``def update`` (now a hook);
+  ``self.pontos`` becomes ``self.points`` on a Sprite; a module or a file name
+  is translated.
+* **A translated step goes stale**: the Portuguese step changes after its
+  translation was marked.
+* **Portuguese left in a translated step** (prose, comments, docstrings).
+* **The draft breaks a page**: ``--draft`` renames code, snippets and anchors
+  the same way, so a note still points at its line (checked on every real page).
+
+Run:
+
+    python tests/run_tiers.py focused test_tutorial_parity
+"""
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+import textwrap
+import unittest
+from pathlib import Path
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tools", "tutorial"))
+
+import tutorial_parity as tp  # noqa: E402
+from tests.source_support import iter_files  # noqa: E402
+from tests import test_tutorials as pages  # noqa: E402
+
+
+def errors_of(pt: str, en: str) -> list:
+    return tp.code_parity(textwrap.dedent(pt), textwrap.dedent(en)).errors
+
+
+class TestCodeParity(unittest.TestCase):
+    PT = '''\
+        """Pegar estrelas."""
+        from random import uniform
+        from scena import *
+
+        # A barra
+        barra = Rect(center=(500, 60), width=120, height=20, color="crimson")
+        st.pontos = 0
+
+        def soltar_estrela():
+            Sprite("k-rolling-ball/star.png", size=32, center=(uniform(40, 960), 780), group="estrelas")
+
+        @collide(barra, "estrelas")
+        def pegou(barra, estrela):
+            estrela.destroy()
+            st.pontos += 1
+
+        placar = Text(text="", top_right=(980, 780))
+        placar.text @= lambda: f"Pontos: {st.pontos}"
+        run()
+        '''
+    EN = '''\
+        """Catch the stars."""
+        from random import uniform
+        from scena import *
+
+        # The paddle
+        paddle = Rect(center=(500, 60), width=120, height=20, color="crimson")
+        st.score = 0
+
+        def drop_star():
+            Sprite("k-rolling-ball/star.png", size=32, center=(uniform(40, 960), 780), group="stars")
+
+        @collide(paddle, "stars")
+        def caught(paddle, star):
+            star.destroy()
+            st.score += 1
+
+        board = Text(text="", top_right=(980, 780))
+        board.text @= lambda: f"{st.score} points"
+        run()
+        '''
+
+    def test_a_faithful_translation_pairs(self):
+        rn = tp.code_parity(textwrap.dedent(self.PT), textwrap.dedent(self.EN))
+        self.assertEqual(rn.errors, [])
+        self.assertEqual(rn.names["barra"], "paddle")
+        self.assertEqual(rn.strings["estrelas"], "stars")
+        self.assertNotIn("Rect", rn.names, "Scena names kept do not take part in the rename")
+
+    def test_the_same_program_pairs_with_itself(self):
+        self.assertEqual(errors_of(self.PT, self.PT), [])
+
+    def test_a_changed_number_or_structure_is_caught(self):
+        self.assertTrue(errors_of(self.PT, self.EN.replace("width=120", "width=150")))
+        self.assertTrue(errors_of(self.PT, self.EN.replace("st.score += 1", "st.score += 1\n    st.score += 1")))
+        self.assertTrue(errors_of(self.PT, self.EN.replace("from random import uniform", "from random import random")))
+
+    def test_one_name_one_translation(self):
+        self.assertTrue(errors_of("a = 1\nb = a\n", "x = 1\nb = y\n"), "a → x and a → y")
+        self.assertTrue(errors_of("vidas = 1\npontos = 2\n", "score = 1\nscore = 2\n"),
+                        "two pt names become one English name")
+        self.assertTrue(errors_of('group("estrelas")\ngroup("pedras")\n', 'group("rocks")\ngroup("rocks")\n'))
+
+    def test_an_english_name_may_not_land_on_a_scena_name(self):
+        self.assertTrue(errors_of("def atualiza(dt):\n    pass\n", "def update(dt):\n    pass\n"),
+                        "a plain function becomes a hook")
+        self.assertTrue(errors_of("class Nave(Sprite):\n    def setup(self):\n        self.cor_viva = 1\n",
+                                  "class Ship(Sprite):\n    def setup(self):\n        self.color = 1\n"),
+                        "an attribute of the user's Sprite lands on a Sprite member")
+        self.assertTrue(errors_of("maximo = 3\n", "max = 3\n"), "a builtin is shadowed")
+        self.assertTrue(errors_of("texto = 3\n", "Text = 3\n"), "an export is shadowed")
+
+    def test_free_words_stay_free(self):
+        # A local named like a keyword argument of the API, a field of st,
+        # comments, docstrings and the text of a display string.
+        self.assertEqual(errors_of('cor = "red"\nRect(color=cor)\nst.cor = 1\n',
+                                   'color = "red"\nRect(color=color)\nst.color = 1\n'), [])
+        self.assertEqual(errors_of('x = 1  # um\n"""Doc."""\nt = f"Vidas: {x}"\n',
+                                   'x = 1  # one\n"""Doc, longer."""\nt = f"{x} lives"\n'), [])
+        self.assertTrue(errors_of('t = f"{a} de {b}"\n', 't = f"{a}"\n'))
+
+    def test_a_file_name_stays_unless_the_english_file_exists(self):
+        self.assertTrue(errors_of('Level("levels/ninja.json")\n', 'Level("levels/ninja_en.json")\n'))
+        self.assertEqual(errors_of('Level("levels/ninja.json")\n', 'Level("levels/ninja.json")\n'), [])
+        self.assertEqual(errors_of('Level("levels/ninja.json")\n', 'Level("levels/ninja_perigos.json")\n'), [],
+                         "an existing file (an English level file will be one)")
+
+    def test_a_function_body_box_pairs(self):
+        self.assertEqual(errors_of("return Neon(color=cor)", "return Neon(color=colour)"), [])
+
+
+class TestRename(unittest.TestCase):
+    NAMES = {"barra": "paddle", "estrela": "star", "pontos": "score"}
+    STRINGS = {"estrelas": "stars"}
+
+    def ren(self, src):
+        return tp.rename_code(src, self.NAMES, self.STRINGS)
+
+    def test_names_strings_holes_and_untouched_text(self):
+        src = ('barra = Rect()  # a barra\n"""A barra."""\nSprite(group="estrelas")\n'
+               'st.pontos = 1\nt = f"barra: {st.pontos:.1f}"\nx = "uma barra"\n')
+        self.assertEqual(self.ren(src),
+                         'paddle = Rect()  # a barra\n"""A barra."""\nSprite(group="stars")\n'
+                         'st.score = 1\nt = f"barra: {st.score:.1f}"\nx = "uma barra"\n')
+
+    def test_a_fragment_is_renamed_like_its_line(self):
+        line = '    @collide(barra, "estrelas")'
+        self.assertIn(self.ren('collide(barra, "estrelas'), self.ren(line))
+        self.assertEqual(self.ren("estrela.destroy("), "star.destroy(")
+
+
+SAMPLE = '''<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+</head>
+<body>
+<script>
+Tutorial.mount({
+  n: "99",
+  title: "Amostra",
+  steps: [
+    {
+      title: "Um",
+      body: `<p>Você cria a barra.</p>`,
+      code: `from scena import *
+
+barra = Rect(center=(500, 60), width=120, height=20)  # a barra
+run()
+`,
+      notes: [
+        {
+          at: "barra = Rect(",
+          text: "A barra."
+        }
+      ]
+    },
+    {
+      title: "Dois",
+      example: "amostra.py",
+      code: `from scena import *
+
+barra = Rect(center=(500, 60), width=120, height=20)  # a barra
+barra.move_by(1, 0)
+run()
+`,
+      recap: `<ul><li><code>Rect</code> — uma forma.</li></ul>`
+    }
+  ]
+});
+</script>
+</body>
+</html>
+'''
+NAMES = {"pages": {"99": "99-sample.html"}, "examples": {"amostra.py": "sample.py"},
+         "series": {"amostra": {"pages": ["99"], "names": {"barra": "paddle"}}}}
+
+
+class TestDraftAndCheck(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.pt, self.en = base / "pt", base / "en"
+        self.pt.mkdir()
+        (self.pt / "99-amostra.html").write_text(SAMPLE, encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def check(self, state):
+        return tp.check(self.pt, self.en, state, NAMES)
+
+    def test_units_cover_the_page(self):
+        us = tp.units("99", SAMPLE)
+        self.assertEqual([n for n, _ in us], ["99:head", "99:1", "99:2", "99:tail"])
+        self.assertEqual("".join(t for _, t in us), SAMPLE)
+
+    def test_a_draft_is_a_pending_twin(self):
+        out = tp.draft("99", self.pt, self.en, NAMES)
+        text = out.read_text(encoding="utf-8")
+        self.assertIn('<html lang="en">', text)
+        self.assertIn('noindex', text)
+        self.assertIn('paddle = Rect(center=(500, 60)', text)
+        self.assertIn('at: "paddle = Rect("', text)
+        self.assertIn('example: "sample.py"', text)
+        self.assertIn("# a barra", text, "comments are the translator's")
+        self.assertEqual(self.check({}), [], "a draft passes while its units are pending")
+
+    def test_a_marked_step_must_be_translated_and_stay_fresh(self):
+        out = tp.draft("99", self.pt, self.en, NAMES)
+        state = {n: tp.digest(t) for n, t in tp.units("99", SAMPLE)}
+        errs = self.check(state)
+        self.assertTrue(any("ainda tem português" in e for e in errs), errs)
+        text = (out.read_text(encoding="utf-8")
+                .replace("Você cria a barra.", "You make the paddle.")
+                .replace("# a barra", "# the paddle")
+                .replace("A barra.", "The paddle.")
+                .replace("uma forma.", "a shape.")
+                .replace('title: "Amostra"', 'title: "Sample"'))
+        out.write_text(text, encoding="utf-8")
+        self.assertEqual(self.check(state), [])
+        (self.pt / "99-amostra.html").write_text(SAMPLE.replace("width=120", "width=150"), encoding="utf-8")
+        errs = self.check(state)
+        self.assertTrue(any("o pt mudou" in e for e in errs), errs)
+        self.assertTrue(any("width" in e or "120" in e for e in errs), "the code drift is reported too")
+
+    def test_the_glossary_and_the_page_agree(self):
+        out = tp.draft("99", self.pt, self.en, NAMES)
+        out.write_text(out.read_text(encoding="utf-8").replace("paddle", "bar"), encoding="utf-8")
+        self.assertTrue(any("glossário" in e for e in self.check({})))
+
+    def test_an_english_page_without_a_twin_and_a_lost_lang(self):
+        tp.draft("99", self.pt, self.en, NAMES)
+        (self.en / "98-orphan.html").write_text(SAMPLE.replace('n: "99"', 'n: "98"'), encoding="utf-8")
+        errs = self.check({})
+        self.assertTrue(any("98-orphan.html" in e for e in errs))
+        path = self.en / "99-sample.html"
+        path.write_text(path.read_text(encoding="utf-8").replace('lang="en"', 'lang="pt-BR"'), encoding="utf-8")
+        self.assertTrue(any('lang=\\"en\\"' in e or 'lang="en"' in e for e in self.check({})))
+
+
+class TestRealPages(unittest.TestCase):
+    """The tool reads every real page, and its draft keeps every page whole."""
+
+    def test_the_repository_is_in_parity(self):
+        self.assertEqual(tp.check(), [])
+
+    def test_every_page_drafts_to_a_twin_that_passes(self):
+        # An empty glossary keeps the code as it is: the draft must still pass
+        # the parity check and the page checks of ``test_tutorials`` (notes,
+        # snippets, focus and replaces anchors, steps).
+        pt_pages = tp.pages(tp.PT_DIR)
+        self.assertGreater(len(pt_pages), 30)
+        examples = {os.path.basename(e): "en_" + os.path.basename(e)
+                    for e in iter_files(os.path.join(ROOT, "examples"), ".py")}
+        names = {"pages": {k: f"{k}-x.html" for k in pt_pages}, "examples": examples}
+        with tempfile.TemporaryDirectory() as folder:
+            en = Path(folder) / "docs" / "en" / "tutorial"
+            for key in pt_pages:
+                with self.subTest(page=key):
+                    out = tp.draft(key, tp.PT_DIR, en, names)
+                    text = pt_pages[key].read_text(encoding="utf-8")
+                    self.assertEqual(tp.check_page(key, text, out.read_text(encoding="utf-8"), {}, names), [])
+                    steps = pages.extract_steps(str(out))
+                    self.assertEqual([s.code for s in steps],
+                                     [s.code for s in pages.extract_steps(str(pt_pages[key]))])
+                    for (ats, snips), step in zip(pages.step_notes(str(out)), steps):
+                        for at in ats:
+                            self.assertEqual(sum(at in ln for ln in step.code.split("\n")), 1, at)
+
+    def test_a_renaming_draft_keeps_notes_on_their_lines(self):
+        # Tutorial 02 with a real glossary: every note and snippet still hits
+        # its renamed line.
+        key = "02"
+        pt_path = tp.pages(tp.PT_DIR)[key]
+        names, strings = tp.page_names(pt_path.read_text(encoding="utf-8"))
+        gloss = {"pages": {key: "02-x.html"}, "examples": {"pegar_estrelas.py": "catch_stars.py"},
+                 "series": {"t": {"pages": [key], "names": {n: f"{n}_en" for n in names},
+                                  "strings": {s: f"{s}_en" for s in strings}}}}
+        with tempfile.TemporaryDirectory() as folder:
+            out = tp.draft(key, tp.PT_DIR, Path(folder) / "docs" / "en" / "tutorial", gloss)
+            self.assertEqual(tp.check_page(key, pt_path.read_text(encoding="utf-8"),
+                                           out.read_text(encoding="utf-8"), {}, gloss), [])
+            steps = pages.extract_steps(str(out))
+            self.assertIn("estrela_en", steps[-1].code)
+            for (ats, snips), step in zip(pages.step_notes(str(out)), steps):
+                for at in ats:
+                    self.assertEqual(sum(at in ln for ln in step.code.split("\n")), 1, at)
+                for snip in snips:
+                    self.assertEqual(pages.snippet_strays(step.code, snip), [], snip)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -16,7 +16,7 @@ Bug classes guarded (catalogue: Testing Design, TU and T4):
 * **A bounce only works at a fixed frame time** (TU5): ``TestFleetBounce``.
 
 One TestCase class per tutorial page (``TestSteps05`` runs
-``05-naves.html``), generated from the pages, so a new tutorial is covered
+``05-naves.html``, ``TestStepsEn05`` its English twin), generated from the pages, so a new tutorial is covered
 without an edit here. Each class runs its page's programs in parallel child
 processes. The whole module is ~440 s of CPU: it is ``SLOW`` (not in the quick
 tier) and ``SPLIT`` (the gate and deep tiers run one job per class). Why:
@@ -136,8 +136,10 @@ def run_all(paths: Optional[Sequence[str]] = None) -> List[str]:
 
 def page_case_name(path: str) -> str:
     """``.../05-naves.html`` → ``TestSteps05`` (the number names the page);
-    an appendix ``.../A-depuracao.html`` → ``TestStepsA``."""
-    return "TestSteps" + os.path.basename(path).split("-")[0]
+    an appendix ``.../A-depuracao.html`` → ``TestStepsA``; an English page
+    ``docs/en/tutorial/05-ships.html`` → ``TestStepsEn05``."""
+    lang = "" if pages.page_lang(path) == "pt" else pages.page_lang(path).capitalize()
+    return "TestSteps" + lang + pages.page_key(path)
 
 
 def _page_case(path: str) -> type:

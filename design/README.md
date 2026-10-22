@@ -58,6 +58,7 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | `design/` | These docs | Contributors |
 | `docs/` | The author site, published with GitHub Pages: `docs/<lang>/guide/` (the Guia), `docs/<lang>/tutorial/`, `docs/assets/` (thumbnails, tutorial css/js — shared by every language). `pt` is written first; `en` mirrors it | Authors |
 | `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index; `--lang en`), `make_guia_thumbs.py` (thumbnails), `guia_parity.py` (the English Guide mirrors the Portuguese, unit by unit; state in `guia_en_state.json`, English index text in `guia_text_en.json`) | Contributors |
+| `tools/tutorial/` | The English tutorials' checks: `tutorial_parity.py` (each English page mirrors a Portuguese one, step by step, and its code is the Portuguese code renamed; state in `tutorial_en_state.json`), `names_en.json` (the glossary: English page and example names, one English name per Portuguese name in a series) | Contributors |
 | `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show; `editor_ninja.py`, the level editor's clip program | Contributors |
 | `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline; `takes.py`, the shot list; `pilots.py`, pilots that play whole runs; output and review sheets in `recordings/` (git-ignored) | Contributors |
 | `tools/release/` | `make_examples_zip.py`: `scena-examples.zip` (the examples and only the media they use), zipped on a release from the list `examples_zip.txt` | Contributors |
@@ -320,6 +321,59 @@ runs its check in `quick`).
 - **Vocabulary.** "Vocabulary (English, `you`)" above. A term a chapter needs
   that the list lacks is added there first, then used.
 
+### The English tutorials
+
+Each English tutorial page mirrors one Portuguese page **step by step**, and
+`tools/tutorial/tutorial_parity.py` keeps the two in step
+(`tests/test_tutorial_parity.py` runs its check in `quick`). Every check of
+`tests/test_tutorials.py` and every step run of `tests/test_tutorial_steps.py`
+covers the English pages too (`TestStepsEn05` is page 05 in English).
+
+- **Two programs, one design.** The Portuguese code keeps Portuguese names
+  (they tell a beginner what is theirs and what is Scena's); the English code
+  is the same program with English names, not a second design.
+  `code_parity` pairs every code block of a page with its twin under **one
+  one-to-one rename for the page**: names, and word-like strings (group, clip
+  and act names). Comments, docstrings and the text of display strings
+  (`f"Pontos: {n}"` → `f"{n} points"`) are free; numbers, structure, imports
+  and file names are not (an English file name must be a file that exists:
+  the English level files). An English name may not land on a Scena export or
+  a builtin, nor, for a `def` or an attribute, on a member of the API
+  (`def atualiza` → `def update` would turn into a hook; `self.pontos` →
+  `self.points` on a Sprite would hide a member). A field of `st` is free.
+- **Where.** Pages live in `docs/en/tutorial/`, paired by the key before the
+  first `-` of the file name (`05-naves.html` ↔ `05-ships.html`). While the
+  series is being written they carry `noindex` and list in `draft.html`
+  (`repo_layout.TUTORIAL_INDEX`); `index.html` keeps saying the English
+  tutorials are on their way. The English examples sit **next to the
+  Portuguese ones in `examples/`** under English names (the engine finds media
+  next to the script or in its `media/`, so an `examples/en/` folder would
+  need a second search place, a link or a copy of the media); an English page
+  whose `example:` keeps the Portuguese file name fails the check.
+- **The engine's own words** (buttons, box titles: "Your turn", "What we
+  covered") come from `WORDS` in `docs/assets/tutorial/tutorial.js`, chosen
+  by the page's `<html lang>`; an English page must say `lang="en"`.
+- **Units.** `<key>:head` (up to the steps), one `<key>:<n>` per step object,
+  `<key>:tail`. A unit is **pending** or **translated**
+  (`tools/tutorial/tutorial_en_state.json` records the hash of the Portuguese
+  text it was translated from). The code parity and the step shape (fields,
+  code blocks, notes, snippets, items, recap and explore items, the same Guia
+  links) hold for pending units too; a translated unit must also have no
+  Portuguese left (prose, comments, docstrings) and its Portuguese must not
+  have changed since (`--diff <unit>`, translate, `--mark <unit>`).
+- **Glossary.** `tools/tutorial/names_en.json`: `pages` (key → English page
+  file), `examples` (Portuguese example → English example), `series` (pages
+  that share one English name per Portuguese name: `nave` → `ship` in every
+  Naves tutorial). The page's rename must agree with it.
+- **Method.** `--names <key>` lists the names and word-like strings a page
+  needs (once the page exists, its rename); the glossary gets them, series by
+  series. `--draft <key>` writes the English page from the Portuguese one with
+  `lang="en"`, `noindex`, the English example name, and every code block,
+  snippet, note anchor and `focus` / `replaces` anchor renamed by the
+  glossary (one scanner for all of them, so a note still finds its line).
+  Then the prose, comments and docstrings are translated, and the units
+  marked.
+
 ## Editing the README
 
 `README.md` is the landing page on GitHub **and** on PyPI (`readme` in
@@ -398,7 +452,9 @@ runs its check in `quick`).
   hitbox), not the picture: the runner's robot is 90 px wide on screen and
   42 px to the ground. Corredor's random level makes spots no jump clears
   at the early speeds (a crate, a short strip, a hole), so its takes are
-  several runs, each until the game ends it.
+  several runs, each until the game ends it. A pilot drops or clicks on
+  what the game reads, not near it: Ligue 4 takes the column from the
+  cell under the drop, so a drop just above the board is a drop off it.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

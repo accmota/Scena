@@ -27,6 +27,9 @@ its examples/ file (test_scripts_run).
   python tests/run_tiers.py focused test_tutorials                   # the pages (~1 s)
   python tests/run_tiers.py focused test_tutorial_steps.TestSteps05  # one page's steps
   python tests/run_tiers.py focused test_tutorial_steps              # every step (~1 min)
+The English pages (docs/en/tutorial/) get the same checks and step runs
+(TestStepsEn05), and test_tutorial_parity (quick) holds them to their
+Portuguese twins (design/README.md, "The English tutorials").
 
 Avoid "python -m unittest discover -s tests" as a routine check: in one process
 the suite takes ~24 min instead of ~2 (the heap grows module after module and

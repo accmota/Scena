@@ -36,7 +36,9 @@ Bug classes guarded:
   makes ``play`` a no-op. Such a call asks ``showing`` first.
 
 How: each step's ``code:`` template literal is extracted from
-``docs/pt/tutorial/NN-*.html`` (``extract_steps``). A ``try`` snippet is
+``docs/<lang>/tutorial/NN-*.html`` (``extract_steps``): every check runs on
+the Portuguese pages and on the English ones (``tutorial_pages``; the English
+pages mirror the Portuguese, ``tools/tutorial/tutorial_parity.py``). A ``try`` snippet is
 appended to its step (``append_snippet``); a snippet that only makes sense
 inside one of the step's functions (it names a local such as ``x`` /
 ``forma``, or it is a bare ``return``) is compiled inside a function instead
@@ -80,6 +82,8 @@ from tests.source_support import iter_files  # noqa: E402
 from tests import repo_layout as layout  # noqa: E402
 
 TUTORIALS = layout.TUTORIAL
+sys.path.insert(0, layout.GUIDE_TOOLS)
+from validate_guia import PAGES as GUIDE_PAGES  # noqa: E402
 
 # ``NN-slug.html`` is a tutorial; ``A-slug.html`` (one capital letter) is an
 # appendix: reference fragments that run like steps, with no example file and
@@ -112,9 +116,32 @@ class Step(NamedTuple):
     places: Dict[int, List[str]]        # try line → the lines it replaces
 
 
-def tutorial_pages() -> list:
-    """``docs/pt/tutorial/NN-*.html`` and the appendices ``A-*.html``, sorted."""
-    return [p for p in iter_files(TUTORIALS, ".html") if _PAGE.fullmatch(os.path.basename(p))]
+def tutorial_pages(lang: Optional[str] = None) -> list:
+    """``docs/<lang>/tutorial/NN-*.html`` and the appendices ``A-*.html``, sorted;
+    every language (Portuguese first) when ``lang`` is ``None``."""
+    out = []
+    for code in (layout.LANGS if lang is None else (lang,)):
+        out += [p for p in iter_files(layout.tutorial_dir(code), ".html")
+                if _PAGE.fullmatch(os.path.basename(p))]
+    return out
+
+
+def page_lang(path: str) -> str:
+    """``"pt"`` / ``"en"``: the language folder a tutorial page lives in (a
+    page outside ``docs/<lang>/tutorial/``, a test's sample, counts as ``"pt"``)."""
+    lang = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(path))))
+    return lang if lang in layout.LANGS else "pt"
+
+
+def page_key(path: str) -> str:
+    """``"05"`` / ``"05i"`` / ``"A"``: what pairs a page with its other-language twin."""
+    return os.path.basename(path).split("-", 1)[0]
+
+
+def guide_ids(lang: str) -> set:
+    """The ids of the Guia a page in ``lang`` links into (the English one is a draft
+    until it is published: ``validate_guia.PAGES``)."""
+    return set(re.findall(r'\bid="([^"]+)"', _read(os.path.normpath(os.path.join(layout.DOCS, lang, "guide", GUIDE_PAGES[lang])))))
 
 
 _BLOCK = re.compile(r'\b(code|try|example|replaces):\s*(`((?:\\.|[^`\\])*)`|\[|"([^"]*)")', re.S)
@@ -372,6 +399,8 @@ class TestAppendixPages(unittest.TestCase):
         self.assertEqual(page_case_name("/x/A-depuracao.html"), "TestStepsA")
         self.assertEqual(page_case_name("/x/05-naves.html"), "TestSteps05")
         self.assertEqual(page_case_name("/x/05i-grupos.html"), "TestSteps05i")
+        self.assertEqual(page_case_name("/r/docs/en/tutorial/05-ships.html"), "TestStepsEn05")
+        self.assertEqual(page_case_name("/r/docs/pt/tutorial/05-naves.html"), "TestSteps05")
 
 
 class TestTutorialEndsInAnExample(unittest.TestCase):
@@ -486,7 +515,6 @@ class TestProseSteps(unittest.TestCase):
 
 
 _RECAP = re.compile(r"^      recap:\s*`((?:\\.|[^`\\])*)`", re.M | re.S)
-GUIDE_PT = os.path.join(ROOT, "docs", "pt", "guide", "index.html")
 
 
 def step_recaps(path: str) -> List[Optional[str]]:
@@ -543,7 +571,7 @@ class TestTutorialRecap(unittest.TestCase):
                     "and on no other")
 
     def test_recap_links_point_at_guia_anchors_that_exist(self):
-        guide_ids = set(re.findall(r'\bid="([^"]+)"', _read(GUIDE_PT)))
+        ids = {lang: guide_ids(lang) for lang in layout.LANGS}
         for path in tutorial_pages():
             page = os.path.basename(path)
             for i, recap in enumerate(step_recaps(path)):
@@ -555,7 +583,7 @@ class TestTutorialRecap(unittest.TestCase):
                     for href in links:
                         self.assertTrue(href.startswith("../guide/index.html#"),
                                         f"{page}: {href} is not a link into the Guia")
-                        self.assertIn(href.split("#", 1)[1], guide_ids,
+                        self.assertIn(href.split("#", 1)[1], ids[page_lang(path)],
                                       f"{page}: the Guia has no #{href.split('#', 1)[1]}")
 
     def test_recap_list_teaches_nothing_the_tutorial_did_not_show(self):
@@ -813,20 +841,57 @@ class TestTutorialIndex(unittest.TestCase):
 
     _HREF = re.compile(r'<a class="card[^"]*" href="([^"]+)"')
 
+    @staticmethod
+    def indexes():
+        """``(lang, index path)`` per language that has pages (the English pages
+        list in a draft index until they are published: ``repo_layout.TUTORIAL_INDEX``)."""
+        return [(lang, os.path.join(layout.tutorial_dir(lang), layout.TUTORIAL_INDEX[lang]))
+                for lang in layout.LANGS if tutorial_pages(lang)]
+
     def test_every_page_has_one_card_in_order(self):
-        index = _read(os.path.join(TUTORIALS, "index.html"))
-        cards = self._HREF.findall(index)
-        pages = [os.path.basename(p) for p in tutorial_pages()]
-        numbered = sorted(p for p in pages if not is_appendix(p))
-        appendices = sorted(p for p in pages if is_appendix(p))
-        self.assertEqual(cards, numbered + appendices)
+        for lang, path in self.indexes():
+            with self.subTest(index=os.path.relpath(path, ROOT)):
+                self.assertTrue(os.path.isfile(path), f"no {path}: the {lang} pages need an index")
+                cards = self._HREF.findall(_read(path))
+                pages = [os.path.basename(p) for p in tutorial_pages(lang)]
+                numbered = sorted(p for p in pages if not is_appendix(p))
+                appendices = sorted(p for p in pages if is_appendix(p))
+                self.assertEqual(cards, numbered + appendices)
 
     def test_an_interlude_card_is_marked(self):
-        index = _read(os.path.join(TUTORIALS, "index.html"))
-        for match in re.finditer(r'<a class="card([^"]*)" href="([^"]+)"', index):
-            classes, href = match.groups()
-            with self.subTest(card=href):
-                self.assertEqual("interlude" in classes.split(), is_interlude(href))
+        for _lang, path in self.indexes():
+            for match in re.finditer(r'<a class="card([^"]*)" href="([^"]+)"', _read(path)):
+                classes, href = match.groups()
+                with self.subTest(card=href):
+                    self.assertEqual("interlude" in classes.split(), is_interlude(href))
+
+
+class TestPageLanguage(unittest.TestCase):
+    """The engine writes its own words (buttons, box titles) in the page's language.
+
+    Bug class: an English page that keeps ``<html lang="pt-BR">`` shows
+    "Próximo →" and "Agora é com você" around English prose; a word added to
+    one language's table and not the other's prints ``undefined``.
+    """
+
+    def test_every_page_declares_its_folder_language(self):
+        for path in tutorial_pages():
+            with self.subTest(page=os.path.relpath(path, ROOT)):
+                lang = re.search(r'<html lang="([^"]+)"', _read(path))
+                self.assertIsNotNone(lang, "no <html lang>")
+                self.assertEqual(lang.group(1).split("-")[0], page_lang(path))
+
+    def test_the_engine_has_every_word_in_every_language(self):
+        js = _read(os.path.join(ROOT, "docs", "assets", "tutorial", "tutorial.js"))
+        table = js[js.index("const WORDS = {"):js.index("const T = WORDS")]
+        blocks = dict(re.findall(r"^  (\w+): \{(.*?)^  \},", table, re.M | re.S))
+        self.assertEqual(sorted(blocks), sorted(layout.LANGS))
+        keys = {lang: re.findall(r"(\w+):", body) for lang, body in blocks.items()}
+        self.assertEqual(keys["en"], keys["pt"])
+        self.assertIn("documentElement.lang", js)
+        # No word of the engine is left out of the table.
+        for word in ("Próximo", "Anterior", "copiado", "Agora é com você", "O que vimos"):
+            self.assertEqual(js.count(word), 1, f"{word!r} outside WORDS")
 
 
 class TestTutorialPageSyntax(unittest.TestCase):
@@ -863,7 +928,7 @@ class TestTutorialDive(unittest.TestCase):
     """"Para entender melhor": a dive box has a title and a body, and its links resolve."""
 
     def test_dive_items_have_a_title_a_body_and_working_links(self):
-        guide_ids = set(re.findall(r'\bid="([^"]+)"', _read(GUIDE_PT)))
+        ids = {lang: guide_ids(lang) for lang in layout.LANGS}
         seen = 0
         for path in tutorial_pages():
             page = os.path.basename(path)
@@ -879,7 +944,7 @@ class TestTutorialDive(unittest.TestCase):
                         self.assertRegex(item, r"body:\s*`", f"{page}: a dive item needs a body")
                         for href in re.findall(r'href="([^"]*)"', item):
                             self.assertTrue(href.startswith("../guide/index.html#"), f"{page}: {href}")
-                            self.assertIn(href.split("#", 1)[1], guide_ids,
+                            self.assertIn(href.split("#", 1)[1], ids[page_lang(path)],
                                           f"{page}: the Guia has no #{href.split('#', 1)[1]}")
         self.assertGreater(seen, 0, "no tutorial uses a dive box (05 'O céu' should)")
 

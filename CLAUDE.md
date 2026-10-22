@@ -1,4 +1,4 @@
-Design docs are in [design]; the author site (Guia, tutorials; `pt` and `en`) is in [docs]; the Guia's tools are in [tools/guide]. Folder map: [design/README.md], "Repository layout".
+Design docs are in [design]; the author site (Guia, tutorials; `pt` and `en`) is in [docs]; the Guia's tools are in [tools/guide], the English tutorials' checks in [tools/tutorial]. Folder map: [design/README.md], "Repository layout".
 Read first [design/Scena Design.md] to understand the system.
 
 Agent reading protocol (full version: [design/README.md], "Use (agents)"):

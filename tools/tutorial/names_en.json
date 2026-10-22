@@ -1,0 +1,6 @@
+{
+ "_doc": "Glossary of the English tutorials (tools/tutorial/tutorial_parity.py). pages: key -> English page file. examples: pt example file -> English example file (both live in examples/). series: pages that share one English name per Portuguese name ('*' = every page); names = identifiers, strings = word-like strings (group, clip, act names).",
+ "pages": {},
+ "examples": {},
+ "series": {}
+}

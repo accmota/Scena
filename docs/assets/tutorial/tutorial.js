@@ -24,6 +24,26 @@ const API = new Set([
   "Contrail", "Beat", "Menu", "Palette",
 ]);
 
+// The words the engine writes itself, in the page's language (<html lang>):
+// the English pages mirror the Portuguese ones (tools/tutorial/tutorial_parity.py).
+const WORDS = {
+  pt: {
+    copied: "copiado", step: "passo", same: (n) => `${n} linhas iguais`,
+    copyAll: "script inteiro", copyNew: "copiar trecho novo", copy: "copiar",
+    tryAlso: "Experimente também", dive: "Para entender melhor", tutorials: "Tutoriais",
+    recap: "O que vimos", explore: "Agora é com você",
+    stepOf: (i, n) => `Passo ${i} de ${n}`, prev: "← Anterior", next: "Próximo →",
+  },
+  en: {
+    copied: "copied", step: "step", same: (n) => `${n} same lines`,
+    copyAll: "whole script", copyNew: "copy the new lines", copy: "copy",
+    tryAlso: "Try this too", dive: "A closer look", tutorials: "Tutorials",
+    recap: "What we covered", explore: "Your turn",
+    stepOf: (i, n) => `Step ${i} of ${n}`, prev: "← Previous", next: "Next →",
+  },
+};
+const T = WORDS[(document.documentElement.lang || "pt").slice(0, 2)] || WORDS.pt;
+
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -152,7 +172,7 @@ async function copyText(text, btn) {
   }
   if (!btn) return;
   const prev = btn.textContent;
-  btn.textContent = "copiado";
+  btn.textContent = T.copied;
   btn.classList.add("ok");
   setTimeout(() => {
     btn.textContent = prev;
@@ -167,7 +187,7 @@ function slugify(title, i) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  return s || `passo-${i + 1}`;
+  return s || `${T.step}-${i + 1}`;
 }
 
 // The note pins: line index → pin numbers. A note's `at` is a piece of one
@@ -255,7 +275,7 @@ function renderCode(code, marks, reading, notes) {
   for (const [a, b] of folds) {
     for (; i < a; i++) out.push(row(lines[i], i));
     const hidden = lines.slice(a, b).map((line, k) => row(line, a + k)).join("");
-    out.push(`<div class="fold"><button type="button" class="fold-btn" data-fold>··· ${b - a} linhas iguais ···</button><div class="fold-body" hidden>${hidden}</div></div>`);
+    out.push(`<div class="fold"><button type="button" class="fold-btn" data-fold>··· ${T.same(b - a)} ···</button><div class="fold-body" hidden>${hidden}</div></div>`);
     i = b;
   }
   for (; i < lines.length; i++) out.push(row(lines[i], i));
@@ -264,8 +284,8 @@ function renderCode(code, marks, reading, notes) {
     <div class="code-panel">
       <div class="code-bar">
         <div class="code-actions">
-          <button type="button" class="ghost-btn" data-copy-all>script inteiro</button>
-          ${reading ? "" : `<button type="button" class="copy-btn" data-copy-new>copiar trecho novo</button>`}
+          <button type="button" class="ghost-btn" data-copy-all>${T.copyAll}</button>
+          ${reading ? "" : `<button type="button" class="copy-btn" data-copy-new>${T.copyNew}</button>`}
         </div>
       </div>
       <pre class="code">${rows}</pre>
@@ -359,7 +379,7 @@ function renderAlt(alt, attr, key) {
           ${alt.note ? `<p>${alt.note}</p>` : ""}
           <div class="code-panel">
             <div class="code-bar">
-              <button type="button" class="copy-btn" ${attr}="${key}">copiar</button>
+              <button type="button" class="copy-btn" ${attr}="${key}">${T.copy}</button>
             </div>
             <pre class="code">${rows}</pre>
           </div>
@@ -371,7 +391,7 @@ function renderTry(items) {
   const blocks = items.map((alt, i) => renderAlt(alt, "data-try", i)).join("");
   return `
     <aside class="try">
-      <h2>Experimente também</h2>
+      <h2>${T.tryAlso}</h2>
       ${blocks}
     </aside>`;
 }
@@ -385,7 +405,7 @@ function renderDive(items) {
       const alts = (item.try || []).map((alt, i) => renderAlt(alt, "data-dive", `${d}.${i}`)).join("");
       return `
     <aside class="dive">
-      <h2>Para entender melhor</h2>
+      <h2>${T.dive}</h2>
       <h3>${esc(item.title)}</h3>
       <div class="dive-body">${item.body || ""}</div>
       ${alts}
@@ -411,7 +431,7 @@ const Tutorial = {
         <aside class="sidebar">
           <div class="brand">
             <a href="index.html">Scena</a>
-            <span class="sub">Tutoriais</span>
+            <span class="sub">${T.tutorials}</span>
           </div>
           <div class="tut-label">${esc(cfg.label || "Tutorial")} ${cfg.n || ""}</div>
           <div class="tut-title">${esc(cfg.title)}</div>
@@ -459,14 +479,14 @@ const Tutorial = {
         ? `<div class="closing">${step.closing}</div>`
         : "";
       const recap = step.recap
-        ? `<aside class="recap"><h2>O que vimos</h2>${step.recap}</aside>`
+        ? `<aside class="recap"><h2>${T.recap}</h2>${step.recap}</aside>`
         : "";
       const explore = step.explore
-        ? `<aside class="explore"><h2>Agora é com você</h2>${step.explore}</aside>`
+        ? `<aside class="explore"><h2>${T.explore}</h2>${step.explore}</aside>`
         : "";
 
       main.innerHTML = `
-        <div class="kicker">${part ? `${esc(part.part)} · ` : ""}Passo ${idx + 1} de ${steps.length}</div>
+        <div class="kicker">${part ? `${esc(part.part)} · ` : ""}${T.stepOf(idx + 1, steps.length)}</div>
         <h1>${esc(step.title)}</h1>
         <div class="explain">${renderProse(step.body)}</div>
         ${code ? renderCode(code, marks, !!step.focus, step.notes) : ""}
@@ -478,8 +498,8 @@ const Tutorial = {
         ${recap}
         ${explore}
         <div class="step-nav">
-          <button type="button" class="nav-btn" data-prev ${idx === 0 ? "disabled" : ""}>← Anterior</button>
-          <button type="button" class="nav-btn primary" data-next ${idx === steps.length - 1 ? "disabled" : ""}>Próximo →</button>
+          <button type="button" class="nav-btn" data-prev ${idx === 0 ? "disabled" : ""}>${T.prev}</button>
+          <button type="button" class="nav-btn primary" data-next ${idx === steps.length - 1 ? "disabled" : ""}>${T.next}</button>
         </div>`;
 
       bindCopy(main, copyNew, copyAll);

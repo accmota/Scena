@@ -1547,7 +1547,11 @@ Rules:
   ~64 s / ~500 s without; 2026-10-10). Quick still runs each tutorial's last
   step, as its `examples/` file (`test_scripts_run`, 30 frames), and `test_tutorials`
   holds the file equal to the step. Guard: `test_run_tiers` (one gate job per page,
-  none in quick).
+  none in quick). The English pages (`docs/en/tutorial/`) get the same page checks
+  and one step class each (`TestStepsEn05`); `test_tutorial_parity` (quick, ~2 s)
+  pairs every English code block with its Portuguese twin under one rename per
+  page, so a fix that lands in one language only fails before any run
+  (design/README.md, "The English tutorials").
 - **A module destroys what its tests made.** A leftover with a group fails at any
   count: group names are process-wide, so one tagged actor answers every later
   `group[...]` and moves under every later `resolve` on its name (deep serial pass
