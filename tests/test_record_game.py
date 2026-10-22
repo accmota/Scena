@@ -13,12 +13,25 @@ Bug classes guarded:
   ends early (``TestSoundCard``).
 * **A frame size the encoder refuses.** 4:2:0 video needs even edges: the
   game is fitted with even edges whatever its design aspect.
+* **A take ends at the wrong place.** A pilot ends the run (``game.done``)
+  and the take stops after its tail, with sound to the same frame; a take
+  that hits its cap first says so (``TestRunEnds``).
+* **A stall goes unnoticed.** The review counts still and silent seconds and
+  flags a long still stretch, except in the tail after the run is over
+  (``TestReview``).
+* **The shot list rots, or a pilot does not do what it says.** Every take
+  names a program that exists, a pilot that loads and keywords the pilot
+  accepts (``TestTakes``). The tutorial-01 tour must reach every feature it
+  names, and the catch pilot must catch most and miss some
+  (``TestPilotsPlay``: played without drawing).
 
     python -m unittest tests.test_record_game -v
 """
 from __future__ import annotations
 
+import inspect
 import os
+import random
 import sys
 import unittest
 
@@ -28,6 +41,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools", "video"))
 
 import record_game as rg  # noqa: E402
+import takes as tk  # noqa: E402
 from scena.audio_mixer import Mixer, make_sine  # noqa: E402
 
 
@@ -160,6 +174,195 @@ class TestSync(unittest.TestCase):
         r, sink = self._record(seconds=0.5, fps=30)
         self.assertEqual(len(sink.frames), 15)
         self.assertEqual(len(sink.samples), 22050)
+
+
+def _done_at(when):
+    def pilot(game, t):
+        if t >= when:
+            game.done = True
+    return pilot
+
+
+class TestRunEnds(unittest.TestCase):
+    def _record(self, pilot, **kw):
+        sinks = []
+
+        def factory(size, fps):
+            sinks.append(_Memory(size, fps))
+            return sinks[-1]
+
+        r = rg.record("examples/ping.py", factory, pilot=pilot, source=_PING, size=(160, 90),
+                      gpu=False, progress=False, **kw)
+        return r, sinks[0]
+
+    def test_take_stops_a_tail_after_done(self):
+        r, sink = self._record(_done_at(0.5), seconds=5.0, tail=0.25)
+        self.assertEqual(r["ended"], "done")
+        self.assertEqual(len(sink.frames), 30 + 15)
+        self.assertEqual(len(sink.samples), 45 * 735)
+
+    def test_done_in_the_lead_keeps_only_the_tail(self):
+        r, sink = self._record(_done_at(0.2), seconds=5.0, lead=0.5, tail=0.25)
+        self.assertEqual((r["ended"], len(sink.frames)), ("done", 15))
+        self.assertEqual(len(sink.samples), 15 * 735)
+
+    def test_cap_before_done(self):
+        r, sink = self._record(_done_at(3.0), seconds=0.5)
+        self.assertEqual((r["ended"], len(sink.frames)), ("cap", 30))
+
+    def test_thirty_fps_tail(self):
+        r, sink = self._record(_done_at(0.5), seconds=5.0, tail=0.5, fps=30)
+        self.assertEqual((r["ended"], len(sink.frames)), ("done", 30))
+        self.assertEqual(len(sink.samples), 60 * 735)
+
+    def test_pilot_keywords_arrive(self):
+        seen = {}
+
+        def pilot(game, t, *, speed, side="left"):
+            seen.update(speed=speed, side=side)
+            game.done = True
+
+        self._record(pilot, args={"speed": 3}, seconds=1.0, tail=0.0)
+        self.assertEqual(seen, {"speed": 3, "side": "left"})
+
+
+class TestReview(unittest.TestCase):
+    def _review(self, moving_seconds, still_seconds, fps=10):
+        rv = rg.Review(None, fps, every=1.0, thumb_width=16)
+        rng = np.random.default_rng(0)
+        still = np.zeros((40, 64, 4), dtype=np.uint8)
+        for k in range(moving_seconds * fps):
+            rv.frame(rng.integers(0, 255, (40, 64, 4), dtype=np.uint8))
+        for k in range(still_seconds * fps):
+            rv.frame(still)
+        return rv
+
+    def test_still_stretch_is_flagged(self):
+        rv = self._review(3, 5)
+        rv.finish(np.zeros((8 * 100, 2), np.float32), 100)
+        rep = rv.report()
+        self.assertEqual((rep["longest_still"], rep["still_at"]), (4, 3))
+        self.assertEqual((rep["silent"], rep["heard"]), (8, 8))
+        self.assertTrue(any("still" in f for f in rv.flags(rep, ended="cap", expect_end=False)))
+        self.assertEqual(len(rv.thumbs), 8)
+
+    def test_tail_after_the_run_is_not_a_stall(self):
+        rv = self._review(4, 4)
+        rep = rv.report(tail_from=4.0)
+        self.assertEqual(rep["longest_still"], 0)
+        self.assertEqual(rv.flags(rep, ended="done", expect_end=True), [])
+
+    def test_run_that_never_ends_is_flagged(self):
+        rv = self._review(3, 0)
+        rep = rv.report()
+        self.assertTrue(rv.flags(rep, ended="cap", expect_end=True))
+        self.assertEqual(rv.flags(rep, ended="cap", expect_end=False), [])
+
+    def test_sound_counts_as_heard(self):
+        rv = self._review(2, 0)
+        t = np.arange(200) / 100
+        rv.finish(np.stack([np.sin(t * 40), np.sin(t * 40)], axis=1).astype(np.float32) * 0.3, 100)
+        self.assertEqual(rv.report()["silent"], 0)
+
+
+class TestTakes(unittest.TestCase):
+    def test_every_take_resolves(self):
+        import make_readme_media as mm
+        blocks = mm.readme_blocks()
+        for tid in tk.TAKES:
+            with self.subTest(take=tid):
+                game, _, name = tid.partition("/")
+                self.assertTrue(game and name and "/" not in name, "ids are <game>/<take>")
+                spec = tk.take(tid)
+                prog = spec["program"]
+                if prog.startswith("README.md#"):
+                    self.assertIn(prog.split("#", 1)[1], blocks)
+                else:
+                    self.assertTrue(os.path.isfile(os.path.join(ROOT, prog)), prog)
+                fly = rg.load_pilot(spec["pilot"])
+                inspect.signature(fly).bind(object(), 0.0, **spec["args"])
+                self.assertIn(spec["end"], ("done", "cap"))
+                self.assertIn(spec["fps"], (60, 30))
+                self.assertEqual([v % 2 for v in spec["size"]], [0, 0])
+                self.assertGreater(spec["seconds"], 0)
+
+    def test_last_version_of_a_series(self):
+        """A series (naves_1 … naves_6) is shown by its last file only."""
+        import re
+        from tests.source_support import iter_files
+        files = [os.path.basename(p) for p in iter_files(os.path.join(ROOT, "examples"), ".py")]
+        last = {}
+        for f in files:
+            m = re.match(r"([a-z]+)_(\d+)(?:_\w+)?\.py$", f)
+            if m:
+                last[m.group(1)] = max(last.get(m.group(1), 0), int(m.group(2)))
+        for tid in tk.TAKES:
+            m = re.match(r"examples/([a-z]+)_(\d+)", tk.take(tid)["program"])
+            if m:
+                self.assertEqual(int(m.group(2)), last[m.group(1)], tid)
+
+    def test_a_game_picks_all_its_takes(self):
+        self.assertEqual(rg.pick_takes(["pegar_estrelas"]),
+                         [t for t in tk.TAKES if t.startswith("pegar_estrelas/")])
+        self.assertEqual(rg.pick_takes(["primeiro_script/tour"]), ["primeiro_script/tour"])
+        with self.assertRaises(SystemExit):
+            rg.pick_takes(["no_such_game"])
+
+
+def _play(tid, seconds):
+    """Play a take without drawing; returns ``(ns, extra)`` read before the run closes."""
+    import make_readme_media as mm
+    from program_support import ProgramRun  # type: ignore
+    from hypothesis_support import registry  # type: ignore
+    spec = tk.take(tid)
+    path, source = mm.program_of({"program": spec["program"]})
+    random.seed(spec["seed"])
+    np.random.seed(spec["seed"])
+    run = ProgramRun(path, source=source, seed=spec["seed"], draw=False)
+    try:
+        run.start()
+        game = mm.Pilot(run)
+        fly = rg.load_pilot(spec["pilot"])
+        before = {k: getattr(run.ns.get(k), "color", None)
+                  for k in ("retangulo", "circulo", "triangulo")}
+        for i in range(int(seconds * 60)):
+            fly(game, i / 60, **spec["args"])
+            run.step(1)
+        ns = run.ns
+        circles = [o for o in registry().live_objects()
+                   if type(o).__name__ == "Circle" and getattr(o, "is_alive", False)]
+        out = {"done": getattr(game, "done", False), "before": before,
+               "circles": len(circles)}
+        if "st" in ns:
+            out["st"] = {k: getattr(ns["st"], k, None) for k in ("pontos", "perdidas", "score")}
+        if "triangulo" in ns:
+            out.update(triangle=ns["triangulo"].color, radius=ns["circulo"].radius,
+                       colors={k: ns[k].color for k in before})
+        return out
+    finally:
+        run.close(strict=False)
+
+
+class TestPilotsPlay(unittest.TestCase):
+    def test_tour_reaches_every_feature(self):
+        r = _play("primeiro_script/tour", 20.5)
+        self.assertTrue(r["done"])
+        self.assertEqual(r["radius"], 60, "the star never crossed x = 800")
+        self.assertTrue(r["triangle"] == "white", r["triangle"])
+        for k in ("retangulo", "circulo"):
+            self.assertNotEqual(r["colors"][k], r["before"][k], f"{k} was never clicked")
+        self.assertEqual(r["circles"] - 1, 8, "D drops one circle per tap")
+
+    def test_catch_pilot_catches_most_and_misses_some(self):
+        """Stars fall faster than the bar crosses the screen: even a perfect
+        player misses about a fifth, so careful is measured against sloppy."""
+        sloppy = _play("pegar_estrelas/sloppy", 40)["st"]       # 2026-10-22: 21 / 19
+        careful = _play("pegar_estrelas/careful", 40)["st"]     # 30 / 10
+        self.assertGreater(careful["perdidas"], 0)
+        self.assertGreaterEqual(careful["pontos"], 2.5 * careful["perdidas"])
+        self.assertGreater(sloppy["pontos"], 0.7 * sloppy["perdidas"])
+        self.assertGreaterEqual(sloppy["perdidas"], 1.5 * careful["perdidas"],
+                                "the two takes must look different")
 
 
 if __name__ == "__main__":

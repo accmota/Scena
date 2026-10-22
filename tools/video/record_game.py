@@ -22,11 +22,26 @@ is wall time, never the world's.
   python tools/video/record_game.py README.md#catch-the-stars --pilot follow_stars --seconds 10
   python tools/video/record_game.py examples/bolas.py --frames-dir recordings/bolas  # PNGs + WAV
 
+The shot list (``takes.py``) names every take of the YouTube videos: a
+program, a video pilot (``pilots.py``) with its keywords, a seed. A take ends
+when its pilot says the run is over (``game.done``, plus a tail) or at its
+cap. Each take writes ``recordings/<game>/<take>.mp4`` and a review sheet
+``<take>.review.jpg`` (frames every 5 s, still and silent seconds, flags a
+stall the pilot did not mean). ``--review`` makes only the sheet, small and
+fast, to check a pilot before a full render. Several takes run as child
+processes, ``-j`` at once.
+
+  python tools/video/record_game.py --list
+  python tools/video/record_game.py --all --review            # check every pilot (seconds)
+  python tools/video/record_game.py --take pegar_estrelas     # a game's takes, 1440p60
+  python tools/video/record_game.py --all -j 2
+
 The program is an example file or ``README.md#<clip id>`` (a README block, as
-the README tool runs it). ``--pilot`` names a pilot of the README tool
-(``PILOTS`` there) or a function in any file, ``path/to/pilots.py:function``;
-a pilot is ``(game, t)`` each frame (see "Pilots" in the README tool). The
-game is fitted into ``--size`` with its own aspect and letterboxed.
+the README tool runs it). ``--pilot`` names a video pilot (``pilots.py``), a
+pilot of the README tool (``PILOTS`` there) or a function in any file,
+``path/to/pilots.py:function``; a pilot is ``(game, t, **args)`` each frame
+(see ``pilots.py``). The game is fitted into ``--size`` with its own aspect
+and letterboxed.
 
 Output: ``.mp4`` (H.264, BT.709, AAC 48 kHz) or, with ``--prores``, ``.mov``
 (ProRes 422 HQ, PCM) for an editor; ``--frames-dir`` writes a PNG sequence and
@@ -50,6 +65,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent          # tools/video (this script)
 REPO = ROOT.parent.parent
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tests"))
 sys.path.insert(0, str(REPO / "tools" / "readme"))
@@ -153,7 +169,7 @@ def draw_cursor(frame, at, scale: float):
 
 
 def load_pilot(spec: str):
-    """A README pilot by name, or ``file.py:function``."""
+    """A video pilot (``pilots.py``) or README pilot by name, or ``file.py:function``."""
     if ":" in spec and spec.split(":", 1)[0].endswith(".py"):
         path, name = spec.rsplit(":", 1)
         mod_spec = importlib.util.spec_from_file_location(Path(path).stem, path)
@@ -165,8 +181,12 @@ def load_pilot(spec: str):
         if not callable(fn):
             raise SystemExit(f"{path} has no function {name!r}")
         return fn
+    import pilots
+    if spec in pilots.PILOTS:
+        return pilots.PILOTS[spec]
     if spec not in mm.PILOTS:
-        raise SystemExit(f"unknown pilot {spec!r}; README pilots: {', '.join(mm.PILOTS)} "
+        raise SystemExit(f"unknown pilot {spec!r}; video pilots: {', '.join(pilots.PILOTS)}; "
+                         f"README pilots: {', '.join(mm.PILOTS)} "
                          "(or path/to/pilots.py:function)")
     return mm.PILOTS[spec]
 
@@ -263,15 +283,112 @@ class FfmpegSink:
         self.tmp.cleanup()
 
 
+class Review:
+    """A take's contact sheet and stall numbers; passes every frame on to ``inner``.
+
+    A second is *still* when the picture a second later differs by less than
+    ``STILL`` (mean of |Δ| over the channels, 0–255): a frozen "press SPACE"
+    screen, a hero stuck at a wall. It is *silent* when its sound stays under
+    ``SILENT`` (RMS). A take that stands still for ``STALL`` seconds in a row is
+    flagged: a stall the pilot did not mean is a pilot bug.
+    """
+
+    STILL = 0.15
+    SILENT = 1e-3
+    STALL = 3
+
+    def __init__(self, inner, fps: int, *, every: float = 5.0, thumb_width: int = 384) -> None:
+        self.inner, self.fps = inner, fps
+        self.every = max(1, int(round(every * fps)))
+        self.thumb_width = thumb_width
+        self.n = 0
+        self.thumbs: list = []
+        self.motion: list = []          # one value per second
+        self.loud: list = []            # one RMS per second
+        self._last = None
+
+    def frame(self, rgba) -> None:
+        import numpy as np
+        if self.n % self.fps == 0:
+            small = rgba[::4, ::4, :3].astype(np.int16)
+            if self._last is not None:
+                self.motion.append(float(np.abs(small - self._last).mean()))
+            self._last = small
+        if self.n % self.every == 0:
+            from PIL import Image
+            img = Image.fromarray(rgba, "RGBA").convert("RGB")
+            h = round(img.height * self.thumb_width / img.width)
+            self.thumbs.append((self.n / self.fps, img.resize((self.thumb_width, h))))
+        if self.inner is not None:
+            self.inner.frame(rgba)
+        self.n += 1
+
+    def finish(self, samples, rate: int):
+        import numpy as np
+        self.loud = [float(np.sqrt((samples[i:i + rate] ** 2).mean()))
+                     for i in range(0, len(samples) - rate // 2, rate)]
+        return self.inner.finish(samples, rate) if self.inner is not None else None
+
+    def abort(self) -> None:
+        if self.inner is not None:
+            self.inner.abort()
+
+    def report(self, *, tail_from: float | None = None) -> dict:
+        """``tail_from``: seconds after which stillness is meant (the run is over)."""
+        still = [m < self.STILL for m in self.motion]
+        if tail_from is not None:
+            still = still[:max(0, int(tail_from))]
+        longest, at, run_len = 0, 0, 0
+        for k, s in enumerate(still):
+            run_len = run_len + 1 if s else 0
+            if run_len > longest:
+                longest, at = run_len, k - run_len + 1
+        return {"seconds": self.n / self.fps, "still": sum(still),
+                "longest_still": longest, "still_at": at,
+                "silent": sum(x < self.SILENT for x in self.loud), "heard": len(self.loud)}
+
+    def flags(self, report: dict, *, ended: str, expect_end: bool) -> list:
+        out = []
+        if report["longest_still"] >= self.STALL:
+            out.append(f"still {report['longest_still']} s from {report['still_at']} s")
+        if expect_end and ended != "done":
+            out.append("the run never ended (cap reached)")
+        return out
+
+    def save_sheet(self, path, title: str) -> None:
+        from PIL import Image, ImageDraw
+        if not self.thumbs:
+            return
+        cols = 4
+        tw, th = self.thumbs[0][1].size
+        rows = (len(self.thumbs) + cols - 1) // cols
+        head = 28
+        sheet = Image.new("RGB", (cols * tw, head + rows * th), (24, 24, 28))
+        draw = ImageDraw.Draw(sheet)
+        draw.text((8, 8), title, fill=(235, 235, 235))
+        for k, (t, img) in enumerate(self.thumbs):
+            x, y = (k % cols) * tw, head + (k // cols) * th
+            sheet.paste(img, (x, y))
+            draw.rectangle((x, y, x + 44, y + 16), fill=(0, 0, 0))
+            draw.text((x + 4, y + 3), f"{t:5.1f}s", fill=(255, 255, 255))
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        sheet.save(path, quality=85)
+
+
 # ── Recording ──────────────────────────────────────────────────────────────
 
-def record(program: str, sink_factory, *, pilot: str = "watch", seconds: float = 10.0,
-           lead: float = 0.0, size: tuple = (1920, 1080), fps: int = GAME_FPS,
-           supersample: int = 1, gpu: bool = True, seed: int = 0,
-           progress: bool = True, source: str | None = None) -> dict:
+def record(program: str, sink_factory, *, pilot="watch", args: dict | None = None,
+           seconds: float = 10.0, lead: float = 0.0, tail: float = 2.0,
+           size: tuple = (1920, 1080), fps: int = GAME_FPS, supersample: int = 1,
+           gpu: bool = True, seed: int = 0, progress: bool = True,
+           source: str | None = None) -> dict:
     """Play ``program`` and hand each video frame and the sound to a sink.
 
     ``sink_factory(size, fps)`` builds the sink once the frame size is known.
+    ``pilot``: a name (``load_pilot``) or a function ``(game, t, **args)``.
+    ``seconds``: the take's length, or its cap when the pilot ends the run: a
+    pilot sets ``game.done = True`` when the run is over (a results screen),
+    and the take stops ``tail`` seconds later (``ended`` is then ``"done"``).
     ``lead``: seconds played (and heard by no one) before the take starts.
     ``fps``: 60, or 30 (every second game frame; the sound keeps every frame).
     ``source``: run this text as if it were the file ``program`` (its media
@@ -286,7 +403,8 @@ def record(program: str, sink_factory, *, pilot: str = "watch", seconds: float =
         raise ValueError(f"fps must divide {GAME_FPS} (60 or 30), got {fps}")
     random.seed(seed)
     np.random.seed(seed)
-    fly = load_pilot(pilot)
+    fly = load_pilot(pilot) if isinstance(pilot, str) else pilot
+    args = dict(args or {})
     if source is None:
         path, source = mm.program_of({"program": program})
     else:
@@ -319,16 +437,24 @@ def record(program: str, sink_factory, *, pilot: str = "watch", seconds: float =
         game = mm.Pilot(run)
         step = GAME_FPS // fps
         lead_frames = int(round(lead * GAME_FPS))
-        total = lead_frames + int(round(seconds * fps)) * step
+        stop = int(round(seconds * fps))        # video frames; the pilot may end it sooner
+        ended = "cap"
         cursor_scale = size[1] / 540
         t0 = time.monotonic()
         frames = 0
+        i = 0
         with SoundCard(get_mixer()) as card:
-            for i in range(total):
-                fly(game, i / GAME_FPS)
+            while frames < stop:
+                fly(game, i / GAME_FPS, **args)
+                if ended == "cap" and getattr(game, "done", False):
+                    ended = "done"
+                    stop = frames + int(round(tail * fps))
+                    if frames >= stop:
+                        break
                 run.step(1)
                 card.pull(keep=i >= lead_frames)
-                if i < lead_frames or (i - lead_frames) % step != step - 1:
+                i += 1
+                if i <= lead_frames or (i - lead_frames) % step:
                     continue
                 if backend == "gpu":
                     surf.flushAndSubmit()
@@ -358,7 +484,7 @@ def record(program: str, sink_factory, *, pilot: str = "watch", seconds: float =
         except Exception:
             pass
     return {"out": str(out), "frames": frames, "samples": int(len(samples)),
-            "rate": rate, "backend": backend, "game_size": (gw, gh)}
+            "rate": rate, "backend": backend, "game_size": (gw, gh), "ended": ended}
 
 
 def _size(text: str) -> tuple:
@@ -371,9 +497,121 @@ def _size(text: str) -> tuple:
     return w, h
 
 
+# ── Takes (the shot list in takes.py) ──────────────────────────────────────
+
+RECORDINGS = REPO / "recordings"
+REVIEW_SIZE, REVIEW_FPS = (640, 360), 30
+
+
+def pick_takes(names: list[str]) -> list[str]:
+    """Take ids for ``names``: an id, or a game (every take ``<game>/…``)."""
+    from takes import TAKES
+    out = []
+    for name in names:
+        hit = [t for t in TAKES if t == name or t.startswith(name.rstrip("/") + "/")]
+        if not hit:
+            raise SystemExit(f"no take {name!r}; --list shows them")
+        out += [t for t in hit if t not in out]
+    return out
+
+
+def run_take(tid: str, *, review_only: bool = False, gpu: bool = True,
+             progress: bool = True) -> dict:
+    """Record one take of the shot list (or only its review, fast and small)."""
+    from takes import take
+    spec = take(tid)
+    out = RECORDINGS / f"{tid}.mp4"
+    sheet = RECORDINGS / f"{tid}.review.jpg"
+    size, fps = (REVIEW_SIZE, REVIEW_FPS) if review_only else (spec["size"], spec["fps"])
+    ffmpeg = None if review_only else find_ffmpeg()
+    if not review_only and ffmpeg is None:
+        raise SystemExit("no ffmpeg: install it (brew install ffmpeg) or pip install imageio-ffmpeg")
+    reviews = []
+
+    def factory(size, fps):
+        inner = None if review_only else FfmpegSink(out, size, fps, ffmpeg=ffmpeg, crf=spec["crf"])
+        reviews.append(Review(inner, fps))
+        return reviews[-1]
+
+    r = record(spec["program"], factory, pilot=spec["pilot"], args=spec["args"],
+               seconds=spec["seconds"], lead=spec["lead"], tail=spec["tail"], size=size,
+               fps=fps, seed=spec["seed"], gpu=gpu, progress=progress)
+    review = reviews[0]
+    tail_from = r["frames"] / fps - spec["tail"] if r["ended"] == "done" else None
+    rep = review.report(tail_from=tail_from)
+    flags = review.flags(rep, ended=r["ended"], expect_end=spec["end"] == "done")
+    title = (f"{tid}   {rep['seconds']:.1f} s ({r['ended']})   still {rep['still']} s   "
+             f"silent {rep['silent']}/{rep['heard']} s" + ("   !! " + "; ".join(flags) if flags else ""))
+    review.save_sheet(sheet, title)
+    return {"take": tid, "ok": True, "out": None if review_only else str(out),
+            "sheet": str(sheet), "ended": r["ended"], "flags": flags, **rep}
+
+
+def _take_child(tid: str, review_only: bool, gpu: bool) -> dict:
+    cmd = [sys.executable, str(Path(__file__).resolve()), "--take", tid, "--child"]
+    cmd += ["--review"] if review_only else []
+    cmd += [] if gpu else ["--cpu"]
+    out = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace",
+                         cwd=str(REPO), env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+    for line in reversed(out.stdout.strip().splitlines()):
+        if line.startswith("{"):
+            import json
+            return json.loads(line)
+    tail = "\n".join((out.stderr or "").strip().splitlines()[-6:])
+    return {"take": tid, "ok": False, "error": f"exit {out.returncode}: {tail}"}
+
+
+def _print_take(r: dict) -> None:
+    if not r.get("ok"):
+        print(f"FAILED  {r['take']}: {r.get('error')}")
+        return
+    where = r["out"] or r["sheet"]
+    print(f"{'ok' if not r['flags'] else 'check':7} {r['take']}  {r['seconds']:.1f} s ({r['ended']})  "
+          f"still {r['still']} s  silent {r['silent']}/{r['heard']} s  -> {where}")
+    for f in r["flags"]:
+        print(f"        !! {f}")
+
+
+def takes_main(args) -> int:
+    import json
+    from concurrent.futures import ThreadPoolExecutor
+    from takes import TAKES
+    if args.list:
+        for tid, t in TAKES.items():
+            print(f"{tid:32} {t['program']:36} {t['pilot']}")
+        return 0
+    ids = list(TAKES) if args.all else pick_takes(args.take)
+    gpu = not args.cpu
+    if args.child or len(ids) == 1:
+        try:
+            r = run_take(ids[0], review_only=args.review, gpu=gpu, progress=not args.child)
+        except Exception as e:  # noqa: BLE001 — reported as data
+            r = {"take": ids[0], "ok": False, "error": f"{type(e).__name__}: {e}"}
+        if args.child:
+            print(json.dumps(r), flush=True)
+        else:
+            _print_take(r)
+        return 0 if r.get("ok") else 1
+    with ThreadPoolExecutor(max(1, args.jobs)) as pool:
+        results = pool.map(lambda tid: _take_child(tid, args.review, gpu), ids)
+        failed = 0
+        for r in results:
+            _print_take(r)
+            failed += not r.get("ok")
+    return 1 if failed else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("program", help="examples/<file>.py or README.md#<clip id>")
+    ap.add_argument("program", nargs="?", help="examples/<file>.py or README.md#<clip id>")
+    ap.add_argument("--take", action="append", default=[],
+                    help="a take of takes.py, or a game (all its takes); repeatable")
+    ap.add_argument("--all", action="store_true", help="every take of takes.py")
+    ap.add_argument("--list", action="store_true", help="list the takes")
+    ap.add_argument("--review", action="store_true",
+                    help="takes: only the review sheet, small and fast (no video)")
+    ap.add_argument("-j", "--jobs", type=int, default=2, help="takes recorded at once")
+    ap.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--pilot", default="watch",
                     help="a README pilot name or path/to/pilots.py:function (default: watch)")
     ap.add_argument("--seconds", type=float, default=10.0, help="length of the take")
@@ -389,8 +627,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", help="output file (default recordings/<program>.mp4)")
     ap.add_argument("--frames-dir", help="write PNG frames + audio.wav here instead")
     args = ap.parse_args(argv)
+    if args.take or args.all or args.list:
+        return takes_main(args)
+    if not args.program:
+        ap.error("name a program, or --take / --all / --list")
 
-    stem = args.program.split("#", 1)[1] if "#" in args.program else Path(args.program).stem
+    stem =args.program.split("#", 1)[1] if "#" in args.program else Path(args.program).stem
     if args.frames_dir:
         def factory(size, fps):
             return FramesSink(Path(args.frames_dir), size, fps)
