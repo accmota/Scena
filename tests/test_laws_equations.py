@@ -202,6 +202,10 @@ E1_EXCLUDED = {
     "constelacao.py": "ACADEMIC (as aviao): the author's own Euler steps (vel += push * dt, "
                       "chase toward a heading) in a pursuit where the nearest prey switches; "
                       "a capture lands a few frames apart at other pacings",
+    "affinity.py": "ACADEMIC (as constelacao): the dish is the author's own world step "
+                   "(Euler with dt, random jitter drawn every frame, bonds that break with "
+                   "probability quebra * dt), so a bond line appears at another time at "
+                   "other pacings; Scena only draws it",
     "aviao.py": "ACADEMIC: the author's own Euler step (vel.y -= g * dt) puts the plane a "
                 "few pixels apart at uneven pacing; a door passed one frame later",
     "naves_5_modos.py": "ACADEMIC: a self re-arming after / a mode's wait starts each period at "

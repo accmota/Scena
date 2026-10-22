@@ -47,6 +47,7 @@ PROGRAM_EXCLUDED = {
     "set_watchdog": "a debugging knob: test_framework_debug",
     "set_extrude_focus": "a look tuning knob (Extrude): test_visuals",
     "show_tracks": "a debug overlay: test_track",
+    "show_processes": "a debug overlay (the process panel): test_process_overlay",
     "Microphone": "an input device (no device headless): test_audio_capture",
     "Level": "loads a level file made by the editor: test_level, scena_editor/tests",
     # Reached through the State bag only. Before 0.8.0 ``st.x`` handed out the
