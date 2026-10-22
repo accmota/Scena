@@ -6,10 +6,11 @@
 </p>
 
 <p align="center">
-  <a href="https://accmota.github.io/Scena/pt/tutorial/">Tutorial</a> ·
+  <a href="https://accmota.github.io/Scena/en/tutorial/">Tutorial</a> ·
   <a href="https://accmota.github.io/Scena/en/guide/">API Guide</a> ·
   <a href="https://github.com/accmota/Scena/tree/main/examples">Examples</a> ·
-  <a href="https://github.com/accmota/Scena/blob/main/CHANGELOG.md">Changelog</a>
+  <a href="https://github.com/accmota/Scena/blob/main/CHANGELOG.md">Changelog</a><br>
+  <sub>Em português: <a href="https://accmota.github.io/Scena/pt/tutorial/">Tutorial</a> · <a href="https://accmota.github.io/Scena/pt/guide/">Guia da API</a></sub>
 </p>
 
 <p align="center">
@@ -25,6 +26,8 @@ these is a line or two that says what it means, and it takes care of the
 machinery underneath: the loop, the drawing, the timers, the cleanup. A first
 program is three lines, a whole game fits on one screen, and with over 100
 ready-made looks, effects and backgrounds it looks good from the start.
+Everything is drawn by Skia, the graphics engine behind Chrome and Android:
+smooth, antialiased shapes and GPU effects, with nothing to set up.
 
 ## A whole game, one screen of code
 
@@ -90,10 +93,11 @@ clean up. The label is a formula (`@=`): it keeps up with the score by itself.
   Add detail only when you want it. This is the philosophy of the whole
   engine: nearly every feature works in a short, simple form, and has the
   vocabulary for more when you want it. Easy to begin, room to grow.
-- **Code that says what it means.** `@collide`, `@when`, `@every` and `@click`
-  read like the rules of the game. A formula (`@=`) states a relation once, and
-  it stays true. A health bar that rides above the hero and shrinks with each
-  hit, with no update code:
+- **Code that says what it means.** Scena is event-based: you never write the
+  game loop. `@collide`, `@when`, `@every` and `@click` read like the rules of
+  the game, and Scena runs each one at the right moment. A formula (`@=`)
+  states a relation once, and it stays true. A health bar that rides above the
+  hero and shrinks with each hit, with no update code:
 
   ```python
   bar = Rect(width=60, height=6, color="lime green")
@@ -105,6 +109,9 @@ clean up. The label is a formula (`@=`): it keeps up with the score by itself.
   screen is what your code says.
 - **Mistakes explain themselves.** A misspelled key, color or parameter gets a
   message that says what was wrong and suggests the closest right name.
+- **Documented end to end.** The [API Guide](https://accmota.github.io/Scena/en/guide/)
+  covers the whole engine, and the [tutorial](https://accmota.github.io/Scena/en/tutorial/)
+  teaches it in 32 chapters, from a first three-line program to complete games.
 
 ## What's in the box
 
@@ -119,6 +126,25 @@ ball.color = "coral"
 ball.visual = Neon("cyan")                          # one of 30 looks
 hero = Sprite(Sheet("ninja/Run__*.png", fps=12))    # an animation from its frames
 hero.glow = True
+```
+
+**Groups.** Give anything a tag, and `group["wasps"]` is everything that has
+it: a live view, with no list to keep up to date. Call a method or set a field
+on the group, and every member gets it. Ask for the nearest one, filter, count,
+take the center, or combine groups with `|`, `&` and `-`. An empty group is
+not an error, so there is nothing to check before acting on it. Rules take
+groups too: `@collide("shots", "wasps")` is every shot against every wasp.
+
+```python
+for x in range(100, 800, 100):
+    Sprite("wasp.png", center=(x, 500), group="wasps")
+
+group["wasps"].move_by(0, -10)                          # every wasp moves
+group["wasps"].hp = 3                                   # every wasp gets 3 lives
+target = group["wasps"].nearest(hero.center)            # the closest one
+group["wasps"].filter(lambda w: w.hp <= 0).destroy()    # the dead ones go
+if group["wasps"].empty:
+    st.wave += 1
 ```
 
 **Geometry.** Build a shape the way you think of it (center and radius, two
@@ -204,7 +230,7 @@ def hit(shot, enemy):
 ```
 
 **Looks, effects and backgrounds.** Over 100 ready to use: looks for shapes,
-screen effects, animated backgrounds and one-shot explosions, all composable.
+screen effects, animated backgrounds and one-shot explosions, all composable and parameterizable.
 Any look works on any shape or sprite.
 
 <!-- clip: electric-hosts -->
@@ -236,7 +262,7 @@ run()
   </tr>
   <tr>
     <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/bg-stardust.webp" width="240" alt="A stardust background"><br><code>Stardust()</code></td>
-    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/spatial-fire~style-tongues.anim.webp" width="240" alt="Tongues of fire licking upward"><br><code>Fire(style="tongues")</code></td>
+    <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/spatial-fire~style-tongues.anim.webp" width="100" alt="Tongues of fire licking upward"><br><code>Fire(style="tongues")</code></td>
     <td align="center"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/thumbs/fx-dissolve-out.anim.webp" width="240" alt="A ship dissolving"><br><code>ship.dissolve_out(0.5)</code></td>
   </tr>
 </table>
@@ -335,17 +361,16 @@ python scena-examples/naves_4_escudo.py
 
 ## Learn
 
-- **[Tutorial](https://accmota.github.io/Scena/pt/tutorial/)**: from the first
-  shapes to a space shooter, bouncing balls, a side-scrolling plane, a ninja
-  platformer built in the level editor, a board game, a voice-driven music
-  studio and an endless runner. Each one ends in a file in
-  [`examples/`](https://github.com/accmota/Scena/tree/main/examples).
-- **[API Guide](https://accmota.github.io/Scena/en/guide/)**: every class,
-  function and effect, with a live picture of each look
-  ([em português](https://accmota.github.io/Scena/pt/guide/)).
+Scena comes with comprehensive documentation.
 
-The tutorial is in Portuguese today; the English version is in progress. The
-API itself (every name you type) is in English.
+- **[Tutorial](https://accmota.github.io/Scena/en/tutorial/)**: 32 chapters that
+  start from the basics and add one idea at a time: from the first shapes to a
+  space shooter, bouncing balls, a side-scroller, a platformer, and much more.
+- **[API Guide](https://accmota.github.io/Scena/en/guide/)**: documents the whole
+  engine: every class, function and effect, with a live picture of each look.
+
+Em português: [Tutorial](https://accmota.github.io/Scena/pt/tutorial/) ·
+[Guia da API](https://accmota.github.io/Scena/pt/guide/)
 
 ## Is Scena for you?
 
@@ -363,8 +388,9 @@ and for having fun doing it.
 - **It's Python.** If you know Python or are learning it, Scena is for you. No
   new language to learn: what you learn here works anywhere, and the rest of
   Python works here, from NumPy to the AI libraries Python is known for.
-- **Fast enough for its games.** A typical 2D arcade game runs smoothly:
-  tens to hundreds of objects at 60 fps on an ordinary computer. When a scene
+- **Fast enough for its games.** Drawn on the GPU by Skia, a typical 2D arcade
+  game runs smoothly: tens to hundreds of objects at 60 fps on an ordinary
+  computer. When a scene
   asks for more than the machine has, Scena lowers the detail of its effects
   before it drops frames.
 - **What it is not.** It is not a professional engine: it is 2D only and runs
