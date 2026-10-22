@@ -365,9 +365,13 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   Portuguese left (prose, comments, docstrings) and its Portuguese must not
   have changed since (`--diff <unit>`, translate, `--mark <unit>`).
 - **Glossary.** `tools/tutorial/names_en.json`: `pages` (key → English page
-  file), `examples` (Portuguese example → English example), `series` (pages
-  that share one English name per Portuguese name: `nave` → `ship` in every
-  Naves tutorial). The page's rename must agree with it.
+  file), `examples` (Portuguese example → English example), `titles` (key →
+  English title), `series` (pages that share one English name per Portuguese
+  name: `nave` → `ship` in every Naves tutorial; the `core` series, pages
+  `"*"`, holds the names many pages share, and a later series overrides it for
+  its pages). The page's rename must agree with it. `--names` leaves out what
+  the engine owns (keys, colors, members, and any word the engine's code
+  spells in quotes, `"ease_out"`) and the text of f-strings, which is free.
 - **Method.** `--names <key>` lists the names and word-like strings a page
   needs (once the page exists, its rename); the glossary gets them, series by
   series. `--draft <key>` writes the English page from the Portuguese one with

@@ -135,6 +135,31 @@ class TestCodeParity(unittest.TestCase):
         self.assertEqual(errors_of("return Neon(color=cor)", "return Neon(color=colour)"), [])
 
 
+class TestPageNames(unittest.TestCase):
+    """``--names`` lists what a page's English twin must rename, and nothing the engine owns."""
+
+    def test_engine_values_are_left_out_and_group_tags_stay(self):
+        names, strings = tp.page_names(tp.pages(tp.PT_DIR)["02"].read_text(encoding="utf-8"))
+        self.assertIn("estrela", names)
+        self.assertIn("heroi", strings)
+        # "forever" is a value the engine reads; a quoted word in an engine
+        # docstring ("heroi" in an example) does not make it an engine word.
+        for word in ("forever", "LEFT", "crimson"):
+            self.assertNotIn(word, strings)
+        self.assertFalse(tp._engine_word("heroi"))
+        # The text of an f-string is free to translate (f"{lugar}º" → f"P{spot}"),
+        # so a piece of it is not a string the glossary must rename.
+        _names, race = tp.page_names(tp.pages(tp.PT_DIR)["32"].read_text(encoding="utf-8"))
+        self.assertNotIn("º", race)
+        self.assertTrue(tp._engine_word("ease_out"))
+
+    def test_an_error_is_reported_once_per_page(self):
+        pt = SAMPLE.replace("run()\n`", "def atualiza(dt):\n    pass\nrun()\n`")      # in both steps
+        en = pt.replace("def atualiza", "def update").replace('lang="pt-BR"', 'lang="en"')
+        errs = [e for e in tp.check_page("99", pt, en, {}, {}) if "update" in e]
+        self.assertEqual(len(errs), 1, errs)
+
+
 class TestRename(unittest.TestCase):
     NAMES = {"barra": "paddle", "estrela": "star", "pontos": "score"}
     STRINGS = {"estrelas": "stars"}

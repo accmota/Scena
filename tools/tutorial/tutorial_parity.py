@@ -202,11 +202,27 @@ def shadowed() -> tuple[set, set]:
     return _SHADOW
 
 
+_ENGINE_STRINGS: set | None = None
+
+
 def _engine_word(s: str) -> bool:
     """A string the engine reads as a word of its own: a key (``"LEFT"``), a colour
-    (``"crimson"``), a member name (``"text"``). Kept as it is."""
+    (``"crimson"``), a member name (``"text"``), a value the engine's own source
+    spells in quotes (``"plasma"``, ``"ease_out"``, ``"ground"``). Kept as it is."""
+    global _ENGINE_STRINGS
+    if _ENGINE_STRINGS is None:
+        words = set()
+        for path in (REPO / "scena").rglob("*.py"):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            docs = {id(n.value) for n in ast.walk(tree) if _is_doc(n)}   # docstrings quote examples
+            words |= {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)
+                      and isinstance(n.value, str) and id(n) not in docs and re.fullmatch(r"[a-z_][a-z0-9_]*", n.value)}
+        _ENGINE_STRINGS = words
     from scena.color import ColorNames
-    return s.isupper() or s.lower() in ColorNames._COLORS or s in shadowed()[1]
+    return s.isupper() or s.lower() in ColorNames._COLORS or s in shadowed()[1] or s in _ENGINE_STRINGS
 
 
 def _st_members() -> set:
@@ -444,7 +460,7 @@ def check_page(key: str, pt_text: str, en_text: str, state: dict, names: dict,
         rn, shape = page_rename(pt_text, en_text, key)
     except ValueError as e:
         return errors + [str(e)]
-    errors += shape + [f"{key}: {e}" for e in rn.errors]
+    errors += shape + [f"{key}: {e}" for e in dict.fromkeys(rn.errors)]   # once per page
     gn, gs = glossary_for(key, names)
     for table, gloss, what in ((rn.names, gn, "nome"), (rn.strings, gs, "string")):
         for pt, en in table.items():
@@ -618,7 +634,10 @@ def page_names(text: str) -> tuple[dict, dict]:
                 tree = ast.parse(code)
             except SyntaxError:
                 continue
+            in_fstring = {id(v) for n in ast.walk(tree) if isinstance(n, ast.JoinedStr) for v in n.values}
             for node in ast.walk(tree):
+                if id(node) in in_fstring:
+                    continue                  # the text of an f-string is free (code_parity)
                 if isinstance(node, ast.alias):
                     imported.add(node.asname or node.name.split(".")[0])
                 if isinstance(node, ast.arg):
