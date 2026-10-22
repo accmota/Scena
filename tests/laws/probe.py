@@ -278,7 +278,9 @@ def _where(e: BaseException, program: str) -> Dict[str, Any]:
             author = f"{os.path.basename(program)}:{fs.lineno}"
             innermost = "author"
         elif f.startswith(os.path.normcase(ENGINE)):
-            engine = f"{os.path.relpath(fs.filename, ROOT)}:{fs.lineno} ({fs.name})"
+            # A label in "/" form on every OS: tests read it as "scena/…" (WP24).
+            rel = os.path.relpath(fs.filename, ROOT).replace(os.sep, "/")
+            engine = f"{rel}:{fs.lineno} ({fs.name})"
             innermost = "engine"
     return {"type": type(e).__name__, "module": type(e).__module__,
             "message": str(e)[:2000], "author_line": author, "engine_line": engine,
@@ -370,6 +372,14 @@ def _child(argv: Sequence[str]) -> int:
     program, expect_path, hz, out_path = argv[:4]
     flags = set(argv[4:])
     sys.path[:0] = [ROOT, TESTS]
+    # Imported before the clock starts: the budget is the run's, not the
+    # import's. Under PYTHONDONTWRITEBYTECODE every child compiles scena again,
+    # past 6 s on a slow, loaded Windows machine, and the hang fixture's dump
+    # caught the import instead of the loop (WP25). Through the support
+    # modules: ``import scena`` written here, in ``__main__``, would arm the
+    # "ended without run()" note (stall.note_script_import).
+    import hypothesis_support  # noqa: F401  (imports scena)
+    from laws import model, families, attach, equations  # noqa: F401
     import faulthandler
     timeout = float(os.environ.get("SCENA_PROBE_TIMEOUT", "0"))
     if timeout > 3:
@@ -409,7 +419,9 @@ def _stage(program: str, expect_path: Optional[str], tmp: str):
 
 def _spawn(program: str, expect_path: Optional[str], hz: int, timeout: float,
            flags: Sequence[str] = ()) -> Dict[str, Any]:
-    with tempfile.TemporaryDirectory(prefix="probe_") as tmp:
+    # A killed child (the backstop below) may hold its files for a moment on
+    # Windows (WP26): cleanup does not wait for it.
+    with tempfile.TemporaryDirectory(prefix="probe_", ignore_cleanup_errors=True) as tmp:
         program, expect_path = _stage(program, expect_path, tmp)
         out = os.path.join(tmp, "out.json")
         env = dict(os.environ, SCENA_PROBE_TIMEOUT=str(timeout), PYTHONDONTWRITEBYTECODE="1",
@@ -417,8 +429,10 @@ def _spawn(program: str, expect_path: Optional[str], hz: int, timeout: float,
         cmd = [sys.executable, os.path.abspath(__file__), "--child", program,
                expect_path or "-", str(hz), out, *flags]
         try:
+            # A backstop: the child's own dump ends a hang, on a clock that
+            # starts after its imports; this one counts the imports too (WP25).
             p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                               errors="replace", timeout=timeout + 5, cwd=ROOT, env=env)
+                               errors="replace", timeout=timeout + 60, cwd=ROOT, env=env)
             code, so, se = p.returncode, p.stdout, p.stderr
         except subprocess.TimeoutExpired as e:
             code = None

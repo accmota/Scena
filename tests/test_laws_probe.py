@@ -312,6 +312,49 @@ class TestProbeRunner(unittest.TestCase):
         self.assertIn("DU apart", f)
 
 
+SLOW_IMPORT = """
+import sys, time
+
+
+class _Slow:
+    def find_spec(self, name, path=None, target=None):
+        if name == "scena":
+            time.sleep(3)          # a cold, loaded machine compiling scena
+        return None
+
+
+sys.meta_path.insert(0, _Slow())
+"""
+
+
+class TestHangClockStartsAfterImports(unittest.TestCase):
+    """WP25: the child armed its hang dump before importing scena. On a slow
+    Windows machine (no bytecode cache in the child) the import passed the
+    hang fixture's 6 s, and the dump showed importlib instead of the loop.
+    Here a ``sitecustomize`` makes the import take 3 s, past the 2 s dump of a
+    4 s budget: the stack must still be the program's."""
+
+    def test_a_slow_import_does_not_eat_the_hang_budget(self):
+        from unittest import mock
+        tmp = tempfile.TemporaryDirectory(prefix="probe_slow_")
+        self.addCleanup(tmp.cleanup)
+        site, work = os.path.join(tmp.name, "site"), os.path.join(tmp.name, "work")
+        os.makedirs(site)
+        os.makedirs(work)
+        files = {os.path.join(site, "sitecustomize.py"): SLOW_IMPORT,
+                 os.path.join(work, "hang.py"): PROBES["hang"][0],
+                 os.path.join(work, "hang.expect.py"): 'PLAY = [("wait", 0.2)]\n'}
+        for path, text in files.items():
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(textwrap.dedent(text).lstrip())
+        env = {"PYTHONPATH": os.pathsep.join(p for p in (site, os.environ.get("PYTHONPATH")) if p)}
+        with mock.patch.dict(os.environ, env):
+            res = probe._spawn(os.path.join(work, "hang.py"),
+                               os.path.join(work, "hang.expect.py"), 60, 4.0)
+        self.assertTrue(res["hang"], res)
+        self.assertIn("hang.py", probe._hang_stack(res["stderr_tail"]))
+
+
 class TestExpectDefaults(unittest.TestCase):
 
     def write(self, text):

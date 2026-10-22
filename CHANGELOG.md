@@ -10,6 +10,23 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased (0.9.1)
+
+### Fixed
+
+- A sprite's `Halo()`, `Rim()`, `Laser()` or `Aura()` no longer draws
+  stray pixels in the top-left corner of its glow on Windows. The distance
+  field behind these looks was copied from memory that had already been
+  freed, so its first pixels held leftover bytes, different from one bake to
+  the next. The Mac happened to leave those bytes alone. Nothing to change in
+  your code.
+- A game that takes longer than 8 s to load before `run()` (or one frame
+  longer than 2 s) no longer keeps its objects in memory after the "SCENA
+  ERROR: the script has run for 8 s without reaching run()" (or "a frame has
+  not finished") message. The watch that prints the message kept a hold on
+  everything the game had made at that moment, so objects you dropped or
+  destroyed were never freed.
+
 ## 0.9.0 — 2026-10-22
 
 ### Breaking

@@ -339,7 +339,10 @@ class TestRunner(unittest.TestCase):
             self.assertIn("FAILED missing", out.getvalue())
 
     def test_timeout_is_a_failure(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        # On Windows the killed child's log can stay locked for a moment: a
+        # venv's python.exe is a launcher, and the interpreter it started
+        # (holding the log) ends just after it. Cleanup may not wait (WP26).
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             runner = rt.Runner(tmp, timeout=0.05, workers=1, stream=io.StringIO())
             (res,) = runner.run([rt.Job("slow", ["tests.test_lerp"])])
             self.assertFalse(res.ok)
@@ -391,7 +394,7 @@ class TestAppleDoublePreflight(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             for rel in ("scena/._a.py", "scena/a.py", "design/sub/._D.md",
                         "media/._m.png", "scena/.DS_Store"):
-                path = os.path.join(tmp, rel)
+                path = os.path.normpath(os.path.join(tmp, rel))
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 open(path, "wb").close()
             self.assertEqual(rt.count_appledouble(tmp), 2)

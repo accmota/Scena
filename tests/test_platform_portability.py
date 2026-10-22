@@ -51,6 +51,16 @@ Found on a Windows quick-tier run (2026-10-08):
   ``C:\\t\\ninja\\Run__000.png`` and the lists compared unequal. Every
   ``os.path.join`` in the tests that takes a helper's parameter, or a literal
   holding ``"/"``, is wrapped in ``os.path.normpath`` (or splits on ``"/"``).
+
+Found on the 0.9.0 quick tier, clean Windows install (2026-10-22; WP21, WP23):
+
+* **The ``"/"`` part came through a name.** ``for folder in ("scripts/smoke",
+  ...)`` and a module tuple of ``"/"`` paths joined the same way; the join
+  guard now follows names bound to ``"/"`` literals.
+* **A skia call borrows a buffer it does not keep.** ``skia.Pixmap(info,
+  bytearray(...), ...)`` read freed memory (an engine bug: garbage in every
+  sprite SDF's first pixels on Windows). The buffer of every borrowing call
+  is a name.
 """
 from __future__ import annotations
 
@@ -146,7 +156,7 @@ class TestIterFiles(unittest.TestCase):
             "__pycache__/g.py": b"",
         }
         for rel, data in files.items():
-            path = os.path.join(self.root, rel)
+            path = os.path.normpath(os.path.join(self.root, rel))
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "wb") as fh:
                 fh.write(data)
@@ -172,7 +182,7 @@ class TestIterFiles(unittest.TestCase):
         # sub/x.py comes before subA.py on every OS.
         with tempfile.TemporaryDirectory() as tmp:
             for rel in ("sub/x.py", "subA.py", "sub2.py"):
-                path = os.path.join(tmp, rel)
+                path = os.path.normpath(os.path.join(tmp, rel))
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 open(path, "wb").close()
             got = [os.path.relpath(p, tmp).replace(os.sep, "/")
@@ -384,13 +394,42 @@ def _has_slash(node) -> bool:
     return False
 
 
+def _slash_names(tree: ast.AST) -> set:
+    """Names that hold a ``"/"`` literal: assigned one (``rel = "a/b"``), or bound
+    by a loop or a comprehension over a literal collection holding one, written
+    inline or through a name (``for f in EXTRA``, ``EXTRA = ("a/b.py", ...)``).
+    By name, not by scope: a name reused for something else is flagged too, and
+    the fix (``normpath``) is harmless there."""
+    def holds_slash(node):
+        return isinstance(node, (ast.Tuple, ast.List, ast.Set)) and any(
+            _has_slash(e) for e in node.elts)
+
+    collections, values = set(), set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for t in targets:
+                if isinstance(t, ast.Name):
+                    if holds_slash(node.value):
+                        collections.add(t.id)
+                    elif _has_slash(node.value):
+                        values.add(t.id)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension))                 and isinstance(node.target, ast.Name)                 and (holds_slash(node.iter)
+                     or isinstance(node.iter, ast.Name) and node.iter.id in collections):
+            values.add(node.target.id)
+    return values
+
+
 def _mixed_separator_joins(tree: ast.AST):
     """Line numbers of ``os.path.join`` calls that may glue a ``"/"`` path onto
-    a ``"\\"`` root on Windows: a later part is a literal holding ``"/"``, or a
-    parameter of the enclosing function (a helper called as ``png("a/b.png")``).
-    Not flagged: the join wrapped in ``os.path.normpath`` / ``abspath`` /
-    ``realpath``, and parts split first (``*rel.split("/")``)."""
+    a ``"\\"`` root on Windows: a later part is a literal holding ``"/"``, a
+    name holding one (``_slash_names``: ``for folder in ("scripts/smoke", ...)``,
+    WP23), or a parameter of the enclosing function (a helper called as
+    ``png("a/b.png")``). Not flagged: the join wrapped in ``os.path.normpath`` /
+    ``abspath`` / ``realpath``, and parts split first (``*rel.split("/")``)."""
     parent = {ch: n for n in ast.walk(tree) for ch in ast.iter_child_nodes(n)}
+    slashed = _slash_names(tree)
 
     def params(node):
         while node in parent:
@@ -408,7 +447,7 @@ def _mixed_separator_joins(tree: ast.AST):
         if (isinstance(up, ast.Call) and up.args and up.args[0] is call
                 and _attr(up) in _NORMALIZERS):
             continue
-        names = params(call)
+        names = params(call) | slashed
         if any(_has_slash(a) or isinstance(a, ast.Name) and a.id in names
                for a in call.args[1:]):
             out.append(call.lineno)
@@ -452,8 +491,17 @@ class TestJoinedPathsUseOneSeparator(unittest.TestCase):
                "os.path.abspath(os.path.join(root, 'a/b'))\n"
                "f = lambda name: os.path.join(root, name)\n"                # 13
                "def e(self, rel):\n"
-               "    return str(os.path.join(self.root, rel))\n")            # 15
-        self.assertEqual(_mixed_separator_joins(ast.parse(src)), [2, 9, 10, 13, 15])
+               "    return str(os.path.join(self.root, rel))\n"             # 15
+               "EXTRA = ('scripts/a.py', 'scripts/b.py')\n"
+               "[os.path.join(ROOT, f) for f in EXTRA]\n"                   # 17
+               "for folder in ('scripts/smoke', 'tests'):\n"
+               "    os.path.join(ROOT, folder)\n"                           # 19
+               "one = 'a/b.png'\n"
+               "os.path.join(ROOT, one)\n"                                  # 21
+               "for n in ('a', 'b'):\n"
+               "    os.path.join(ROOT, n)\n"
+               "[os.path.normpath(os.path.join(ROOT, f)) for f in EXTRA]\n")
+        self.assertEqual(_mixed_separator_joins(ast.parse(src)), [2, 9, 10, 13, 15, 17, 19, 21])
 
     def test_the_windows_spelling_on_any_host(self):
         import ntpath
@@ -493,6 +541,116 @@ class TestPixelsNameTheirByteOrder(unittest.TestCase):
         surf.getCanvas().drawImage(img, 0, 0)
         out = surf.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)
         self.assertEqual(tuple(int(v) for v in out[0, 0]), (255, 0, 0, 255))
+
+
+def _prints_beyond_cp1252(tree: ast.AST):
+    """Line numbers of ``print`` calls whose literal text cp1252 cannot encode,
+    in a module that never calls ``.reconfigure(...)`` (on ``sys.stdout``)."""
+    if any(isinstance(n, ast.Call) and _attr(n) == "reconfigure" for n in ast.walk(tree)):
+        return []
+
+    def beyond(node):
+        for n in ast.walk(node):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                try:
+                    n.value.encode("cp1252")
+                except UnicodeEncodeError:
+                    return True
+        return False
+
+    return sorted(n.lineno for n in ast.walk(tree)
+                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                  and n.func.id == "print" and beyond(n))
+
+
+class TestToolsPrintOnACp1252Stdout(unittest.TestCase):
+    """``validate_guia.py --examples``, a release check, crashed with
+    ``UnicodeEncodeError: … '\\u2192'`` when its output was piped on Windows:
+    a redirected stdout encodes with the locale (cp1252) and ``errors="strict"``,
+    and it printed "→" (WP28, 2026-10-22). A tool that prints text cp1252
+    lacks reconfigures stdout, as ``run_tiers.py`` does. ``scripts/bench`` is
+    not swept (developer benches; WP5)."""
+
+    def test_tools_that_print_beyond_cp1252_reconfigure_stdout(self):
+        bad = []
+        for path in iter_files(os.path.join(ROOT, "tools"), ".py", recursive=True):
+            with open(path, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read(), path)
+            rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+            bad += [f"{rel}:{n}" for n in _prints_beyond_cp1252(tree)]
+        self.assertEqual(
+            bad, [],
+            'add sys.stdout.reconfigure(errors="backslashreplace") before main(): '
+            "piped on Windows, stdout is cp1252 with errors='strict':\n" + "\n".join(bad),
+        )
+
+    def test_guard_sees_each_spelling(self):
+        self.assertEqual(_prints_beyond_cp1252(ast.parse(
+            "print('a → b')\nprint(f'{n} símbolos')\nprint('ok')\n")), [1])
+        self.assertEqual(_prints_beyond_cp1252(ast.parse(
+            "sys.stdout.reconfigure(errors='backslashreplace')\nprint('a → b')\n")), [])
+
+
+# skia calls that borrow a Python buffer without a reference to it, and the
+# position of that buffer. ``fromarray`` / ``frombuffer`` borrow only with
+# ``copy=False``.
+_BORROWS = {"Pixmap": 1, "MakeWithoutCopy": 0, "MakeRasterDirect": 1, "installPixels": 1}
+_BORROWS_UNLESS_COPY = {"fromarray": 0, "frombuffer": 0}
+
+
+def _borrowed_temporaries(tree: ast.AST):
+    """Line numbers of skia calls whose borrowed buffer is a temporary (a call,
+    a subscript, any expression): it may be freed before skia reads it."""
+    out = []
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call):
+            continue
+        name = _attr(call)
+        pos = _BORROWS.get(name)
+        if pos is None and name in _BORROWS_UNLESS_COPY:
+            copy = next((k.value for k in call.keywords if k.arg == "copy"), None)
+            if isinstance(copy, ast.Constant) and copy.value is False:
+                pos = _BORROWS_UNLESS_COPY[name]
+        if pos is None or len(call.args) <= pos:
+            continue
+        if not isinstance(call.args[pos], (ast.Name, ast.Attribute)):
+            out.append(call.lineno)
+    return sorted(out)
+
+
+class TestSkiaBorrowedBuffersStayNamed(unittest.TestCase):
+    """``skia.Pixmap(info, bytearray(rgba.tobytes()), …)`` handed skia a buffer
+    nothing referenced: freed before ``MakeRasterCopy`` read it, and the
+    allocator's bookkeeping landed in the first pixels. Every bake of a sprite's
+    SDF on Windows had garbage in its top-left corner (WP21, 2026-10-22); the
+    Mac allocator left the freed bytes alone, so it passed there."""
+
+    def test_borrowed_buffers_are_named(self):
+        bad = []
+        for root in (SCENA, EDITOR, TESTS):
+            for path in iter_files(root, ".py", recursive=True):
+                with open(path, encoding="utf-8") as fh:
+                    tree = ast.parse(fh.read(), path)
+                rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+                bad += [f"{rel}:{n}" for n in _borrowed_temporaries(tree)]
+        self.assertEqual(
+            bad, [],
+            "bind the buffer to a name that outlives the skia object (a Pixmap, "
+            "MakeWithoutCopy, MakeRasterDirect, installPixels, fromarray(copy=False) "
+            "keep no reference to it):\n" + "\n".join(bad),
+        )
+
+    def test_guard_sees_each_spelling(self):
+        src = ("skia.Pixmap(info, bytearray(a.tobytes()), w * 4)\n"          # 1
+               "skia.Pixmap(info, pixels, w * 4)\n"
+               "skia.Pixmap(info, self._pixels, w * 4)\n"
+               "skia.Data.MakeWithoutCopy(a.tobytes())\n"                   # 4
+               "skia.Surface.MakeRasterDirect(info, np.zeros(n))\n"         # 5
+               "bm.installPixels(info, a[::2], w)\n"                        # 6
+               "skia.Image.fromarray(a * 2, colorType=c)\n"
+               "skia.Image.fromarray(a * 2, copy=False)\n"                  # 8
+               "skia.Pixmap()\n")
+        self.assertEqual(_borrowed_temporaries(ast.parse(src)), [1, 4, 5, 6, 8])
 
 
 if __name__ == "__main__":

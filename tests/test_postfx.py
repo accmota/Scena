@@ -9,6 +9,7 @@ import math
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -1181,6 +1182,16 @@ class TestPostFxHeadless(unittest.TestCase):
                 colorType=skia.kRGBA_8888_ColorType))
             return a[: int(canvas.height), : int(canvas.width)].astype(int)
 
+        # A small framebuffer: headless, every pass runs its SkSL on the CPU,
+        # at a cost that follows the pixels, and with no window the framework
+        # keeps its default 2000 x 1200. The module took 180 s on a Windows
+        # machine (CosmicBloom alone 17 s a frame) and timed out its quick job
+        # (WP27); what is checked is that each effect draws.
+        fw = ScenaFramework.get_instance()
+        for name, value in (("fb_width", 200), ("fb_height", 150)):
+            patch = mock.patch.object(fw, name, value)
+            patch.start()
+            self.addCleanup(patch.stop)
         with system_world(draw=True) as w:
             self.assertIsNone(w.fw._context)
             hero = Circle(center=(canvas.width / 2, canvas.height / 2),
