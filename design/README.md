@@ -59,6 +59,7 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | `docs/` | The author site, published with GitHub Pages: `docs/<lang>/guide/` (the Guia), `docs/<lang>/tutorial/`, `docs/assets/` (thumbnails, tutorial css/js — shared by every language). `pt` is written first; `en` mirrors it | Authors |
 | `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index), `make_guia_thumbs.py` (thumbnails) | Contributors |
 | `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show; `editor_ninja.py`, the level editor's clip program | Contributors |
+| `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline with the README tool's pilots; output in `recordings/` (git-ignored) | Contributors |
 | `tools/release/` | `make_examples_zip.py`: `scena-examples.zip` (the examples and only the media they use), zipped on a release from the list `examples_zip.txt` | Contributors |
 | `examples/` | Published beginner games; each tutorial ends in one of them | Authors |
 | `drafts/` | Private: game examples in development (a `media` link to `examples/media` lets them run). A game moves to `examples/` when it is ready | The maintainer |
@@ -274,6 +275,15 @@ file does not exist.
   level (`run_jump_and_throw`, `edit_a_level`), put on screen through the
   game's own camera. A clip that shows a death, a stuck hero or an idle
   screen is a pilot bug: look at frames from the clip before keeping it.
+- **Videos are rendered the same way, with sound.** `python tools/video/record_game.py`
+  plays a program headless with a README pilot (or `pilots.py:function`) and
+  encodes MP4 (H.264, BT.709, AAC 48 kHz) or ProRes through ffmpeg, or writes
+  PNG frames + WAV. The recorder is the sound card: it takes the mixer off
+  `offline` (as `Mixer.start_device` does, so the engine's world-time pump is a
+  no-op) and pulls one frame of samples (44100 / 60 = 735) right after each
+  step, so a sound starts in the block of the frame that shows its cause.
+  Pulling before the step puts every sound one frame late; pumping by world
+  time as well plays sounds at double speed (guards: `tests/test_record_game.py`).
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block
