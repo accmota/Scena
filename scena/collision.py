@@ -6324,6 +6324,12 @@ class CollisionSystem:
             for k in [k for k in self._exit_pending if cid in k]:
                 self._exit_pending.discard(k)
                 keys.append(k)
+        deferred = self._deferred_exit
+        if deferred is not None and emit and (deferred[0] is col or deferred[1] is col):
+            # The running contact's exit waits (its other side left first)
+            # and ``col``, the survivor then, leaves now: its own hooks too
+            # run while it exists (L3), not after its destroy returned.
+            self._run_own_deferred(col)
         if not keys:
             return
         for key in keys:
@@ -6362,14 +6368,35 @@ class CollisionSystem:
                 runs = self._exit_runs(ca, cb)
                 own = [r for r in runs if self._own_hook_of(col, r)]
                 rest = [r for r in runs if not self._own_hook_of(col, r)]
-                if own:
-                    self._run_exit(ca, info, own, None)
                 if rest:
+                    # Set before the own hooks run: one that ends the other
+                    # side finds its own hooks here (``_run_own_deferred``).
                     was = [ta is None or self._handler_registered(ta, tb, fn)
                            for ta, tb, fn, _m, _o in rest]
                     self._deferred_exit = (ca, cb, info, rest, was, self._act_change_epoch)
+                if own:
+                    self._run_exit(ca, info, own, None)
                 continue
             self._dispatch(ca, cb, info, _PHASE_EXIT)
+
+    def _run_own_deferred(self, col: Collider) -> None:
+        """``col`` leaves while the running contact's exit, which it is a
+        side of, waits for that contact's handlers (the other side left
+        first, ``_emit_ended``): ``col``'s own exit hooks among the waiting
+        runs run now, while it exists; the rest still wait. Without this the
+        second body a handler destroyed (``group[...].destroy()`` on both
+        sides) ran its own ``@collide_with_exit`` after its destroy returned:
+        its contact key was gone with the first, so its destroy found nothing
+        to end (L3)."""
+        xa, xb, info, runs, was, act = self._deferred_exit
+        own = [i for i, r in enumerate(runs) if self._own_hook_of(col, r)]
+        if not own:
+            return
+        rest = [i for i in range(len(runs)) if i not in own]
+        self._deferred_exit = None if not rest else (
+            xa, xb, info, [runs[i] for i in rest], [was[i] for i in rest], act)
+        own_was = None if self._act_change_epoch != act else [was[i] for i in own]
+        self._run_exit(xa, info, [runs[i] for i in own], own_was, act)
 
     @staticmethod
     def _own_hook_of(col: Collider, run) -> bool:

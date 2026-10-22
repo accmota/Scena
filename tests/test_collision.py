@@ -7453,6 +7453,98 @@ class TestAContactsExitComesAfterItsHandlers(unittest.TestCase):
                                "later", "spike exit"])
 
 
+class TestBothSidesLeaveInOneContact(unittest.TestCase):
+    """L3 (gate 2026-10-21, ``test_sys_hyp_world``): a contact's handlers
+    destroy *both* sides (``group[...].destroy()``, or one handler each).
+    The first destroy ran its own exit hooks inside the destroy and deferred
+    the survivor's to after the contact; the survivor's destroy then found
+    the contact key already gone and ran nothing, so its own
+    ``@collide_with_exit`` ran after its destroy returned, on a dead actor.
+    Every own-exit spelling (V4) and every way the second side leaves: each
+    side's own exit runs once, while it exists; a module tag exit of the
+    contact still runs once, after the contact's handlers."""
+
+    HOOKS = ("method", "property", "module_obj")
+    WAYS = ("group", "two_handlers", "exit_kills_survivor", "park_survivor")
+
+    def _run(self, hook, way):
+        from scena import Circle, collide, collide_exit, collide_with_exit, group
+        from tests.system_support import system_world
+        log = []
+        with system_world(draw=False) as w:
+            if hook == "method":
+                class Body(Circle):
+                    @collide_with_exit("bs2_b")
+                    def unhit(self, other, info=None):
+                        log.append(("own", self.tag_, self.is_alive))
+            else:
+                Body = Circle
+            a = Body(center=(0, 0), radius=6, group="bs2_b")
+            b = Body(center=(2, 0), radius=6, group="bs2_b")
+            a.tag_, b.tag_ = "a", "b"
+            for o in (a, b):
+                if hook == "property":
+                    o.on_collide_exit = (
+                        lambda me, other, info=None: log.append(("own", me.tag_, me.is_alive)))
+                elif hook == "module_obj":
+                    def mk(o=o):
+                        @collide_exit(o, "bs2_b")
+                        def own(me, other, info=None):
+                            log.append(("own", me.tag_, me.is_alive))
+                    mk()
+
+            @collide_exit("bs2_b", "bs2_b")
+            def tag_exit(x, y, info=None):
+                log.append("tag exit")
+
+            if way == "group":
+                @collide(a, b)
+                def boom(x, y, info=None):
+                    group["bs2_b"].destroy()
+                    log.append("handler done")
+            elif way == "two_handlers":
+                @collide(a, b)
+                def kill_a(x, y, info=None):
+                    a.destroy()
+
+                @collide(a, b)
+                def kill_b(x, y, info=None):
+                    b.destroy()
+                    log.append("handler done")
+            else:
+                if way == "exit_kills_survivor":
+                    @collide_exit(a, "bs2_b")
+                    def a_out(x, y, info=None):
+                        if b.is_alive:
+                            b.destroy()
+                else:
+                    @collide_exit(a, "bs2_b")
+                    def a_out(x, y, info=None):
+                        b.active = False
+
+                @collide(a, b)
+                def kill_a(x, y, info=None):
+                    a.destroy()
+                    log.append("handler done")
+            w.step(3, dt=1 / 60)
+            for o in (a, b):
+                if o.is_alive:
+                    o.destroy()
+        return log
+
+    def test_each_own_exit_runs_once_while_its_side_exists(self):
+        for hook in self.HOOKS:
+            for way in self.WAYS:
+                with self.subTest(hook=hook, way=way):
+                    log = self._run(hook, way)
+                    own = [e for e in log if isinstance(e, tuple)]
+                    self.assertEqual(sorted(t for _o, t, _alive in own), ["a", "b"], log)
+                    self.assertTrue(all(alive for _o, _t, alive in own), log)
+                    # The contact's module tag exit: once, after its handlers.
+                    self.assertEqual(log.count("tag exit"), 1, log)
+                    self.assertLess(log.index("handler done"), log.index("tag exit"), log)
+
+
 class TestBounceOffAPartnerAHandlerRemoved(unittest.TestCase):
     """PE5 (2026-10-14): handlers run before resolve, so a ``bounce=`` ball
     whose ``@collide`` destroyed the brick found no brick to bounce off and

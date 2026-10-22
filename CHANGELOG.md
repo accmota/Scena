@@ -761,6 +761,11 @@ left out.
 - A computed field's refusal suggests an input that moves it:
   `concave.top_left @= …` suggested `concave.rim`, and `rect.vec` /
   `square.width` suggested `center`.
+- When a collision handler destroys both bodies of a contact
+  (`group["x"].destroy()`, or the first body's own exit destroying the
+  other), the second body's own exit handler (`@collide_with_exit`,
+  `on_collide_exit`, `@collide_exit(body, …)`) runs while that body still
+  exists; it ran after its destroy had returned.
 - `heading()`, `Point.heading`, `Line.angle` and a level line's `angle` read
   in (−180, 180] like `Vec2.angle`: pointing left reads 180 (it was −180, and
   `heading` could read −0.0); a zero vector (`-Vec2(0, 0)`) reads 0, not 180.
