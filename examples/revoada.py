@@ -87,12 +87,13 @@ class Falcao(Triangle, radius=20, base_ratio=0.45, color="dark red"):
     def setup(self):
         self.glow = "red"
         self.tail = Tail(color="dark yellow")
+        self.rate = 4
 
     def on_update(self, dt):
         # segue o mouse com um pouco de atraso, de ponta para a frente
         if distance(self, mouse) > 4:
             self.angle = heading(self, mouse)
-        self.move_to(chase(self.center, mouse, rate=4))
+        self.move_to(chase(self.center, mouse, rate=self.rate))
 
 
 falcao = Falcao(center=(640, 400))
