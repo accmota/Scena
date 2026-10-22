@@ -7,7 +7,7 @@ Source of truth for "what is public":
 
 ``symbols.json`` and ``guia-api-symbols.js`` are generated here, next to the
 Guide page (``docs/pt/guide/``). Run from the repository root:
-``python tools/guide/validate_guia.py``.
+``python tools/guide/validate_guia.py`` (``--lang en`` for the English Guide).
 
 Checks:
   - catalog shape (families, parameter names, types) and anchors;
@@ -34,16 +34,63 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent          # tools/guide (this script)
 REPO = ROOT.parent.parent
 DOCS = REPO / "docs"
-# The Guide the catalogs, the search index and these checks read. The English
-# Guide (docs/en/guide/) will mirror it.
-LANG = "pt"
-GUIDE = DOCS / LANG / "guide"
-CATALOGS = GUIDE / "guia-api-catalogs.js"
-SYMBOLS_JSON = GUIDE / "symbols.json"
-SYMBOLS_JS = GUIDE / "guia-api-symbols.js"
+# The Guide the catalogs, the search index and these checks read: ``pt`` is
+# written first and ``en`` mirrors it (``--lang en``; ``guia_parity.py`` keeps
+# the two pages in step). ``set_lang`` rebinds the paths below.
+LANGS = ("pt", "en")
+# The English Guide is written in draft.html while index.html still tells the
+# reader it is being written; the draft becomes index.html when every unit is
+# translated.
+PAGES = {"pt": "index.html", "en": "draft.html"}
+# The words the checks read in the page's own language. ``placeholders`` are
+# words a ``Parâmetros:`` list may not use in place of the real keyword.
+WORDS = {
+    "pt": {
+        "params": "Parâmetros", "returns": "Retorna", "joins": ("ou", "e"),
+        "read_write": "lê / escreve",
+        "placeholders": ("nome", "nomes", "intervalo", "alvo", "tecla", "botão",
+                         "ângulo", "ligado", "condição", "outro", "parte", "ponto", "cor"),
+    },
+    "en": {
+        "params": "Parameters", "returns": "Returns", "joins": ("or", "and"),
+        "read_write": "read / write",
+        "placeholders": ("name", "names", "interval", "target", "key", "button",
+                         "angle", "condition", "other", "part", "point", "color"),
+    },
+}
+# English text of the search index (titles, one-liners, catalog type words):
+# the Portuguese text lives in the tables below.
+TEXT_EN = ROOT / "guia_text_en.json"
 # Thumbnails are shared by every language (pictures have no words).
 THUMBS_JS = DOCS / "assets" / "thumbs" / "guia-api-thumbs.js"
-HTML = GUIDE / "index.html"
+
+
+def set_lang(lang: str) -> None:
+    """Point the checks and the generated index at one language's Guide."""
+    global LANG, W, GUIDE, CATALOGS, SYMBOLS_JSON, SYMBOLS_JS, HTML
+    if lang not in LANGS:
+        raise SystemExit(f"--lang: {lang!r} não é um de {', '.join(LANGS)}")
+    LANG = lang
+    W = WORDS[lang]
+    GUIDE = DOCS / lang / "guide"
+    CATALOGS = GUIDE / "guia-api-catalogs.js"
+    SYMBOLS_JSON = GUIDE / "symbols.json"
+    SYMBOLS_JS = GUIDE / "guia-api-symbols.js"
+    HTML = GUIDE / PAGES[lang]
+
+
+set_lang("pt")
+
+
+def text_en() -> dict:
+    """The English index text (``guia_text_en.json``); empty tables when absent."""
+    try:
+        data = json.loads(TEXT_EN.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        data = {}
+    for key in ("chapterTitles", "sectionTitles", "oneLiners", "types", "fieldCam"):
+        data.setdefault(key, {})
+    return data
 
 KNOWN_FAMILIES = {
     "visual", "spatial", "post", "impact", "field", "filter", "stamp",
@@ -467,12 +514,22 @@ _FIELDCAM = [
 ]
 
 
+def _fieldcam() -> list[dict]:
+    """The camera knobs every field shares, in the page's language."""
+    if LANG == "pt":
+        return [dict(p) for p in _FIELDCAM]
+    meanings = text_en()["fieldCam"]
+    return [{**p, "meaning": meanings.get(p["name"], p["meaning"]), "typ": type_word(p["typ"])}
+            for p in _FIELDCAM]
+
+
 def _unescape(s: str) -> str:
     return s.replace('\\n', '\n').replace('\\"', '"').replace("\\'", "'")
 
 
-def load_catalogs() -> dict:
-    src = CATALOGS.read_text(encoding="utf-8")
+def load_catalogs(path: Path | None = None, text: str | None = None) -> dict:
+    """Cards by bag, from ``text``, ``path`` or the current language's catalog."""
+    src = text if text is not None else (path or CATALOGS).read_text(encoding="utf-8")
     out: dict[str, list] = {}
     for bag, marker in _BAGS:
         start = src.find(marker)
@@ -517,7 +574,7 @@ def load_catalogs() -> dict:
                     "typ": pm.group("typ") or "",
                 })
             if "...fieldCam" in block:
-                params.extend(_FIELDCAM)
+                params.extend(_fieldcam())
             item["params"] = params
             items.append(item)
         out[bag] = items
@@ -669,7 +726,7 @@ def js_brackets(src: str, label: str = "js") -> tuple[list[str], dict, dict]:
     return errors, pairs, depth
 
 
-def check_catalog_js(path: Path = CATALOGS, bags: dict | None = None) -> list[str]:
+def check_catalog_js(path: Path | None = None, bags: dict | None = None) -> list[str]:
     """The catalog file must be valid JS *and* hold the cards the loader sees.
 
     A JS error leaves the Guia with no catalog at all; a card the regex loader
@@ -868,10 +925,18 @@ def infer_type(p: dict) -> str:
         return p["typ"]
     n = p.get("name") or ""
     if n in _INFER_BY_NAME:
-        return _INFER_BY_NAME[n]
+        return type_word(_INFER_BY_NAME[n])
     if _INFER_NUM.match(n):
-        return "número"
+        return type_word("número")
     return ""
+
+
+def type_word(label: str) -> str:
+    """A Portuguese type label (``ponto / (() → ponto)``) in the page's language."""
+    if LANG == "pt":
+        return label
+    words = text_en()["types"]
+    return re.sub(r"[^\W\d_]+", lambda m: words.get(m.group(0), m.group(0)), label)
 
 
 def validate_catalogs(bags: dict) -> list[str]:
@@ -928,6 +993,10 @@ def catalog_symbols(bags: dict) -> list[dict]:
             ch, sec, ch_title, sec_title = FAMILY_CHAPTER.get(
                 fam, ("aparencia", "aparencia", "Aparência", fam)
             )
+            if LANG == "en":
+                en = text_en()
+                ch_title = en["chapterTitles"].get(ch, ch_title)
+                sec_title = en["sectionTitles"].get(sec, sec_title)
             out.append({
                 "name": it["name"],
                 "public": True,
@@ -996,9 +1065,22 @@ def core_symbols() -> list[dict]:
         "erros-catalogo": "Catálogo de erros", "reativo-fontes": "O que pode ser ligado",
         "sprite-orientar": "Orientar sprites", "colisao-touching": "Tocando",
     }
+    if LANG == "en":
+        en = text_en()
+        titles.update(en["chapterTitles"])
+        section_title.update(en["sectionTitles"])
+    else:
+        # A section the table does not name shows its own heading, never its id.
+        for sec, h2 in re.findall(r'<section[^>]*\bid="([^"]+)"[^>]*>\s*<h2[^>]*>(.*?)</h2>',
+                                  HTML.read_text(encoding="utf-8"), re.S):
+            section_title.setdefault(sec, strip_tags(h2))
     out = []
     for s in CORE_SYMBOLS:
         ch = s["chapter"]
+        if LANG == "en":
+            # Keyed name#anchor: one name may have several entries. A missing
+            # line is left empty (``main`` reports it), never Portuguese.
+            s = {**s, "oneLiner": en["oneLiners"].get(f"{s['name']}#{s['anchor']}", "")}
         out.append({
             **s,
             "public": True,
@@ -1473,10 +1555,6 @@ def run_examples(examples, stats: dict | None = None) -> list[str]:
 
 
 # Portuguese words that used to stand in for the real keyword (ready(nome=) fails).
-_PT_PARAM = re.compile(
-    r"\b(nome|nomes|intervalo|alvo|tecla|botão|ângulo|ligado|condição|outro|parte|ponto|cor)\b"
-)
-
 
 # Members the Guia must name, and the card (section or tab) that owns them.
 # Engine names kept public on purpose (draw, undraw, update, owner, parts) are
@@ -1533,12 +1611,17 @@ def check_parameter_keywords() -> list[str]:
     """A Parâmetros: token outside the meaning parentheses must be the real keyword."""
     src = HTML.read_text(encoding="utf-8")
     errors = []
-    for m in re.finditer(r"Parâmetros: ([^<]+)", src):
+    # A placeholder that is also a real keyword somewhere (``key=``) is allowed.
+    real = {p for fns in _callable_index().values() for _o, fn in fns
+            for p in real_parameters(fn)[0]}
+    placeholder = re.compile(
+        r"\b(" + "|".join(w for w in W["placeholders"] if w not in real) + r")\b")
+    for m in re.finditer(rf"{W['params']}: ([^<]+)", src):
         head = re.sub(r"\([^)]*\)", " ", m.group(1).split(".")[0])
         hits = []
         for piece in head.split(","):
             tok = re.match(r"\s*([A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_]*)", piece)
-            if tok and _PT_PARAM.fullmatch(tok.group(1)):
+            if tok and placeholder.fullmatch(tok.group(1)):
                 hits.append(tok.group(1))
         if hits:
             line = src.count("\n", 0, m.start()) + 1
@@ -1612,7 +1695,8 @@ def _row_doc_names(text: str) -> list[str]:
     """Leading identifiers of a Parâmetros list: ``a (x), b=1; c`` → a, b, c."""
     text = re.sub(r"\([^)]*\)", " ", text)
     names = []
-    for piece in re.split(r"[,;]| ou | e ", text):
+    joins = "|".join(rf" {w} " for w in W["joins"])
+    for piece in re.split(rf"[,;]|{joins}", text):
         tok = re.match(r"\s*\*{0,2}([a-z_][a-z0-9_]*)\s*(?:=[^,;]*)?\s*$", piece)
         if tok:
             names.append(tok.group(1))
@@ -1636,7 +1720,7 @@ def check_parameter_rows(src: str | None = None) -> list[str]:
     units = []   # (offset, call html, Parâmetros html or "", names in the call)
     for row in re.finditer(r"<tr>(.*?)</tr>", src, re.S):
         body = row.group(1)
-        pm = re.search(r'class="params">Parâmetros:\s*(.*?)</span>', body, re.S)
+        pm = re.search(rf'class="params">{W["params"]}:\s*(.*?)</span>', body, re.S)
         cm = re.search(r"<td><code>(.*?)</code>", body, re.S)
         if pm and cm:
             units.append((row.start(), cm.group(1), pm.group(1), False))
@@ -1644,7 +1728,7 @@ def check_parameter_rows(src: str | None = None) -> list[str]:
     # and the Parâmetros hint under them. Names inside the call count too.
     for m in re.finditer(
         r'<p class="sig"><code>(.*?)</code></p>\s*'
-        r'(?:<p class="sig-hint">Parâmetros:\s*(.*?)</p>)?',
+        rf'(?:<p class="sig-hint">{W["params"]}:\s*(.*?)</p>)?',
         src, re.S,
     ):
         units.append((m.start(), m.group(1), m.group(2) or "", True))
@@ -1659,7 +1743,7 @@ def check_parameter_rows(src: str | None = None) -> list[str]:
             cands = [(o, f) for o, f in cands if o == owner]
         if not cands:
             continue
-        hint = _html.unescape(strip_tags(params_html)).split(". Retorna")[0]
+        hint = _html.unescape(strip_tags(params_html)).split(f". {W['returns']}")[0]
         doc = [d for d in _row_doc_names(hint) if d != "self"]
         if is_sig:
             inside = call[call.index("(") + 1:].split(")")[0]
@@ -2023,7 +2107,8 @@ def check_access_column(src: str | None = None) -> list[str]:
         return owner
 
     errors = []
-    row_re = re.compile(r'<tr><td>((?:(?!</td>).)*)</td><td class="type">(?:(?!</tr>).)*?</td><td>lê / escreve</td>', re.S)
+    row_re = re.compile(r'<tr><td>((?:(?!</td>).)*)</td><td class="type">(?:(?!</tr>).)*?</td>'
+                        rf'<td>{re.escape(W["read_write"])}</td>', re.S)
     for m in row_re.finditer(src):
         cell = plain(m.group(1))
         if "(" in cell or cell.rstrip().endswith("="):
@@ -2066,6 +2151,9 @@ def check_access_column(src: str | None = None) -> list[str]:
 
 
 def main() -> int:
+    if "--lang" in sys.argv:
+        at = sys.argv.index("--lang")
+        set_lang(sys.argv[at + 1] if at + 1 < len(sys.argv) else "")
     bags = load_catalogs()
     # First: a catalog the browser cannot parse leaves the Guia with no catalog.
     errors = check_catalog_js(CATALOGS, bags)
@@ -2086,6 +2174,11 @@ def main() -> int:
         uniq.append(s)
     write_symbols(uniq)
     warnings = check_public_vs_all() + thumb_warnings
+    if LANG != "pt":
+        untold = [s["name"] for s in uniq if not s.get("catalog") and not s.get("oneLiner")]
+        if untold:
+            warnings.append(f"{len(untold)} símbolo(s) sem oneLiner em {LANG} "
+                            f"({TEXT_EN.name}): {', '.join(untold[:6])}…")
     anchor_errors = check_anchors(uniq, bags)
     errors.extend(anchor_errors)
     errors.extend(check_symbols_described(uniq, bags))

@@ -8072,7 +8072,7 @@
       "oneLiner": "Botão. 1º argumento é bind.",
       "public": true,
       "chapterTitle": "UI",
-      "sectionTitle": "ui-button",
+      "sectionTitle": "Button",
       "search": "button",
       "catalog": false,
       "params": []
@@ -8100,7 +8100,7 @@
       "oneLiner": "Controle deslizante ligado a um Attribute.",
       "public": true,
       "chapterTitle": "UI",
-      "sectionTitle": "ui-slider",
+      "sectionTitle": "Slider",
       "search": "slider",
       "catalog": false,
       "params": []
@@ -8114,7 +8114,7 @@
       "oneLiner": "Liga/desliga um Attribute bool.",
       "public": true,
       "chapterTitle": "UI",
-      "sectionTitle": "ui-checkbox",
+      "sectionTitle": "CheckBox",
       "search": "checkbox",
       "catalog": false,
       "params": []
@@ -8128,7 +8128,7 @@
       "oneLiner": "Campo de texto. Focado come a tecla.",
       "public": true,
       "chapterTitle": "UI",
-      "sectionTitle": "ui-textinput",
+      "sectionTitle": "TextInput",
       "search": "textinput",
       "catalog": false,
       "params": []
@@ -8142,7 +8142,7 @@
       "oneLiner": "Lista de opções.",
       "public": true,
       "chapterTitle": "UI",
-      "sectionTitle": "ui-dropdown",
+      "sectionTitle": "DropDown",
       "search": "dropdown",
       "catalog": false,
       "params": []
@@ -8156,7 +8156,7 @@
       "oneLiner": "Pergunta de jogo. Fecha ao escolher.",
       "public": true,
       "chapterTitle": "UI",
-      "sectionTitle": "ui-menu",
+      "sectionTitle": "Menu",
       "search": "menu",
       "catalog": false,
       "params": []
@@ -8226,7 +8226,7 @@
       "oneLiner": "O que o contato te conta.",
       "public": true,
       "chapterTitle": "Colisão",
-      "sectionTitle": "colisao-info",
+      "sectionTitle": "CollisionInfo",
       "search": "collisioninfo",
       "catalog": false,
       "params": []
@@ -8254,7 +8254,7 @@
       "oneLiner": "Sim/não. 0 a 1.",
       "public": true,
       "chapterTitle": "Utilitários",
-      "sectionTitle": "util-chance",
+      "sectionTitle": "chance",
       "search": "chance",
       "catalog": false,
       "params": []
@@ -8268,7 +8268,7 @@
       "oneLiner": "Persegue o alvo com atraso exponencial.",
       "public": true,
       "chapterTitle": "Utilitários",
-      "sectionTitle": "util-chase",
+      "sectionTitle": "chase",
       "search": "chase",
       "catalog": false,
       "params": []
@@ -8282,7 +8282,7 @@
       "oneLiner": "Anda até o alvo a velocidade constante e chega exato.",
       "public": true,
       "chapterTitle": "Utilitários",
-      "sectionTitle": "util-approach",
+      "sectionTitle": "approach",
       "search": "approach",
       "catalog": false,
       "params": []
@@ -8296,7 +8296,7 @@
       "oneLiner": "Folga: só empurra o alvo fora da caixa.",
       "public": true,
       "chapterTitle": "Utilitários",
-      "sectionTitle": "util-deadzone",
+      "sectionTitle": "deadzone",
       "search": "deadzone",
       "catalog": false,
       "params": []
@@ -8310,7 +8310,7 @@
       "oneLiner": "Mistura a → b em t.",
       "public": true,
       "chapterTitle": "Utilitários",
-      "sectionTitle": "util-lerp",
+      "sectionTitle": "lerp",
       "search": "lerp",
       "catalog": false,
       "params": []
@@ -8324,7 +8324,7 @@
       "oneLiner": "Leva um intervalo no outro.",
       "public": true,
       "chapterTitle": "Utilitários",
-      "sectionTitle": "util-remap",
+      "sectionTitle": "remap",
       "search": "remap",
       "catalog": false,
       "params": []
@@ -8520,7 +8520,7 @@
       "oneLiner": "@on_change: valor novo != anterior.",
       "public": true,
       "chapterTitle": "Reagir",
-      "sectionTitle": "reagir-on-change",
+      "sectionTitle": "@on_change",
       "search": "on_change",
       "catalog": false,
       "params": []
@@ -8534,7 +8534,7 @@
       "oneLiner": "@leave_playfield: o centro saiu.",
       "public": true,
       "chapterTitle": "Reagir",
-      "sectionTitle": "reagir-bounds",
+      "sectionTitle": "@leave_playfield",
       "search": "leave_playfield",
       "catalog": false,
       "params": []
@@ -8576,7 +8576,7 @@
       "oneLiner": "Decorator: este método é um mode.",
       "public": true,
       "chapterTitle": "Mode",
-      "sectionTitle": "mode-enter",
+      "sectionTitle": "mode",
       "search": "on_mode",
       "catalog": false,
       "params": []
@@ -8590,7 +8590,7 @@
       "oneLiner": "@exit_mode: limpeza ao sair do capítulo.",
       "public": true,
       "chapterTitle": "Mode",
-      "sectionTitle": "mode-cancela",
+      "sectionTitle": "escopo e cancelamento",
       "search": "exit_mode",
       "catalog": false,
       "params": []

@@ -57,7 +57,7 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | --- | --- | --- |
 | `design/` | These docs | Contributors |
 | `docs/` | The author site, published with GitHub Pages: `docs/<lang>/guide/` (the Guia), `docs/<lang>/tutorial/`, `docs/assets/` (thumbnails, tutorial css/js — shared by every language). `pt` is written first; `en` mirrors it | Authors |
-| `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index), `make_guia_thumbs.py` (thumbnails) | Contributors |
+| `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index; `--lang en`), `make_guia_thumbs.py` (thumbnails), `guia_parity.py` (the English Guide mirrors the Portuguese, unit by unit; state in `guia_en_state.json`, English index text in `guia_text_en.json`) | Contributors |
 | `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show; `editor_ninja.py`, the level editor's clip program | Contributors |
 | `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline with the README tool's pilots; output in `recordings/` (git-ignored) | Contributors |
 | `tools/release/` | `make_examples_zip.py`: `scena-examples.zip` (the examples and only the media they use), zipped on a release from the list `examples_zip.txt` | Contributors |
@@ -239,6 +239,49 @@ file does not exist.
     reduced motion; its ▶ / ❚❚ button always works — reduced motion stops
     autoplay, not an animation the reader asked for. Attribute values go
     through `escAttr` (a variant's code has quotes).
+
+### The English Guide
+
+The English Guide mirrors the Portuguese one **unit by unit**, and
+`tools/guide/guia_parity.py` keeps the two in step (`tests/test_guia_parity.py`
+runs its check in `quick`).
+
+- **Where.** It is written in `docs/en/guide/draft.html` (with `noindex`) next
+  to its own `guia-api-catalogs.js`. `index.html` keeps telling readers the Guide
+  is being written until every unit is translated. At that point the draft
+  becomes `index.html` (`validate_guia.PAGES`) and `noindex` is removed.
+  Thumbnails are shared.
+- **Units.** For the page: `head`, `style`, `body`, `nav`, `top`, one
+  `chapter:<id>` per chapter head, one unit per `<section id>`, and `tail` (the
+  scripts). For the catalog file: `js:head`, `js:<BAG>` / `js:<BAG>:end`, one
+  `card:<id>` per card, and `js:render`. A unit is **pending** (the English file
+  holds the Portuguese text) or **translated**: `tools/guide/guia_en_state.json`
+  records the hash of the Portuguese text it was translated from. `style` is
+  never marked, so CSS always comes from Portuguese.
+- **A Portuguese edit to a translated unit fails the check** until the English
+  follows. `guia_parity.py --diff <unit>` shows what changed; translate it, then
+  `--mark <unit>`. An edit to a pending unit is never an error: the check
+  reads pending units from the Portuguese file, and `--sync` writes them into
+  the English file.
+- **What must match.** Ids, in the same order: links, the language switch and
+  these docs use them, so ids stay Portuguese in both pages. Per unit: the
+  `<pre>` blocks and the Scena names each one uses, `details`, table rows,
+  "Não confundir" tables, headings, signature lines. Per card: id, kind,
+  family, name, variants, thumb, parameter names and slots, literal defaults,
+  and the Scena names in `code`. Variable names, strings and comments in
+  examples are translated (`nave` → `ship`).
+- **No Portuguese left.** A translated unit may not hold Portuguese prose. A
+  term quoted on purpose goes in `<span lang="pt">…</span>`.
+- **The validator in English.** `python tools/guide/validate_guia.py --lang en`
+  runs the same checks on the English page. The words they match (`Parameters:`,
+  `Returns`, `read / write`, list joins, placeholder names) live in
+  `validate_guia.WORDS`. The English search index text (chapter and section
+  titles, type words, the core symbols' one-liners) lives in
+  `tools/guide/guia_text_en.json`. A missing one-liner is left empty, never
+  Portuguese, and the validator lists it.
+- **Vocabulary.** The English column of the vocabulary above is fixed once,
+  before the chapters are translated. Spelling is American, to match the API
+  (`color`, `center`).
 
 ## Editing the README
 
