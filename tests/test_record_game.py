@@ -23,7 +23,8 @@ Bug classes guarded:
   names a program that exists, a pilot that loads and keywords the pilot
   accepts (``TestTakes``). The tutorial-01 tour must reach every feature it
   names, and the catch pilot must catch most and miss some
-  (``TestPilotsPlay``: played without drawing).
+  (``TestPilotsPlay``: played without drawing). Whole games (Naves, the
+  plane) are in ``test_record_game_deep`` (gate).
 
     python -m unittest tests.test_record_game -v
 """
@@ -309,8 +310,10 @@ class TestTakes(unittest.TestCase):
             rg.pick_takes(["no_such_game"])
 
 
-def _play(tid, seconds):
-    """Play a take without drawing; returns ``(ns, extra)`` read before the run closes."""
+def _play(tid, seconds, watch=None):
+    """Play a take without drawing (until its pilot ends the run or ``seconds``);
+    ``watch(ns, t)`` sees every frame. Returns what the tests read, taken
+    before the run closes."""
     import make_readme_media as mm
     from program_support import ProgramRun  # type: ignore
     from hypothesis_support import registry  # type: ignore
@@ -328,13 +331,18 @@ def _play(tid, seconds):
         for i in range(int(seconds * 60)):
             fly(game, i / 60, **spec["args"])
             run.step(1)
+            if watch is not None:
+                watch(run.ns, (i + 1) / 60)
+            if getattr(game, "done", False):
+                break
         ns = run.ns
         circles = [o for o in registry().live_objects()
                    if type(o).__name__ == "Circle" and getattr(o, "is_alive", False)]
         out = {"done": getattr(game, "done", False), "before": before,
                "circles": len(circles)}
         if "st" in ns:
-            out["st"] = {k: getattr(ns["st"], k, None) for k in ("pontos", "perdidas", "score")}
+            out["st"] = {k: getattr(ns["st"], k, None)
+                         for k in ("pontos", "perdidas", "score", "venceu", "vidas")}
         if "triangulo" in ns:
             out.update(triangle=ns["triangulo"].color, radius=ns["circulo"].radius,
                        colors={k: ns[k].color for k in before})

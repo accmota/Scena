@@ -38,6 +38,29 @@ TAKES = {
     # README: the whole-game block.
     "catch-the-stars/run": dict(program="README.md#catch-the-stars", pilot="catch_falling",
                                 args=dict(_CATCH, miss=0.1, seed=3), seed=3, lead=0.5),
+    # Naves VI: a clean win (shields, a pause on the way), a close win (one
+    # life left), and a careless game that dies at the boss. Each goes back
+    # to the title. Firing in bursts (fire < 1) lets the fleet live long
+    # enough to dive; firing all the time clears it in ~12 s.
+    "naves_6_atos/victory": dict(program="examples/naves_6_atos.py", pilot="play_naves",
+                                 args=dict(fire=0.6, pause_at=14.0, seed=1), seed=1,
+                                 end="done", seconds=240),
+    "naves_6_atos/close_call": dict(program="examples/naves_6_atos.py", pilot="play_naves",
+                                    args=dict(dodge=0.85, shields=False, aim=0.5, fire=0.6,
+                                              reaction=0.3, seed=5),
+                                    seed=5, end="done", seconds=240),
+    "naves_6_atos/game_over": dict(program="examples/naves_6_atos.py", pilot="play_naves",
+                                   args=dict(dodge=False, shields=False, aim=0.0, fire=0.5,
+                                             reaction=0.4, seed=3),
+                                   seed=3, end="done", seconds=240),
+    # Avião III: two flights (into a pillar, then a dive), and one long flight.
+    "aviao_paisagem/flights": dict(program="examples/aviao_paisagem.py", pilot="fly_plane",
+                                   args=dict(flights=(40.0, 25.0), crashes=("pillar", "ground"),
+                                             seed=1),
+                                   seed=1, end="done", seconds=120),
+    "aviao_paisagem/long": dict(program="examples/aviao_paisagem.py", pilot="fly_plane",
+                                args=dict(flights=(110.0,), crashes=("pillar",), seed=2),
+                                seed=2, end="done", seconds=150),
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),

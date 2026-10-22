@@ -376,7 +376,13 @@ runs its check in `quick`).
   there before a full render. A take's variation must show: two takes that
   play alike are one take (the catch pilot's careful and sloppy takes are
   tested apart; a game hard enough that a perfect player misses needs a
-  bigger `miss` to look sloppy).
+  bigger `miss` to look sloppy). The ending must match the take's name:
+  in Naves a careless pilot that fires all the time still wins, so the
+  game-over take fires in short bursts with slow eyes (tests play each
+  take without drawing: `tests/test_record_game_deep.py`, gate). A pilot
+  that restarts a game (SPACE after a crash) moves its memory on in the
+  same frame: a frame later the game is running again and the pilot's
+  crashed branch never runs.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block
