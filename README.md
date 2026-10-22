@@ -262,7 +262,7 @@ Slider(st["radius"], label="Radius", min_value=10, max_value=100)
 Button(label="New game", on_click=new_game)
 ```
 
-Scena's own level editor is built with Scena.
+Scena's own level editor is built with them.
 
 **And more.** A camera that pans, zooms, shakes and frames; layers and
 parallax; `Endless` worlds that build themselves as the camera moves and rebuild
@@ -272,9 +272,10 @@ effects, music, filters and the microphone.
 
 ## Level editor
 
-`scena-editor` comes with Scena. Draw platforms, place points and images, give
-them names and groups, and save a level file. The editor places geometry; your
-code decides what each piece becomes.
+`scena-editor` comes with Scena, and is built 100% in Scena *(only Scena and
+the system's Open and Save windows)*. Draw platforms, place points and images,
+give them names and groups, and save a level file. The editor places geometry;
+your code decides what each piece becomes.
 
 <p align="center">
   <img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/scena-editor.webp" width="720" alt="The level editor with the Ninja IV level open: the view zooms in, three platforms are selected with a box and lifted together, then a star point is selected and its group shows in the side panel.">
@@ -295,20 +296,21 @@ lift = level["elevador"].make(visual=Metal("gold"))    # or as you choose
 
 Every clip below is a program from [`examples/`](https://github.com/accmota/Scena/tree/main/examples),
 played and recorded by the computer (nothing is edited by hand). The games are
-the last step of a tutorial.
+the last step of a tutorial. Line counts are code only, without blank lines or
+comments.
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_4_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ninja_4_perigos.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ninja_perigos.webp" width="380" alt="Ninja IV"></a><br><b>Ninja IV</b>: a platformer built in the level editor, with robots and electric traps</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/naves_4_escudo.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/naves_escudo.webp" width="380" alt="Naves"></a><br><b>Naves</b>: a space shooter with lives, explosions and a shield<br><sub>127 lines of Python</sub></td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ninja_4_perigos.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ninja_perigos.webp" width="380" alt="Ninja IV"></a><br><b>Ninja IV</b>: a platformer built in the level editor, with robots and electric traps<br><sub>192 lines of Python</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/aviao_paisagem.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/aviao_paisagem.webp" width="380" alt="Plane"></a><br><b>Plane</b>: fly between pillars over an endless, layered landscape</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ligue4.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ligue4.webp" width="380" alt="Connect Four"></a><br><b>Connect Four</b>: a board game for two, played by dragging the balls</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/aviao_paisagem.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/aviao_paisagem.webp" width="380" alt="Plane"></a><br><b>Plane</b>: fly between pillars over an endless, layered landscape<br><sub>120 lines of Python</sub></td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/ligue4.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/ligue4.webp" width="380" alt="Connect Four"></a><br><b>Connect Four</b>: a board game for two, played by dragging the balls<br><sub>78 lines of Python</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/corrida.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/corrida.webp" width="380" alt="Race"></a><br><b>Race</b>: pick the players and the track, then race the CPU cars</td>
-    <td align="center"><a href="https://github.com/accmota/Scena/tree/main/examples"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/mais_exemplos.webp" width="380" alt="And many more"></a><br><b>And many more</b>: an oscilloscope, constellations, a duel, a runner, charges, a flock, a chain</td>
+    <td align="center"><a href="https://github.com/accmota/Scena/blob/main/examples/corrida.py"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/corrida.webp" width="380" alt="Race"></a><br><b>Race</b>: pick the players and the track, then race the CPU cars<br><sub>425 lines of Python</sub></td>
+    <td align="center"><a href="https://github.com/accmota/Scena/tree/main/examples"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/mais_exemplos.webp" width="380" alt="And many more"></a><br><b>And many more</b>: an oscilloscope, constellations, a duel, a runner, charges, a flock, a chain<br><sub>39 to 328 lines of Python each</sub></td>
   </tr>
 </table>
 
@@ -349,19 +351,23 @@ progress. The API itself (every name you type) is in English.
 Scena is for learning to program, for small 2D games and for creative coding,
 and for having fun doing it.
 
-- **Simple code, smooth games.** Your code is about the game's logic, not about
-  the machine. Scena is written in Python and does a lot for you, and it is made
-  to run typical games (tens to hundreds of objects) at 60 fps on an ordinary
-  computer. When a scene asks for more than the machine has, it lowers the
-  detail of its effects before it drops frames.
+- **Simple code.** Your code is about the game's logic; Scena takes care of
+  the boring details. Every design decision in Scena was made for learning and
+  for the joy of making things: simple, yet expressive, with no boilerplate, so
+  your focus stays on the thinking and the creativity.
 - **Scripts or classes, both simple.** Scena was built for both. A flat script
   with no classes is a complete game (the one above). When an enemy deserves its
   own behavior, `class Enemy(Sprite)` with `setup` and `on_update` is all a class
   needs. Events, modes and acts work the same in either style.
+- **It's Python.** If you know Python or are learning it, Scena is for you. No
+  new language to learn: what you learn here works anywhere, and the rest of
+  Python works here, from NumPy to the AI libraries Python is known for.
+- **Smooth games.** Typical games (tens to hundreds of objects) run at 60 fps
+  on an ordinary computer. When a scene asks for more than the machine has,
+  Scena lowers the detail of its effects before it drops frames.
 - **What it is not.** It is not trying to be a professional engine: it is 2D
-  only, runs on the desktop, and is made for scenes with tens to hundreds of
-  objects. Simple games stay simple, even if that means less power for very
-  large ones.
+  only and runs on the desktop. Simple games stay simple, even if that means
+  less power for very large ones.
 
 ## License
 

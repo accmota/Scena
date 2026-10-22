@@ -22,6 +22,10 @@ Bug classes guarded:
   renders the README's own block for ``<!-- clip: id -->``; each clip the README
   shows is one the tool makes, and each README clip has its marker. Staleness
   is by input hash (``status``): an edited block is stale, never silently kept.
+* **A Gallery line count goes stale.** Each Gallery cell says how many lines of
+  Python its program is (code only, the way ``cloc`` counts: no blank lines, no
+  comments, no docstrings); a montage gives the range of its takes. The count
+  is recomputed from the example and must match.
 
     python -m unittest tests.test_readme -v
 """
@@ -34,6 +38,7 @@ import os
 import re
 import sys
 import textwrap
+import tokenize
 import unittest
 import warnings
 
@@ -300,6 +305,67 @@ class TestReadmeClips(unittest.TestCase):
                          "stale" if os.path.isfile(os.path.join(mm.OUT_DIR, f"{cid}.webp"))
                          else "missing")
         self.assertEqual(mm.status([cid], {})[cid], "missing")
+
+
+
+# Tokens that are not code; a triple-quoted string is a docstring or text block,
+# which cloc counts as a comment.
+_NOT_CODE = {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT,
+             tokenize.DEDENT, tokenize.ENCODING, tokenize.ENDMARKER}
+_TRIPLE = re.compile(r"(?i)[rbuf]*('''|\"\"\")")
+_COUNT = re.compile(r"<sub>(\d+)(?: to (\d+))? lines of Python(?: each)?</sub>")
+
+
+def code_lines(path: str) -> int:
+    """Lines of code in a Python file, as ``cloc`` counts them."""
+    with open(path, "rb") as fh:
+        tokens = list(tokenize.tokenize(fh.readline))
+    lines = set()
+    for t in tokens:
+        if t.type in _NOT_CODE:
+            continue
+        if t.type in (tokenize.STRING, getattr(tokenize, "FSTRING_START", -1)) \
+                and _TRIPLE.match(t.string):
+            continue
+        lines.update(range(t.start[0], t.end[0] + 1))
+    return len(lines)
+
+
+def _gallery_cells() -> list[str]:
+    text = _readme()
+    gallery = text[text.index("## Gallery"):text.index("\n## ", text.index("## Gallery") + 1)]
+    return re.findall(r"<td\b.*?</td>", gallery, re.S)
+
+
+class TestReadmeLineCounts(unittest.TestCase):
+    def test_every_gallery_cell_has_a_count(self):
+        cells = _gallery_cells()
+        self.assertGreater(len(cells), 0)
+        for cell in cells:
+            self.assertRegex(cell, _COUNT, "a Gallery cell without its line count")
+
+    def test_counts_match_the_programs(self):
+        for cell in _gallery_cells():
+            cid = re.search(r"docs/assets/readme/([\w-]+)\.webp", cell).group(1)
+            m = _COUNT.search(cell)
+            counts = [code_lines(os.path.join(ROOT, take["program"]))
+                      for take in mm.takes(mm.CLIPS[cid])]
+            if m.group(2) is None:
+                self.assertEqual(counts, [int(m.group(1))], cid)
+            else:
+                self.assertEqual((min(counts), max(counts)),
+                                 (int(m.group(1)), int(m.group(2))), cid)
+
+    def test_counter_skips_blanks_comments_and_docstrings(self):
+        import tempfile
+        src = '"""A docstring\non two lines."""\n\n# a comment\nx = 1  # code\n' \
+              'def f():\n    """Doc."""\n    return (1,\n            2)\n'
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as fh:
+            fh.write(src)
+        try:
+            self.assertEqual(code_lines(fh.name), 4)
+        finally:
+            os.unlink(fh.name)
 
 
 if __name__ == "__main__":
