@@ -7,7 +7,7 @@ tutorials in [`docs/`](../docs/index.html).
 Reading order:
 
 1. **[Scena Design.md](Scena%20Design.md)** — start here. Jump box first (code map / frame / API / intent), then product **Context**, then architecture (subsystems, data model, datapath). Happy path only. Companions are a menu, not a reading list.
-2. **[Guia da API](../docs/pt/guide/index.html)** — author-facing API reference (PT-BR; the English Guide will sit in `docs/en/guide/`).
+2. **[Guia da API](../docs/pt/guide/index.html)** — author-facing API reference (PT-BR; the English Guide, `docs/en/guide/`, mirrors it).
 3. Named `* Design.md` companions — subsystem depth when you need it. Open **one**.
 
 Design docs describe **current understanding**, not a freeze. Full statement: [Design documents are descriptions, not locks](Scena%20Design.md#design-documents-are-descriptions-not-locks). The API is published (since 0.6.0): a change that breaks author code is weighed against its cost and follows [Compatibility and versions](Scena%20Design.md#compatibility-and-versions).
@@ -280,11 +280,14 @@ The English Guide mirrors the Portuguese one **unit by unit**, and
 `tools/guide/guia_parity.py` keeps the two in step (`tests/test_guia_parity.py`
 runs its check in `quick`).
 
-- **Where.** It is written in `docs/en/guide/draft.html` (with `noindex`) next
-  to its own `guia-api-catalogs.js`. `index.html` keeps telling readers the Guide
-  is being written until every unit is translated. At that point the draft
-  becomes `index.html` (`validate_guia.PAGES`) and `noindex` is removed.
-  Thumbnails are shared.
+- **Where.** `docs/en/guide/index.html` next to its own
+  `guia-api-catalogs.js` (it was written as `draft.html` with `noindex` until
+  every unit was translated, and published on 2026-10-22). Thumbnails are
+  shared, and their freshness is always asked of the Portuguese cards (the
+  English cards translate prose defaults, which are inputs of the picture's
+  hash). Each page's sidebar has a `.lang-switch` link to the other language
+  that carries the hash over: the ids are the same, so the reader stays on the
+  section (`tests/test_guia_parity.py`, `TestPublishedGuides`).
 - **Units.** For the page: `head`, `style`, `body`, `nav`, `top`, one
   `chapter:<id>` per chapter head, one unit per `<section id>`, and `tail` (the
   scripts). For the catalog file: `js:head`, `js:<BAG>` / `js:<BAG>:end`, one
@@ -484,5 +487,6 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   fails while it is stale and plays the level examples from the unzipped folder.
 - **Claims match the code.** "Mistakes explain themselves" is true only where
   the near-miss message exists; check a claim before writing it.
-- **Docs links go to `pt`** until the English tutorial and Guia exist; the
-  page says so.
+- **Docs links:** the API Guide links go to `en` (with a link to the
+  Portuguese Guia beside them); the tutorial links go to `pt` until the English
+  tutorials exist, and the page says so.

@@ -42,6 +42,14 @@ left out.
 
 ### Fixed
 
+- `Vortex(target=hero)`, `ZoomBlur(center=hero)`, `Perspective(target=hero)`
+  (and `target=` on `Lamp`, `GodRays`, `Spotlight`, `origin=` on
+  `Spotlight`) raised `TypeError` at the first drawn frame when given an
+  object instead of a point, though the Guia says "a point or an object".
+  They now take either, and follow the object as it moves.
+- Guia cards: `GlowSpot` collides (a circle of 0.9 × `radius`), it is not
+  "without a hit"; `DropShadow`, `Dilate`, `Erode` and `Rain` show their real
+  defaults.
 - A decorator written without its parentheses (`@every`, `@after`, `@when`,
   `@on_change`, `@exit_mode`, `@collide_with`, `@collide_with_stay`,
   `@collide_with_exit`, `@click` and the other pointer verbs, and
@@ -81,6 +89,13 @@ left out.
 
 ### Documentation
 
+- The API Guide in English: [docs/en/guide/](https://accmota.github.io/Scena/en/guide/)
+  mirrors the Portuguese Guia section by section, catalog cards included,
+  with the same anchors (a link to `…/pt/guide/index.html#mundo-grupos`
+  works with `en` in place of `pt`). Example code reads English names
+  (`ship`, `"enemy"`); the API is the same. A link at the top of the
+  sidebar switches language and keeps the section. The tutorials are still
+  Portuguese only; their English version is in progress.
 - Guia: the error catalog moved from Começar to the end of Debug (same
   anchor, `#erros-catalogo`), and the Reativo chapter now comes after
   Aparência, before Mundo.

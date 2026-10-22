@@ -82,7 +82,7 @@ class TestRepo(Base):
         for name in ("head", "body", "tail", "js:render"):
             self.assertIn(name, self.state)
         self.assertIn('<html lang="en">', self.en["page"])
-        self.assertIn('content="noindex"', self.en["page"])   # draft: not indexed
+        # Published (2026-10-22): indexed like the Portuguese page (TestPublishedGuides).
 
     def test_stylesheet_is_never_marked(self):
         # No words: it always comes from pt, so a CSS edit needs no translation.
@@ -216,6 +216,40 @@ class TestCards(Base):
     def test_portuguese_meaning_is_caught(self):
         errors = gp.check(*self.translated_card(meaning="Segundos para cada volta"))
         self.assertTrue(any("ainda tem português" in e for e in errors), errors)
+
+
+class TestPublishedGuides(unittest.TestCase):
+    """Both Guides are published, and each switches to the other in place.
+
+    Bug classes: the English page keeps ``noindex`` (search engines never list
+    it) or is left as ``draft.html`` behind a "being written" stub; the switch
+    points at a page that does not exist or drops the section the reader was
+    on (the ids are the same in both pages, so the hash carries over).
+    """
+
+    _SWITCH = re.compile(r'<a class="lang-switch" href="([^"]+)" hreflang="([^"]+)" lang="([^"]+)" '
+                         r'onclick="this.hash = location.hash">')
+
+    def test_every_guide_is_index_html_without_noindex(self):
+        for lang in vg.LANGS:
+            with self.subTest(lang=lang):
+                self.assertEqual(vg.PAGES[lang], "index.html")
+                text = (vg.DOCS / lang / "guide" / "index.html").read_text(encoding="utf-8")
+                self.assertNotIn("noindex", text)
+                self.assertFalse((vg.DOCS / lang / "guide" / "draft.html").exists())
+
+    def test_each_guide_switches_to_the_other_and_keeps_the_section(self):
+        other = {"pt": ("en", "en"), "en": ("pt", "pt-BR")}
+        for lang in vg.LANGS:
+            with self.subTest(lang=lang):
+                page = vg.DOCS / lang / "guide" / "index.html"
+                found = self._SWITCH.findall(page.read_text(encoding="utf-8"))
+                self.assertEqual(len(found), 1, "one language switch, in the sidebar")
+                href, hreflang, attr_lang = found[0]
+                to, code = other[lang]
+                self.assertEqual(href, f"../../{to}/guide/index.html")
+                self.assertTrue((page.parent / href).resolve().is_file())
+                self.assertEqual((hreflang, attr_lang), (code, code))
 
 
 class TestValidatorEnglish(unittest.TestCase):

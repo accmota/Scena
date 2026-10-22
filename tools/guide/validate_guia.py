@@ -38,10 +38,9 @@ DOCS = REPO / "docs"
 # written first and ``en`` mirrors it (``--lang en``; ``guia_parity.py`` keeps
 # the two pages in step). ``set_lang`` rebinds the paths below.
 LANGS = ("pt", "en")
-# The English Guide is written in draft.html while index.html still tells the
-# reader it is being written; the draft becomes index.html when every unit is
-# translated.
-PAGES = {"pt": "index.html", "en": "draft.html"}
+# Each language's page (the English one was written in draft.html, noindex,
+# until every unit was translated; 2026-10-22 it became index.html).
+PAGES = {"pt": "index.html", "en": "index.html"}
 # The words the checks read in the page's own language. ``placeholders`` are
 # words a ``Parâmetros:`` list may not use in place of the real keyword.
 WORDS = {

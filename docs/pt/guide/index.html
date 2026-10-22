@@ -119,6 +119,19 @@
     margin-bottom: 0.1rem;
   }
 
+  .sidebar .lang-switch {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    color: var(--dim);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .sidebar .lang-switch:hover { color: var(--text); }
   .sidebar-sub {
     font-size: var(--fs-label);
     color: var(--dim);
@@ -1140,7 +1153,7 @@
 <div class="page">
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-brand">Scena</div>
-  <div class="sidebar-sub">Guia da API</div>
+  <div class="sidebar-sub">Guia da API · <a class="lang-switch" href="../../en/guide/index.html" hreflang="en" lang="en" onclick="this.hash = location.hash">English</a></div>
 
   <div class="side-search">
     <input type="search" id="q" placeholder="Buscar um nome" autocomplete="off" aria-label="Buscar um nome" aria-controls="search-panel">

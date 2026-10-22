@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://accmota.github.io/Scena/pt/tutorial/">Tutorial</a> ·
-  <a href="https://accmota.github.io/Scena/pt/guide/">API Guide</a> ·
+  <a href="https://accmota.github.io/Scena/en/guide/">API Guide</a> ·
   <a href="https://github.com/accmota/Scena/tree/main/examples">Examples</a> ·
   <a href="https://github.com/accmota/Scena/blob/main/CHANGELOG.md">Changelog</a>
 </p>
@@ -340,11 +340,12 @@ python scena-examples/naves_4_escudo.py
   platformer built in the level editor, a board game, a voice-driven music
   studio and an endless runner. Each one ends in a file in
   [`examples/`](https://github.com/accmota/Scena/tree/main/examples).
-- **[API Guide](https://accmota.github.io/Scena/pt/guide/)**: every class,
-  function and effect, with a live picture of each look.
+- **[API Guide](https://accmota.github.io/Scena/en/guide/)**: every class,
+  function and effect, with a live picture of each look
+  ([em português](https://accmota.github.io/Scena/pt/guide/)).
 
-The tutorial and the Guide are in Portuguese today; the English version is in
-progress. The API itself (every name you type) is in English.
+The tutorial is in Portuguese today; the English version is in progress. The
+API itself (every name you type) is in English.
 
 ## Is Scena for you?
 
