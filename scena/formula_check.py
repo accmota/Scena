@@ -696,8 +696,12 @@ class _Checker(ast.NodeVisitor):
                 cell = held.__dict__.get("_data", {}).get(node.attr)
                 if cell is not None and isinstance(cell.__dict__.get("_raw_value"),
                                                    (list, dict, set)):
+                    raw = cell.__dict__["_raw_value"]
+                    # The base kind picks the hint: ``+= [x]`` notifies a list,
+                    # ``|= {…}`` a dict or a set (``+=`` on those is a TypeError).
                     self.containers.add((node.value.id, node.attr,
-                                         type(cell.__dict__["_raw_value"]).__name__))
+                                         "dict" if isinstance(raw, dict)
+                                         else "set" if isinstance(raw, set) else "list"))
         self.generic_visit(node)
 
     def visit_Subscript(self, node):
@@ -899,13 +903,25 @@ def _warn_container_read(fn, state: str, cell: str, kind: str) -> None:
     _CONTAINER_WARNED.add(key)
     from .process import report_author_warning
     name = f"{state}.{cell}"
-    whole = (f'{name} = {{**{name}, "chave": valor}}' if kind == "dict"
-             else f"{name} = {name} + [x]" if kind == "list" else f"{name} = {name} | {{x}}")
+    # Each kind names only the in-place changes it has and the augmented
+    # spelling that notifies it (RA B2: ``st.inv += [x]`` on a dict raises).
+    if kind == "dict":
+        inplace = f"{name}[…] = …, {name}[…] += 1, .update, .pop"
+        whole = f'{name} = {{**{name}, "chave": valor}}'
+        also = f'{name} |= {{"chave": valor}}'
+    elif kind == "set":
+        inplace = ".add, .discard, .remove"
+        whole = f"{name} = {name} | {{x}}"
+        also = f"{name} |= {{x}}"
+    else:
+        inplace = f"{name}[…] = …, {name}[…] += 1, .append, .pop"
+        whole = f"{name} = {name} + [x]"
+        also = f"{name} += [x]"
     report_author_warning(
         "@=",
         f"formula {_label(fn)} reads inside {name} (a {kind}). A change made in "
-        f"place ({name}[…] = …, {name}[…] += 1, .append, .pop) does not reach it, "
+        f"place ({inplace}) does not reach it, "
         f"so it keeps showing the old value. Write the whole value ({whole}; "
-        f"{name} += [x] also tells it), or keep each number in a cell of its own "
+        f"{also} also tells it), or keep each number in a cell of its own "
         f"({state}.gemas).",
     )

@@ -135,6 +135,13 @@ def _validate_condition(condition: Condition, kind: EventKind) -> None:
         )
     if callable(condition):
         return
+    # ``@on_change(t.text)`` / ``@on_change(box.checked)``: the 0.8.1 spelling
+    # took the cell; the field reads the value since 0.9.0 (A1, RA 0.9.0).
+    from .state import moved_cell_message
+    moved = moved_cell_message(condition, label + "({})",
+                               predicate=kind is EventKind.WHEN)
+    if moved is not None:
+        raise TypeError(moved)
     raise TypeError(
         f"{label} condition must be a zero-arg callable, a field "
         f"(st[\"{cell}\"], obj[\"field\"]), or a Point/Vec2 — got a bare "

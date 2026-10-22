@@ -3607,7 +3607,9 @@ class Sprite(_HitboxBakeMixin, Graphic, PaintState):
         '_pointer_hover', '_pointer_pressed',
         '_collidable', '_collider', '_collision_opt_out', '_time_scale',
         '_active', '_active_saved_visible', '_active_saved_collidable',
-        '_mode', '_mode_time', 'model', '_ink',
+        # No ``model`` slot: a Sprite has no geometry model, and a slot took
+        # ``sprite.model = …`` silently while Text refused it (A7 of RA 0.9.0).
+        '_mode', '_mode_time', '_ink',
         '_on_update', '_on_destroy', '_mode_task', '_frozen_warned', '_mode_idle_from',
         '_actor_constructed',
         '_geom_path', '_geom_path_key', '_tx_state',

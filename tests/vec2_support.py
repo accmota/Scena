@@ -72,7 +72,10 @@ def same_xy(a, b) -> bool:
 
 
 def heading(y, x) -> float:
-    """``angle`` of a vector: degrees in (-180, 180], -0.0 read as 0 (VB7)."""
+    """``angle`` of a vector: degrees in (-180, 180], -0.0 read as 0 (VB7),
+    and a zero vector reads 0 whatever the signs of its zeros (F12)."""
+    if x == 0 and y == 0:
+        return 0.0
     a = math.degrees(math.atan2(y, x)) + 0.0
     return 180.0 if a == -180.0 else a
 

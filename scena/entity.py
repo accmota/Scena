@@ -187,11 +187,41 @@ def _refuse_class_body_values(cls: type) -> None:
         if k is object or is_framework_module(k.__module__):
             continue
         for name, value in k.__dict__.items():
-            if not name or name[0] == "_" or name not in route:
+            if not name or name[0] == "_":
+                continue
+            if name not in route:
+                if hasattr(type(value), "__get__"):
+                    continue
+                # A name every write refuses (``position``, ``rotation``,
+                # ``colour``): a class value made it an attribute, so
+                # ``obj.position = 4`` skipped the refusal (RA 0.9.0 D3).
+                hint = _class_body_foreign_hint(cls, kind, name, route)
+                if hint is not None:
+                    raise TypeError(f"{_class_body_head(cls, name, value)}: {hint}")
                 continue
             if hasattr(type(value), "__get__"):     # a method, property, descriptor
                 continue
             raise TypeError(_class_body_value_message(cls, kind, name, value, route[name]))
+
+
+def _class_body_foreign_hint(cls: type, kind: type, name: str, route) -> Optional[str]:
+    """The write refusal of ``name`` on ``kind`` when it holds for any value:
+    a retired name (``rotation``) or another engine's spelling (``position``,
+    ``colour``). None for a name an instance may store (a bare Entity's
+    ``position``)."""
+    for klass in kind.__mro__:
+        hint = (klass.__dict__.get("_RETIRED_ATTRS") or {}).get(name)
+        if hint is not None:
+            return hint
+    return _foreign_spelling_message(cls, kind, name, route)
+
+
+def _class_body_head(cls: type, name: str, value: Any) -> str:
+    shown = repr(value)
+    if len(shown) > 40:
+        shown = "..."
+    bases = ", ".join(b.__name__ for b in cls.__bases__)
+    return f"class {cls.__name__}({bases}): {name} = {shown} in the class body"
 
 
 def _class_body_value_message(cls: type, kind: type, name: str, value: Any, route: Any) -> str:
@@ -199,7 +229,7 @@ def _class_body_value_message(cls: type, kind: type, name: str, value: Any, rout
     if len(shown) > 40:
         shown = "..."
     bases = ", ".join(b.__name__ for b in cls.__bases__)
-    head = f"class {cls.__name__}({bases}): {name} = {shown} in the class body"
+    head = _class_body_head(cls, name, value)
     if isinstance(route, _RouteRefusal):
         return f"{head}: {route.message.format(cls=kind.__name__)}"
     if route is _LOOK_MISSING:
@@ -422,15 +452,67 @@ def _check_class_hook_names(cls) -> None:
         raise TypeError(f"{who} has {len(found)} methods the engine would never call:\n{lines}")
 
 
-def _file_calls(fn, name: str) -> bool:
-    """The file ``fn`` is written in calls ``name(`` somewhere other than a
-    ``def`` line (read from linecache)."""
+def _file_calls(fn, name: str, cls=None) -> bool:
+    """The file ``fn`` is written in calls ``name`` (not on a ``def`` line),
+    on a receiver that may be a ``cls`` (read from linecache).
+
+    Per class (RA 0.9.0 D5): a call whose receiver is provably another class
+    that defines ``name`` in its own body (``h.Start()`` after ``h =
+    Helper(…)``, ``self.Start()`` inside ``class Helper``) does not silence
+    ``cls``. Any receiver it cannot place (a list item, a parameter, a bare
+    ``Start()``) still does: a warning a helper call would make wrong costs
+    more than one it misses. Runs only for a class that defines another
+    engine's hook name."""
+    import ast
     import linecache
     import re
     path = getattr(getattr(fn, "__code__", None), "co_filename", "")
     lines = linecache.getlines(path) if path else []
-    pat = re.compile(rf"(?<!def )\b{re.escape(name)}\s*\(")
-    return any(pat.search(line) for line in lines)
+    if not lines:
+        return False
+    try:
+        tree = ast.parse("".join(lines))
+    except (SyntaxError, ValueError):
+        pat = re.compile(rf"(?<!def )\b{re.escape(name)}\s*\(")
+        return any(pat.search(line) for line in lines)
+    own = getattr(cls, "__name__", None)
+    defines: dict = {}      # class name -> the methods its own body defines
+    spans = []              # (first line, last line, class name)
+    made: dict = {}         # ``h = Helper(…)`` -> "Helper" (None: two classes)
+    calls = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            defines[node.name] = {b.name for b in node.body
+                                  if isinstance(b, (ast.FunctionDef, ast.AsyncFunctionDef))}
+            spans.append((node.lineno, node.end_lineno or node.lineno, node.name))
+        elif (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+              and isinstance(node.value.func, ast.Name)):
+            k = node.value.func.id
+            for t in node.targets:
+                if isinstance(t, ast.Name):
+                    made[t.id] = k if made.get(t.id, k) == k else None
+        elif isinstance(node, ast.Call):
+            calls.append(node)
+    for call in calls:
+        f = call.func
+        if isinstance(f, ast.Name) and f.id == name:
+            return True
+        if not (isinstance(f, ast.Attribute) and f.attr == name):
+            continue
+        recv = f.value
+        k = None
+        if isinstance(recv, ast.Name):
+            if recv.id == "self":
+                inside = [s for s in spans if s[0] <= call.lineno <= s[1]]
+                if inside:
+                    k = max(inside)[2]          # the innermost class
+            elif recv.id in defines:
+                k = recv.id                     # ``Helper.Start(h)``
+            else:
+                k = made.get(recv.id)
+        if k is None or k == own or name not in defines.get(k, ()):
+            return True
+    return False
 
 
 def _class_hook_refusal(cls, name: str, raw, is_act: bool, who: str) -> Optional[str]:
@@ -471,13 +553,17 @@ def _class_hook_refusal(cls, name: str, raw, is_act: bool, who: str) -> Optional
         # A warning, not a refusal: a refugee calls ``player.Start()`` /
         # ``e.Update(dt)`` by hand, and that is a working helper (the round-2
         # regression run). Silent when the file calls it.
-        if not _file_calls(raw, name):
+        if not _file_calls(raw, name, cls):
             from .process import report_author_warning
+            code = getattr(raw, "__code__", None)
             report_author_warning(
                 "class",
                 f"{who}.{name} is another engine's hook name; Scena never calls it. "
                 f"Write {_HOOK_SIGNATURES.get(engine, engine)} (if you call {name} "
                 f"yourself, nothing is wrong).",
+                # The method's own line: the stack here is Scena's class
+                # creation (it pointed at entity.py, RA 0.9.0 D5).
+                site=(code.co_filename, code.co_firstlineno) if code is not None else None,
             )
         return None
     if not name.startswith("on_") or name in _CLASS_HOOK_NAMES:
@@ -664,6 +750,11 @@ def _ink_link_forbidden_message(owner: "Entity", field: str) -> str:
         # The words ``=`` answers with (a bare Entity's ``angle`` adds its hint).
         return _absent_reserved_text(field, ", so @= has nothing to link", size,
                                      cls=cls).format(cls=kind)
+    # A kind whose ``=`` refuses the value a link would write too (a Text
+    # cannot flip) words its own @= refusal (B7, RA 0.9.0).
+    own = getattr(cls, "_link_refusals", None)
+    if own and field in own:
+        return own[field].format(cls=kind)
     hint = _INK_LINK_FORBIDDEN_HINTS.get(field)
     if hint is None:
         hint = f"Set it with `{kind.lower()}.{field} = …`."
@@ -993,23 +1084,34 @@ def _ink_exact_name_message(cls: type, name: str, known) -> Optional[str]:
     return None
 
 
+def _foreign_spelling_message(cls: type, kind: type, name: str, known) -> Optional[str]:
+    """``position`` / ``colour`` / ``font`` …: another spelling of a field
+    ``kind`` has (``_INK_SPELLINGS``), refused whatever the value; the write
+    check and the class-body check (``_refuse_class_body_values``) share it."""
+    who = cls.__name__
+    fix = _INK_SPELLINGS.get(name)
+    if fix is not None and name in _POSE_SPELLINGS and not getattr(kind, "_pose_xy_guard", False):
+        fix = None      # a bare Entity has no pose: ``position`` is its own field
+    if fix is None or fix not in known:
+        return None
+    if name == "font":
+        return (
+            f"{who} has no 'font'. Size is {who.lower()}.font_size = …. "
+            f"There is no font-family property."
+        )
+    if fix == "active":
+        return f"{who} has no {name!r}. {_INK_LINK_FORBIDDEN_HINTS['active']}"
+    return f"{who} has no {name!r}; Scena spells it {fix!r} ({who.lower()}.{fix} = …)."
+
+
 def _ink_near_miss_message(cls: type, name: str, known) -> Optional[str]:
     who = cls.__name__
     exact = _ink_exact_name_message(cls, name, known)
     if exact is not None:
         return exact
-    fix = _INK_SPELLINGS.get(name)
-    if fix is not None and name in _POSE_SPELLINGS and not getattr(cls, "_pose_xy_guard", False):
-        fix = None      # a bare Entity has no pose: ``position`` is its own field
-    if fix is not None and fix in known:
-        if name == "font":
-            return (
-                f"{who} has no 'font'. Size is {who.lower()}.font_size = …. "
-                f"There is no font-family property."
-            )
-        if fix == "active":
-            return f"{who} has no {name!r}. {_INK_LINK_FORBIDDEN_HINTS['active']}"
-        return f"{who} has no {name!r}; Scena spells it {fix!r} ({who.lower()}.{fix} = …)."
+    spelled = _foreign_spelling_message(cls, cls, name, known)
+    if spelled is not None:
+        return spelled
     # One edit from a retired name (``rotaton``): the retired name's own hint.
     for klass in cls.__mro__:
         for old, hint in (klass.__dict__.get("_RETIRED_ATTRS") or {}).items():
@@ -2306,6 +2408,20 @@ def _refuse_if_destroyed(obj, action: str) -> None:
             f"called from {os.path.basename(frame.filename)}:{frame.lineno} in {frame.name}"
         )
     shown = f"{action}()" if line and re.search(rf"\.{re.escape(action)}\s*\(", line) else action
+    host = obj.__dict__.get("_destroyed_with_host") if hasattr(obj, "__dict__") else None
+    if host is not None and not getattr(type(obj), "_scena_is_act", False):
+        # A part of a destroyed actor (``bala.vel``, ``bala.center``, a kept
+        # ``v = bala.vel``): name the owner's field and guard the owner. The
+        # part itself stays truthy after the destroy, so ``if vel:`` did not
+        # guard (RA 0.9.0 G2).
+        field = _dead_part_field(obj)
+        shown = f"{field}.{shown}" if shown.endswith("()") else field
+        base = (f"{type(host).__name__}.{shown} cannot change a destroyed "
+                f"actor")
+        if site:
+            base = f"{base} ({site})"
+        base = f"{base}. Guard the call: if {_dead_host_name(host, field, line)}:"
+        raise DestroyedError(_destroyed_access_message(obj, base))
     guard = "if actor:"
     if line:
         found = re.search(
@@ -2331,6 +2447,151 @@ def _refuse_if_destroyed(obj, action: str) -> None:
         base = f"{base} ({site})"
     base = f"{base}. Guard the call: {guard}"
     raise DestroyedError(_destroyed_access_message(obj, base))
+
+
+# ``self.mode = self.phase2()``: the author line's call, per code location
+# (filename, line) -> (actor text, goto_mode?, receiver text, function name)
+# or None (RA 0.9.0 D4).
+_MODE_CALL_LINES: Dict[Tuple[str, int], Optional[tuple]] = {}
+_MODE_CALL_RE = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_.]*)\.(mode\s*=|goto_mode\s*\()\s*(?:([A-Za-z_][A-Za-z0-9_.]*)\.)?"
+    r"([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\)\s*\)?\s*(?:#.*)?$")
+# Code object -> True when the function never returns a value (a procedure).
+_PROCEDURE_CODES: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
+
+def _never_returns_a_value(code) -> bool:
+    """Every ``return`` of ``code`` gives None (a body, not a picker that
+    returns a mode). Bytecode: each RETURN_VALUE follows LOAD_CONST None;
+    RETURN_CONST (3.12, 3.13) carries None."""
+    try:
+        return _PROCEDURE_CODES[code]
+    except KeyError:
+        pass
+    import dis
+    prev = None
+    result = True
+    for ins in dis.get_instructions(code):
+        if ins.opname == "RETURN_CONST" and ins.argval is not None:
+            result = False
+            break
+        if ins.opname == "RETURN_VALUE" and not (
+                prev is not None and prev.opname == "LOAD_CONST" and prev.argval is None):
+            result = False
+            break
+        prev = ins
+    _PROCEDURE_CODES[code] = result
+    return result
+
+
+def _refuse_called_mode_body() -> None:
+    """``self.mode = self.phase2()`` with ``phase2`` a plain method: the call
+    ran the body as a helper (its timers outlived no mode) and the mode setter
+    got its None, silently (RA 0.9.0 D4; R2-9 guards an ``@on_mode`` body).
+
+    Asked for every ``mode = None``: the author line is read once per code
+    location (a cached miss for ``self.mode = None``). A function that never
+    returns a value is a body; a picker (``self.mode = self.pick_mode()``)
+    returns one and passes, None included."""
+    f = sys._getframe(2)
+    while f is not None and _is_scena_file(f.f_code.co_filename):
+        f = f.f_back
+    if f is None:
+        return
+    key = (f.f_code.co_filename, f.f_lineno)
+    try:
+        hit = _MODE_CALL_LINES[key]
+    except KeyError:
+        import linecache
+        found = _MODE_CALL_RE.search(linecache.getline(key[0], key[1]).rstrip())
+        hit = ((found.group(1), found.group(2)[0] == "g", found.group(3) or "",
+                found.group(4)) if found else None)
+        if len(_MODE_CALL_LINES) > 4096:
+            _MODE_CALL_LINES.clear()
+        _MODE_CALL_LINES[key] = hit
+    if hit is None:
+        return
+    actor, goto, recv, name = hit
+    if recv:
+        head, _, rest = recv.partition(".")
+        target = f.f_locals.get(head, f.f_globals.get(head))
+        for part in rest.split(".") if rest else ():
+            target = getattr(target, part, None)
+        fn = getattr(type(target), name, None) if target is not None else None
+    else:
+        fn = f.f_locals.get(name, f.f_globals.get(name))
+    fn = getattr(fn, "__func__", fn)
+    code = getattr(fn, "__code__", None)
+    if code is None or getattr(fn, "_is_mode", False) or not _never_returns_a_value(code):
+        return      # an @on_mode body refused at its call already; a picker
+    spelled = f"{recv}.{name}" if recv else name
+    wrote, fix = ((f"{actor}.goto_mode({spelled}())", f"{actor}.goto_mode({spelled})")
+                  if goto else (f"{actor}.mode = {spelled}()", f"{actor}.mode = {spelled}"))
+    raise TypeError(
+        f"{wrote}: the () called {name} here, as a helper, so its body ran "
+        f"outside any mode and gave None (and mode None leaves the mode). "
+        f"Enter it with {fix} (no parentheses). To call it as a helper and "
+        f"leave the mode, write {spelled}() on its own line, then "
+        f"{actor}.mode = None."
+    )
+
+
+def _dead_ink_value(actor, name: str, dead: dict):
+    """A destroyed actor's own field, as its reads see it (R3-1).
+
+    A Vec2 field reads as a dead copy, like a built-in part (``ship.vel``):
+    its in-place writes (``dead.pos0.x = 5``, ``dead.pos0 += w``) refuse
+    before either axis changes, naming ``Circle.pos0`` (RA 0.9.0 D7). A
+    copy, not the held vector: that one may be the author's own (``ship.pos0
+    = w``), which stays theirs to change. Made at the first read (from the
+    value then), so ``destroy()`` pays nothing for it (a copy per Vec2 field
+    at the teardown cost ~0.35 µs each). Every other value is shared."""
+    value = dead[name]
+    if type(value) is Vec2 and not value.__dict__.get("_destroyed"):
+        copy = Vec2(value.x, value.y)
+        cd = copy.__dict__
+        cd["_destroyed"] = True
+        cd["_host_destroyed"] = True
+        cd["_destroyed_with_host"] = actor
+        cd["_dead_field"] = name
+        dead[name] = value = copy
+    return value
+
+
+def _dead_part_field(part) -> str:
+    """The owner's field a dead part was (``vel``, ``center``, ``points[2]``).
+
+    Error path only. ``_dead_field``: an ink Vec2's dead copy (``_dead_ink_value``);
+    ``_link_refused``: ``ship.vel`` (its ``_attr_name`` is ``Circle_vel``);
+    a polygon vertex is ``v<i>`` inside, ``points[i]`` to the author."""
+    d = part.__dict__
+    field = d.get("_dead_field") or d.get("_link_refused") or d.get("_attr_name") or "part"
+    vertex = re.fullmatch(r"v(\d+)", field)
+    if vertex is not None:
+        field = f"points[{vertex.group(1)}]"
+    return field
+
+
+def _dead_host_name(host, field: str, line: str) -> str:
+    """The author's name for a dead part's owner, for ``Guard the call: if …:``.
+
+    The call line first (``bala.vel.x = 3`` → ``bala``); else the name the
+    owner was made under (``bala = Circle(…)``: a kept ``v = bala.vel``);
+    else ``actor``. Error path only."""
+    base = field.split("[", 1)[0]
+    if line:
+        found = re.search(rf"([A-Za-z_][A-Za-z0-9_.]*?)\s*\.\s*{re.escape(base)}\b", line)
+        if found:
+            return found.group(1)
+    site = host.__dict__.get("_site")
+    if site is not None:
+        import linecache
+        made = re.search(
+            rf"((?:self\.)?[A-Za-z_][A-Za-z0-9_]*)\s*=\s*{re.escape(type(host).__name__)}\s*\(",
+            linecache.getline(site[0], site[1]))
+        if made:
+            return made.group(1)
+    return "actor"
 
 
 def _ink_callable_message(owner, field: str, value) -> str:
@@ -2801,7 +3062,7 @@ class Entity(Container):
         if destroyed:
             dead = self.__dict__.get("_dead_ink")
             if dead is not None and name in dead and not _in_engine_evaluation():
-                return dead[name]           # reads stay; writes refuse (R3-1)
+                return _dead_ink_value(self, name, dead)   # reads stay; writes refuse (R3-1)
             raise DestroyedError(_destroyed_access_message(
                 self, f"{type(self).__name__} is destroyed"
             ))
@@ -3247,6 +3508,8 @@ class Entity(Container):
         Same-mode reassignment is a no-op. Use :meth:`goto_mode` to force
         exit+enter.
         """
+        if value is None:
+            _refuse_called_mode_body()
         self._validate_mode_value(value)
         self._refuse_mode_in_exit_hook()
         if value == self._mode:
@@ -3270,6 +3533,8 @@ class Entity(Container):
         already running."""
         if self._destroyed and fn is not None:  # before the value check (DV1)
             raise DestroyedError(_destroyed_access_message(self, "mode"))
+        if fn is None:
+            _refuse_called_mode_body()
         self._validate_mode_value(fn)
         self._refuse_mode_in_exit_hook()
         self._goto_mode(fn)

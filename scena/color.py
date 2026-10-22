@@ -1739,3 +1739,142 @@ class Palette(ClosedSurface):
     def colors(self) -> List[Color]:
         """Copy of the swatches, in order."""
         return list(self._colors)
+
+
+# --- static check: a color looked up by name in a set / dict ------------------
+#
+# ``bola.color == "red"`` is True (a Color is a value), but a set or a dict
+# finds a key by its hash, and a Color hashes its channels, never one of the
+# many spellings it equals: ``bola.color in {"red", "blue"}`` is always False
+# and ``{"red": 10}[bola.color]`` raises KeyError (RA 0.9.0 D6, decided: warn
+# from the author's file). Read once per file at ``run()``.
+
+_PAINT_ATTRS = frozenset({"color", "fill", "line", "background"})
+_KEYS_CHECKED: set = set()
+
+
+def _is_color_word(text: str) -> bool:
+    """A color name or ``#rrggbb[aa]`` (no fuzzy match, never warns)."""
+    t = text.strip()
+    if t.startswith("#"):
+        h = t[1:]
+        return len(h) in (6, 8) and all(ch in "0123456789abcdefABCDEF" for ch in h)
+    if not t:
+        return False
+    try:
+        kind = ColorNames.resolve(t).kind
+    except Exception:
+        return False
+    return kind in (ColorResolveKind.EXACT, ColorResolveKind.MODIFIER)
+
+
+def _color_word_keys(node) -> Optional[str]:
+    """``"set"`` / ``"dict"`` for a literal whose items (keys) are all color
+    words, else None."""
+    import ast
+    if isinstance(node, ast.Set):
+        items, kind = node.elts, "set"
+    elif isinstance(node, ast.Dict):
+        items, kind = node.keys, "dict"
+    else:
+        return None
+    if not items or not all(isinstance(k, ast.Constant) and isinstance(k.value, str)
+                            and _is_color_word(k.value) for k in items):
+        return None
+    return kind
+
+
+def color_key_warnings(tree) -> List[Tuple[int, str]]:
+    """``(line, message)`` for each place ``tree`` looks a paint field
+    (``.color`` / ``.fill`` / ``.line`` / ``.background``) up by color name in
+    a set or dict: ``x.color in {"red", "blue"}``, ``{"red": 10}[x.color]``,
+    ``PONTOS.get(x.color)`` — the literal written there, or a name the file
+    binds once to one. The words are all color names, so an author field of
+    the same name holding other words (``fala.line in {"oi"}``) is quiet."""
+    import ast
+    bound: Dict[str, Optional[ast.AST]] = {}   # name -> its literal; None: other / rebound
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for t in targets:
+                if isinstance(t, ast.Name):
+                    lit = node.value if (isinstance(node, ast.Assign)
+                                         and _color_word_keys(node.value)) else None
+                    bound[t.id] = None if t.id in bound else lit
+                elif isinstance(t, (ast.Tuple, ast.List, ast.Starred)):
+                    for e in ast.walk(t):
+                        if isinstance(e, ast.Name):
+                            bound[e.id] = None
+
+    def literal(node):
+        if isinstance(node, ast.Name):
+            return bound.get(node.id)
+        return node if _color_word_keys(node) else None
+
+    def paint(node) -> bool:
+        return isinstance(node, ast.Attribute) and node.attr in _PAINT_ATTRS
+
+    out: List[Tuple[int, str]] = []
+    for node in ast.walk(tree):
+        expr = holder = lit = None
+        if isinstance(node, ast.Compare) and paint(node.left):
+            for op, right in zip(node.ops, node.comparators):
+                if isinstance(op, (ast.In, ast.NotIn)):
+                    lit = literal(right)
+                    if lit is not None:
+                        expr, holder = node.left, right
+                        break
+        elif isinstance(node, ast.Subscript) and paint(node.slice):
+            lit = literal(node.value)
+            if isinstance(lit, ast.Dict):
+                expr, holder = node.slice, node.value
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+              and node.func.attr == "get" and node.args and paint(node.args[0])):
+            lit = literal(node.func.value)
+            if isinstance(lit, ast.Dict):
+                expr, holder = node.args[0], node.func.value
+        if expr is None:
+            continue
+        what = ast.unparse(expr)
+        named = f"{holder.id} " if isinstance(holder, ast.Name) else ""
+        if isinstance(lit, ast.Set):
+            words = [k.value for k in lit.elts]
+            as_list = "[" + ", ".join(f'"{w}"' for w in words) + "]"
+            as_colors = "{" + ", ".join(f'Color("{w}")' for w in words) + "}"
+            msg = (f"{what} is looked up by color name in a set {named}that never "
+                   f"finds it: a Color equals \"{words[0]}\", but a set finds a Color "
+                   f"by its value, never by a name. Write the names as a list "
+                   f"({as_list}) or put Color(...) in the set ({as_colors}).")
+        else:
+            key = lit.keys[0].value
+            val = ast.unparse(lit.values[0])
+            msg = (f"{what} is looked up by color name in a dict {named}that never "
+                   f"finds it (in is False, [] raises KeyError, .get gives None): a Color equals "
+                   f"\"{key}\", but a dict finds a Color by its value, never by a "
+                   f"name. Key the dict with Color(...): {{Color(\"{key}\"): {val}, …}}.")
+        out.append((node.lineno, msg))
+    out.sort()
+    return out
+
+
+def warn_color_keys(path: Optional[str]) -> None:
+    """SCENA WARNING at each author line ``color_key_warnings`` finds in the
+    file at ``path`` (once per file; ``run()``)."""
+    if not path or path in _KEYS_CHECKED:
+        return
+    _KEYS_CHECKED.add(path)
+    import ast
+    import linecache
+    lines = linecache.getlines(path)
+    if not lines:
+        return
+    try:
+        tree = ast.parse("".join(lines))
+    except (SyntaxError, ValueError):
+        return
+    found = color_key_warnings(tree)
+    if not found:
+        return
+    from .process import report_author_warning
+    for line, msg in found:
+        report_author_warning("color", msg, site=(path, line))

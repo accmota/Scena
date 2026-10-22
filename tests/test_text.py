@@ -1966,6 +1966,78 @@ class TestTextReadsAsStr(TextTestCase):
         self.assertIn('["text"] @=', str(cm.exception))
 
 
+class TestMovedCellDoors(TextTestCase):
+    """A1 (RA 0.9.0): the doors that took ``t.text`` / ``box.checked`` as the
+    cell in 0.8.1 get the value since 0.9.0 (a str, a bool). They said "got
+    a bare TextValue" / "until() expected a function …, got bool" / the
+    generic @= words, naming an internal type or ``st[...]``. Every door ×
+    both fields: the message names the bracket cell and a lambda in the
+    author's own names, and the bracket spelling it names works."""
+
+    def setUp(self):
+        super().setUp()
+        from scena import CheckBox
+        st.mc_n = 1
+        st.mc_hat = False
+        self.placar = self.track(Text(lambda: f"P {st.mc_n}", center=(100, 100)))
+        self.caixa = self.track(CheckBox())
+        self.x = self.track(Text("x", center=(10, 10)))
+
+    def _refusal(self, door):
+        with self.assertRaises(TypeError) as cm:
+            door()
+        return str(cm.exception)
+
+    def test_every_door_names_the_cell_and_a_function(self):
+        from scena import on_change, until, when
+        placar, caixa, x = self.placar, self.caixa, self.x
+        doors = {
+            ("@on_change", "text"): lambda: on_change(placar.text)(lambda *a: None),
+            ("@on_change", "checked"): lambda: on_change(caixa.checked)(lambda *a: None),
+            ("@when", "text"): lambda: when(placar.text)(lambda: None),
+            ("@when", "checked"): lambda: when(caixa.checked)(lambda: None),
+            ("until", "text"): lambda: until(placar.text),
+            ("until", "checked"): lambda: until(caixa.checked),
+            ("@= field", "text"): lambda: x["text"].__imatmul__(placar.text),
+            ("@= field", "checked"): lambda: x["visible"].__imatmul__(caixa.checked),
+            ("@= st", "text"): lambda: st["mc_hat"].__imatmul__(placar.text),
+            ("@= st", "checked"): lambda: st["mc_hat"].__imatmul__(caixa.checked),
+        }
+        for (door, field), call in doors.items():
+            owner = "placar" if field == "text" else "caixa"
+            with self.subTest(door=door, field=field):
+                msg = self._refusal(call)
+                self.assertIn(f'{owner}["{field}"]', msg)
+                self.assertIn(f"lambda: {owner}.{field}", msg)
+                self.assertIn("since 0.9.0", msg)
+                self.assertNotIn("TextValue", msg)
+                self.assertNotIn('st["', msg.replace('st["mc_hat"]', ""))
+
+    def test_a_plain_bool_or_str_keeps_the_door_words(self):
+        """Only the moved fields get the new words: a literal says what it did."""
+        from scena import on_change
+        flag = True
+        msg = self._refusal(lambda: on_change(flag)(lambda *a: None))
+        self.assertIn("zero-arg callable", msg)
+        msg = self._refusal(lambda: self.x["text"].__imatmul__("hi"))
+        self.assertIn("@= needs a linkable object", msg)
+
+    def test_the_named_cells_work(self):
+        from scena import on_change
+        placar, caixa, x = self.placar, self.caixa, self.x
+        seen = []
+        on_change(placar["text"])(lambda *a: seen.append(a))
+        x["text"] @= placar["text"]
+        st["mc_hat"] @= caixa["checked"]
+        st.mc_n = 2
+        caixa.checked = True
+        self.assertEqual(x.text, "P 2")
+        self.assertIs(st.mc_hat, True)
+        self.assertTrue(seen)
+        st["mc_hat"].unlink()
+        x["text"].unlink()
+
+
 class TestCellMethodsReadFresh(unittest.TestCase):
     """A method called on a cell reads its current value, never a stale one
     (the cell's ``__getattr__`` read ``_raw_value``: PP, the class of the

@@ -492,6 +492,9 @@ class TestRefusals(BoxFormulaCase):
         hero = self.own(Rect(center=(0, 0), width=40, height=20))
         with self.assertRaisesRegex(TypeError, "only by box= on"):
             Text("hi", box=lambda: hero.box)
+        # C5 (RA 0.9.0): a Text follows by its center, as the entry says.
+        with self.assertRaisesRegex(TypeError, "on a Text link center= instead"):
+            Text("hi", box=lambda: hero.box)
         with self.assertRaisesRegex(TypeError, "only by box= on"):
             hero.confine(lambda: hero.box)
 

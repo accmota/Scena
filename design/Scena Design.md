@@ -287,11 +287,14 @@ what the open Vec2 did and only a direct `v.x = 5` pays ~100 ns (Reactive
 Design, Vec2). The class-wide guard is `tests/test_closed_surfaces.py`
 (Testing Design family CS).
 
-**Paint / appearance is not ink.** Costume channels (`.visual`, `.fill`, `.line`,
-`.line_width`, filters, `.glow`, `.shadow`, …) are plain properties on
-`Graphic` — they do not enter the dependency graph. Bracket `@=` and
+**Paint / appearance is not ink.** Costume channels (`.visual`, filters, `.glow`,
+`.shadow`, …) are plain properties on `Graphic`; bracket `@=` and
 `field = lambda: …` on those names raise with a hint to use `=` plus
-`on_update` / `@on_change` / `@when` when looks should follow game state.
+`on_update` / `@on_change` / `@when`. Since 0.9.0 a few appearance fields link
+as **targets** (`color`, `fill`, `line`, `line_width`, Text `background`, Sprite
+`alpha`, `visible`, `flip_x`, `flip_y`): a link is `=` re-run when the formula's
+sources change, and the field is never a link source ([Reactive Design —
+Appearance links](Reactive%20Design.md#appearance-paintstate-internal)).
 **`.vel` is not linkable either**: the engine writes it (`resolve(bounce=)`,
 `confine(action="bounce")`) and so does the taught `vel.y -= g * dt`, so a link
 would make those raise far from the `@=` line. `ship.vel @= f`,

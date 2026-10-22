@@ -120,7 +120,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `tilesets/` | GameArt2D | https://www.gameart2d.com/free-platformer-game-tileset.html |
 | `pixel_adv/` | Pixel Frog | https://pixelfrog-assets.itch.io/pixel-adventure-2 |
 | `explosions/exp*` | OpenGameArt authors | links in `explosions/license.txt` |
-| `explosions/Black_smoke/`, `Explosion/`, `Flash/`, `White_puff/` | Kenney | https://www.kenney.nl ("Smoke Particles": loose puffs for particles, not animation frames) |
+| `explosions/Black_smoke/`, `Flash/`, `White_puff/` | Kenney | https://www.kenney.nl ("Smoke Particles": loose puffs for particles, not animation frames) |
 | `explosions/fireball/` | OpenGameArt | https://opengameart.org/content/fireball-effect-2 |
 | `ui/` | Kenney | https://www.kenney.nl ("UI Pack" 2.0, with its sounds in `ui/Sounds/`) |
 | `audio/Victory.mp3` | OpenGameArt | https://opengameart.org/content/victory |

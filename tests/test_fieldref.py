@@ -1234,6 +1234,14 @@ class TestReservedLinkRefusalPerKind(unittest.TestCase):
                     with self.assertRaises(AttributeError) as cm:
                         obj[name] @= (lambda: 1.0)
                     msg = str(cm.exception)
+                    own = getattr(type(obj), "_link_refusals", None) or {}
+                    if name in own:
+                        # The kind's ``=`` refuses the value too (Text flips,
+                        # B7): its own words, never "set it with =".
+                        self.assertEqual(msg, own[name].format(cls=kind_name))
+                        self.assertNotIn("Set it with", msg)
+                        checked[(kind_name, name)] = "own"
+                        continue
                     self.assertIn(words[expected].format(name=name), msg)
                     self.assertNotIn("appearance and built-in", msg)
                     if expected == "absent" and name in _RESERVED_FAMILY:
@@ -1253,7 +1261,7 @@ class TestReservedLinkRefusalPerKind(unittest.TestCase):
                               (("Text", "group"), "property"), (("Sprite", "gray"), "property"),
                               # Appearance links a kind excludes still refuse.
                               (("Point", "color"), "property"), (("Point", "visible"), "property"),
-                              (("Track", "visible"), "property"), (("Text", "flip_x"), "property"),
+                              (("Track", "visible"), "property"), (("Text", "flip_x"), "own"),
                               (("Sprite", "color"), "property"),
                               (("Rect", "name"), "read_only"),
                               (("Circle", "touching_sides"), "read_only")):
@@ -1330,7 +1338,8 @@ class TestReservedWriteRefusalPerKind(unittest.TestCase):
                     ("Rect", "background"), ("Rect", "align"), ("Rect", "hitboxes"),
                     ("Rect", "offset"), ("Rect", "tilt"), ("Rect", "art_angle"),
                     ("Rect", "soft_edge"), ("Text", "model"), ("Text", "frame"),
-                    ("Sprite", "text"), ("Circle", "width"), ("Rect", "font_size")):
+                    ("Sprite", "text"), ("Circle", "width"), ("Rect", "font_size"),
+                    ("Sprite", "model"), ("Svg", "model")):    # A7: a dead slot took it
             self.assertIn(row, absent)
 
     def test_fields_the_kind_has_still_write(self):

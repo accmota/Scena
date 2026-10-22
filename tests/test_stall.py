@@ -115,6 +115,31 @@ class TestStallWatch(unittest.TestCase):
         init(width=100, height=100)
         self.assertIsNone(stall._state[0])
 
+    def _call_run(self, module_name):
+        """``run()`` called from a namespace named ``module_name``, with the
+        window and the main loop stubbed out; returns the ``arm`` mock."""
+        from scena import orchestration as orch
+        import scena.process as proc
+        fw = orch.ScenaFramework.get_instance()
+        with mock.patch.object(stall, "arm") as arm, \
+                mock.patch.object(proc, "_top_level_ended", False), \
+                mock.patch.object(type(fw), "run", lambda self: None), \
+                mock.patch.object(type(fw), "open_window", lambda self: None), \
+                mock.patch.object(type(fw), "set_auto_callbacks", lambda self, g: None), \
+                mock.patch.object(fw, "_windowed", False), \
+                mock.patch.object(fw, "_first_act", None):
+            exec(compile("run()", "jogo.py", "exec"),
+                 {"__name__": module_name, "run": orch.run})
+        return arm
+
+    def test_a_scripts_run_arms_the_frame_watch_without_init(self):
+        # RA B1: a script with no init() of its own called run() and a stuck
+        # frame froze the window with no message (only init() armed it).
+        self.assertEqual(self._call_run("__main__").call_count, 1)
+
+    def test_a_test_modules_run_does_not_arm(self):
+        self.assertEqual(self._call_run("tests.algum").call_count, 0)
+
 
 
 class TestEndedWithoutRun(unittest.TestCase):

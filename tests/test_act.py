@@ -2417,6 +2417,42 @@ class TestNamedSlotsAcrossTheSeal(ActTestCase):
         self.assertFalse(h.cancelled)
         h.cancel()
 
+    def _refused_every(self, spelling):
+        # RA B3: the code refused them; only run_task / after / play_sound /
+        # tween had a test.
+        from scena import every
+        name = f"clima_{spelling.strip('@')}"
+        beats = []
+        h = self._game_task(name, beats)
+        ticks = []
+
+        class Nevoa(Act):
+            def setup(self):
+                if spelling == "every":
+                    every(0.1, lambda: ticks.append(1), name=name)
+                else:
+                    @every(0.1, name=name)
+                    def pinga():
+                        ticks.append(1)
+
+        with self.assertRaises(ValueError) as cm:
+            self.begin(Nevoa)
+        msg = str(cm.exception)
+        for part in (f"'{name}'", "game task", "every(", "another name"):
+            self.assertIn(part, msg)
+        self.assertFalse(h.cancelled, "the game's task was cancelled anyway")
+        self.assertIs(get_scheduler()._named[(None, name)], h)
+        self.w.step(30, dt=1 / 60)
+        self.assertEqual(ticks, [], "the refused timer ran")
+        self.assertGreater(len(beats), 0, "the game's task stopped")
+        h.cancel()
+
+    def test_an_act_every_taking_a_game_task_name_raises(self):
+        self._refused_every("every")
+
+    def test_an_act_at_every_taking_a_game_task_name_raises(self):
+        self._refused_every("@every")
+
     def test_a_refused_sound_or_tween_leaves_nothing_behind(self):
         """The check runs before the voice starts and before the tween
         claims its target, not only at registration."""

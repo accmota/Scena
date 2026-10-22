@@ -446,6 +446,7 @@ class TestACallbackThatNeedsArgumentsRaisesWhereItIsGiven(ProcessTestCase):
             "tween on_done": lambda: tween(c["radius"], 5.0, time=0.2, on_done=needs_two),
             "move_to on_done": lambda: c.move_to(10, 0, time=0.2, on_done=needs_two),
             "e.after": lambda: c.after(0.5, needs_two),      # gets the owner, needs two
+            "e.every": lambda: c.every(0.5, needs_two),      # RA D2 / E3
         }
         for door, call in doors.items():
             with self.subTest(door=door):
@@ -454,6 +455,8 @@ class TestACallbackThatNeedsArgumentsRaisesWhereItIsGiven(ProcessTestCase):
                 msg = str(cm.exception)
                 self.assertIn("needs_two() needs 2 argument(s)", msg)
                 self.assertIn("lambda", msg)
+                if door in ("every", "e.every"):    # RA D2: it said after(…)
+                    self.assertIn("every(…, lambda: needs_two(…))", msg)
         self.assertEqual(len(get_scheduler()._handles), 0)
 
     def test_what_fits_is_accepted(self):
@@ -2952,6 +2955,35 @@ class TestTimedVerbsGateAtTheCall(ProcessTestCase):
         self.assertAlmostEqual(float(s.center.y), 40.0)
 
 
+class TestTweenRefusesALinkOnlyField(ProcessTestCase):
+    """``tween(x["color"], …)`` (a paint or a flag: links, does not tween)
+    refuses with a fix the author can type. RA B6m: the fix used the class
+    name as the variable (``st.c = Circle.color; … Circle['color'] @= …``).
+    Class guard: every field of ``_UNTWEENED_LINKS``, on a class that has it."""
+
+    def test_every_untweened_field_refuses_with_a_typable_fix(self):
+        import scena
+        from scena.process import _UNTWEENED_LINKS
+        from scena import Text
+        made = {"Circle": lambda: Circle(center=(0, 0), radius=1),
+                "Text": lambda: Text("a", center=(0, 0))}
+        for field in sorted(_UNTWEENED_LINKS):
+            owners = [n for n in made
+                      if field in getattr(getattr(scena, n), "_scena_target_only", ())]
+            self.assertTrue(owners, f"no class here has {field} as a link-only field")
+            for cls in owners:
+                with self.subTest(field=field, cls=cls):
+                    obj = self.track(made[cls]())
+                    with self.assertRaises(TypeError) as cm:
+                        tween(obj[field], 1, time=0.5)
+                    msg = str(cm.exception)
+                    self.assertIn(f"shape['{field}'] @= lambda:", msg)
+                    self.assertIn(f"shape is your {cls}", msg)
+                    self.assertNotIn(f"{cls}['", msg)
+                    self.assertNotIn(f"{cls}.{field}", msg)
+        self.assertEqual(len(get_scheduler()._handles), 0)
+
+
 class TestEasingCatalog(ProcessTestCase):
     def test_remap_unknown_lists_names(self):
         from scena import remap
@@ -3326,9 +3358,11 @@ class TestAsyncAwait(ProcessTestCase):
         msg = str(ctx.exception)
         self.assertIn("async mode", msg)
         self.assertIn("after(", msg)
+        self.assertIn("run_task(", msg)                 # RA E3: the task door is named
         with self.assertRaises(TypeError) as ctx2:
             until(lambda: True)
         self.assertIn("async mode", str(ctx2.exception))
+        self.assertIn("run_task(", str(ctx2.exception))
         with self.assertRaises(TypeError) as ctx3:
             until_empty("nope")
         self.assertIn("until_empty()", str(ctx3.exception))
@@ -3674,6 +3708,7 @@ class TestAsyncAwait(ProcessTestCase):
         with self.assertRaises(TypeError) as ctx:
             wait(0.05)
         self.assertIn("async mode", str(ctx.exception))
+        self.assertIn("run_task(", str(ctx.exception))
 
     def test_unused_wait_in_async_mode_raises(self):
         c = self.track(Circle())

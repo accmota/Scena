@@ -202,6 +202,43 @@ class TestForeignPoseWrites(unittest.TestCase):
         e.position = 3
         self.assertEqual(e.position, 3)
 
+    def test_a_class_value_does_not_open_the_write(self):
+        """RA 0.9.0 D3: ``class Carta(Sprite): position = 0`` made the name a
+        class attribute, and ``carta.position = 4`` skipped the refusal. A
+        class-body value under a name every write refuses is refused on the
+        class line, as a value under a Scena name is (CB2)."""
+        from scena.entity import _INK_SPELLINGS, _POSE_SPELLINGS
+        for name in sorted(set(_INK_SPELLINGS) | {"rotation"}):
+            with self.subTest(name=name):
+                try:
+                    r = Rect(center=(50, 50), width=20, height=10)
+                    setattr(r, name, 4)
+                except AttributeError:
+                    pass                # the write refuses: so must the class
+                else:
+                    r.destroy()
+                    continue
+                r.destroy()
+                with self.assertRaises(TypeError) as cm:
+                    type("Carta", (Rect,), {name: 0, "__module__": "author_game"})
+                self.assertIn(f"{name} = 0 in the class body", str(cm.exception))
+        # The pose words are a bare Entity's own fields, on the class too.
+        for name in sorted(_POSE_SPELLINGS):
+            K = type("Peca", (Entity,), {name: 0, "__module__": "author_game"})
+            e = K()
+            setattr(e, name, 4)
+            self.assertEqual(getattr(e, name), 4)
+            e.destroy()
+
+    def test_a_property_of_ones_own_stays_legal(self):
+        class Carta(Rect):
+            @property
+            def position(self):
+                return self.center
+        c = Carta(center=(5, 6), width=2, height=2)
+        self.addCleanup(c.destroy)
+        self.assertEqual(tuple(c.position), (5.0, 6.0))
+
 
 class TestTimerGivenACall(unittest.TestCase):
     """``every(0.6, spawn())`` ran ``spawn`` once and returned the decorator,
@@ -265,6 +302,87 @@ class TestModeBodyCalledByHand(unittest.TestCase):
         b.mode = b.phase2
         self.assertEqual(ran, ["phase1", "phase2"])
         self.assertEqual(b.mode, b.phase2)
+
+    def test_a_plain_method_mode_called_by_hand_raises(self):
+        """RA 0.9.0 D4: with a plain method (no @on_mode) the call ran the
+        body and the setter got None, silently. A function that never returns
+        a value is a body: its result as a mode is refused, naming the fix."""
+        import textwrap
+        from scena.state import DestroyedError  # noqa: F401
+        init(width=400, height=300)
+        src = textwrap.dedent("""
+            from scena import Rect, Entity
+            ran = []
+            class Boss(Rect):
+                def setup(self):
+                    self.mode = self.phase1
+                def phase1(self):
+                    ran.append("phase1")
+                def phase2(self):
+                    ran.append("phase2")
+                def pick(self):
+                    return self.phase2 if self.width > 100 else None
+            def idle():
+                ran.append("idle")
+            b = Boss(center=(200, 150), width=40, height=20)
+            e = Entity()
+            errors = []
+            try:
+                b.mode = b.phase2()
+            except TypeError as ex:
+                errors.append(str(ex))
+            try:
+                b.goto_mode(b.phase2())
+            except TypeError as ex:
+                errors.append(str(ex))
+            try:
+                e.mode = idle()
+            except TypeError as ex:
+                errors.append(str(ex))
+            b.mode = b.pick()          # a picker's None leaves the mode quietly
+            picked = b.mode
+            b.mode = None
+            b.destroy()
+            e.destroy()
+        """)
+        ns = self._exec(src)
+        self.assertEqual(len(ns["errors"]), 3, ns["errors"])
+        self.assertIn("Enter it with b.mode = b.phase2 (no parentheses)", ns["errors"][0])
+        self.assertIn("Enter it with b.goto_mode(b.phase2)", ns["errors"][1])
+        self.assertIn("Enter it with e.mode = idle", ns["errors"][2])
+        self.assertIsNone(ns["picked"])
+
+    def test_the_mode_stays_when_refused(self):
+        import textwrap
+        init(width=400, height=300)
+        ns = self._exec(textwrap.dedent("""
+            from scena import Rect
+            class Boss(Rect):
+                def setup(self):
+                    self.mode = self.phase1
+                def phase1(self):
+                    pass
+                def phase2(self):
+                    pass
+            b = Boss(center=(200, 150), width=40, height=20)
+            try:
+                b.mode = b.phase2()
+            except TypeError:
+                pass
+            kept = b.mode == b.phase1
+            b.destroy()
+        """))
+        self.assertTrue(ns["kept"])
+
+    def _exec(self, src):
+        import tempfile
+        fd, path = tempfile.mkstemp(suffix=".py", prefix="modecall_")
+        with os.fdopen(fd, "w") as fh:
+            fh.write(src)
+        self.addCleanup(os.remove, path)
+        ns = {"__name__": "modecall_author"}
+        exec(compile(src, path, "exec"), ns)
+        return ns
 
     def test_a_plain_function_mode_still_gets_its_owner(self):
         from scena import Entity, on_mode
@@ -523,6 +641,11 @@ class TestRoundFiveMessages(unittest.TestCase):
             every(60 // 120, lambda: None)
         self.assertIn("got 0", str(cm.exception))
         self.assertIn("60 / 120", str(cm.exception))
+        with self.assertRaises(ValueError) as cm:      # RA D8: no // hint for a negative
+            every(-0.5, lambda: None)
+        self.assertIn("got -0.5", str(cm.exception))
+        self.assertNotIn("//", str(cm.exception))
+        self.assertIn("on_update", str(cm.exception))
         with self.assertRaises(ValueError) as cm:
             after(-1, lambda: None)
         self.assertIn("got -1", str(cm.exception))

@@ -12,8 +12,9 @@ one SCENA ERROR to stderr naming the author line the main thread is on and
 the fix. It never stops the game (Ctrl+C does); a frame under a debugger
 (``f_trace`` set: pdb) is not a stall.
 
-Armed by ``init()`` called from the script itself (``__main__``), so a test
-suite's ``init()`` starts nothing; ``arm()`` starts it by hand (tests).
+Armed by ``init()`` or ``run()`` called from the script itself (``__main__``;
+a script with no ``init()`` gets the frame watch from ``run()``, RA B1), so a
+test suite's ``init()`` starts nothing; ``arm()`` starts it by hand (tests).
 
 Also here: a script run as ``python jogo.py`` that ends without ``run()``
 (no window, no message: persona probes PP) is told so at exit

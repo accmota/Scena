@@ -22,7 +22,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scena import Circle, State, Vec2, init, on_change, vec_from_angle  # noqa: E402
+from scena import Circle, Point, State, Vec2, init, on_change, vec_from_angle  # noqa: E402
 from scena.state import get_scena_system  # noqa: E402
 
 from tests.leftovers import module_sweep  # noqa: E402
@@ -387,6 +387,114 @@ class TestLinkedCellRefusesInPlace(_Case):
         c = self.track(Circle(center=lambda: st.pos, radius=3))
         st.pos.x = 9
         self.assertFollows(c, (9.0, 1.0))
+
+
+# Every way to change a Point in place (G5). A method of Point that moves it
+# must join (``test_every_point_mover_is_covered``).
+_POINT_WRITES = {
+    "<<": lambda p: p << (80, 30),
+    ".x =": lambda p: setattr(p, "x", 70),
+    ".y =": lambda p: setattr(p, "y", -20),
+    ".x +=": lambda p: setattr(p, "x", p.x + 7),
+    "move_by": lambda p: p.move_by(5, 5),
+    "move_to": lambda p: p.move_to((40, 40)),
+    "rotate_by": lambda p: p.rotate_by(90, about=(0, 0)),
+    "rotate_to": lambda p: p.rotate_to(90, about=(0, 0)),
+    "scale_by": lambda p: p.scale_by(2, about=(0, 0)),
+    "scale_to": lambda p: p.scale_to(3, about=(0, 0)),
+    "absorb": lambda p: p.absorb(Point(1, 2)),
+    "move_along": lambda p: p.move_along([(0, 0), (100, 0)], time=1),
+}
+# Point methods named like a mover that do not move its place.
+_POINT_NOT_MOVERS = {"move_to_back", "move_to_front", "reset_rotation"}
+
+
+class TestLinkedCellRefusesInPlacePoint(_Case):
+    """G5 (RA 0.9.0): ``st["pos"] @= lambda: src.center + (1, 1)`` holds a
+    Point (point arithmetic makes a free, ephemeral one), and ``st.pos << …`` /
+    ``st.pos.x = …`` changed the formula's output silently until the next
+    pull. Every spelling refuses with the cell's words and changes nothing, as
+    for a Vec2 (``TestLinkedCellRefusesInPlace``)."""
+
+    def _linked(self):
+        src = self.track(Circle(center=(10, 20), radius=7))
+        st = State(name="st")
+        st["pos"] @= lambda: src.center + (1, 1)
+        self.addCleanup(lambda: st["pos"].is_linked and st["pos"].unlink())
+        return src, st
+
+    def test_every_spelling_refuses_and_changes_nothing(self):
+        from scena import LinkedAttributeError
+        for spelling, write in _POINT_WRITES.items():
+            with self.subTest(spelling=spelling):
+                _src, st = self._linked()
+                p = st.pos
+                with self.assertRaises(LinkedAttributeError) as cm:
+                    write(p)
+                self.assertIn("st['pos'].unlink()", str(cm.exception))
+                self.assertIs(st.pos, p)
+                self.assertEqual((p.x, p.y), (11.0, 21.0))
+
+    def test_the_formula_still_follows_and_unlink_frees(self):
+        src, st = self._linked()
+        old = st.pos
+        src.center = (100, 100)
+        self.assertEqual(tuple(st.pos), (101.0, 101.0))
+        old.x = 3                       # the cell let go of it: a free point
+        self.assertEqual(old.x, 3.0)
+        st["pos"].unlink()
+        st.pos.x = 9
+        self.assertEqual(st.pos.x, 9.0)
+
+    def test_an_object_point_stays_an_object(self):
+        """A Point with an identity of its own (a part, one the author made)
+        is edited in place, as ``st.alvo = circle`` is."""
+        src = self.track(Circle(center=(10, 20), radius=7))
+        handle = self.track(Point(1, 2))
+        st = State(name="st")
+        st["part"] @= lambda: src.center if src.radius else src.center
+        st["h"] @= lambda: handle if src.radius else handle
+        self.addCleanup(st["h"].unlink)
+        self.addCleanup(st["part"].unlink)
+        st.part.x = 50
+        self.assertEqual(src.center.x, 50.0)
+        st.h.x = 5
+        self.assertEqual(handle.x, 5.0)
+
+    def test_other_points_pay_nothing(self):
+        p = Point.temp(1, 2)
+        st = State(name="st")
+        st.p = p                        # unlinked cell: no guard
+        self.assertNotIn("_write_field", p.__dict__)
+        p.x = 4
+        self.assertEqual(st.p.x, 4.0)
+
+    def test_every_point_mover_is_covered(self):
+        movers = {n for n, _ in inspect.getmembers(Point, callable)
+                  if not n.startswith("_")
+                  and n.startswith(("move", "rotate", "scale", "absorb", "place", "flip"))}
+        uncovered = movers - set(_POINT_WRITES) - _POINT_NOT_MOVERS
+        self.assertFalse(uncovered, f"Point movers with no matrix row: {uncovered}")
+
+
+class TestBracketLinkOnAVectorField(_Case):
+    """RA 0.9.0 aside: ``s.mira = Vec2(1, 0); s["mira"] @= lambda: st.base * 3``
+    said "scalar field Circle.mira cannot take a Vec2", while the vector links
+    as itself (``s.mira @= …``, VB3). The refusal names that spelling."""
+
+    def test_refusal_names_the_vector_link_and_it_works(self):
+        st = State(name="st")
+        st.base = Vec2(1, 0)
+        s = self.track(Circle(center=(0, 0), radius=3))
+        s.mira = Vec2(1, 0)
+        with self.assertRaises(TypeError) as cm:
+            s["mira"] @= lambda: st.base * 3
+        self.assertIn("circle.mira @= lambda: …", str(cm.exception))
+        self.assertEqual((s.mira.x, s.mira.y), (1.0, 0.0))
+        s.mira @= lambda: st.base * 3
+        st.base = Vec2(2, 0)
+        self.assertEqual((s.mira.x, s.mira.y), (6.0, 0.0))
+        s.mira.unlink()
 
 
 class TestInPlaceSpellingsComplete(unittest.TestCase):

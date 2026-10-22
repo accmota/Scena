@@ -297,6 +297,73 @@ class TestOtherEnginesHookNames(unittest.TestCase):
         """)
         self.assertEqual([m for m in msgs if "another engine" in m], [])
 
+    def define_warnings(self, body, calls=""):
+        """``define``, returning (message, filename, lineno) and the path."""
+        import tempfile
+        import textwrap
+        import warnings
+        src = textwrap.dedent(body) + textwrap.dedent(calls)
+        fd, path = tempfile.mkstemp(suffix=".py", prefix="unity_")
+        with os.fdopen(fd, "w") as fh:
+            fh.write(src)
+        self.addCleanup(os.remove, path)
+        ns = {"scena": scena, "Act": Act, "Entity": Entity, "__name__": AUTHOR_MODULE}
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            exec(compile(src, path, "exec"), ns)
+        return [(str(x.message), x.filename, x.lineno) for x in w
+                if "another engine" in str(x.message)], path
+
+    def test_the_warning_points_at_the_authors_method(self):
+        """RA 0.9.0 D5: it pointed at scena/entity.py (the class-creation
+        stack), not the author's class."""
+        hits, path = self.define_warnings("""
+            class Alien(scena.Rect):
+                def helper(self):
+                    pass
+
+                def Update(self, dt):
+                    pass
+                def Start(self):
+                    pass
+        """)
+        self.assertEqual([(f, n) for _m, f, n in hits], [(path, 6), (path, 8)])
+
+    def test_another_classes_call_does_not_silence_it(self):
+        """RA 0.9.0 D5: the exemption was a file-wide regex, so a helper's
+        ``h.Start()`` silenced a real ``Alien.Start``. A receiver that is
+        provably another class defining the name no longer counts; one it
+        cannot place still does."""
+        hits, _ = self.define_warnings("""
+            class Alien(scena.Rect):
+                def Start(self):
+                    pass
+            class Helper(scena.Rect):
+                def Start(self):
+                    self.Start
+                def boot(self):
+                    self.Start()
+        """, calls="""
+            h = Helper(center=(0, 0), width=2, height=2)
+            h.Start()
+            Helper.Start(h)
+            h.destroy()
+        """)
+        self.assertEqual([m.split(" is ")[0][len("SCENA WARNING: class: "):]
+                          for m, _f, _n in hits], ["Alien.Start"])
+        hits, _ = self.define_warnings("""
+            class Alien(scena.Rect):
+                def Start(self):
+                    pass
+            class Helper(scena.Rect):
+                def Start(self):
+                    pass
+        """, calls="""
+            for e in []:
+                e.Start()
+        """)
+        self.assertEqual(hits, [])
+
     def test_the_fixes_are_real_hooks(self):
         from scena.entity import _FOREIGN_ENGINE_HOOKS
         for wrong, fix in _FOREIGN_ENGINE_HOOKS.items():

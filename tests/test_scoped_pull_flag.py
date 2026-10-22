@@ -73,6 +73,8 @@ def _mark_dirty_count(fn) -> int:
 
 def _expected(v):
     x, y = float(v.__dict__.get('x', 0.0)), float(v.__dict__.get('y', 0.0))
+    if x == 0 and y == 0:
+        return 0.0, 0.0             # a zero vector reads 0 (F12)
     a = math.degrees(math.atan2(y, x)) + 0.0
     return math.hypot(x, y), (180.0 if a == -180.0 else a)
 

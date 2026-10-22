@@ -222,6 +222,39 @@ class SpriteTestCase(unittest.TestCase):
         return os.path.normpath(os.path.join(self._tmp.name, name))
 
 
+class TestNoGeometryModel(SpriteTestCase):
+    """A7 (RA 0.9.0): Sprite carried a dead ``model`` slot, so
+    ``sprite.model = "x"`` was taken while Text refused it (a Shape field)."""
+
+    def test_model_refuses_like_text(self):
+        from scena import Svg
+        for s in (self.track(Sprite(media("space", "enemyGreen1.png"))), self.track(Svg())):
+            kind = type(s).__name__
+            with self.assertRaisesRegex(AttributeError, f"{kind} has no field 'model' "
+                                        r"\(a Shape field\)"):
+                s.model = "x"
+            with self.assertRaisesRegex(AttributeError, "so @= has nothing to link"):
+                s["model"] @= (lambda: 1)
+            self.assertIsNone(getattr(s, "model", None))
+
+    def test_public_slots_are_live_fields(self):
+        """Class guard: a public ``__slots__`` name is a descriptor that takes
+        writes, so a dead one hides a refusal. Only ``group`` (every Graphic)
+        and ``model`` (a Shape's geometry discriminant) are slots."""
+        import scena
+        from scena.entity import Graphic
+        for kind_name in scena.__all__:
+            kind = getattr(scena, kind_name)
+            if not (isinstance(kind, type) and issubclass(kind, Graphic)):
+                continue
+            public = {name for base in kind.__mro__
+                      for name in (base.__dict__.get("__slots__") or ())
+                      if not name.startswith("_")}
+            allowed = {"group", "model"} if issubclass(kind, Shape) else {"group"}
+            with self.subTest(kind=kind_name):
+                self.assertLessEqual(public, allowed)
+
+
 class TestScaleKeepsTheGivenSize(SpriteTestCase):
     """Guia pose table (PM6): .scale multiplies the drawing and the collider;
     .width / .height stay the size the author gave; .box is the drawn size."""

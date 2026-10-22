@@ -3272,6 +3272,53 @@ numbers, and the `Vec2` (a Container) walked through four doors.
 | RA6 | Two weak points of one `Collider` (`torso.collidable`, `head.collidable`, `Collider([torso, head])`) collided with each other every frame; `query_sector` (a wedge, or `spread=0`) still answered by statement order while Collision Design and the Guia said every query puts the body first | AC10's `kin` set held body ↔ own piece only; `_prim_hits` / `_segment_hits` returned identities in candidate order | `TestPieceThatIsAlsoABody.test_two_weak_points_of_one_body_never_touch`, `test_queries_name_the_body_first_in_either_order` (sector cases); both fail without the fix |
 | RA5 | Docs drift: tutorial 07 said `st.vidas` and `st["vidas"]` are the same thing; Guia rows promised errors that did not happen (`@=` on a number, `@on_change(c.radius)` "never sees a change" — it raises), named `ready` "at most once per N seconds", said every visual takes the object's colour (`Metal()` is chrome); the CHANGELOG named `.tile_mode` (it is `.source.tile_mode`) and missed `query_circle` / `query_shape` order, `until(<field>)`, `Text(True)`, and the `contain` band fill; 21 Guia thumbnails were stale | Prose changed in one place and not in the others | Fixed in the docs; `make_guia_thumbs.py --check` before a release (the release checklist in Scena Design) |
 
+### RA2 — 0.9.0 release audit (2026-10-21)
+
+Same method as RA: nine read-only agents checked every 0.9.0 CHANGELOG bullet
+against the code, a probe at HEAD and at v0.8.1, the tests, the Guia and the design
+docs; one swept the author material for old spellings (none found; every "the old
+spelling raises" of Breaking held). About 75 findings: a dozen engine bugs, the rest
+CHANGELOG sections, quotes and numbers, doc drift and missing tests. Before the audit,
+the `### Added` heading had been lost (901d2b0), so about 25 additions read as
+Breaking. Lessons for the class, beyond RA's:
+
+- **A "before" claim needs a probe at the last tag, not at the commit before the fix.**
+  Three Fixed entries described bugs born and fixed inside the cycle (an LW8
+  regression, an ink-field Vec2 link, a dead-vel order); several numbers compared
+  intermediate commits (a colour write "+5 %", `st.pos += v` "40 %" that is 4× against
+  0.8.1).
+- **A message's fix must itself work.** The worst finds were messages that named a fix
+  which fails: `if vel:` after a destroy (a part stays truthy), `+= [x]` for a dict,
+  `run_task(flash)` in a method, `text.flip_x = …` for a Text, `concave.rim @= …` for
+  a computed corner. Guards now evaluate the fix the message names.
+- **A new door inherits the old door's refusals only if a guard enumerates it.** The
+  appearance links reached `_assign_formula`, which took a plain number as a one-time
+  write; `angle` and `scale` had the same hole before 0.9.0.
+
+| ID | Bug | Root cause | Guard |
+| --- | --- | --- | --- |
+| A2 | `x["visible"] @= box.checked` (any plain number / bool on `visible`, `alpha`, flips, `angle`, `scale`, `line_width`) copied once and linked nothing | `Container._assign_formula` took a Number as `_takein` | `test_paint_flag_links.TestPlainValueRefuses` (every kind × linked field × constant, cell value, bool, int) |
+| G5 | A linked cell holding a formula-made `Point` accepted `<<`, `.x =`, `move_by` silently | the held-payload guard covered Vec2 only | `test_ink_held_payload.TestLinkedCellRefusesInPlacePoint` (every Point mover; a completeness check) |
+| G2 | A write through a destroyed actor's part said `Vec2.x … if vel:` | `_refuse_if_destroyed` named the receiver | `test_vec2_inplace_guards.TestADeadPartNamesItsOwner` (the named guard is falsy; the named field reads that part) |
+| A1 | 0.8.1 cell spellings (`@on_change(t.text)`, `until(box.checked)`, `x["text"] @= t.text`) got generic messages naming `TextValue` | the doors saw a value, not the moved cell | `test_text.TestMovedCellDoors` |
+| C1 | Computed-field refusals suggested an input that does not move the field (`concave.rim`, `center` for `rect.vec`) | `_model_inputs` listed every model input | `test_concave.TestComputedFieldRefusalNamesAnInput` (writing the suggested input moves the field) |
+| B2 / B5 / B7 / B6m | Fixes that fail: `+= [x]` for a dict / set, `run_task(flash)` in a method, `text.flip_x =`, `Circle['color']` as a variable | one hint text for every case | `test_formula_functions.TestContainerItemLinks`, `test_async_hooks.TestNeverAwaitedHook`, `test_paint_flag_links.TestFlagRefusalNamesAWorkingFix`, `test_process.TestTweenRefusesALinkOnlyField` |
+| D2 | Quick effects, `flash_text`, `canvas.fade_out`, `mic.record` took an `on_done` that needs arguments and crashed when it fired | they call through `call_truncated`, outside the refusal | `test_async_hooks.TestEveryLaterDoorRefusesAnOverfullCallback` (every `(on_done)` door in CASES) |
+| D3 / D4 / D5 | A class attribute opened `obj.position = …`; `self.mode = self.phase2()` passed for a plain method; the other-engine hook warning pointed into scena | class body unchecked; the check knew `@on_mode` only; `stacklevel` | `test_read_hints` (class values, plain-method mode), `test_class_hook_names` (filename and line) |
+| A3 / A7 | `isinstance(x, EquilateralTriangle)` silently False; `tri.n = 5`, `sprite.model = …` accepted and ignored | the stub raised only when called; no route for `n` / `model` | `test_triangle.TestRetiredName` (every retired class × call, subclass, isinstance), `TestNIsNotAField`, `test_sprite.TestNoGeometryModel` |
+| F12 | `heading()` / `Line.angle` read −180 (and −0.0) where `Vec2.angle` reads 180 | three normalisations | `test_vec2_algebra.TestHeadingReadersAgree` |
+| B1 | The frozen-frame watch was armed only by the script's `init()` | armed in `init` only | `test_stall` (armed by `run()`, not by a test module) |
+
+Decided with the user: `x.position =`, `v * True`, `st.pos["x"] @=` and the
+short-property typo rule are Breaking; `Color == "red"` is Fixed, with a static
+warning for a colour looked up in a set or dict of names (`color.warn_color_keys`).
+Open after the audit: `tween` on an axis of a held vector starts and then raises from
+the frame loop; `copy.copy` of a held vector keeps the cell's hooks; `st.pos += …` on
+a held Point and `s.mira.x = …` on a linked ink Vec2 name the wrong subject; an
+undrawn `Entity()` with no variable and a sync mode is collected (an async mode keeps
+it); `obj["field"] @= f` on a Vec2 ink field refuses (the vector links as
+`obj.field @= f`).
+
 ### AH — async functions where Scena calls one (2026-10-10, 2026-10-12)
 
 | ID | Bug | Root cause | Guard |

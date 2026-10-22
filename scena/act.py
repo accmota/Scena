@@ -21,6 +21,7 @@ import inspect
 import weakref
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
+from ._pkg import RetiredClassMeta
 from .entity import Entity
 
 
@@ -1153,8 +1154,14 @@ def _retired_scene_message(name: str = "Fase") -> str:
     )
 
 
-class _RetiredScene:
-    """``Scene`` was renamed ``Act`` in 0.6.0; using it raises with the fix."""
+class _RetiredScene(metaclass=RetiredClassMeta):
+    """``Scene`` was renamed ``Act`` in 0.6.0; using it raises with the fix
+    (a call, a subclass, ``isinstance`` / ``issubclass``)."""
+
+    @staticmethod
+    def _retired_type_test(spelling: str) -> str:
+        return ("Scene was renamed to Act in 0.6.0. Write "
+                + spelling.format(new="Act") + ".")
 
     def __init_subclass__(cls, **kwargs):
         raise TypeError(_retired_scene_message(cls.__name__))

@@ -298,6 +298,18 @@ class Text(Graphic, PaintState):
     # cannot be mirrored.
     _property_link_extra = frozenset({
         "color", "fill", "line", "line_width", "background", "visible"})
+    # ``text["flip_x"] @= …`` answers as ``text.flip_x = True`` does (B7, RA
+    # 0.9.0: it said "set it with text.flip_x = …", which raises too). Read by
+    # ``entity._ink_link_forbidden_message``.
+    _link_refusals = {
+        f"flip_{axis}": (
+            f"{{cls}}.flip_{axis} cannot be linked with @=: Text cannot be "
+            f"flipped, because mirrored text is unreadable. Turn it instead: "
+            f"text[\"angle\"] @= lambda: 180 if … else 0 (angle = 180 turns "
+            f"it upside down)."
+        )
+        for axis in ("x", "y")
+    }
     # Text's color is its fill only: a linked color leaves ``.line`` free.
     _paint_fields = {
         "color": ("color", "fill"),

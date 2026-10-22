@@ -764,6 +764,86 @@ class TestColorEquality(unittest.TestCase):
         self.assertEqual(repr(Color(None)), "Color(none)")
 
 
+class TestColorKeyWarning(unittest.TestCase):
+    """RA 0.9.0 D6 (decided: warn). ``bola.color == "red"`` is True, but a set
+    or a dict finds a key by its hash, and a Color hashes its channels:
+    ``bola.color in {"red", "blue"}`` is always False and
+    ``{"red": 10}[bola.color]`` raises KeyError. Scena's read of the author's
+    file at ``run()`` warns at the line, naming the fix."""
+
+    @staticmethod
+    def found(src):
+        import ast
+        from scena.color import color_key_warnings
+        return color_key_warnings(ast.parse(src))
+
+    def test_the_pitfall_is_real(self):
+        c = Color("red")
+        self.assertTrue(c == "red")
+        self.assertNotIn(c, {"red", "blue"})
+        self.assertIn(c, ["red", "blue"])
+        self.assertIn(c, {Color("red"), Color("blue")})
+
+    def test_warns_for_a_set_of_names(self):
+        for src in ('if bola.color in {"red", "blue"}: pass',
+                    'ok = self.fill not in {"#ff0000"}',
+                    'BOAS = {"red", "blue"}\nif bola.line in BOAS: pass',
+                    'x = t.background in {"black"}'):
+            with self.subTest(src=src):
+                got = self.found(src)
+                self.assertEqual(len(got), 1)
+                line, msg = got[0]
+                self.assertEqual(line, src.count("\n") + 1)
+                self.assertIn("in a set", msg)
+                self.assertIn("Write the names as a list ([", msg)
+                self.assertIn('Color("', msg)
+
+    def test_warns_for_a_dict_keyed_by_names(self):
+        for src in ('p = {"red": 10, "blue": 5}[bola.color]',
+                    'PONTOS = {"red": 10}\np = PONTOS[bola.color]',
+                    'PONTOS = {"red": 10}\np = PONTOS.get(bola.color, 0)'):
+            with self.subTest(src=src):
+                got = self.found(src)
+                self.assertEqual(len(got), 1)
+                self.assertIn("in a dict", got[0][1])
+                self.assertIn('{Color("red"): 10, …}', got[0][1])
+
+    def test_quiet_for_the_spellings_that_work_and_for_other_words(self):
+        for src in ('if bola.color in ["red", "blue"]: pass',
+                    'if bola.color in ("red", "blue"): pass',
+                    'if bola.color in {Color("red"), Color("blue")}: pass',
+                    'p = {Color("red"): 10}[bola.color]',
+                    'if bola.color == "red": pass',
+                    'if fala.line in {"oi", "tchau"}: pass',     # not color words
+                    'if bola.radius in {1, 2}: pass',
+                    'BOAS = {"red"}\nBOAS = ["red"]\nif bola.color in BOAS: pass',
+                    'if bola.color in CORES: pass',
+                    'p = {"red": 1}[bola.name]'):
+            with self.subTest(src=src):
+                self.assertEqual(self.found(src), [])
+
+    def test_run_warns_at_the_author_line_once_per_file(self):
+        import tempfile
+        from scena import color as color_mod
+        src = 'bola = None\n\nif bola.color in {"red", "blue"}:\n    pass\n'
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write(src)
+        self.addCleanup(os.unlink, f.name)
+        self.addCleanup(color_mod._KEYS_CHECKED.discard, f.name)
+        from scena.orchestration import ScenaFramework
+        from scena.process import clear_author_error
+        self.addCleanup(clear_author_error)          # the banner the warning raised
+        fw = ScenaFramework.get_instance()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fw.set_auto_callbacks({"__file__": f.name})
+            fw.set_auto_callbacks({"__file__": f.name})
+        hits = [x for x in w if "looked up by color name" in str(x.message)]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual((hits[0].filename, hits[0].lineno), (f.name, 3))
+        self.assertIn("SCENA WARNING", str(hits[0].message))
+
+
 class TestCssNames(unittest.TestCase):
     """The CSS / X11 base names learners guess resolve exactly (persona
     probes PP: beige went magenta, midnight blue went blue); a dark / light

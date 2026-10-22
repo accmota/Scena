@@ -1457,7 +1457,7 @@ geometry queries). These take **positions**, not Shape methods:
 | Function | Returns | Role |
 |----------|---------|------|
 | `distance(p1, p2)` | `float` | Euclidean distance (also `Point.distance` / `Vec2.distance`) |
-| `heading(origin, target)` | `float` | Bearing in degrees, 0 = +x, −180…180 (also `Point.heading`) |
+| `heading(origin, target)` | `float` | Bearing in degrees, 0 = +x, in (−180, 180] like `Vec2.angle` (left is 180; also `Point.heading`) |
 | `middle_point(p1, p2, weight=0.5)` | `(x, y)` | Weighted midpoint tuple |
 | `nearest(origin, items, *, within=, where=)` | item or `None` | Closest item by center / `.x`/`.y`; not a Shape method |
 

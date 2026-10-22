@@ -158,6 +158,10 @@ class CanvasCover:
     def _start(self, *, target: float, duration, on_done) -> None:
         dur = _duration(duration, 0.5)
         cb = expect_callable(on_done, none=True, what="on_done")
+        if cb is not None:
+            # Raises at the call when it needs more than the canvas (RA D2).
+            from .transients import _refuse_overfull_on_done
+            _refuse_overfull_on_done(cb, "the canvas")
         self._cancel_tween()
         start = self.amount
         if dur <= 0.0 or abs(start - target) <= _EPS:

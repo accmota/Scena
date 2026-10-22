@@ -185,6 +185,7 @@ automatic resolution and walls stop the hero; one-way platforms are one rule.
 Hitboxes are made from the art, or shaped by hand when you want.
 
 ```python
+collision.floor = True                                             # a world with gravity
 resolve("hero", "walls")
 resolve("hero", "platforms", only=lambda c: c.side == "bottom")    # one-way
 
@@ -274,14 +275,14 @@ code decides what each piece becomes.
 </p>
 
 ```bash
-scena-editor levels/ninja.json
+scena-editor levels/ninja_perigos.json
 ```
 
 ```python
-level = Level("levels/ninja.json")
-for piece in level.group("ground"):
-    piece.make()                                   # the shape as drawn
-lift = level["lift"].make(visual=Metal("gold"))    # or as you choose
+level = Level("levels/ninja_perigos.json")
+for piece in level.group("chao"):
+    piece.make()                                       # the shape as drawn
+lift = level["elevador"].make(visual=Metal("gold"))    # or as you choose
 ```
 
 ## Gallery

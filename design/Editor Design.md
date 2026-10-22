@@ -217,7 +217,7 @@ drone.move_along(fase["rota_drone"].points, time=6)
   curve), and per kind `width` / `height` /
   `angle`, `scoop` / `rim` (a `Vec2`), `radius`, `n`, `base_ratio`, `p1` / `p2`
   (a line's `length` and `angle` too: computed from its ends as `make()`
-  reads them; `angle` runs from -180 up to 180), `points` (new list of `Vec2`),
+  reads them; `angle` runs from just above -180 up to 180), `points` (new list of `Vec2`),
   `closed`, `smooth`,
   `image` (absolute; a whole picture), `sheet` / `frame` (a frame of a sheet).
   A field of another kind raises `AttributeError` listing what the item has;

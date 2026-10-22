@@ -237,6 +237,8 @@ class TestInequalities(_Case):
         self.assertGreater(a.angle, -180.0)              # (-180, 180] (VB7)
         self.assertLessEqual(a.angle, 180.0)
         want = math.degrees(math.atan2(a.y, a.x)) + 0.0
+        if a.x == 0 and a.y == 0:
+            want = 0.0                                   # a zero vector (F12)
         self.assertEqual(a.angle, 180.0 if want == -180.0 else want)
         self.assertEqual(a.length, math.sqrt(a.x * a.x + a.y * a.y))
 
@@ -317,6 +319,67 @@ class TestDegenerateBases(_Case):
         self.assertEqual(xy(v.reject(z)), (3.0, 4.0))
         self.assertEqual(xy(v.reflect(z)), (3.0, 4.0))     # no normal: unchanged
         self.assertEqual(xy(z.rotate(37)), (0.0, 0.0))
+        # Signed zeros (F12 of RA 0.9.0): ``-Vec2(0, 0)`` read 180.
+        for zero in (-z, z * -1, Vec2(-0.0, 0.0), Vec2(-0.0, -0.0), Vec2(0.0, -0.0)):
+            with self.subTest(zero=xy(zero)):
+                self.assertEqual(str(zero.angle), "0.0")
+                self.assertEqual(str(v.angle_to(zero)), "0.0")
+
+
+class TestHeadingReadersAgree(_Case):
+    """F12 (RA 0.9.0): ``Vec2.angle`` read 180 for a vector pointing left
+    however made, but ``heading((0, 0), (-1, -0.0))`` read -180,
+    ``heading((0, 0), (1, -0.0))`` -0.0, and ``Point.heading`` /
+    ``Line(p2=(-10, -0.0)).angle`` -180. Class guard: every reader of a
+    direction gives one value in (-180, 180], never -0.0, signed zeros or not."""
+
+    DIRS = [(dx, dy) for dx in (-1.0, -0.0, 0.0, 1.0) for dy in (-1.0, -0.0, 0.0, 1.0)]
+
+    @staticmethod
+    def _readers(dx, dy):
+        from scena import Line, Point, heading
+        out = {
+            "Vec2.angle": Vec2(dx, dy).angle,
+            "heading": heading((0, 0), (dx, dy)),
+            "Point.heading": Point(0, 0).heading((dx, dy)),
+            "Vec2.angle_to": Vec2(1, 0).angle_to(Vec2(dx, dy)),
+        }
+        if dx or dy:
+            line = Line(p1=(0, 0), p2=(10 * dx, 10 * dy))
+            out["Line.angle"] = line.angle
+            line.destroy()
+        return out
+
+    def test_one_value_for_every_signed_zero(self):
+        for dx, dy in self.DIRS:
+            want = 0.0 if not (dx or dy) else math.degrees(math.atan2(abs(dy) if dy == 0 else dy, dx))
+            with self.subTest(d=(dx, dy)):
+                for name, got in self._readers(dx, dy).items():
+                    self.assertEqual(got, want, name)
+                    self.assertNotEqual(str(got), "-0.0", name)
+                    self.assertGreater(got, -180.0, name)
+                    self.assertLessEqual(got, 180.0, name)
+
+    def test_line_keeps_its_turns(self):
+        from scena import Line
+        line = Line(p1=(0, 0), p2=(10, 0))
+        self.addCleanup(line.destroy)
+        line.rotate_by(400)
+        self.assertAlmostEqual(line.angle, 400.0)
+        line.rotate_by(-220)
+        self.assertAlmostEqual(line.angle, 180.0)
+
+
+class TestVecFromAngleReference(_Case):
+    """F10 (RA 0.9.0): ``reference_vec=`` takes a pair as well as a Vec2."""
+
+    def test_a_pair_is_the_same_as_the_vec2(self):
+        for ref in ((0, 1), (-3, 4), (2.5, -1.0)):
+            with self.subTest(ref=ref):
+                by_pair = vec_from_angle(30, 5, reference_vec=ref)
+                by_vec = vec_from_angle(30, 5, reference_vec=Vec2(*ref))
+                self.assertEqual(xy(by_pair), xy(by_vec))
+        self.assertAlmostEqual(vec_from_angle(90, 2, reference_vec=(0, 1)).x, -2.0)
 
 
 # --------------------------------------------------------------------------

@@ -395,8 +395,9 @@ class Vec2(Container):
         # refuse a read of a dead actor's ``vel.length``.
         length_squared = self.x * self.x + self.y * self.y
         self._write_field('length', math.sqrt(length_squared))
-        a = math.degrees(math.atan2(self.y, self.x)) + 0.0     # -0.0 -> 0.0
-        self._write_field('angle', 180.0 if a == -180.0 else a)  # (-180, 180] (VB7)
+        # ``+ 0.0`` folds a -0.0 axis to 0.0: (-180, 180], never -0.0, and a
+        # zero vector reads 0 however made (``-Vec2(0, 0)``) (VB7, F12).
+        self._write_field('angle', math.degrees(math.atan2(self.y + 0.0, self.x + 0.0)))
 
     def _derived_field_message(
         self, name: str, operation: str, value: Any = None, part: Optional[str] = None,
@@ -436,9 +437,7 @@ class Vec2(Container):
             if name == 'length':
                 value = math.sqrt(x * x + y * y)
             elif name == 'angle':
-                value = math.degrees(math.atan2(y, x)) + 0.0
-                if value == -180.0:
-                    value = 180.0                       # (-180, 180] (VB7)
+                value = math.degrees(math.atan2(y + 0.0, x + 0.0))   # (-180, 180] (VB7, F12)
             else:
                 return
             if _isfinite(value):
@@ -449,8 +448,7 @@ class Vec2(Container):
             if name == 'length':
                 self._write_field('length', math.sqrt(x * x + y * y))
             elif name == 'angle':
-                a = math.degrees(math.atan2(y, x)) + 0.0
-                self._write_field('angle', 180.0 if a == -180.0 else a)
+                self._write_field('angle', math.degrees(math.atan2(y + 0.0, x + 0.0)))
 
     def _assign_formula(self, formula: Union['Container', Tuple[float, float], Callable[[], Any]]):
         if isinstance(formula, tuple):
@@ -549,8 +547,8 @@ class Vec2(Container):
         Positive is counter-clockwise.
         """
         other = _vec_arg(other, "Vec2.angle_to")
-        a = math.degrees(math.atan2(self.cross(other), self.dot(other))) + 0.0
-        return 180.0 if a == -180.0 else a      # (-180, 180], as ``angle`` (VB7)
+        # (-180, 180], as ``angle`` (VB7, F12): ``+ 0.0`` folds a -0.0.
+        return math.degrees(math.atan2(self.cross(other) + 0.0, self.dot(other) + 0.0))
 
     def abs_angle_to(self, other: 'Vec2') -> float:
         """Compute absolute angle between this vector and another vector in degrees."""
@@ -1022,8 +1020,7 @@ class Vec2(Container):
         if 'length' in computed or 'length' in d:
             d['length'] = math.sqrt(x * x + y * y)
         if 'angle' in computed or 'angle' in d:
-            a = math.degrees(math.atan2(y, x)) + 0.0
-            d['angle'] = 180.0 if a == -180.0 else a
+            d['angle'] = math.degrees(math.atan2(y + 0.0, x + 0.0))   # (-180, 180] (F12)
 
     def reflect_about(self, normal: 'Vec2') -> 'Vec2':
         """

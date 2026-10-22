@@ -325,7 +325,7 @@ class TestLineLengthAngle(LevelTestCase):
             with self.subTest(p1=item.p1, p2=item.p2):
                 line = self.made(item.make())
                 self.assertEqual(item.length, line.length)
-                self.assertAlmostEqual(item.angle, line.angle, places=9)   # -180, not 180
+                self.assertAlmostEqual(item.angle, line.angle, places=9)   # 180, not -180 (F12)
 
     def test_rebuilds_the_line_in_another_model(self):
         for item in self._lines():

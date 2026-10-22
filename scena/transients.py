@@ -21,7 +21,7 @@ import skia
 
 from .entity import scena_kind
 from .color import resolve_rgba
-from .validate import call_truncated, expect_callable, expect_choice
+from .validate import call_truncated, expect_callable, expect_choice, payload_arity
 
 if TYPE_CHECKING:
     from .shapes import Shape
@@ -136,6 +136,18 @@ def _normalize_dissolve_style(style) -> str:
 # Channels
 # ---------------------------------------------------------------------------
 
+def _refuse_overfull_on_done(on_done: Callable, given: str) -> None:
+    """An ``on_done`` that needs more than the one value it gets (the shape,
+    the canvas) raises at the call, at the author's line, like every timer
+    door (RA D2: ``shape.pop(on_done=f)`` with ``def f(a, b)`` crashed when
+    the effect ended, inside the engine)."""
+    needed = payload_arity(on_done)
+    if needed is not None and needed > 1:
+        from .process import _refuse_overfull_callback
+        _refuse_overfull_callback(on_done, None, "effect", "on_done",
+                                  offered=1, given=given)
+
+
 class TransientChannel:
     """One timed effect occupying a shape slot."""
 
@@ -153,6 +165,10 @@ class TransientChannel:
         self.duration = float(duration)
         self.t0 = float(_now() if t0 is None else t0)
         self.on_done = expect_callable(on_done, none=True, what="on_done")
+        if on_done is not None:
+            needed = payload_arity(on_done)      # inlined pre-check: the start stays cheap
+            if needed is not None and needed > 1:
+                _refuse_overfull_on_done(on_done, "the object it plays on")
         self._finished_applied = False
         self._cancelled = False
 

@@ -118,11 +118,15 @@ def last_author_error() -> Optional[Dict[str, Any]]:
     }
 
 
-def report_author_warning(where: str, message: str, owner=None) -> None:
+def report_author_warning(where: str, message: str, owner=None, site=None) -> None:
     """Non-fatal SCENA WARNING for the on-canvas banner (missing/corrupt sound).
 
     A missing file is not a crash: the game keeps running and the banner
     says what is missing. Dismiss with Ctrl+Shift+E.
+
+    ``site``: ``(filename, lineno)`` of the author line the warning is about,
+    when the caller knows it better than the stack does (a class-body method
+    checked from ``__init_subclass__``: the stack shows Scena, RA 0.9.0 D5).
     """
     global _last_author_error, _author_error_key, _author_error_warned_at
     owner_s = repr(owner) if owner is not None else f"<{ownerless_scope()}>"
@@ -141,6 +145,9 @@ def report_author_warning(where: str, message: str, owner=None) -> None:
     body = f"SCENA WARNING: {where}: {msg}"
     if count > 1:
         body = f"{body} (×{count})"
+    if site is not None:
+        warnings.warn_explicit(body, RuntimeWarning, site[0], site[1])
+        return
     warnings.warn(body, RuntimeWarning, stacklevel=3)
 
 
@@ -269,20 +276,27 @@ def _argcount(callback) -> Optional[int]:
 
 
 # Kinds whose ``fn`` is the author's callback (a tween's ``fn`` is its ease).
-_FN_IS_A_CALLBACK = frozenset({"after", "every", "sound", "until"})
+_FN_IS_A_CALLBACK = frozenset({"after", "every", "sound", "until", "record"})
 
 
-def _refuse_overfull_callback(callback: Callable, owner, kind: str, slot: str) -> None:
+def _refuse_overfull_callback(callback: Callable, owner, kind: str, slot: str, *,
+                              offered: Optional[int] = None,
+                              given: Optional[str] = None) -> None:
     """A timer / tween / sound callback that needs more arguments than
     ``_invoke`` will give (the owner, or nothing) raises at the call that
     made the handle, at the author's line (R6-1, persona probes round 6:
     ``after(0.8, ia_joga)`` with ``def ia_joga(peca, casas)`` failed 0.8 s
     later inside the engine, with no author line). The decorated handlers
-    were already checked at registration (``check_handler_arity``)."""
+    were already checked at registration (``check_handler_arity``).
+
+    ``offered`` / ``given``: a door that does not go through ``_invoke``
+    says what it passes (the quick effects and the cover call ``on_done``
+    with the shape / the canvas, bound method or not: ``call_truncated``)."""
     needed = payload_arity(callback)
     if needed is None or needed == 0:
         return
-    offered = 1 if owner is not None and not hasattr(callback, "__self__") else 0
+    if offered is None:
+        offered = 1 if owner is not None and not hasattr(callback, "__self__") else 0
     if needed <= offered:
         return
     name = getattr(callback, "__name__", None) or type(callback).__name__
@@ -290,10 +304,14 @@ def _refuse_overfull_callback(callback: Callable, owner, kind: str, slot: str) -
         door = "on_done="
     elif kind == "sound":
         door = "play_sound(on_done=)"
+    elif kind == "record":
+        door = "record(on_done=)"
     else:
         door = f"{kind}()"
-    given = "the object it belongs to" if offered else "no arguments"
-    hint = (f"after(…, lambda: {name}(…))" if kind in ("after", "every") and slot == "fn"
+    if given is None:
+        given = "the object it belongs to" if offered else "no arguments"
+    # RA D2: ``every(0.3, f)`` was told ``after(…, lambda: f(…))``.
+    hint = (f"{kind}(…, lambda: {name}(…))" if kind in ("after", "every") and slot == "fn"
             else f"on_done=lambda: {name}(…)")
     raise TypeError(
         f"{door} calls {name}() with {given}, but {name}() needs {needed} "
@@ -2101,11 +2119,26 @@ def _unawaited_message(coro) -> str:
     if origin:
         filename, lineno, _func = origin[0]   # the caller (most recent first)
         where = f" at {os.path.basename(filename)}, line {lineno}"
+    # A method needs its receiver in the fix: ``run_task(flash)`` inside a
+    # method is a NameError, and ``self.mode = …`` means nothing for a free
+    # ``async def show`` (RA B5). A method: defined in a class body (its
+    # qualname's last scope is not ``<locals>``) with a first parameter, or
+    # any function whose first parameter is ``self``.
+    scopes = getattr(coro, "__qualname__", code.co_name).split(".")
+    first = code.co_varnames[0] if code.co_argcount else None
+    in_class = len(scopes) > 1 and scopes[-2] != "<locals>"
+    if first is not None and (in_class or first == "self"):
+        bound = f"{first}.{code.co_name}"
+        return (
+            f"{name} was called{where} but never awaited, so nothing in {name} ran. "
+            f"Inside async code write await {bound}(); from a plain def start it as "
+            f"a task ({first}.run_task({bound}), or run_task({bound}) for one that "
+            f"outlives {first}) or an async mode ({first}.mode = {bound})."
+        )
     return (
         f"{name} was called{where} but never awaited, so nothing in {name} ran. "
         f"Inside async code write await {name}; from a plain def start it as "
-        f"a task (run_task({code.co_name})) or an async mode "
-        f"(self.mode = self.{code.co_name})."
+        f"a task: run_task({code.co_name})."
     )
 
 
@@ -3620,9 +3653,12 @@ def _start_every(
     _callable_or_none_error(fn, "every()")
     interval = seconds(interval, "every() interval")
     if interval <= 0.0:
+        # The ``//`` hint only for an exact 0 (the R5-5 trap); a negative
+        # interval has another cause (RA D8).
+        floor = (" (a // rounds down to a whole number: 60 // 120 is 0; write "
+                 "60 / 120)") if interval == 0.0 else ""
         raise ValueError(
-            f"every() interval must be > 0, got {interval:g} (a // rounds down "
-            f"to a whole number: 60 // 120 is 0; write 60 / 120). For every "
+            f"every() interval must be > 0, got {interval:g}{floor}. For every "
             f"frame, use on_update (Entity) or update(dt) (script)"
         )
     handle = Handle._make(
@@ -3982,6 +4018,12 @@ def _start_until(pred, *, await_hint: str, site, what: str = "until()") -> Handl
         ref.value                       # a missing cell raises here, not frames later
         fn = lambda: bool(ref.value)
     else:
+        # ``until(t.text)`` / ``until(box.checked)``: the 0.8.1 spelling took
+        # the cell; the field reads the value since 0.9.0 (A1, RA 0.9.0).
+        from .state import moved_cell_message
+        moved = moved_cell_message(pred, "until({})", predicate=True)
+        if moved is not None:
+            raise TypeError(moved)
         raise TypeError(
             f"until() expected a function or a reactive cell, got "
             f"{'None' if pred is None else type(pred).__name__}. "
@@ -4750,13 +4792,17 @@ def _tween_target(
             type(target.owner), "_scena_target_only", ()):
         # A paint or a flag links (``@=``) but does not tween: a color has no
         # interpolation space chosen here, a flag has no in-between.
-        owner = getattr(target.owner, "name", "obj")
+        # ``shape`` stands for the author's variable: the class name is no
+        # variable (RA B6m: the fix said ``Circle['color'] @= …``).
+        owner = "shape"
+        kind = type(target.owner).__name__
         hint = (f"tween a color cell and link to it: st.c = {owner}.{target.name}; "
                 f"tween(st['c'], Color('blue'), time=…); {owner}['{target.name}'] @= "
                 f"lambda: st.c" if target.name not in _FLAG_LINKS else
                 f"set it with {owner}.{target.name} = …, or link it: "
                 f"{owner}['{target.name}'] @= lambda: …")
-        raise TypeError(f"tween() cannot animate {owner}['{target.name}']: {hint}.")
+        raise TypeError(f"tween() cannot animate the {target.name} of a {kind} "
+                        f"(here shape is your {kind}): {hint}.")
 
     n_loops = _require_loop_kwargs(
         loops=loops, yoyo=yoyo, time=time, call_name="tween",

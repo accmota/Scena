@@ -31,16 +31,20 @@ left out.
   down ramps, and on 120 Hz displays flickers between ground and air.
   `floor_below` and `tilt = "ground"` in a world without a floor say so once
   (SCENA WARNING). The examples (`ninja*`, `corredor`, `entropia`) and
-  tutorials 18, 19, 26, 27 and 28 have the line. `collision.floor` is a
+  tutorials 18, 19, 26, 27, 28 and 32 have the line. `collision.floor` is a
   world setting: an act change gives it back.
 
 - `CheckBox.checked` reads the value (`True` / `False`), as `Slider.value`
   and `TextInput.text` do. Before, it was the cell, so
   `json.dumps({"hat": box.checked})` raised and `box.checked is True` was
   False. The cell is `box["checked"]`.
-  Before: `box.checked @= lambda: …` and `box.checked.value`.
-  After: `box["checked"] @= lambda: …` and `box.checked`.
-  The old spellings in a file that makes a CheckBox raise with this fix.
+  Before: `box.checked @= lambda: …`, `box.checked.value` and
+  `@on_change(box.checked)`.
+  After: `box["checked"] @= lambda: …`, `box.checked` and
+  `@on_change(box["checked"])`.
+  The old spellings in a file that makes a CheckBox raise with this fix; so
+  do `until(box.checked)` and `x["visible"] @= box.checked` (a link takes
+  the cell, `box["checked"]`, or a lambda).
 
 - `EquilateralTriangle` is now `Triangle`, equilateral by default and
   isosceles with `base_ratio=` (one class: the old name would have been a
@@ -50,7 +54,8 @@ left out.
   models, `angle` (the apex heading) and vertex order. With
   `from scena import *` the old name is gone (`NameError: name
   'EquilateralTriangle' is not defined`); `scena.EquilateralTriangle` /
-  `from scena import EquilateralTriangle` raise with the fix: `TypeError:
+  `from scena import EquilateralTriangle` give a stub that raises with the
+  fix when it is called, subclassed or used in `isinstance`: `TypeError:
   EquilateralTriangle was renamed to Triangle in 0.9.0 (equilateral by
   default; base_ratio= makes it isosceles). Write Triangle(center=…,
   radius=…).` (a subclass: `Write class Nave(Triangle).`).
@@ -58,14 +63,20 @@ left out.
   `EquilateralTriangle(n=3)` was accepted. `Triangle` is no longer an
   `isinstance` of `RegularPolygon` (an isosceles triangle is not regular);
   `RegularPolygon(n=3)` is still the regular triangle.
-- `Triangle(box=…)` fills the box: the apex at the middle of the far side,
-  the base along the near side, `base_ratio` set by the box.
-  `EquilateralTriangle(box=…)` put its center (the centroid) on the box's
-  center, inside the box's inscribed circle, so the apex touched one side
-  and a gap opened on the other. To keep an equilateral triangle, write
+- `Triangle(box=…)` fills the box: the apex at the middle of the right
+  side (in the box's angle), the base along the left side, `base_ratio` set
+  by the box. `EquilateralTriangle(box=…)` sat in the box's inscribed
+  circle and filled only part of it (in an 80 × 40 box: radius 20,
+  touching no side). To keep an equilateral triangle, write
   `Triangle(box=…, base_ratio=1)`: the largest one that fits, centered
   (in an 80 × 40 box: radius 23.1, not 20). With `radius=` or `side=`
   nothing changes (the box only centers it).
+- `poly.n = 6` on a `RegularPolygon` and `tri.n = 5` on a `Triangle` raise
+  with the fix: `n` is set when the shape is made (make a new
+  `RegularPolygon(n=…)`; a Triangle always has 3 vertices). Before, the write
+  was accepted and the shape kept its sides. A class default still works
+  (`class Estrela(RegularPolygon, n=8)`). `sprite.model = …` and
+  `svg.model = …` raise like Text's (a Shape field); nothing read them.
 - `base_ratio` is now a Triangle field: on any other kind,
   `x.base_ratio = …` raises with a hint (it was a plain attribute nothing
   read), like `circle.width = …`.
@@ -102,8 +113,9 @@ left out.
 - `v *= k` and `v /= k` change the vector itself, as `v += w` always did.
   Before, they made a new vector and rebound the name: after `a = v; v *= 2`,
   `a` kept the old value; now `a` is `v` and reads the new one. Through a
-  holder nothing changes (`ship.vel *= 0.9`, `st.pos *= 2` still give the new
-  value to `ship.vel` / `st.pos` and to what reads them). A vector that is
+  holder the holder gets the new value as before (`ship.vel *= 0.9`,
+  `st.pos *= 2`), and a name read from a cell now follows it too: after
+  `h = st.pos; st.pos *= 2` (or `+=`), `h` reads the new value. A vector that is
   linked or computed now refuses `*=` like `+=` (`LinkedAttributeError` /
   `DerivedAttributeError`) instead of being replaced. To keep the old vector,
   copy first: `a = Vec2(v.x, v.y)`.
@@ -120,7 +132,9 @@ left out.
   frame `t.text == "Pontos 1"` was `True`), and it could not be a dict key,
   joined, or searched for (`PONTOS[t.text]` raised `unhashable type`). Before
   → after: `t.text.value` → `t.text`; `t.text.unlink()` →
-  `t["text"].unlink()`; `t.text @= f` → `t["text"] @= f`. Each old spelling
+  `t["text"].unlink()`; `t.text @= f` → `t["text"] @= f`;
+  `@on_change(t.text)` / `until(t.text)` → `@on_change(t["text"])` /
+  `until(t["text"])`. Each old spelling
   raises with the fix: `AttributeError: Text.text is the text itself, a str,
   since 0.9.0: read it as t.text. The link handle is the bracket:
   t["text"].unlink().` A text linked to a number reads as its shown text
@@ -133,11 +147,44 @@ left out.
   moment were wired, so a board rebuilt after `group["cartas"].destroy()`,
   or an act's own objects under a top-level `@click(group[…])`, were never
   clickable, with no message. A rule made inside an act leaves with the act;
-  a handler set by hand (`carta.on_click = f`) is never overwritten; a joiner
+  a handler set by hand (`carta.on_click = f`) is never overwritten by a join
+  or a leave; a joiner
   the gesture refuses raises at the line that tagged it. A program that
   tagged objects it meant to stay unclickable into a decorated tag now gets
   them clickable: give them another tag. A union (`group["a"] |
   group["b"]`) or `.filter(…)` still wires the members of the moment.
+
+- `x.position = …`, `x.global_position = …` and `x.rotation_degrees = …` on
+  a shape raise naming Scena's word: `Peca has no 'position'; Scena spells it
+  'center'`. Before, `position` was a silent field of your own on a Graphic,
+  so a Godot habit (`self.position = (100, 50)`) moved nothing, and a field
+  you kept under that name (`self.position = 3`, a board index) worked. Rename
+  such a field (`self.casa = 3`). A class-body value of that name (or of
+  any name every write refuses: `velocity`, `colour`, a retired name)
+  raises on the class line. (`x.rotation = …` already raised.) A bare `Entity` keeps them.
+- `v * True`, `v * False` and `v / True` raise `TypeError` ("a Vec2 scales by a
+  number"): a flag scaled the vector by 1 or 0. Every other place a Vec2 takes
+  a number already refused a bool.
+  Before: `direcao * keyp("RIGHT")`.
+  After: `direcao * (1 if keyp("RIGHT") else 0)`, or an `if`.
+- `st.pos["x"] @= …` (a link on one axis of a vector held in a State cell)
+  raises with the fix, as `st.pos @= …` does. Before, the link stayed on the
+  old vector after the next `st.pos = …`, and a formula reading `st.pos` never
+  heard it, while code reading `st.pos` directly saw the axis move.
+  Before: `st.pos["x"] @= lambda: mouse.x`.
+  After: link the cell, `st["pos"] @= lambda: Vec2(mouse.x, st.pos.y)`.
+- A misspelled short property no longer becomes a silent field of your own.
+  `bola.colr = "red"`, `bola.angl = 45`, `bola.scal = 2` and `bola.fil = "blue"`
+  used to store a new field that nothing reads, so nothing changed on screen.
+  They now raise `AttributeError: Circle has no 'colr'. Did you mean 'color'?`.
+  The rule: a new name one letter away from `color`, `fill` or `line` holding a
+  colour, or from `alpha`, `angle`, `scale` or `width` holding a number. Real
+  fields with nearby names are not affected, because their values are another
+  kind: `self.laser = Rect(…)`, `self.owned = True`, `self.lime = 3`. A field
+  you meant to keep under such a name with such a value (`item.sale = 10`, one
+  letter from `scale`) now raises too; rename it.
+
+### Added
 
 - A frame that never ends (a `while` inside `update`, `on_update` or a
   handler) prints, after 2 s, `SCENA ERROR: a frame has not finished …`
@@ -231,10 +278,6 @@ left out.
   time=1)`, and link to it: `rect["color"] @= lambda: st.c`); `line_width`
   and `alpha` tween.
 
-- A Box copied into an Ellipse fills it, as `Ellipse(box=)` does:
-  `ellipse << hero.box` takes the box's center, width, height and angle, and
-  `ellipse @= (lambda: hero.box)` follows it.
-
 - `box=` takes a formula: a shape placed in a region that moves follows it.
   `Rect(box=lambda: hero.box.beside("right", gap=8))` stays beside the hero
   as it moves, turns and grows; `Circle(box=lambda: board.cell(st.i))`
@@ -259,7 +302,7 @@ left out.
   `radius`, the center and the apex; with `side`, the equal sides; with
   `vertex`, the apex and the sides. `radius` is the distance from the center
   (the centroid) to the apex. `box=` fills the box, with the apex at the
-  middle of its far side and the base along the near side (the box sets
+  middle of its right side and the base along the left side (the box sets
   `base_ratio`); with `base_ratio=` too, it is the largest triangle of that
   ratio that fits, centered. A class default works like `n`:
   `class Nave(Triangle, base_ratio=0.6)`.
@@ -303,13 +346,6 @@ left out.
   (`Rect(top_left=b.top_left, width=b.width, height=b.height, angle=b.angle)`).
   The Guia's Level section shows the recipes. A shape in a constructor is
   still its center as a point: `Rect(p1=bloco, …)` does not copy `bloco`.
-- A refusal on a computed field shows the constructor call that rebuilds the
-  shape with that field as an input, read from the shape. Before:
-  `… or build the rect with top_left=: Rect(..., top_left=...)`. Now:
-  `… or build the rect with top_left=: Rect(top_left=rect.top_left,
-  width=rect.width, height=rect.height, angle=rect.angle)`. It keeps the
-  shape's other inputs where it can, its heading, and what the copy needs
-  besides (`n`, `scoop` and `rim`, `base_ratio`, an arc's `spread`).
 - **Level editor:** Smooth (tracks) and Base ratio (triangles) are a slider
   with a number box beside it. Dragging redraws the shape as you go and is
   one undo step; typing a number works as before.
@@ -331,13 +367,38 @@ left out.
 - **Level editor:** **Select group [▾]** in the top bar selects every item
   in a group, and None selects nothing. It shows the group's name while the
   selection is exactly that group's items, and None otherwise.
-- A `DropDown` list too long for the window now stops at the window edge
-  and scrolls with the mouse wheel or trackpad, with a scroll bar on the
-  right; opening it shows the current option. Before, the rows past the edge
-  could not be reached. A list that fits looks the same. This also fixes the
-  editor's **Select group** with many groups.
-- **Level editor:** the Groups field takes ";" between names as well as
-  "," (a group name can no longer hold ";" by accident).
+- Level files can use spritesheets. A level's `sheets` table names one image
+  cut one way, with `Sheet`'s layouts (`cols` / `rows`, `cell`, `atlas`), and
+  an image item shows either a whole `file` or a `sheet` + `frame`. The
+  level's `Sheet` is `level.sheet("terreno")` (`level.sheets` lists the
+  names): one catalog for every frame of that sheet, built on first use, so a
+  clip registered on it plays on what `make()` builds:
+
+  ```python
+  fase = Level("fase1.json")
+  for t in fase.group("chao"):
+      t.make()                              # Sprite(sheet, frame=37, …) as drawn
+  fase.sheet("agua").clip("onda", [40, 41, 42], fps=6)
+  for a in fase.group("agua"):
+      a.make().play("onda")
+  ```
+
+  `item.sheet` / `item.frame` read a frame image; `item.image` on one raises
+  (the sheet's file would show every frame), as `item.sheet` does on a whole
+  picture. Building a sheet checks every item's frame and raises
+  `LevelFormatError` naming the item (`Sprite(frame="typo")` only warns).
+  A sheet the file does not have raises saying why it may be gone (the
+  editor saves only the sheets some item uses) and to load such a sheet in
+  the code (`Sheet("file.png", atlas="file.xml")`).
+- The level editor places frames of spritesheets. The Image tool also takes
+  an atlas (`.xml` / `.json`) and opens a frame picker on it; **Choose
+  frame…** (beside Change image) opens it on a selected image — cut a placed
+  strip or tileset into its frames, or show another frame — keeping its
+  center, angle and scale. The picker shows the sheet on the canvas (wheel
+  zooms, drag pans, F fits, Esc cancels) and the cut in the right panel
+  (whole image, columns × rows, cell size, atlas; a name filter on atlases).
+  Copy as code prints the `Sheet` line first
+  (`terreno = Sheet("tiles.png", cell=(16, 16))`).
 - **Level editor:** after a groups edit, the status bar says what changed. A
   name with a space shows as «moving enemies» (one group). A new name close
   to an existing group gets a hint: `"plataform" is a new group. Did you
@@ -345,15 +406,10 @@ left out.
 
 ### Changed
 
-- `level.sheet("nome")` for a sheet the file does not have now says why it
-  may be gone: the level editor saves only the sheets some item uses, so a
-  sheet kept in the file for the code alone is dropped by the next save. The
-  message says to load such a sheet in the code (`Sheet("folha.png",
-  atlas="folha.xml")`); the Guia's Level table says the same.
-
 - A callback that needs arguments raises where it is given, not when it
-  fires. This covers `after`, `every`, `on_done=` of a move, tween or sound,
-  and an actor's own timers. Before, `after(0.8, ia_joga)` with
+  fires. This covers `after`, `every`, `on_done=` of a move, tween, sound,
+  quick effect (`fade_out`, `pop`, `blink`, `flash_text`, …), `canvas.fade_out`
+  and `mic.record`, and an actor's own timers. Before, `after(0.8, ia_joga)` with
   `def ia_joga(peca, casas)` was accepted and stopped the game 0.8 s later
   with an error from inside Scena and no line of yours. The message now
   names the fix: `after(0.8, lambda: ia_joga(peca, 3))`.
@@ -365,10 +421,6 @@ left out.
   `Text(wrap=True)` (or `word_wrap=`, `max_width=`) says Text does not wrap
   and to break lines with `\n`.
 
-- A `crossfade=` replace ends the old named sound as a cut, as a plain
-  `name=` replace does: its `on_done` no longer runs. Before, crossfading a
-  `loops="forever"` track ran its `on_done` at the end of the fade, so a
-  playlist's `on_done=next_track` started a track nobody asked for.
 - A warning when `on_collide` can never fire: a second into play, if every
   body that takes part in collisions is one whose own `on_collide` enrolled
   it, those callbacks can only see each other. A plain `Rect` bullet is not
@@ -379,13 +431,6 @@ left out.
   `RegularPolygon(sides=5)` names `n=` instead of offering `side=`, which
   is the edge length.
 
-- In a frame, tweens now step before timers. So a timer as long as a tween
-  made with it sees the tween finished, with its `on_done` already run, at
-  any frame rate. Before, `after(2, seguinte)` made with
-  `move_to(…, time=2)` saw the move one step short (297.5 of 300 at 60 Hz).
-  A move started in `seguinte` on the same object then replaced the first,
-  whose `on_done` never ran. A timer that cancels a tween in the frame it is
-  due now comes after that frame's step.
 - An act's own named timer or sound now pauses the stage's one of the same
   name during the act and gives it back at the change, as a loose call in
   the act already did. This covers `self.every(…, name=)`,
@@ -407,7 +452,7 @@ left out.
   slowed by its effects steps quality first, as before. The debug HUD
   shows the simulation share (`sim:11.0ms`).
 - After `destroy()`, an object's own fields still read (`inimigo.valor`), as
-  its built-in fields do; every write still raises. A second handler of the
+  its built-in fields do; every field write still raises. A second handler of the
   same contact (they all run) can read the dead body, as the Guia says.
   Before, the read raised `DestroyedError`. A `@when` made on an object that
   is already destroyed retires at once.
@@ -430,13 +475,13 @@ left out.
   `Button("Contar")` says `Button(label="Contar")` (also CheckBox, Slider);
   `intersections(line, track)` names the route for a curve
   (`track.spaced_points(n)` and a Line per pair); Godot's hook names in a
-  class (`_process`, `_ready`, …) warn like Unity's; `x.position = …` /
-  `x.rotation = …` on a shape raise naming `center` / `angle` (they were
-  silently own fields; a bare `Entity` keeps them); `every(0.6, spawn())`
+  class (`_process`, `_ready`, …) warn like Unity's; `every(0.6, spawn())`
   and `after(1, boom())` raise saying the function was called (they
   returned the decorator silently); `self.mode = self.phase2()` raises
   saying to drop the `()` (a sync mode body ran as a helper and the mode
-  became `None`).
+  became `None`): an `@on_mode` body before it runs, a plain method that
+  returns nothing at the mode write. A method that returns a mode
+  (`self.mode = self.pick()`) is unchanged.
 
 - Messages that name the fix (persona probes): a read of a name an object
   lacks says Scena's way (`chave.hide()` → `visible = False`,
@@ -447,32 +492,22 @@ left out.
   `TextInput(on_submit=run)`) says a callback handed Scena's `run`; a class
   with several wrong hook names lists all of them, one line each.
 - Another engine's hook names in a class body get a SCENA WARNING at the
-  class line naming the Scena hook: `def Update(self, dt)` →
+  method's line naming the Scena hook: `def Update(self, dt)` →
   `on_update(self, dt)`, `Start` / `Awake` → `setup`, `OnTriggerEnter2D` →
   `on_collide`, `OnMouseDown` → `on_click`. Before, they were silently never
   called. A method the file calls itself (`player.Start()`, a manager's
-  `e.Update(dt)`) is a helper and gets no warning.
+  `e.Update(dt)`) is a helper and gets no warning; a call on another class's
+  object (`h.Start()` with `h = Helper(…)`) does not count.
 - A top-of-file `def on_click(x, y):` (or `on_key_press`, a top-level
   `on_update`, `on_mouse_clik`) gets a SCENA WARNING at `run()` naming the
   callback (`on_mouse_click(x, y, button)`, `@click(obj)`). It was silently
   never called. A function a decorator or an object uses is left alone.
 
-- A `Color` is a value: equal colours compare equal however they were spelled,
-  and the other side may be anything `color=` takes: `c.color == "red"`,
-  `Color("navy") == "#000080"`, `c.color == (1, 0, 0)`. Before, `==` was
-  identity, so `Color("red") == Color("red")` was `False` and a memory game
-  that compared card colours never matched. Colours hash by value (a set of
-  colours drops repeats; a colour is a dict key), print their channels
-  (`Color(r=1.000, g=0.000, b=0.000, a=1.000)`, not an address), and a write
-  of an equal colour no longer fires `@on_change`. A word that is not a
-  colour compares unequal; a near typo of one (`c.color == "yelow"`) also
-  warns once, naming the colour.
-
 - When something an async mode or a task awaits is cancelled from outside
   (the actor it moves destroyed, another move on the same property), the
   warning now says what it was awaiting, at which line, and why it ended:
-  `task show() was silently cancelled: the tween it was awaiting at
-  game.py, line 14 was cancelled (the actor it moves was destroyed)`. The
+  `task show() was silently cancelled: the move or tween it was awaiting at
+  game.py, line 14 was cancelled (its owner was destroyed)`. The
   task's own cancel stays quiet.
 - The errors for an `async def` where Scena calls a plain function, and for
   `wait()` outside async code, now name `run_task(...)` next to the async
@@ -494,7 +529,7 @@ left out.
   the field (`Some: …`) and are left alone.
 - A write to an act after its own `change_act` (more lines of `setup` after
   `change_act(Fim)`) still raises `DestroyedError`, now with the right fix:
-  `Fase.set cannot change act Fase …: act Fase ended when the game changed
+  `Fase.pontos cannot change act Fase …: act Fase ended when the game changed
   act, and code after change_act() runs on the act that is gone. Write
   change_act(...) last, or return right after it.` It said "Guard the call:
   if actor:".
@@ -523,23 +558,17 @@ left out.
   (9.7 → 2.0 µs and 13.8 → 5.7), so `ship.confine(canvas.game_view,
   action="wrap")` per ship is too. `CheapGlow` draws about a third cheaper
   (it read the shape's position again for each of its four glow bands).
-  Nothing changes in what they do or draw; a colour that changes on every
-  write costs about 5 % more.
+  Nothing changes in what they do or draw.
 - A colour that changes every frame costs less. `Colormap.get_color` is
-  about 2× faster (6.2 → 3.4 µs), `color.with_alpha(…)` about 4× (3.4 → 0.8),
-  and writing a new colour to a shape about a third less (`line.color = …`
-  13.8 → 8.7 µs, `fill = …` 7.9 → 3.1): the engine no longer re-checks colours
-  it made itself. `examples/constelacao.py`, which recolours 55 threads every
+  about 2× faster (6.4 → 3.5 µs), `color.with_alpha(…)` about 4× (3.5 → 0.9),
+  and writing a new colour costs about half for a fill (4.2 → 2.2 µs) and
+  about 8 % less for a line: the engine no longer re-checks colours it made
+  itself. `examples/constelacao.py`, which recolours 55 threads every
   frame, spends about 9 % less time per frame. The colours are exactly the
   same; a colour you write (`Color(…)`, a name, a tuple) is checked as before.
 - `Contrail.snapshot` is faster, more so for long trails: a 40-point faded
   trail 231 → 131 µs a snapshot, a 200-point one 1978 → 358 (the cost grew
   with the square of the length). The trail draws exactly the same.
-- `examples/constelacao.py` is lighter: each point takes the colour of where
-  it is four times a second (`self.every(0.25, self.recolorir)`) instead of
-  through a formula re-evaluated every frame, and the points have no
-  `CheapGlow` (Bloom already makes them glow). Its frame's drawing work went
-  from about 4.4 to 1.7 ms, and it looks the same.
 - `confine(by="box")` and `by="overlap"` now measure the shape's outline, so
   they work on every shape: a `Triangle`, `RegularPolygon`, `Polygon`,
   `Line`, `Track` or `Point` raised `TypeError` ("… .box is unsupported").
@@ -554,13 +583,6 @@ left out.
   turns for the rest of the game: every later `move_by` / `angle =` had taken
   the slow path (120 birds in a flock, 4.7 → 3.7 ms of work per frame).
   `move_by(dx, dy, face=True)` is still the cheapest way to aim where it goes.
-- A colour or a `visible` that follows a formula (`self["color"] @= lambda:
-  CORES.get_color(self.center.x / LARGURA)`) costs less each time it changes:
-  the engine no longer re-checks, three times per colour, that its own write
-  is not yours (about 13 % less a step for a moving shape, 15 % for a
-  `visible`; 55 moving points each coloured by such a formula, about 10 %
-  less a frame). The values and the refusals are the same: `shape.color =
-  "red"` on a linked colour still raises.
 - Collision queries over a big group cost the bodies near the question, not
   the whole group: 140 birds each asking
   `collision.query_circle(self.center, radius=70, group="passaro", ignore=self)`
@@ -570,6 +592,24 @@ left out.
   the next query of the same frame. The answers and their order are the same.
   `Triangle` and `RegularPolygon` bodies also refresh their hitboxes as
   cheaply as a `Rect` when they have not moved.
+- Level files are version 2, always written (the `sheets` table, under
+  Added); version 1 files still load. Scena 0.8.1 cannot open a file the
+  0.9.0 editor saved, even one with no sheets: it says the file was saved by
+  a newer Scena.
+- **Level editor:** grid steps 4, 8, 16, 32 and 64 join 1, 5, 10, 20 and 50;
+  on 8 to 64 a click-made shape is 96 or 128 wide, so its corners stay on the
+  grid.
+- A refusal to link a computed field (`rect.top_left @= …`), or to set a
+  computed number (`line.length = 5`), shows the constructor call that
+  rebuilds the shape with that field as an input, read from the shape. Before:
+  `… or build the rect with top_left=: Rect(..., top_left=...)`. Now:
+  `… or build the rect with top_left=: Rect(top_left=rect.top_left,
+  width=rect.width, height=rect.height, angle=rect.angle)`. It keeps the
+  shape's other inputs where it can, its heading, and what the copy needs
+  besides (`n`, `scoop` and `rim`, `base_ratio`, an arc's `spread`).
+- **Level editor:** the Groups field takes ";" between names as well as
+  "," (a group name can no longer hold ";" by accident): `a;b` makes two
+  groups, not one named "a;b".
 - `st.pos.x = 5` (a cell holding a `Vec2`) now changes the vector and tells
   what is linked to `st.pos`, as `nave.desvio.x = 5` does on a field of your
   own. It raised `AttributeError` (assign a whole value:
@@ -577,39 +617,6 @@ left out.
   link; every in-place change of a cell's vector now does. The old spelling
   still works. A vector that is another name for the cell's
   (`v = Vec2(1, 2); st.v = v`) changes `st.v` with `v.x = 3` too.
-
-- Level files can use spritesheets. A level's `sheets` table names one image
-  cut one way, with `Sheet`'s layouts (`cols` / `rows`, `cell`, `atlas`), and
-  an image item shows either a whole `file` or a `sheet` + `frame`. The
-  level's `Sheet` is `level.sheet("terreno")` (`level.sheets` lists the
-  names): one catalog for every frame of that sheet, built on first use, so a
-  clip registered on it plays on what `make()` builds:
-
-  ```python
-  fase = Level("fase1.json")
-  for t in fase.group("chao"):
-      t.make()                              # Sprite(sheet, frame=37, …) as drawn
-  fase.sheet("agua").clip("onda", [40, 41, 42], fps=6)
-  for a in fase.group("agua"):
-      a.make().play("onda")
-  ```
-
-  `item.sheet` / `item.frame` read a frame image; `item.image` on one raises
-  (the sheet's file would show every frame), as `item.sheet` does on a whole
-  picture. Building a sheet checks every item's frame and raises
-  `LevelFormatError` naming the item (`Sprite(frame="typo")` only warns).
-  Level files are now version 2, always written; version 1 files still load.
-- The level editor places frames of spritesheets. The Image tool also takes
-  an atlas (`.xml` / `.json`) and opens a frame picker on it; **Choose
-  frame…** (beside Change image) opens it on a selected image — cut a placed
-  strip or tileset into its frames, or show another frame — keeping its
-  center, angle and scale. The picker shows the sheet on the canvas (wheel
-  zooms, drag pans, F fits, Esc cancels) and the cut in the right panel
-  (whole image, columns × rows, cell size, atlas; a name filter on atlases).
-  Copy as code prints the `Sheet` line first
-  (`terreno = Sheet("tiles.png", cell=(16, 16))`). Grid steps 4, 8, 16, 32
-  and 64 join 1, 5, 10, 20 and 50; on 8 to 64 a click-made shape is 96 or
-  128 wide, so its corners stay on the grid.
 
 ### Fixed
 
@@ -660,17 +667,14 @@ left out.
 - A formula that reads inside the arguments of a call in the middle of a
   chain now follows that read: `lambda: TONS.get_color(st.calor).with_alpha(0.3)`
   and `lambda: str(st.n).upper()` used to raise "@= formula has no reactive
-  sources", and next to another source (`lambda: a.value + float(str(st.n))`)
-  the link ignored `st.n` and never updated on it.
+  sources", and next to another source (`lambda: a.value +
+  float(str(st.n).strip())`) the link ignored `st.n` and never updated on it.
 
 - `confine(by="box")` / `by="overlap"` on a turned `Circle` or `Ellipse`
   stopped short of the wall: it measured the shape's frame turned with it, so
   a ball rotated 45° stayed 0.41 × its radius away (8 units for a radius of
   20). It now touches the wall at any angle. A game that relied on the gap
   sees a turned ball or ellipse go up to the edge.
-- Two movable boxes with a `.vel` collide by their masses at every frame
-  rate: at 60 Hz, a mover that ended a frame inside the resting skin of a
-  resting box bounced back as off a wall, and the box never moved.
 
 - A ball with `bounce=` 0.5 or less and sideways speed bounces at every
   frame rate: at 144 Hz and up it was glued to the floor after its first
@@ -682,14 +686,15 @@ left out.
   fast shot still hits an enemy that slides by placement; a respawn is
   still not swept.
 
-- A method called on a cell reads its current value (`slider.data.upper()`,
-  any `Attribute`): it read the value from before the last change until
-  something read `.value`.
+- A method called on a linked cell reads its current value: with
+  `label = Attribute("")` and `label @= lambda: st.nome + "!"`, after
+  `st.nome = "xyz"` the call `label.upper()` gave the value from before the
+  change until something read `.value`.
 
 - A grid `Sheet` past 1024 cells loads: the cap refused real tilesets
   (Kenney's 1-bit pack, 49 × 22 cells of 16 px). The hard cap is 16384 cells;
-  `cell=` written for `cols=` / `rows=` still gets the hint past 1024 cells
-  when a cell is under 8 px. A missing file with a big `cols=` / `rows=`
+  `cell=` written for `cols=` / `rows=` still raises with that hint past
+  1024 cells when a cell is under 8 px. A missing file with a big `cols=` / `rows=`
   grid no longer builds one 64 px checker per cell.
 - A task or an async mode that awaits `asyncio.sleep(0)` (or anything else
   that yields nothing: a `types.coroutine` with a bare `yield`, an
@@ -707,7 +712,7 @@ left out.
   the old one.
 - A destroyed actor says so first, whatever the arguments. `dead.move_to((nan,
   0))`, `dead.move_by()`, `dead.rotate_to("a")`, `dead.scale_by(2, force="no")`,
-  `dead.add_to_group(5)` and `dead.radius = lambda: 3` raised the bad
+  `dead.add_to_group(5)` and `dead.color = lambda: …` raised the bad
   argument's error ("a point takes two finite numbers", "use @=") before
   `DestroyedError`, so you chased the number when the actor was gone. Every
   verb and setter that refuses a destroyed actor now refuses it before it
@@ -718,12 +723,6 @@ left out.
   `st.v0 = ship.aim` (a field of your own) made `ship.aim.x = 9` raise naming
   `st.v0`, and `ship.aim += d` moved the snapshot. A vector that is linked
   (`v @= …`, `v["y"] @= …`) is copied too: the cell holds its value of now.
-- A formula that reads a field of your own holding a linked `Vec2` follows the
-  link. After `ship.aim @= lambda: …` (or `ship.aim["y"] @= …`),
-  `Circle(center=lambda: ship.aim)` kept the value of the moment the link was
-  made. `st.pos["x"] @= …` now raises with the fix, as `st.pos @= …` does:
-  the link stayed on the old vector after the next `st.pos = …`, and nothing
-  that read `st.pos` heard it. Link the cell: `st["pos"] @= lambda: Vec2(x, y)`.
 - `w += (10**400, 0)` on a vector holding an int (`w.x = 4`) stored a number no
   float holds before raising, and every later `w.length` raised; it now raises
   and leaves `w` as it was.
@@ -731,10 +730,7 @@ left out.
   Scena's `ValueError` / `TypeError` instead of Python's. So do `v.lerp(w, "a")`,
   `v.clamp_length(None, 5)`; `vec_from_angle(a, n, reference_vec=)` takes a
   pair as well as a `Vec2` (a pair raised `AttributeError`).
-- `v * True`, `v * False` and `v / True` raise `TypeError` ("a Vec2 scales by a
-  number"): a flag passed by mistake scaled by 1 or 0 silently. Every other
-  place a Vec2 takes a number already refused a bool.
-- `angle` and `angle_to` read from just above −180 to 180: a vector pointing
+- A `Vec2`'s `angle` and `angle_to` read from just above −180 to 180: a vector pointing
   left reads 180 however it was made. `(-Vec2(1, 0)).angle` read −180 while
   `Vec2(-1, 0).angle` read 180, and `Vec2(1, -0.0).angle` read −0.0.
 - A `Vec2` refuses NaN and infinity on every door. `v << (math.nan, 0)` and a
@@ -751,10 +747,25 @@ left out.
   two finite numbers"; it said "a point takes…".
 - A write to a destroyed actor names the field: `dead.vel = (5, 5)` raises
   `Circle.vel cannot change a destroyed actor … Guard the call: if dead:`; every
-  field said `Circle.set` and `if actor:`.
-- On the `vel` of a destroyed actor, `held += (math.inf, 0)`, `held += ("a", 1)`
-  and `held.do_rotation(math.nan)` raise `DestroyedError`, as `held += (1, 0)`
-  does; they raised the bad value's `ValueError` / `TypeError` first.
+  field said `Circle.set` and `if actor:`. A write through a part
+  (`dead.vel.x = 3`, `dead.center.x = 5`, a kept `v = dead.vel`) names the
+  owner's field and guards the owner the same way: the part stays truthy
+  after the destroy, so `if vel:` would not guard. A dead actor's own Vec2
+  field (`dead.pos0.x = 5`, `+=`, `<<`) refuses before it changes anything.
+- `@=` of a plain value (a number, a bool, a text) on a property field
+  copied it once and linked nothing: `sprite["alpha"] @= 0.5`,
+  `shape["angle"] @= 45`, `shape["scale"] @= 2`, `x["visible"] @= flag`. It
+  now raises like `c["radius"] @= 5` (`@= needs a linkable object, a field
+  … or a callable — use '=' for a plain value`). A program that used `@=`
+  as a one-time write relied on it: write `=`.
+- A computed field's refusal suggests an input that moves it:
+  `concave.top_left @= …` suggested `concave.rim`, and `rect.vec` /
+  `square.width` suggested `center`.
+- `heading()`, `Point.heading`, `Line.angle` and a level line's `angle` read
+  in (−180, 180] like `Vec2.angle`: pointing left reads 180 (it was −180, and
+  `heading` could read −0.0); a zero vector (`-Vec2(0, 0)`) reads 0, not 180.
+- `isinstance(x, Scene)` / `issubclass(c, Scene)` raise with the rename to
+  `Act` (they were silently `False`), as `Scene(...)` does.
 - `v == [3, 4]` is True when `v == (3, 4)` is: a vector compares with a list
   as with a tuple (`v + [3, 4]` already took both).
 - `Vec2(x=1)` says `Vec2 takes x and y together … Write Vec2(1, 0) or
@@ -762,10 +773,10 @@ left out.
   x-only form, which always raised.
 
 - A cell with a formula (`st["pos"] @= lambda: …`) refuses every change of
-  its vector in place, as `st.pos = …` does: `st.pos << (3, 4)`,
-  `st.pos += …`, `st.pos *= 2` and `st.pos.do_rotation(90)` changed the
-  formula's output without telling anything, and the next run of the
-  formula put it back. They now raise `LinkedAttributeError: st.pos is
+  its vector or point in place, as `st.pos = …` does: `st.pos << (3, 4)`,
+  `st.pos.do_rotation(90)` and `st.pos.x = …` on a held `Point` changed the
+  formula's output without telling anything, and `st.pos += …` raised only
+  after changing it; the next run of the formula put it back. They now raise `LinkedAttributeError: st.pos is
   linked — call st['pos'].unlink() first`.
 - A formula that reads a field of your own holding a `Vec2` now follows the
   field. With `nave.desvio = Vec2(50, 0)` and
@@ -782,7 +793,7 @@ left out.
   (`nave.alvo = inimigo`) re-runs the formula when it gets a new object.
 - `st.pos << (3, 4)` and `st.pos.do_rotation(90)` changed the vector a cell
   holds without telling what is linked to the cell; they now do, as
-  `st.pos += …` did. `st.pos += v` is also about 40 % faster.
+  `st.pos += …` did. `st.pos += v` is also about 4× faster (10.7 → 2.6 µs).
 - A formula that reads through an object kept in a field or a cell now
   follows the object kept there now. With `nave.alvo = a` and
   `r = Circle(radius=lambda: nave.alvo.radius * 2)`, after `nave.alvo = b`
@@ -800,27 +811,18 @@ left out.
   already `inf`. Both now raise `ValueError: x must be a finite number, got inf`
   (`Circle.vel x …` for a velocity) and leave the vector as it was. A vector
   computed from its shape refuses the same way: on a `Line(p1=…, p2=…)`,
-  `line.vec += (1, 0)` changed `vec` and not the line; it raises
-  `DerivedAttributeError`, as `line.vec.x = 5` does.
+  `line.vec += (1, 0)` raised `DerivedAttributeError` only after changing
+  `vec` (and `line.vec *= 2` / `do_rotation` changed it silently), never the
+  line; each now refuses before changing anything, as `line.vec.x = 5` does.
 
 - The velocity of a destroyed actor refuses writes, as its center does.
-  `bala.vel.x = 3`, `bala.vel += (1, 0)` and `bala.vel << (1, 0)` on a
-  destroyed `bala` (or on a `v = bala.vel` you kept) were accepted, so a loop
-  over a list that still held destroyed bullets ran on without an error.
-  They raise `DestroyedError` now, naming where the actor was destroyed.
+  `bala.vel.x = 3` and `bala.vel << (1, 0)` on a destroyed `bala`, and
+  `v += (1, 0)`, `v.x = 3` or `v.do_rotation(90)` on a `v = bala.vel` you
+  kept, were accepted, so a loop over a list that still held destroyed
+  bullets ran on without an error. They raise `DestroyedError` now, naming
+  where the actor was destroyed, even with a bad value (`v += (math.inf, 0)`).
   Reads stay: `bala.vel.x`, `bala.vel.length`. Copying from it
   (`v << bala.vel`) raises, as `v << bala.center` does.
-
-- A misspelled short property no longer becomes a silent field of your own.
-  `bola.colr = "red"`, `bola.angl = 45`, `bola.scal = 2` and `bola.fil = "blue"`
-  used to store a new field that nothing reads, so nothing changed on screen.
-  They now raise `AttributeError: Circle has no 'colr'. Did you mean 'color'?`.
-  The rule: a new name one letter away from `color`, `fill` or `line` holding a
-  colour, or from `alpha`, `angle`, `scale` or `width` holding a number. Real
-  fields with nearby names are not affected, because their values are another
-  kind: `self.laser = Rect(…)`, `self.owned = True`, `self.lime = 3`. A field
-  you meant to keep under such a name with such a value (`item.sale = 10`, one
-  letter from `scale`) now raises too; rename it.
 
 - A collision rule now acts the same whatever other rules pair the same
   bodies. When a body gained a tag while already touching (`hero.tag("shield")`
@@ -861,13 +863,16 @@ left out.
 
 - A whole copy between kinds (`<<`, `absorb`, a whole `@=`) raised Python's
   own error and left the target half-changed: `Circle(...) << box`
-  (`AttributeError: 'Circle' object has no attribute 'width'`),
+  (`AttributeError: 'Circle' object has no attribute 'height'`),
   `Ellipse(...) << rect` (`ValueError: Unknown ellipse model`),
   `Triangle(...) << box`, `line << rect`, `polygon << rect`. A copy now takes
   only what the target can be (a Rect any Rect, Square, Concave or Box; a
   Triangle a regular triangle; a Polygon any polygon with as many points) and
   refuses everything else before changing anything, with a `TypeError` that
-  names the fix: `Circle(box=box)`, `rect << ellipse.box`.
+  names the fix: `Circle(box=box)`, `rect << ellipse.box`. A Box copied into
+  an Ellipse fills it, as `Ellipse(box=)` does: `ellipse << hero.box` takes
+  the box's center, width, height and angle, and `ellipse @= (lambda:
+  hero.box)` follows it.
 
 - `box=` on an author subclass of `RegularPolygon` (`class Hex(RegularPolygon)`)
   now takes the box's angle, as `RegularPolygon(box=…)` does; it compared
@@ -881,8 +886,8 @@ left out.
   (`on_drag_to(self, peca, alvo, pos)`) now raises `TypeError` when the
   object is made.
 - A body moving into a concave shape that collides as several pieces (a
-  concave `Polygon`, a `Concave`) is no longer stopped on the shape's
-  outer hull. A ball rolling into a U-shaped `Polygon` dropped onto the
+  concave `Polygon`; the new `Concave` works the same way) is no longer
+  stopped on the shape's outer hull. A ball rolling into a U-shaped `Polygon` dropped onto the
   hull's top instead of into the notch, and a ball rolling into a curve was
   thrown off along the straight line from its foot to its top. `resolve()`
   now sweeps such a shape piece by piece.
@@ -914,11 +919,43 @@ left out.
 - `@=` on a built-in name says what the name is on that kind, the same on
   every kind: `rect["text"] @= …` raises `Rect has no field 'text' (a Text
   field)`, `circle["width"] @= …` says `Size it with radius`,
-  `rect["color"] @= …` says it is a property set with `=`, `rect["name"] @= …`
+  `text["width"] @= …` says it is a property set with `=`, `rect["name"] @= …`
   says it is read-only. Before, Rect, Circle, Sprite, Text and the other
   kinds said "appearance and built-in properties stay outside the reactive
   graph" even for a field they do not have; only Line and Point named it.
   What links and what refuses did not change.
+- A `DropDown` list too long for the window stops at the window edge
+  and scrolls with the mouse wheel or trackpad, with a scroll bar on the
+  right; opening it shows the current option. Before, the rows past the edge
+  could not be reached. A list that fits looks the same. This also fixes the
+  editor's **Select group** with many groups.
+- A `crossfade=` replace ends the old named sound as a cut, as a plain
+  `name=` replace does: its `on_done` no longer runs. Before, crossfading a
+  `loops="forever"` track ran its `on_done` at the end of the fade, so a
+  playlist's `on_done=next_track` started a track nobody asked for.
+- In a frame, tweens now step before timers. So a timer as long as a tween
+  made with it sees the tween finished, with its `on_done` already run, at
+  any frame rate. Before, `after(2, seguinte)` made with
+  `move_to(…, time=2)` saw the move one step short (297.5 of 300 at 60 Hz).
+  A move started in `seguinte` on the same object then replaced the first,
+  whose `on_done` never ran. A timer that cancels a tween in the frame it is
+  due now comes after that frame's step.
+
+- A `Color` is a value: equal colours compare equal however they were spelled,
+  and the other side may be anything `color=` takes: `c.color == "red"`,
+  `Color("navy") == "#000080"`, `c.color == (1, 0, 0)`. Before, `==` was
+  identity, so `Color("red") == Color("red")` was `False` and a memory game
+  that compared card colours never matched. Colours hash by value (a set of
+  colours drops repeats; a colour is a dict key), print their channels
+  (`Color(r=1.000, g=0.000, b=0.000, a=1.000)`, not an address), and a write
+  of an equal colour does not fire `@on_change`. A word that is not a
+  colour compares unequal; a near typo of one (`c.color == "yelow"`) also
+  warns once, naming the colour. A colour hashes by its value, not by the
+  text you compare it with, so a set or dict of texts does not find it:
+  `bola.color in {"red", "blue"}` is `False` and `{"red": 10}[bola.color]`
+  raises `KeyError`. Compare with a list (`in ["red", "blue"]`) or key by
+  `Color("red")`; a file that writes `.color in {"red", …}` gets a SCENA
+  WARNING saying so.
 
 ### Documentation
 
@@ -1039,7 +1076,8 @@ left out.
   mix on them. UP / DOWN heat, a drag stirs, SPACE a spark that breaks the
   bonds near the mouse.
   The world step keeps each atom's numbers on a plain object and lets the
-  `Circle` only draw (reads of actor fields cost ~6x in that loop).
+  `Circle` only draw (reads of actor fields cost several times more in that
+  loop).
 
 - New example `examples/revoada.py`, a flock of 120 `Triangle` birds with no
   leader: each one sees only its neighbours and follows three rules (keep
@@ -1111,15 +1149,22 @@ left out.
   collision, mouse and widgets, the level editor), one look on a circle, a
   pentagon and a sprite, and Ninja IV and Connect Four in the gallery. Every
   clip is recorded from the code beside it, the editor's included.
+- Examples media: `misc/` is now `explosions/` (`explosions/exp4.png`,
+  `explosions/fireball/`), with Kenney's smoke particles (`Black_smoke/`,
+  `Flash/`, `White_puff/`); new `ui/` (Kenney's UI Pack, with sounds) and
+  `svg/` (Appendix G's rocket); the unused `spr_bullet_strip*` images are
+  gone. A script written from tutorials 07 or 08 of 0.8.1
+  (`Sheet("misc/exp4.png", cols=12)`) needs the new path.
 - Each release now has a GitHub Release with `scena-examples.zip`: the
-  examples and only the images and sounds they use (about 17 MB instead of the
+  examples and only the images and sounds they use (about 22 MB instead of the
   whole repository). The README links the latest one.
 - Tutorials, restructured (the page addresses change):
   - **New chapters:** 12 Movimento (a ship that flies where you click:
     placing or travelling with `time=` / `speed=`, `ease=`, `face=`,
     `on_done=`, the trip's control with `cancel`, and following the mouse
-    with `approach`) and 20 Colisão (a lab: the three phases of a touch,
-    `query_point`, `query_circle`, `raycast`).
+    with `approach`; `examples/movimento.py`) and 20 Colisão (a lab: the
+    three phases of a touch, `query_point`, `query_circle`, `raycast`;
+    `examples/colisao.py`).
   - **Interludes**, short concept pages between two tutorials: Grupos after
     05 (`count`, `empty`, `nearest`, `filter`, `count_where`, `any`) and
     Ganchos na classe after 11 (every hook in a class, and an `Entity` with
@@ -1133,7 +1178,7 @@ left out.
     tutorial from 14 on moves up one or two numbers.
   - Interação (11) has a third script, the mouse on the canvas
     (`on_mouse_click`, `on_mouse_double_click`, `on_mouse_drag`,
-    `on_mouse_scroll`). The Piano (22) plays a click through the key's own
+    `on_mouse_scroll`; `examples/ceu_estrelado.py`). The Piano (22) plays a click through the key's own
     `on_click` and ends with an equalizer (`audio.spectrum`). Fórmulas (09)
     builds the trap of a `lambda` inside a `for` (fixed with `lambda i=i:`)
     and ends with its ideas in light boxes instead of a dense list of rules.

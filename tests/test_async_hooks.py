@@ -124,6 +124,7 @@ class TestClassHooks(AsyncHookCase):
                     lambda: type(f"Async_{name}", (Entity,), {name: hook}), name,
                 )
                 self.assertIn("self.mode = self.", msg)
+                self.assertIn("run_task(", msg)          # RA E3: the task door is named
 
     def test_shape_and_act_setup(self):
         def make_shape():
@@ -601,7 +602,7 @@ class TestEveryCallbackDoor(AsyncHookCase):
                     if t:
                         self.w.seconds(t)
                 try:
-                    self.assertRefused(body)
+                    self.assertRefused(body, "run_task(")  # RA E3: every door names the task fix
                 finally:
                     mic = getattr(_record, "mic", None)
                     if mic is not None:
@@ -616,6 +617,74 @@ class TestEveryCallbackDoor(AsyncHookCase):
             self, "test_async_hooks.TestEveryCallbackDoor.test_every_door_refuses_async",
             [("scena.registry", "_refuse_async", lambda fn, what: None)],
             "an async group.filter / any / all predicate (AH2)")
+
+
+def _needs_three(a, b, c):
+    """More than any later-called door gives (the owner, the shape, the canvas)."""
+
+
+# A "later" door keeps a function and calls it on a later frame with at most
+# one value: the timers' fn, and every on_done. The rest of CASES (handlers,
+# predicates, formulas) are checked at registration by other rules.
+_LATER_FN_DOORS = ("after(fn)", "every(fn)", "Entity.after(fn)", "Entity.every(fn)")
+
+
+class TestEveryLaterDoorRefusesAnOverfullCallback(AsyncHookCase):
+    """A callback that needs more arguments than a later-called door gives
+    raises at the call, at the author's line (R6-1). RA D2: the quick effects
+    (``pop`` / ``flash`` / ``fade_out`` …), ``flash_text``, the canvas cover
+    and ``record`` took one and crashed when it fired, inside the engine.
+    Class guard: every ``(on_done)`` door of CASES (and the timers' fn), armed
+    with a function that needs three, with no frame run."""
+
+    def test_every_on_done_door_refuses_at_the_call(self):
+        doors = sorted(d for d in CASES if d.endswith("(on_done)") or d in _LATER_FN_DOORS)
+        self.assertGreater(len(doors), 40, "the door list stopped reaching the surface")
+        g = globals()
+        coro = g["_coro_fn"]
+        g["_coro_fn"] = _needs_three          # the arms read it at call time
+        try:
+            for door in doors:
+                arm, _t = CASES[door]
+                with self.subTest(door=door):
+                    self.w.teardown(strict=False)
+                    self.w = SystemWorld(draw=False)
+                    at = mark()
+                    try:
+                        with self.assertRaises(TypeError) as cm:
+                            arm()
+                        msg = str(cm.exception)
+                        self.assertIn("_needs_three() needs 3 argument(s)", msg)
+                        self.assertIn("lambda: _needs_three(…)", msg)
+                        if door.startswith(("every", "Entity.every")):
+                            self.assertIn("every(…, lambda:", msg)
+                    finally:
+                        mic = getattr(_record, "mic", None)
+                        if mic is not None:
+                            mic.close()
+                            _record.mic = None
+                        sweep(at)
+        finally:
+            g["_coro_fn"] = coro
+
+    def test_what_fits_is_accepted_by_the_quick_effects(self):
+        # The shape is offered: a one-parameter function, a bound method that
+        # takes the shape, a lambda with no parameter all pass.
+        got = []
+
+        class Nave(Rect):
+            def done(self, shape):
+                got.append(("method", shape is self))
+
+        n = Nave(center=(100, 100), width=10, height=10)
+        n.pop(0.05, on_done=n.done)
+        n.flash(0.05, on_done=lambda s: got.append(("one", s is n)))
+        n.knock(0.05, on_done=lambda: got.append(("none", True)))
+        scena.canvas.fade_out(0.05, on_done=lambda c: got.append(("canvas", c is not None)))
+        self.w.seconds(0.3)
+        scena.canvas.fade_in(0.0)
+        self.assertEqual(sorted(got), [("canvas", True), ("method", True),
+                                       ("none", True), ("one", True)])
 
 
 async def _show():
@@ -657,6 +726,52 @@ class TestNeverAwaitedHook(unittest.TestCase):
         self.assertEqual(caught[0].lineno, line, "the warning points at the dropping line")
         self.assertEqual(os.path.basename(caught[0].filename), "test_async_hooks.py")
         self.assertIsNotNone(scena.process.last_author_error(), "the banner shows it")
+
+    def test_free_function_fix_has_no_self(self):
+        # RA B5: a top-level ``async def show`` was told ``self.mode = self.show``.
+        _, msgs, _ = self._caught(_drop_show)
+        self.assertIn("run_task(_show)", msgs[0])
+        self.assertNotIn("self", msgs[0])
+
+    def test_nested_function_fix_has_no_self(self):
+        def outer():
+            async def inner():
+                await wait(0.1)
+            inner()
+
+        _, msgs, _ = self._caught(outer)
+        self.assertEqual(len(msgs), 1, msgs)
+        self.assertIn("run_task(inner)", msgs[0])
+        self.assertNotIn("self", msgs[0])
+
+    def test_method_fix_names_the_receiver(self):
+        # RA B5: inside a method ``run_task(flash)`` is a NameError; the fix
+        # names ``self.flash`` in every spelling it gives.
+        class Nave:
+            async def flash(self):
+                await wait(0.1)
+
+            def setup(self):
+                self.flash()
+
+        class Comum:               # first parameter not called self
+            async def pisca(me):
+                await wait(0.1)
+
+            def setup(me):
+                me.pisca()
+
+        for obj, fix, recv in ((Nave(), "flash", "self"), (Comum(), "pisca", "me")):
+            with self.subTest(method=fix):
+                drop = obj.setup
+                _, msgs, _ = self._caught(drop)
+                self.assertEqual(len(msgs), 1, msgs)
+                msg = msgs[0]
+                self.assertIn(f"await {recv}.{fix}()", msg)
+                self.assertIn(f"{recv}.run_task({recv}.{fix})", msg)
+                self.assertIn(f"run_task({recv}.{fix})", msg)
+                self.assertIn(f"{recv}.mode = {recv}.{fix}", msg)
+                self.assertNotIn(f"run_task({fix})", msg)
 
     def test_library_drop_keeps_pythons_text(self):
         import asyncio

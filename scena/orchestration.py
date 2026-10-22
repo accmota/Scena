@@ -4244,6 +4244,9 @@ class ScenaFramework:
             from .process import report_author_warning
             for msg in misses:
                 report_author_warning("run", msg)
+        # ``bola.color in {"red"}`` is always False (a Color hashes by value).
+        from .color import warn_color_keys
+        warn_color_keys(namespace.get("__file__"))
 
         # For each callback name, check if it exists in the namespace
         # Setup execution_callbacks in ScenaFramework
@@ -4373,6 +4376,12 @@ def run(first_act=None):
     caller_globals = caller_frame.f_globals
 
     fw.set_auto_callbacks(caller_globals)
+
+    # The frame stall watch, also for a script with no init() of its own
+    # (RA B1: only init() armed it, so such a script froze with no message).
+    # The script's own run() only: a test's run (or a harness's) arms nothing.
+    if caller_globals.get("__name__") == "__main__":
+        _stall.arm()
 
     # Run the main loop
     fw.run() 

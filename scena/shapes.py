@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from functools import wraps
 
 from ._defaults import Unset
+from ._pkg import RetiredClassMeta
 from .style import PaintState, LookLike
 from .color import Color, ColorLike
 from .scenamath import Vec2, vec_from_angle
@@ -307,8 +308,10 @@ def _reject_positional_shape_args(cls: type, args: tuple) -> None:
 def _unwrap_deg(raw: float, acc: float) -> float:
     """``raw`` (an ``atan2`` direction) moved by whole turns to the nearest of
     ``acc`` — a derived heading keeps the turns the pose store has counted, so
-    ``rotate_by(400)`` reads ``+400``, not ``40``."""
-    return acc + ((raw - acc + 180.0) % 360.0 - 180.0)
+    ``rotate_by(400)`` reads ``+400``, not ``40``. A half turn away reads
+    ``acc + 180``: the range is (acc − 180, acc + 180], so a Line pointing left
+    from a 0 pose reads 180 like ``Vec2.angle`` (it read −180, F12)."""
+    return acc - ((acc - raw + 180.0) % 360.0 - 180.0)
 
 
 def _finite_deg(value, what: str) -> float:
@@ -1114,8 +1117,9 @@ def distance(p1: Any, p2: Any) -> float:
 def heading(origin: Any, target: Any) -> float:
     """Bearing from ``origin`` to ``target`` in degrees (0 = +x, CCW).
 
-    Same position family as ``distance`` / ``nearest``. Range is −180…180
-    (``atan2``). Coincident positions → ``0``. Order is from, then to —
+    Same position family as ``distance`` / ``nearest``. Range is just above
+    −180 up to 180, as ``Vec2.angle`` (straight left is 180, never −180, and
+    never −0.0). Coincident positions → ``0``. Order is from, then to —
     swapping the arguments flips the angle by 180°.
 
     Sugar for ``(target.center - origin.center).angle``. ``Point.heading``
@@ -1124,7 +1128,9 @@ def heading(origin: Any, target: Any) -> float:
     """
     x1, y1 = _xy_of(origin, required=True)
     x2, y2 = _xy_of(target, required=True)
-    return math.degrees(math.atan2(y2 - y1, x2 - x1))
+    # ``+ 0.0`` folds a -0.0 difference to 0.0 (F12 of RA 0.9.0): atan2 read
+    # −180 for (−1, −0.0) and −0.0 for (1, −0.0).
+    return math.degrees(math.atan2(y2 - y1 + 0.0, x2 - x1 + 0.0))
 
 
 def nearest(
@@ -3872,7 +3878,13 @@ class Point(Shape):
                 self._link_field('y', y)
         else:
             super()._assign_formula(formula)
-  
+
+
+# The ephemeral Point a linked State cell holds refuses in-place writes
+# (``state._LinkedPointGuard``, G5); other Points pay nothing.
+from . import state as _state_for_point  # noqa: E402
+_state_for_point._LINKED_POINT = Point
+
 
 class LineModel(Enum):
     CENTER_LENGTH_ANGLE = "center_length_angle"
@@ -7907,6 +7919,12 @@ class RegularPolygon(_RadialPolygon):
 
     _CTOR_EXTRA_KEYS = frozenset({"n"})
     _HOME_SIZE_KEYS = frozenset({"radius", "angle", "n"})
+    # ``poly.n = 6`` became ink nothing reads (still n points, A7 of RA 0.9.0).
+    _RETIRED_ATTRS = {
+        "n": "A RegularPolygon's n is set when it is made: make a new one "
+             "(RegularPolygon(n=6, center=…, radius=…)); len(poly.points) "
+             "counts its sides.",
+    }
 
     def _recipe_extras(self) -> Tuple[Any, ...]:
         """A rebuild recipe carries the side count (refusal hint); ``n`` is a
@@ -9647,6 +9665,10 @@ class Concave(_RectBody):
     """
 
     rim = ContainerSlot(_RimPair)
+    # A Defining input that shapes the outline only: no computed field
+    # (``top_left``, ``p1``, ``vec``, …) reads it, so a refusal never lists
+    # it as one to link instead (C1, RA 0.9.0; ``Container._model_inputs``).
+    _OUTLINE_ONLY_INPUTS = frozenset({"rim"})
 
     _CTOR_EXTRA_KEYS = frozenset({"scoop", "rim"})
 
@@ -10120,6 +10142,12 @@ class Triangle(_RadialPolygon):
     )
 
     _CTOR_EXTRA_KEYS = frozenset({"base_ratio"})
+    # ``Triangle(n=…)`` raises; ``tri.n = 5`` became ink (A7 of RA 0.9.0).
+    _RETIRED_ATTRS = {
+        "n": "A Triangle always has 3 vertices. For n sides write "
+             "RegularPolygon(n=…, center=…, radius=…); for free corners "
+             "Polygon(points=[…]).",
+    }
 
     def _recipe_extras(self) -> Tuple[str, ...]:
         """A rebuild recipe carries a non-equilateral base (refusal hint)."""
@@ -10300,17 +10328,25 @@ class Triangle(_RadialPolygon):
 # ``__all__`` nor in builtins: a star import gives a plain ``NameError``.
 # Keep it at least until 1.0.
 
-def _retired_equilateral_triangle_message(name: Optional[str] = None) -> str:
-    fix = (f"Write class {name}(Triangle)" if name
-           else "Write Triangle(center=…, radius=…)")
+def _retired_equilateral_triangle_message(name: Optional[str] = None,
+                                          fix: Optional[str] = None) -> str:
+    if fix is None:
+        fix = (f"Write class {name}(Triangle)" if name
+               else "Write Triangle(center=…, radius=…)")
     return (
         f"EquilateralTriangle was renamed to Triangle in 0.9.0 (equilateral by "
         f"default; base_ratio= makes it isosceles). {fix}."
     )
 
 
-class _RetiredEquilateralTriangle:
-    """``EquilateralTriangle`` was renamed ``Triangle`` in 0.9.0; using it raises with the fix."""
+class _RetiredEquilateralTriangle(metaclass=RetiredClassMeta):
+    """``EquilateralTriangle`` was renamed ``Triangle`` in 0.9.0; using it
+    raises with the fix (a call, a subclass, ``isinstance`` / ``issubclass``)."""
+
+    @staticmethod
+    def _retired_type_test(spelling: str) -> str:
+        return _retired_equilateral_triangle_message(
+            fix="Write " + spelling.format(new="Triangle"))
 
     def __init_subclass__(cls, **kwargs):
         raise TypeError(_retired_equilateral_triangle_message(cls.__name__))

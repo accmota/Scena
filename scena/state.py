@@ -1627,7 +1627,65 @@ def _normalize_link_rhs(source):
         return source.owner._linkable_source(source.name)
     if source.__class__ is _HELD_BY_VALUE:
         refuse_held_payload(source, "… @= {cell}")
+    elif source.__class__ is bool or isinstance(source, str):
+        # ``x["text"] @= t.text`` / ``st["hat"] @= box.checked``: the 0.8.1
+        # spelling took the cell; the field reads the value since 0.9.0 (A1).
+        msg = moved_cell_message(source, "{lhs} @= {}", link=True)
+        if msg is not None:
+            raise TypeError(msg)
     return source
+
+
+# Fields that were the cell until 0.9.0 and read the value since: the value's
+# type, the field and what it reads. ``t.text`` is a ``TextValue`` (it knows
+# itself); ``box.checked`` is a plain bool, found on the author's line.
+_MOVED_CELL_FIELDS = (
+    ("text", "the text shown (a str)", ' == "…"'),
+    ("checked", "the bool (True / False)", ""),
+)
+
+
+def moved_cell_message(value, door: str, *, link: bool = False,
+                       predicate: bool = False) -> Optional[str]:
+    """The refusal for a door that took a cell in 0.8.1 and gets its value
+    now (``@on_change(t.text)``, ``until(box.checked)``, ``x["text"] @=
+    t.text``), naming the bracket cell and a lambda; None when ``value`` is
+    not one. ``door`` spells the call with ``{}`` where the value goes (and
+    ``{lhs}`` for a link's target); ``predicate``: the door waits for a true
+    value (``until`` / ``@when``), so the text's lambda compares. Error path
+    only: reads the author's line."""
+    from .text import TextValue
+    if isinstance(value, TextValue):
+        field, reads, test = _MOVED_CELL_FIELDS[0]
+    elif value.__class__ is bool:
+        field, reads, test = _MOVED_CELL_FIELDS[1]
+    else:
+        return None
+    import linecache
+    import re
+    from .entity import _frame_outside_scena
+    site = _frame_outside_scena()
+    line = linecache.getline(site.filename, site.lineno) if site is not None else ""
+    m = re.search(r"([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\." + field + r"\b(?!\s*\()", line)
+    if m is not None:
+        owner = m.group(1)
+    elif field == "text":
+        owner = "t"
+    else:
+        return None             # a bool from anywhere else: the door's own message
+    lhs = "…"
+    if link:
+        lm = re.search(r"([A-Za-z_][\w.]*(?:\[[^\]]*\])*)\s*@=", line)
+        if lm is not None:
+            lhs = lm.group(1)
+    said = door.format(f"{owner}.{field}", lhs=lhs)
+    cell = door.format(f'{owner}["{field}"]', lhs=lhs)
+    fn = door.format(f"lambda: {owner}.{field}{test if predicate else ''}", lhs=lhs)
+    why = ("a link takes the cell or a function, never a plain value" if link
+           else "so this would take a value that never changes")
+    return (f"{said}: {owner}.{field} reads {reads} since 0.9.0 (it was the "
+            f"cell), {why}. Pass the cell with brackets: {cell}, or a "
+            f"function: {fn}.")
 
 def _follows_cell_hint(cell) -> str:
     """`` — it shows st['score']: write st.score …`` when ``cell`` is linked
@@ -2937,12 +2995,12 @@ class Container():
             new_link = DirectLink(formula)
         elif callable(formula):
             new_link = FormulaLink(formula)
-        elif isinstance(formula, Number):
-            # Unmigrated constructors still pass plain numbers through assign_formula.
-            # Scalar FieldRef @= rejects numbers in _link_field (Decision: no implicit copy).
-            self._takein(formula)
-            return
         else:
+            # A plain value (a number, a bool such as ``box.checked``, a color
+            # name) never links: '=' copies it. Before, a Number was taken in
+            # as a one-time write here, so ``lamp["visible"] @= box.checked``
+            # or ``sprite["alpha"] @= 0.5`` (every property-backed channel and
+            # a derived heading) was silent and linked nothing (A2, RA 0.9.0).
             raise TypeError(_LINK_RHS_ERROR)
 
         # Draggable / wheel_rotate / Anchor shapes forbid inbound links on pose parts.
@@ -3642,8 +3700,15 @@ class Container():
         if operation == "link":
             if not inputs:
                 return head + (f" To set it, {build}." if build else "")
-            first = inputs[0]
-            first_slot = self._field_slots().get(first)
+            # The input to suggest moves this field: a placement point for a
+            # computed point, an extent (a number) for a computed vector or
+            # number. ``rect.vec @= …`` suggested ``rect.center``, which never
+            # changes the vector (C1 class, RA 0.9.0).
+            slots_ = self._field_slots()
+            prefer = [n for n in inputs
+                      if isinstance(slots_.get(n), ContainerSlot) is is_point]
+            first = (prefer or inputs)[0]
+            first_slot = slots_.get(first)
             example = (
                 f"{var}.{first} @= lambda: ..." if isinstance(first_slot, ContainerSlot)
                 else f'{var}["{first}"] @= lambda: ...'
@@ -3712,13 +3777,17 @@ class Container():
 
     def _model_inputs(self, exclude: Optional[str] = None) -> List[str]:
         """This object's Defining fields (its model inputs): placement parts
-        (points, vectors) first, then numbers, each in declaration order."""
+        (points, vectors) first, then numbers, each in declaration order.
+        An input that shapes the outline only (``_OUTLINE_ONLY_INPUTS``: a
+        Concave's ``rim``) feeds no computed field, so it is left out."""
         defining = getattr(self, '_defining_part_names', None)
         if not defining:
             return []
         slots = self._field_slots()
-        names = [n for n in slots if n in defining and n != exclude]
-        names += sorted(n for n in defining if n not in slots and n != exclude)
+        skip = getattr(type(self), '_OUTLINE_ONLY_INPUTS', ())
+        names = [n for n in slots if n in defining and n != exclude and n not in skip]
+        names += sorted(n for n in defining
+                        if n not in slots and n != exclude and n not in skip)
         return sorted(names, key=lambda n: not isinstance(slots.get(n), ContainerSlot))
 
     # Keyword order of a rebuild recipe: placement, then extents, then the heading.
@@ -4374,6 +4443,28 @@ class ScalarAnchor(Container):
             self.__dict__['_derivate_field'] = False
         super().__init__(owner=parent, attr_name=field_name)
 
+    def _container_refusal(self, value) -> str:
+        """Why this field's link cannot take ``value`` (a Container). Error path.
+
+        An ink field that holds a Vec2 or Point links as the vector itself
+        (``ship.aim @= lambda: …``, VB3): the bracket link is a number or a
+        string's, so its refusal names that spelling (RA 0.9.0 aside)."""
+        kind = type(value).__name__
+        parent = self._scalar_parent
+        name = self._scalar_name
+        ink = getattr(parent, '_ink', None)
+        held = ink.get(name) if isinstance(ink, dict) else None
+        if held is not None and type(held) is type(value):
+            var = _snake_name(type(parent).__name__)
+            return (
+                f"{var}['{name}'] @= …: {var}.{name} holds a {kind}, and a "
+                f"bracket link on an object's field takes a number or a string. "
+                f"Link the {kind} itself: {var}.{name} @= lambda: … (the "
+                f"formula returns a {kind})"
+            )
+        return (f"scalar field {self.name} cannot take a {kind}; "
+                f"use a lambda that returns a number or string")
+
     def _takein_impl(self, new_value) -> bool:
         if new_value.__class__ is not float:        # a pulled float is the common case
             if isinstance(new_value, FieldRef):
@@ -4381,10 +4472,7 @@ class ScalarAnchor(Container):
             if isinstance(new_value, Attribute):
                 new_value = new_value.value
             elif isinstance(new_value, Container):
-                raise TypeError(
-                    f"scalar field {self.name} cannot take a {type(new_value).__name__}; "
-                    f"use a lambda that returns a number or string"
-                )
+                raise TypeError(self._container_refusal(new_value))
         parent = self._scalar_parent
         name = self._scalar_name
         ink = getattr(parent, '_ink', None)
@@ -4780,6 +4868,65 @@ class _HeldPayloadWrite:
             cell._refuse_author_write()
 
 
+# A Point a **linked** cell holds is its formula's output too, when the formula
+# made it: point arithmetic (``st["pos"] @= lambda: src.center + (1, 1)``)
+# returns a free ephemeral Point (``Point.temp``) that nothing else names. Its
+# ``.x =`` / ``<<`` changed the output silently until the next pull put it back
+# (G5, RA 0.9.0). Such a Point gets a per-instance ``_write_field`` (``.x =``,
+# ``.x +=``, ``move_by``, ``rotate_by``: every axis write ends there) and
+# ``_takein`` (``<<``, ``move_to``) that refuse while the cell is linked and
+# still holds it; other Points pay nothing (the class code is unchanged). A
+# Point with an identity of its own (a part such as ``src.center``, a handle,
+# a ``Point(…)`` an author made) stays an object payload, edited in place as
+# ``st.alvo = circle`` is. ``shapes`` sets ``_LINKED_POINT`` to ``Point``.
+_LINKED_POINT: Optional[type] = None
+
+
+class _LinkedPointGuard:
+    """``_write_field`` / ``_takein`` of an ephemeral Point a linked cell holds."""
+
+    __slots__ = ("cell", "payload")
+
+    def __init__(self, cell: "Attribute", payload) -> None:
+        self.cell = weakref.ref(cell)
+        self.payload = weakref.ref(payload)
+
+    def _refuse(self, p) -> None:
+        cell = self.cell()
+        # No batch exemption (unlike a held Vec2): ``move_by`` / ``rotate_by``
+        # / ``scale_by`` write the axes inside their own batch, and the cell's
+        # pull stores a new Point, never into this one.
+        if (cell is not None and cell.__dict__.get('_link') is not None
+                and cell.__dict__.get('_raw_value') is p):
+            cell._refuse_author_write()
+
+    def __call__(self, name: str, value) -> None:
+        p = self.payload()
+        self._refuse(p)
+        type(p)._write_field(p, name, value)
+
+    def takein(self, value) -> None:
+        p = self.payload()
+        if value is not p:
+            self._refuse(p)
+        type(p)._takein(p, value)
+
+
+def _guard_linked_point(cell: "Attribute", p) -> None:
+    """``cell`` (linked) took Point ``p`` from its formula: guard it if the
+    formula made it (ephemeral, no owner). Called on a Point store only."""
+    d = p.__dict__
+    if (cell.__dict__.get('_link') is None or not d.get('_ephemeral')
+            or d.get('_owner') is not None):
+        return
+    guard = d.get('_write_field')
+    if isinstance(guard, _LinkedPointGuard) and guard.cell() is cell:
+        return
+    guard = _LinkedPointGuard(cell, p)
+    d['_write_field'] = guard
+    d['_takein'] = guard.takein
+
+
 def held_cell(obj) -> Optional["Attribute"]:
     """The cell that holds ``obj`` by value right now (``st.pos``'s Vec2), or None.
 
@@ -5135,6 +5282,8 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
                 _rehold_payload(self, old_value, new_value)
             else:
                 self._raw_value = new_value
+                if new_value.__class__ is _LINKED_POINT:
+                    _guard_linked_point(self, new_value)    # G5: a linked cell's Point
             return True
         else:
             return False

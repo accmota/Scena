@@ -383,6 +383,95 @@ class TestRim(unittest.TestCase):
         d.destroy()
 
 
+def _suggested(obj, field):
+    """The input a computed field's link refusal suggests, or None."""
+    import re
+    msg = obj._derived_field_message(field, "link")
+    m = re.search(r'instead \(\w+(?:\.(\w+)|\["(\w+)"\]) @=', msg)
+    return (m.group(1) or m.group(2)) if m else None
+
+
+class TestComputedFieldRefusalNamesAnInput(unittest.TestCase):
+    """C1 (RA 0.9.0): ``concave.top_left @= …`` listed ``rim`` first and said
+    "Link one of those instead (concave.rim @= …)": linking rim never moves
+    top_left. Class guard over every shape kind with a model: the input a
+    computed-field link refusal suggests ("Link one of those instead (…)"),
+    when written, moves that field."""
+
+    # Inputs of another model, inert in the home one: no input moves them
+    # (Line.dist is the polar model's, at_angle the tangent model's).
+    _INERT = {("Line", "dist"), ("Line", "at_angle")}
+
+    def _kinds(self):
+        import inspect
+        from scena.shapes import Shape
+        for name in scena.__all__:
+            kind = getattr(scena, name)
+            if inspect.isclass(kind) and issubclass(kind, Shape):
+                try:
+                    obj = kind()
+                except Exception:
+                    continue
+                if not getattr(obj, "_defining_part_names", None):
+                    obj.destroy()
+                    continue
+                yield name, obj
+
+    @staticmethod
+    def _snapshot(value):
+        if hasattr(value, "x") and hasattr(value, "y"):
+            return (round(float(value.x), 6), round(float(value.y), 6))
+        return round(float(value), 6)
+
+    def test_the_suggested_input_moves_the_field(self):
+        from scena.state import ContainerSlot
+        checked = 0
+        for name, obj in self._kinds():
+            try:
+                slots = obj._field_slots()
+                derived = [f for f, s in slots.items() if obj._field_is_derivate(f, s)]
+                for field in derived:
+                    if (name, field) in self._INERT:
+                        continue
+                    first = _suggested(obj, field)
+                    if first is not None:
+                        probe = type(obj)()
+                        try:
+                            before = self._snapshot(getattr(probe, field))
+                            cur = getattr(probe, first)
+                            if not (isinstance(cur, (int, float)) or hasattr(cur, "x")):
+                                continue    # not a number or a point
+                            if isinstance(slots.get(first), ContainerSlot):
+                                setattr(probe, first, (float(cur.x) + 7.0, float(cur.y) + 3.0))
+                            else:
+                                setattr(probe, first, float(cur) * 1.5 + 2.0)
+                            after = self._snapshot(getattr(probe, field))
+                        finally:
+                            probe.destroy()
+                        with self.subTest(kind=name, field=field, input=first):
+                            self.assertNotEqual(before, after,
+                                                f"{name}.{field} suggests {first}, which does not move it")
+                        checked += 1
+            finally:
+                obj.destroy()
+        self.assertGreater(checked, 20, "the walk stopped reaching the kinds")
+
+    def test_concave_suggests_its_center(self):
+        k = Concave(center=(100, 100), width=80, height=40)
+        self.addCleanup(k.destroy)
+        st = State()
+        st.x = 0
+        for write in (lambda: k.top_left.__imatmul__(lambda: (st.x, 0)),
+                      lambda: setattr(k, "top_left", (0, 0))):
+            with self.assertRaises(scena.DerivedAttributeError) as cm:
+                write()
+            msg = str(cm.exception)
+            self.assertNotIn("rim", msg.split(", so")[0])
+        with self.assertRaises(scena.DerivedAttributeError) as cm:
+            k.top_left @= (lambda: (st.x, 0))
+        self.assertIn("concave.center @= lambda", str(cm.exception))
+
+
 def _ring_on_outline(test, c, tol):
     m = model_of(c)
     for x, y in c._world_ring():

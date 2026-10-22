@@ -120,6 +120,7 @@ CONTRACTS: Dict[str, W] = {
     "entity:_class_hook_refusal": W(fires="test_class_hook_names", silent="test_class_hook_names.TestOtherEnginesHookNames.test_a_method_the_file_calls_itself_is_a_helper"),
     "formula_check:_warn_container_read": W(fires="test_formula_functions", silent="test_formula_functions.TestContainerItemLinks.test_a_list_only_reassigned_says_nothing"),
     "color:_comparable_rgba": W(fires="test_color", silent="test_color.TestColorEquality.test_not_a_color_is_unequal_and_silent"),
+    "color:warn_color_keys": W(fires="test_color", silent="test_color.TestColorKeyWarning.test_quiet_for_the_spellings_that_work_and_for_other_words"),
     "uiwidget:resolve_typeface": W(fires="test_text", twin=MISSING_FILE),
     "uiwidget:resolve_ui_typeface": W(fires="test_api_robustness", twin=MISSING_FILE),
     "background:wrap_background_source": W(untested="no caller passes camera knobs: every door calls wrap_background_source(value) bare, so the branch is unreachable today",

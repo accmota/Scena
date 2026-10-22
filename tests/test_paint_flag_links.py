@@ -896,6 +896,115 @@ class TestConstructorFormulas(unittest.TestCase):
         self.assertTrue(r._channel_linked("color"))
 
 
+class TestPlainValueRefuses(unittest.TestCase):
+    """A2 (RA 0.9.0): ``lamp["visible"] @= box.checked`` (a bool since
+    0.9.0), ``sprite["alpha"] @= 0.5`` and every property-backed field given
+    a number took it in once (``_assign_formula`` copied a Number) and linked
+    nothing, while ``c["radius"] @= 5`` refused; a color channel given a
+    number said "Cannot make a Color". Every graphic kind × every name it
+    links (appearance channels, heading, scale) × a constant, a value read
+    from a cell and a bool: the @= words, nothing linked, the value kept."""
+
+    _CONSTANT = {"color": "red", "fill": "blue", "line": "red", "background": "red",
+                 "line_width": 3, "alpha": 0.5, "angle": 30, "scale": 2}
+
+    def test_every_linked_name_refuses_a_plain_value(self):
+        st.a2_on = True
+        st.a2_num = 0.25
+        seen = 0
+        for name, kind in _graphic_kinds():
+            obj = kind()
+            try:
+                for field in sorted(kind._scena_property_links | {"angle", "scale"}):
+                    try:
+                        obj[field]
+                    except (AttributeError, TypeError):
+                        continue            # not a field of this kind
+                    for label, value in (("constant", self._CONSTANT.get(field, True)),
+                                         ("cell read", st.a2_num), ("bool", st.a2_on),
+                                         ("int", 1)):
+                        with self.subTest(kind=name, field=field, value=label):
+                            before = getattr(obj, field)
+                            with self.assertRaises((TypeError, AttributeError)) as cm:
+                                obj[field] @= value
+                            if field in kind._scena_property_links:
+                                self.assertIn("@= needs a linkable object", str(cm.exception))
+                            self.assertFalse(obj[field].is_linked)
+                            self.assertEqual(getattr(obj, field), before)
+                            seen += 1
+            finally:
+                obj.destroy()
+        self.assertGreater(seen, 300, "the walk stopped reaching the channels")
+
+    def test_a_cell_handle_and_a_function_still_link(self):
+        from scena import CheckBox
+        box = CheckBox()
+        self.addCleanup(box.destroy)
+        lamp = Circle()
+        self.addCleanup(lamp.destroy)
+        lamp["visible"] @= box["checked"]
+        self.assertTrue(lamp["visible"].is_linked)
+        box.checked = True
+        self.assertIs(lamp.visible, True)
+        box.checked = False
+        self.assertIs(lamp.visible, False)
+        s = Sprite()
+        self.addCleanup(s.destroy)
+        s["alpha"] @= lambda: 0.5 if box.checked else 1.0
+        self.assertAlmostEqual(s.alpha, 1.0)
+        box.checked = True
+        self.assertAlmostEqual(s.alpha, 0.5)
+
+
+class TestFlagRefusalNamesAWorkingFix(unittest.TestCase):
+    """B7 (RA 0.9.0): ``Text("t")["flip_x"] @= …`` said "Set it with
+    ``text.flip_x = …``", and ``text.flip_x = True`` raises (Text cannot
+    flip). Class guard: on every graphic kind, a flag whose @= refuses with
+    "set it with ``=``" takes ``= True``; one whose ``= True`` raises gives
+    the link the same reason."""
+
+    def test_every_refused_flag_names_a_fix_that_works(self):
+        seen = 0
+        for name, kind in _graphic_kinds():
+            for field in ("flip_x", "flip_y", "visible"):
+                if field in kind._scena_property_links:
+                    continue
+                obj = kind()
+                try:
+                    try:
+                        obj[field] @= (lambda: st.v)
+                    except (AttributeError, TypeError) as e:
+                        link_msg = str(e)
+                    else:                       # pragma: no cover - a link where none is due
+                        self.fail(f"{name}[{field!r}] linked")
+                    try:
+                        setattr(obj, field, True)
+                    except (AttributeError, TypeError) as e:
+                        set_msg = str(e)
+                    else:
+                        set_msg = None
+                    with self.subTest(kind=name, field=field):
+                        if set_msg is None:
+                            continue
+                        self.assertNotIn("Set it with", link_msg)
+                        self.assertIn("cannot be flipped" if field.startswith("flip")
+                                      else field, link_msg)
+                        seen += 1
+                finally:
+                    obj.destroy()
+        self.assertGreaterEqual(seen, 2, "Text's flips stopped reaching the check")
+
+    def test_text_flip_link_says_turn_it(self):
+        t = Text("t")
+        self.addCleanup(t.destroy)
+        for axis in ("x", "y"):
+            with self.assertRaises(AttributeError) as cm:
+                t[f"flip_{axis}"] @= (lambda: st.v)
+            msg = str(cm.exception)
+            self.assertIn(f"Text.flip_{axis} cannot be linked", msg)
+            self.assertIn('text["angle"] @= lambda:', msg)
+
+
 class TestLinkWriteFastPath(unittest.TestCase):
     """The link's own write passes the setters' refusal on the host's
     ``_alink_writing`` flag (Reactive Design — Appearance links, Cost): one

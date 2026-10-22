@@ -600,6 +600,44 @@ class TestContainerItemLinks(FormulaFunctionTest):
         ST.itens.append("b")
         self.assertEqual(len(msgs), 1, msgs)
 
+    def test_each_kind_gets_the_spelling_that_works_for_it(self):
+        # RA B2: the hint always said ``+= [x]``; on a dict or a set that is a
+        # TypeError. Each kind names its own augmented spelling and only the
+        # in-place changes it has.
+        cases = (
+            ("bolsa", {"gemas": 0}, lambda: str(len(ST.bolsa)),
+             lambda: ST.bolsa.update(gemas=1),
+             'ST.bolsa |= {"chave": valor}', ("+= [x]", ".append")),
+            ("marcas", {"a"}, lambda: str(len(ST.marcas)),
+             lambda: ST.marcas.add("b"),
+             "ST.marcas |= {x}", ("+= [x]", "[…] = …", ".append")),
+            ("fila", ["a"], lambda: str(len(ST.fila)),
+             lambda: ST.fila.append("b"),
+             "ST.fila += [x]", ("|=", ".update")),
+        )
+        for cell, value, formula, change, hint, absent in cases:
+            with self.subTest(kind=type(value).__name__):
+                setattr(ST, cell, value)
+                _sink, msgs = self.link(formula)
+                change()
+                self.assertEqual(len(msgs), 1, msgs)
+                self.assertIn(f"(a {type(value).__name__})", msgs[0])
+                self.assertIn(hint, msgs[0])
+                for text in absent:
+                    self.assertNotIn(text, msgs[0])
+
+    def test_the_augmented_spellings_in_the_hint_run_and_refresh(self):
+        # What an author types from the hint: ``|=`` on a dict / set, ``+=``
+        # on a list. Each one is a whole-value write the cell hears.
+        ST.inv2 = {"gemas": 0}
+        ST.tags2 = {"a"}
+        ST.lst2 = [1]
+        sink, _ = self.link(lambda: f"{ST.inv2['gemas']} {len(ST.tags2)} {len(ST.lst2)}")
+        ST.inv2 |= {"gemas": 5}
+        ST.tags2 |= {"b"}
+        ST.lst2 += [2]
+        self.assertEqual(sink.value, "5 2 2")
+
     def test_a_list_only_reassigned_says_nothing(self):
         ST.rotulos = ["", ""]
         _sink, msgs = self.link(lambda: ST.rotulos[0])

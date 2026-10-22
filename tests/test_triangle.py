@@ -452,6 +452,43 @@ class TestCaches(unittest.TestCase):
         t.collidable = False
 
 
+class TestNIsNotAField(unittest.TestCase):
+    """A7 (RA 0.9.0): ``Triangle(n=…)`` raised but ``tri.n = 5`` was taken (it
+    read 5, still 3 points), and ``RegularPolygon(n=5).n = 6`` was taken and
+    ignored (still 5 points): both became ink nothing reads."""
+
+    def test_triangle_n_refuses_write_read_and_link(self):
+        t = Triangle()
+        for use in (lambda: setattr(t, "n", 5), lambda: t.n):
+            with self.assertRaisesRegex(AttributeError,
+                                        "always has 3 vertices.*RegularPolygon"):
+                use()
+        with self.assertRaisesRegex(AttributeError, "always has 3 vertices"):
+            t["n"] @= (lambda: 5)
+        self.assertEqual(len(t.points), 3)
+        self.assertNotIn("n", getattr(t, "_ink", None) or {})
+
+    def test_regular_polygon_n_refuses_with_the_fix(self):
+        r = RegularPolygon(n=5)
+        with self.assertRaisesRegex(AttributeError, r"set when it is made.*"
+                                    r"RegularPolygon\(n=6.*len\(poly\.points\)"):
+            r.n = 6
+        with self.assertRaisesRegex(AttributeError, "set when it is made"):
+            r["n"] @= (lambda: 6)
+        self.assertFalse(hasattr(r, "n"))
+        self.assertEqual(len(r.points), 5)
+        self.assertNotIn("n", getattr(r, "_ink", None) or {})
+
+    def test_subclass_and_class_default_keep_working(self):
+        class Estrela(RegularPolygon, n=8):
+            pass
+        e = Estrela(center=(0, 0), radius=10)
+        self.assertEqual(len(e.points), 8)
+        with self.assertRaisesRegex(AttributeError, "set when it is made"):
+            e.n = 3
+        self.assertEqual(len(e.clone().points), 8)
+
+
 class TestRetiredName(unittest.TestCase):
     def test_import_works_and_use_raises_with_the_fix(self):
         ns = {}
@@ -466,6 +503,39 @@ class TestRetiredName(unittest.TestCase):
             class Nave(old):
                 pass
         self.assertIn("class Nave(Triangle)", str(cm.exception))
+
+    def test_type_tests_against_it_raise_with_the_fix(self):
+        """A3 (RA 0.9.0): ``isinstance(x, EquilateralTriangle)`` was silently
+        False, so an old type test skipped its branch."""
+        old = scena.EquilateralTriangle
+        t = Triangle()
+        with self.assertRaisesRegex(TypeError, r"renamed to Triangle in 0\.9\.0.*"
+                                    r"isinstance\(x, Triangle\)"):
+            isinstance(t, old)
+        with self.assertRaisesRegex(TypeError, r"issubclass\(cls, Triangle\)"):
+            issubclass(Triangle, old)
+        with self.assertRaises(TypeError):
+            isinstance(Circle(), (Polygon, old))
+
+    def test_every_retired_class_raises_on_every_use(self):
+        """Class guard: each retired class stub (``Scene``, ``EquilateralTriangle``)
+        raises when called, subclassed, or used in ``isinstance`` / ``issubclass``,
+        and the message names the new name."""
+        from scena import _RETIRED_NAMES
+        stubs = {k: v for k, v in _RETIRED_NAMES.items() if isinstance(v, type)}
+        self.assertIn("Scene", stubs)
+        self.assertIn("EquilateralTriangle", stubs)
+        for name, stub in stubs.items():
+            with self.subTest(name=name):
+                self.assertIs(getattr(scena, name), stub)
+                for use in (lambda: stub(), lambda: type("Velho", (stub,), {}),
+                            lambda: isinstance(object(), stub),
+                            lambda: issubclass(int, stub)):
+                    with self.assertRaises(TypeError) as cm:
+                        use()
+                    msg = str(cm.exception)
+                    self.assertIn(f"{name} was renamed to", msg)
+                    self.assertIn("Write ", msg)
 
     def test_not_api_and_star_import_does_not_bring_it(self):
         import builtins

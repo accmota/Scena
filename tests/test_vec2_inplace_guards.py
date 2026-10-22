@@ -293,5 +293,137 @@ class TestDestroyedActorParts(unittest.TestCase):
                     self.assertEqual((part.x, part.y), before)
 
 
+_DEAD_SETUP = """\
+from scena import Circle, Line, Polygon, Text, Vec2
+bala = Circle(center=(10, 10), radius=3)
+bala.vel = (5, 0)
+bala.pos0 = Vec2(1, 1)
+ln = Line(p1=(0, 0), p2=(5, 5))
+poly = Polygon(points=[(0, 0), (5, 0), (0, 5)])
+txt = Text("oi", center=(3, 3))
+v = bala.vel
+c = bala.center
+p = ln.p1
+q = poly.points[1]
+tl = txt.top_left
+for o in (bala, ln, poly, txt):
+    o.destroy()
+err = None
+"""
+
+
+class TestADeadPartNamesItsOwner(unittest.TestCase):
+    """RA 0.9.0 G2 / F7: a write through a destroyed actor's part said
+    ``Vec2.x`` / ``Point.x`` / ``Vec2.copy`` and advised ``if vel:`` /
+    ``if center:``, and a part stays truthy after the destroy, so that guard
+    did not guard. The refusal names the owner's field (``Circle.vel``) and
+    guards the owner (``if bala:``), from the call line or, for a kept
+    ``v = bala.vel``, from the line the owner was made on. D7: a dead
+    actor's own Vec2 field (``_dead_ink``) refuses before it changes."""
+
+    # (write, the field the refusal names, the guard)
+    CASES = (
+        ("bala.vel.x = 3", "Circle.vel", "bala"),
+        ("bala.vel += (1, 0)", "Circle.vel", "bala"),
+        ("bala.vel -= (1, 0)", "Circle.vel", "bala"),
+        ("bala.vel << (1, 0)", "Circle.vel", "bala"),
+        ("bala.vel.do_rotation(30)", "Circle.vel", "bala"),
+        ("v.x = 3", "Circle.vel", "bala"),
+        ("v += (1, 0)", "Circle.vel", "bala"),
+        ("v << (1, 0)", "Circle.vel", "bala"),
+        ("bala.center.x = 5", "Circle.center", "bala"),
+        ("c.y = 5", "Circle.center", "bala"),
+        ("c.move_to(1, 1)", "Circle.center.move_to()", "bala"),
+        ("ln.p1.x = 4", "Line.p1", "ln"),
+        ("p.y = 4", "Line.p1", "ln"),
+        ("poly.points[1].x = 3", "Polygon.points[1]", "poly"),
+        ("q.x = 3", "Polygon.points[1]", "poly"),
+        ("txt.top_left.x = 3", "Text.top_left", "txt"),
+        ("tl.x = 3", "Text.top_left", "txt"),
+        ("bala.pos0.x = 5", "Circle.pos0", "bala"),
+        ("bala.pos0 += Vec2(1, 1)", "Circle.pos0", "bala"),
+        ("bala.pos0 << (3, 3)", "Circle.pos0", "bala"),
+    )
+
+    def _run(self, write):
+        import tempfile
+        import textwrap
+        src = _DEAD_SETUP + "try:\n" + textwrap.indent(write, "    ") + (
+            "\nexcept Exception as e:\n    err = e\n")
+        fd, path = tempfile.mkstemp(suffix=".py", prefix="deadpart_")
+        with os.fdopen(fd, "w") as fh:
+            fh.write(src)
+        self.addCleanup(os.remove, path)
+        ns = {"__name__": "deadpart_author"}
+        exec(compile(src, path, "exec"), ns)
+        return ns
+
+    def test_the_refusal_names_the_field_and_a_guard_that_guards(self):
+        import re
+        for write, field, guard in self.CASES:
+            with self.subTest(write=write):
+                ns = self._run(write)
+                err = ns["err"]
+                self.assertIsInstance(err, DestroyedError)
+                text = str(err)
+                self.assertTrue(text.startswith(f"{field} cannot change a destroyed actor"),
+                                text)
+                found = re.search(r"Guard the call: if ([A-Za-z_][A-Za-z0-9_.]*):", text)
+                self.assertIsNotNone(found, text)
+                self.assertEqual(found.group(1), guard)
+                # The guard is falsy now: it guards (``if vel:`` did not).
+                self.assertFalse(eval(found.group(1), ns))
+
+    def test_nothing_changed(self):
+        for write, _field, _guard in self.CASES:
+            with self.subTest(write=write):
+                ns = self._run(write)
+                self.assertEqual(tuple(ns["v"]), (5.0, 0.0))
+                self.assertEqual(tuple(ns["bala"].vel), (5.0, 0.0))
+                self.assertEqual(tuple(ns["bala"].pos0), (1.0, 1.0))
+                self.assertEqual(tuple(ns["c"]), (10.0, 10.0))
+                self.assertEqual(tuple(ns["p"]), (0.0, 0.0))
+                self.assertEqual(tuple(ns["q"]), (5.0, 0.0))
+
+    def test_every_part_kind_names_a_field_that_reads_it_back(self):
+        """Class guard: for every part of every shape family, the refusal's
+        ``Kind.field`` is the spelling that reads that part on the dead
+        owner."""
+        makers = (
+            lambda: Circle(center=(1, 1), radius=3),
+            lambda: Rect(center=(5, 5), width=4, height=3),
+            lambda: Line(p1=(0, 0), p2=(5, 5)),
+            lambda: Text("hi", center=(3, 3)),
+            lambda: Polygon(points=[(0, 0), (4, 0), (0, 4)]),
+        )
+        for make in makers:
+            obj = make()
+            obj.vel = (1, 1)
+            held = [n for n in obj._iter_subtree()
+                    if n is not obj and isinstance(n, (Vec2, Point))]
+            obj.destroy()
+            kind = type(obj).__name__
+            for part in held:
+                with self.subTest(kind=kind, part=part.__dict__.get("_attr_name")):
+                    with self.assertRaises(DestroyedError) as cm:
+                        part.x = 7
+                    head = str(cm.exception).split(" cannot change", 1)[0]
+                    self.assertTrue(head.startswith(kind + "."), head)
+                    self.assertIs(eval("obj." + head[len(kind) + 1:], {"obj": obj}), part)
+
+    def test_the_authors_own_vector_stays_theirs(self):
+        """D7: the dead copy is not the vector the author assigned."""
+        w = Vec2(1, 1)
+        ship = Circle(center=(0, 0), radius=3)
+        ship.pos0 = w
+        ship.destroy()
+        self.assertEqual(tuple(ship.pos0), (1.0, 1.0))
+        self.assertIsNot(ship.pos0, w)
+        w.x = 9                             # the author's vector: writable
+        self.assertEqual(tuple(w), (9.0, 1.0))
+        self.assertEqual(tuple(ship.pos0), (1.0, 1.0))
+        self.assertAlmostEqual(ship.pos0.length, math.hypot(1, 1))
+
+
 if __name__ == "__main__":
     unittest.main()
