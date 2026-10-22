@@ -11,7 +11,7 @@ CC0 — https://opengameart.org/content/pixel-explosion-12-frames
 
 ###############################################################################
 
-    Black smoke | Explosion | Flash | White puff
+    Black smoke | Flash | White puff
     https://kenney.nl/assets/smoke-particles
     
 	Smoke particle pack by Kenney Vleugels (www.kenney.nl)
