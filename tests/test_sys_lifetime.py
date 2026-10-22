@@ -77,6 +77,11 @@ class LifetimeChecks:
         sink.actor = sink.partner = sink.source = sink.dependent = None
         sink.track = sink.contrail = None
         sink.handles.clear()
+        # An undrawn helper the context made (``other = Entity()``) lives
+        # until its destroy, as a drawn one does (Laws L1): destroy, not drop.
+        for obj in w.objects:
+            if getattr(obj, "is_alive", False):
+                obj.destroy()
         w.objects.clear()
         w.step(3)
         d = diff_census(base, census(), CENSUS_IGNORE + tuple(ignore))

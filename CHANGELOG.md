@@ -24,6 +24,16 @@ left out.
   `self.on_click = self.tocou` in `setup()`; in an act, `@click(botao)`
   inside `setup()`. The error names the hook for the gesture.
 
+### Added
+
+- `obj["mira"] @= lambda: …` links a field that holds a `Vec2`, as
+  `obj.mira @= lambda: …` does, and `obj["mira"].unlink()` /
+  `obj["mira"].is_linked` speak for the vector: the bracket links a field on
+  an object as it does on `st` (`st["dir"] @= …`) and on a shape's point
+  (`filho["center"] @= …`). It raised `TypeError`, naming the dot spelling.
+  A field that holds no vector yet says to make it one first
+  (`obj.mira = Vec2(0, 0)`).
+
 ### Fixed
 
 - A decorator written without its parentheses (`@every`, `@after`, `@when`,
@@ -53,6 +63,11 @@ left out.
   — call circle.mira.unlink() first` (and `tween` says `circle.mira`).
   `v << bala.vel` after `bala.destroy()` said `vec2 << Circle_vel`; it now
   says `v << Circle.vel`.
+- An undrawn `Entity()` with no variable holding it (`Vespa()` on its own
+  line, a director with an `on_update`) disappeared as soon as Python freed
+  it, unless an async mode or a timer kept it: its `on_update`
+  stopped, its sync mode ended, and `group["vespa"]` found nothing. It now
+  lives until its `destroy()` or the end of its act, as a drawn shape does.
 - `rect.hitbox_scale = 0.5` (or `hitbox_anchor`, `hitbox_shape`,
   `hitbox_source`, on any shape or Text) was taken as a field of the
   object's own and changed nothing. It now raises: those are a Sprite's

@@ -71,8 +71,8 @@ class Fase(Act):
     def setup(self):
         LOG.append(("setup", "Fase", current() is self))
         self.heroi = Circle(center=(10, 10), radius=5, group="heroi")
-        # Undrawn: the registry holds it weakly, so the act keeps it (an
-        # unreferenced Entity that does nothing is collected, act or not).
+        # Undrawn: the registry holds it until its destroy or the act's end
+        # (Laws L1); the act's own field is not what keeps it.
         self.diretor = Entity(group="diretor")
         Point(3, 4)
 
@@ -2674,6 +2674,123 @@ class TestChangeInsideADispatch(ActTestCase):
         self.w.step(1, dt=1 / 60)
         self.assertNotIn("Fim", log)
         tiro.destroy()
+
+
+# ---------------------------------------------------------------------------
+# Laws L1: an undrawn Entity needs no variable
+# ---------------------------------------------------------------------------
+
+LIVES = []
+
+
+class _Plain(Entity):
+    pass
+
+
+class _SyncMode(Entity):
+    @on_mode
+    def parado(self):
+        pass
+
+    def setup(self):
+        self.mode = self.parado
+
+
+class _AsyncMode(Entity):
+    @on_mode
+    async def zumbe(self):
+        while True:
+            await wait(1)
+
+    def setup(self):
+        self.mode = self.zumbe
+
+
+class _OnUpdate(Entity):
+    def on_update(self, dt):
+        LIVES.append(("update", type(self).__name__))
+
+
+class _Every(Entity):
+    def setup(self):
+        self.every(0.05, lambda: LIVES.append(("every", "_Every")))
+
+
+class _Tagged(Entity):
+    def setup(self):
+        self.group = "vespa"
+
+
+_UNDRAWN = (_Plain, _SyncMode, _AsyncMode, _OnUpdate, _Every, _Tagged)
+
+
+def _make_all():
+    refs = []
+    for kind in _UNDRAWN:
+        refs.append(weakref.ref(kind()))       # no variable holds it
+    return refs
+
+
+class TestUndrawnEntityNeedsNoVariable(ActTestCase):
+    """RA2 follow-up 6a (user, 2026-10-22): an undrawn ``Wasp()`` with no
+    variable was collected unless an async mode or a timer held it: a sync
+    mode, ``on_update`` and ``group=`` did not (``group["vespa"]`` found
+    nothing). An author object lives until its destroy or its act's end, as
+    a drawn one does (Laws L1)."""
+
+    def setUp(self):
+        super().setUp()
+        LIVES.clear()
+
+    def _alive(self, refs):
+        gc.collect()
+        return [r() is not None and r().is_alive for r in refs]
+
+    def test_every_kind_lives_with_no_variable_and_works(self):
+        refs = []
+
+        class Ninho(Act):
+            def setup(self):
+                refs.extend(_make_all())
+
+        self.begin(Ninho)
+        self.assertEqual(self._alive(refs), [True] * len(_UNDRAWN))
+        self.w.step(6)
+        self.assertIn(("update", "_OnUpdate"), LIVES)
+        self.assertIn(("every", "_Every"), LIVES)
+        self.assertEqual(len(group["vespa"]), 1)
+
+    def test_the_act_end_frees_them(self):
+        refs = []
+
+        class Ninho(Act):
+            def setup(self):
+                refs.extend(_make_all())
+
+        self.begin(Ninho)
+        change_act(Vazia)
+        self.assertEqual(self._alive(refs), [False] * len(_UNDRAWN))
+        self.assertTrue(all(r() is None for r in refs), "a destroyed one stays held")
+
+    def test_destroy_frees_one_made_at_the_top_of_the_file(self):
+        refs = _make_all()                      # the game, not an act (L6)
+        self.begin(Vazia)
+        change_act(FimDeJogo)
+        self.assertEqual(self._alive(refs), [True] * len(_UNDRAWN))
+        for r in refs:
+            r().destroy()
+        gc.collect()
+        self.assertTrue(all(r() is None for r in refs))
+
+    def test_graphics_and_acts_are_not_held_here(self):
+        """An undrawn Point is a part or a value (the draw list holds drawn
+        Graphics); the act manager holds acts."""
+        from scena.entity import Graphic
+        self.assertFalse(Graphic._scena_holds_undrawn)
+        self.assertFalse(Act._scena_holds_undrawn)
+        p = weakref.ref(Point(3, 4))
+        gc.collect()
+        self.assertIsNone(p())
 
 
 if __name__ == "__main__":

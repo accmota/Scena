@@ -4093,7 +4093,7 @@ Rain(p1=(300, 250), p2=(700, 550))</pre>
 
   <section class="section prose" id="desenhar-entity">
     <h2>Entity</h2>
-    <p class="one-liner"><code>Entity()</code> cria um objeto do jogo que não desenha nada: um diretor de ondas, um gerador de inimigos, um relógio. Ele tem tudo o que os outros objetos têm — campos próprios, timers, mode, grupos, <code>on_update</code> — menos o desenho. Shape, Sprite e SpatialFx também são Entity; este construtor é o que não pinta.</p>
+    <p class="one-liner"><code>Entity()</code> cria um objeto do jogo que não desenha nada: um diretor de ondas, um gerador de inimigos, um relógio. Ele tem tudo o que os outros objetos têm — campos próprios, timers, mode, grupos, <code>on_update</code> — menos o desenho. Shape, Sprite e SpatialFx também são Entity; este construtor é o que não pinta. Como uma forma desenhada, vive até <code>destroy()</code> ou até o fim do act, com ou sem variável: <code>Director()</code> sozinho numa linha basta.</p>
     <div class="code-panel">
       <button class="copy-btn" type="button">copiar</button>
 <pre>director = Entity()

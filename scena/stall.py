@@ -112,6 +112,18 @@ def stall_message(phase: str, seconds: float, frame) -> Optional[str]:
     )
 
 
+def _report(main, phase: str, since: float, waited: float):
+    """The stall message (None under a debugger), or False when the stall
+    ended meanwhile. The main thread's frame lives only in this call: kept in
+    ``_watch``'s locals, it held the frame (and its globals: the whole
+    program) until the next stall — a game system test under load counted a
+    finished run's Box as alive in the next run (oficina, 2026-10-22)."""
+    frame = sys._current_frames().get(main)
+    if frame is None or _state[0] != phase or _state[1] != since:
+        return False
+    return stall_message(phase, waited, frame)
+
+
 def _watch() -> None:
     main = threading.main_thread().ident
     while True:
@@ -123,10 +135,9 @@ def _watch() -> None:
         waited = time.perf_counter() - since
         if waited < limit:
             continue
-        frame = sys._current_frames().get(main)
-        if frame is None or _state[0] != phase or _state[1] != since:
+        msg = _report(main, phase, since, waited)
+        if msg is False:
             continue
-        msg = stall_message(phase, waited, frame)
         _state[2] = True
         if msg is not None:
             try:

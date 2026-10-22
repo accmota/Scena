@@ -3337,10 +3337,26 @@ dead.vel` named the wrong subject; `hitbox_scale` on a Rect became ink. Two less
 a door that writes later (a tween, a timer) must ask at the call the guard its first
 tick will meet, or the refusal reaches the author from the frame loop; and a class
 that installs per-instance hooks owns what `copy` does with them (Python's default
-copies `__dict__`, hooks and node id included). Still open, for the user: an undrawn
-`Entity()` with no variable is collected unless an async mode or a timer holds it
-(a sync mode, `on_update` or `group=` do not); `obj["field"] @= f` on a Vec2 ink
-field refuses (the vector links as `obj.field @= f`).
+copies `__dict__`, hooks and node id included). The two design questions, decided
+by the user (2026-10-22): an undrawn `Entity()` with no variable was collected unless
+an async mode or a timer held it — it now lives until its destroy or its act's end
+(Laws L1); `obj["field"] @= f` on a Vec2 ink field refused — it now links the
+vector, as `obj.field @= f` does.
+
+The 0.9.0 gate's one failure under load (oficina random pilots, `LEFTOVERS
+{registry.live: (8, 2), graph.nodes: (5, 3), …}`, passing idle) was the stall
+watch, not the engine's lifetime: under load every run's `SINO.bake(…)` passed the
+8 s top-level watch, and `stall._watch` kept the main thread's frame it reported in
+its locals until the next stall. The frame's globals were the run's namespace, so the
+finished run's `TABULEIRO = Box(…)` and its six named Points stayed alive into the
+next run's census and were freed during it (the counts went **down**). Reproduced at
+idle with `TOP_LEVEL_STALL_S = 0.05` (the same diff, every run after the first); fixed
+by building the report in `stall._report`, so the frame lives only in that call.
+Guard: `test_stall.TestStallWatch.test_a_report_keeps_nothing_of_the_program_alive`
+(both phases; canary: a report that keeps the frame). Lessons: a thread that reads
+another thread's frames (`sys._current_frames()`) holds them, and all they reach,
+while a local names them; and a census that goes down is something the run before
+left alive, so look at what holds the earlier run, not at the run that failed.
 
 ### AH — async functions where Scena calls one (2026-10-10, 2026-10-12)
 

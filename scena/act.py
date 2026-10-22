@@ -957,6 +957,7 @@ class Act(Entity):
     # act spellings (``on_update``, ``keyp.once``); ``entity_label`` names an
     # act "act Fase".
     _scena_is_act = True
+    _scena_holds_undrawn = False
 
     def __repr__(self) -> str:
         # Messages name an act by its class: the framework builds it, so a

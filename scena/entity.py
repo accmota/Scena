@@ -2817,6 +2817,12 @@ class Entity(Container):
     """
 
     _scena_is_entity = True
+    # An undrawn actor (``layer=None``: a director, a spawner, ``Wasp()``) is
+    # held by the registry until its destroy or its act's end, as the draw
+    # list holds a drawn one: a variable is not what keeps an object alive
+    # (Laws L1). Graphics (an undrawn Point is a part or a value) and acts
+    # (the act manager holds them) opt out.
+    _scena_holds_undrawn = True
     # Graphics and SpatialFx set this so ``.x`` / ``.y`` raise instead of
     # becoming ink. Bare Entity keeps those names as ordinary ink.
     _pose_xy_guard = False
@@ -4142,6 +4148,7 @@ class Graphic(Entity, ABC):
 
     # Size words this kind lacks refuse on write (``_install_setattr_route``, E13).
     _scena_is_graphic = True
+    _scena_holds_undrawn = False
 
     _pose_xy_guard = True
     _RETIRED_ATTRS = {"rotation": _ROTATION_RETIRED, **_SHAPE_HITBOX_RETIRED}

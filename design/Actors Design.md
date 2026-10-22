@@ -467,8 +467,16 @@ H8, R2/R4, K5).
   in the roster too and leave with their owner ([Parts](#parts-leave-with-their-owner)).
   An undrawn engine actor that must work from a one-line call with no author
   variable (`Endless("pista", ...)`) is held strongly by `Registry.hold` (the
-  `_held` set) and leaves it in its own `_clean_up`; an author `Entity()` with
-  no variable is still collected (keep it in a variable).
+  `_held` set) and leaves it in its own `_clean_up`. So is every undrawn author
+  `Entity()` (Laws L1, 2026-10-22): `Registry.register` adds an object
+  registered with no layer to `_held` when its class has `_scena_holds_undrawn`
+  (True on Entity; False on Graphic — an undrawn Point is a part or a value —
+  and on Act, which the act manager holds), and `remove_live` takes it out at
+  the teardown, so it lives until its `destroy()` or its act's end, as the draw
+  list keeps a drawn one. Before, it was collected unless an async mode or a
+  timer held it: `Wasp()` with a sync mode, an `on_update` or `group=` vanished,
+  and `group["vespa"]` found nothing although the `id=` hint offers a tag as the
+  alternative to a variable. Guard: `test_act.TestUndrawnEntityNeedsNoVariable`.
 
 Fence: see [Fences](Fences.md) (`id=` / `obj()` / a name registry).
 

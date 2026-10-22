@@ -1775,6 +1775,13 @@ _NO_HELD = object()   # a holder hop's field is gone (``FormulaLink._follow_hold
 _A_VALUE = object()   # a holder hop held a value, not an object to follow
 
 
+def _ink_held_vector(owner, name):
+    """The Vec2 an Entity's own field ``name`` holds now, or None."""
+    ink = getattr(owner, '_ink', None) if getattr(owner, '_scena_is_entity', False) else None
+    value = ink.get(name) if isinstance(ink, dict) else None
+    return value if value.__class__ is _HELD_BY_VALUE else None
+
+
 class FieldRef:
     """Bracket handle for link management: ``obj["field"] @= source``.
 
@@ -1790,6 +1797,15 @@ class FieldRef:
         self.name = name
 
     def __imatmul__(self, source):
+        vec = _ink_held_vector(self.owner, self.name)
+        if vec is not None:
+            # ``obj["mira"] @= f`` on an own field holding a Vec2 links the
+            # vector, as ``obj.mira @= f`` does (and ``st["dir"] @= f`` on a
+            # cell): the bracket names the field everywhere (RA2 6b, user
+            # 2026-10-22). It refused, naming the dot spelling.
+            vec @= source
+            setattr(self.owner, self.name, vec)
+            return self
         hook = _ACT_LINK_HOOK
         if hook is None:
             self.owner._link_field(self.name, _normalize_link_rhs(source))
@@ -1808,9 +1824,16 @@ class FieldRef:
 
     @property
     def is_linked(self) -> bool:
+        vec = _ink_held_vector(self.owner, self.name)
+        if vec is not None:
+            return vec.__dict__.get('_link') is not None   # the vector's link (6b)
         return self.owner._field_is_linked(self.name)
 
     def unlink(self) -> None:
+        vec = _ink_held_vector(self.owner, self.name)
+        if vec is not None:
+            vec.unlink()            # ``obj["mira"].unlink()`` ≡ ``obj.mira.unlink()``
+            return
         self.owner._unlink_field(self.name)
 
     def __repr__(self) -> str:
@@ -4507,13 +4530,21 @@ class ScalarAnchor(Container):
         name = self._scalar_name
         ink = getattr(parent, '_ink', None)
         held = ink.get(name) if isinstance(ink, dict) else None
+        var = _snake_name(type(parent).__name__)
         if held is not None and type(held) is type(value):
-            var = _snake_name(type(parent).__name__)
+            # A Point (a Vec2 field links as the vector, ``FieldRef.__imatmul__``).
             return (
                 f"{var}['{name}'] @= …: {var}.{name} holds a {kind}, and a "
                 f"bracket link on an object's field takes a number or a string. "
                 f"Link the {kind} itself: {var}.{name} @= lambda: … (the "
                 f"formula returns a {kind})"
+            )
+        if kind == "Vec2" and getattr(parent, '_scena_is_entity', False):
+            # A new field: the bracket cannot know the formula makes a vector.
+            return (
+                f"{var}['{name}'] @= …: the formula returns a Vec2, and {var}.{name} "
+                f"holds no Vec2 yet. Make it a vector first: {var}.{name} = Vec2(0, 0), "
+                f"then {var}['{name}'] @= lambda: … (or {var}.{name} = Vec2(lambda: …))"
             )
         return (f"scalar field {self.name} cannot take a {kind}; "
                 f"use a lambda that returns a number or string")

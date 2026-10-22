@@ -761,8 +761,9 @@ class Registry:
         # re-runs a full hit test when it moves (Shapes Design, Hover).
         self._pointer_epoch = 0
         # Undrawn actors the world keeps alive with no author variable
-        # (``Endless("pista", ...)`` on one line must keep filling). Strong;
-        # the actor leaves it in its own teardown (``_clean_up``).
+        # (``Endless("pista", ...)`` on one line must keep filling; an author
+        # ``Wasp()`` with an ``on_update``: Laws L1). Strong; an actor leaves
+        # it in its teardown (``remove_live``; Endless in its ``_clean_up``).
         self._held: Set[Any] = set()
 
     def hold(self, obj) -> None:
@@ -816,6 +817,8 @@ class Registry:
 
         if draw_layer is None:
             obj._layer = None
+            if getattr(type(obj), "_scena_holds_undrawn", False):
+                self._held.add(obj)         # until remove_live (Laws L1)
             return obj
 
         draw_layer._append_object(obj)
@@ -1263,6 +1266,7 @@ class Registry:
         key = getattr(obj, "_reg_key", None)
         if key is not None and self.live.get(key) is obj:
             del self.live[key]
+        self._held.discard(obj)
 
     def is_live(self, obj: RegistryObject) -> bool:
         """``obj`` is registered here and not yet destroyed."""

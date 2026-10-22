@@ -478,23 +478,70 @@ class TestLinkedCellRefusesInPlacePoint(_Case):
 
 
 class TestBracketLinkOnAVectorField(_Case):
-    """RA 0.9.0 aside: ``s.mira = Vec2(1, 0); s["mira"] @= lambda: st.base * 3``
-    said "scalar field Circle.mira cannot take a Vec2", while the vector links
-    as itself (``s.mira @= …``, VB3). The refusal names that spelling."""
+    """RA2 6b (user, 2026-10-22): ``s["mira"] @= lambda: st.base * 3`` on a
+    field holding a Vec2 refused (since 0.9.0's audit, naming ``s.mira @=``),
+    while the bracket links a cell (``st["dir"] @= f``), a shape's point
+    (``filho["center"] @= …``) and a number field. It now links the vector,
+    as the dot spelling does: same value, same readers, same unlink."""
 
-    def test_refusal_names_the_vector_link_and_it_works(self):
+    def _pair(self):
         st = State(name="st")
         st.base = Vec2(1, 0)
         s = self.track(Circle(center=(0, 0), radius=3))
-        s.mira = Vec2(1, 0)
+        s.dot = Vec2(1, 0)
+        s.bracket = Vec2(1, 0)
+        s.dot @= lambda: st.base * 3
+        s["bracket"] @= lambda: st.base * 3
+        return st, s
+
+    def test_bracket_and_dot_link_alike(self):
+        st, s = self._pair()
+        for base in (Vec2(2, 0), Vec2(-1, 4), Vec2(0.5, 0.25)):
+            st.base = base
+            self.assertEqual((s.bracket.x, s.bracket.y), (s.dot.x, s.dot.y))
+            self.assertEqual((s.bracket.x, s.bracket.y), (base.x * 3, base.y * 3))
+        self.assertTrue(s["bracket"].is_linked)
+        self.assertTrue(s["dot"].is_linked)
+
+    def test_a_reader_follows_the_bracket_link(self):
+        st, s = self._pair()
+        m = self.track(Circle(center=lambda: s.bracket + (10, 0), radius=1))
+        st.base = Vec2(2, 1)
+        self.assertFollows(m, (16.0, 3.0))
+
+    def test_unlink_through_either_spelling_frees_the_vector(self):
+        for unlink in (lambda s: s["bracket"].unlink(), lambda s: s.bracket.unlink()):
+            with self.subTest():
+                _st, s = self._pair()
+                unlink(s)
+                self.assertFalse(s["bracket"].is_linked)
+                s.bracket.x = 5               # a write, not a refusal
+                self.assertEqual(s.bracket.x, 5)
+
+    def test_a_new_field_names_a_fix_that_works(self):
+        st = State(name="st")
+        st.base = Vec2(1, 0)
+        s = self.track(Circle(center=(0, 0), radius=3))
         with self.assertRaises(TypeError) as cm:
-            s["mira"] @= lambda: st.base * 3
-        self.assertIn("circle.mira @= lambda: …", str(cm.exception))
-        self.assertEqual((s.mira.x, s.mira.y), (1.0, 0.0))
-        s.mira @= lambda: st.base * 3
+            s["nova"] @= lambda: st.base * 3
+        msg = str(cm.exception)
+        self.assertIn("circle.nova = Vec2(0, 0)", msg)
+        self.assertNotIn("nova", s._ink or {})      # nothing half-made
+        s.nova = Vec2(0, 0)                          # the fix it names
+        s["nova"] @= lambda: st.base * 3
         st.base = Vec2(2, 0)
-        self.assertEqual((s.mira.x, s.mira.y), (6.0, 0.0))
-        s.mira.unlink()
+        self.assertEqual((s.nova.x, s.nova.y), (6.0, 0.0))
+        s.outra = Vec2(lambda: st.base * 2)          # its other fix
+        self.assertEqual((s.outra.x, s.outra.y), (4.0, 0.0))
+
+    def test_a_number_field_still_links_as_a_number(self):
+        st = State(name="st")
+        st.n = 2
+        s = self.track(Circle(center=(0, 0), radius=3))
+        s.hp = 1
+        s["hp"] @= lambda: st.n * 10
+        st.n = 3
+        self.assertEqual(s.hp, 30)
 
 
 class TestInPlaceSpellingsComplete(unittest.TestCase):
