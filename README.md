@@ -352,7 +352,7 @@ Scena is for learning to program, for small 2D games and for creative coding,
 and for having fun doing it.
 
 - **Simple code.** Your code is about the game's logic; Scena takes care of
-  the boring details. Every design decision in Scena was made for learning and
+  the details. Every design decision in Scena was made for learning and
   for the joy of making things: simple, yet expressive, with no boilerplate, so
   your focus stays on the thinking and the creativity.
 - **Scripts or classes, both simple.** Scena was built for both. A flat script
@@ -367,8 +367,8 @@ and for having fun doing it.
   asks for more than the machine has, Scena lowers the detail of its effects
   before it drops frames.
 - **What it is not.** It is not trying to be a professional engine: it is 2D
-  only and runs on the desktop. Simple games stay simple, even if that means
-  less power for very large ones.
+  only, runs on the desktop, and it is not made for performance. Simple games
+  stay simple, even if that means less power for very large ones.
 
 ## License
 
