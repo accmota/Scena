@@ -247,6 +247,26 @@ class TestValidatorEnglish(unittest.TestCase):
         self.assertEqual(vg._row_doc_names("value or in_min and in_max"),
                          ["value", "in_min", "in_max"])
 
+    def test_seconds_placeholder_is_caught(self):
+        # Bug: "Parâmetros: segundos (número)" stood for wait(delay).
+        row = '<span class="params">Parâmetros: segundos (número)</span>'
+        self.assertEqual(len(vg.check_parameter_keywords(row)), 1)
+        vg.set_lang("en")
+        row = '<span class="params">Parameters: seconds (number)</span>'
+        self.assertEqual(len(vg.check_parameter_keywords(row)), 1)
+        self.assertEqual(vg.check_parameter_keywords(row.replace("seconds (", "delay (")), [])
+
+    def test_call_marked_read_write_is_caught(self):
+        # Bug: .spectrum(bins=8) / amp_db(x, …) said "lê / escreve".
+        row = ('<tr><td><code>.spectrum(bins=8)</code></td><td class="type"><span class="t">lista</span>'
+               '</td><td>lê / escreve</td><td>…</td></tr>')
+        self.assertEqual(len(vg.check_call_access_rows(row)), 1)
+        self.assertEqual(vg.check_call_access_rows(row.replace("lê / escreve", "método")), [])
+        self.assertEqual(vg.check_call_access_rows(), [])
+        vg.set_lang("en")
+        self.assertEqual(len(vg.check_call_access_rows(row.replace("lê / escreve", "read / write"))), 1)
+        self.assertEqual(vg.check_call_access_rows(), [])
+
     def test_type_words(self):
         vg.set_lang("en")
         self.assertEqual(vg.type_word("ponto / (() → ponto)"), "point / (() → point)")

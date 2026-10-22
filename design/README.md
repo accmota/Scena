@@ -59,7 +59,7 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | `docs/` | The author site, published with GitHub Pages: `docs/<lang>/guide/` (the Guia), `docs/<lang>/tutorial/`, `docs/assets/` (thumbnails, tutorial css/js — shared by every language). `pt` is written first; `en` mirrors it | Authors |
 | `tools/guide/` | The Guia's generators and checks: `validate_guia.py` (catalog checks, search index; `--lang en`), `make_guia_thumbs.py` (thumbnails), `guia_parity.py` (the English Guide mirrors the Portuguese, unit by unit; state in `guia_en_state.json`, English index text in `guia_text_en.json`) | Contributors |
 | `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show; `editor_ninja.py`, the level editor's clip program | Contributors |
-| `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline with the README tool's pilots; output in `recordings/` (git-ignored) | Contributors |
+| `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline; `takes.py`, the shot list; `pilots.py`, pilots that play whole runs; output and review sheets in `recordings/` (git-ignored) | Contributors |
 | `tools/release/` | `make_examples_zip.py`: `scena-examples.zip` (the examples and only the media they use), zipped on a release from the list `examples_zip.txt` | Contributors |
 | `examples/` | Published beginner games; each tutorial ends in one of them | Authors |
 | `drafts/` | Private: game examples in development (a `media` link to `examples/media` lets them run). A game moves to `examples/` when it is ready | The maintainer |
@@ -134,7 +134,8 @@ file does not exist.
   (any place the API takes; never "point-like"; `Point` in code is the class),
   *field* (never "cell"), *link* / *linked* (`@=`), *task* (never "job"),
   *held* / *on the frame it is pressed* (never "edge"), *channel* only for
-  transients, *stage* (palco), *a world with a floor*, *place* × *travel*.
+  transients, *stage* (palco; always lowercase — capitalized "Stage" is the old
+  package name, which `test_message_vocabulary` refuses), *a world with a floor*, *place* × *travel*.
   "Qual usar" says code runs as a *formula*, a *check* (pergunta) or an
   *event* (aviso); work that takes time is a *process* with an *owner*. A stamp
   is an *add-on* (section "Add-ons"). Jargon gets plain English: bake → *compute*
@@ -142,8 +143,11 @@ file does not exist.
   *own field*, no-op → *does nothing*, interned → *shared*; *park*, *one-shot*
   and *escape hatch* stay. Fixed labels: `Parameters:`, `Returns`,
   `read / write` · `read` · `read-only`, "Don't confuse" (Looks like · It is ·
-  It is not), "How to", "Reading the parameters", "See X" / "More in X".
-  Spelling is American, matching the API (`color`, `center`, `gray`). Example
+  It is not), "How to", "Reading the parameters", "See X" / "More in X",
+  "<X> reference" (the `<summary>Neste X</summary>` tables), "Signature",
+  "No parameters", "Waits (use await)", "Where else to look".
+  Spelling is American, matching the API (`color`, `center`, `gray`; but
+  *cancelled*, like `Cancelled` and `.cancelled`). Example
   code is translated (variables, strings, comments); API names and API string
   values (`"cyan"`, `style="fade"`) are not.
 - **Open with what it is.** A section's first sentence says what the feature is
@@ -154,6 +158,9 @@ file does not exist.
   meaning column can stay short without being a bare noun.
 - **Leitura/Escrita column** says what the author may do. A field the engine
   refuses to write is *leitura*; a method is *método*; a keyword is *parâmetro*.
+  `validate_guia.check_call_access_rows` rejects a row that names a call
+  (`.spectrum(bins=8)`) and says "lê / escreve" (it skips nothing else, so it
+  runs without `--examples`).
   `validate_guia.py --examples` writes a **different** value of the same kind
   on real objects (`probe_value`: bool flipped, number +1, colour inverted,
   point shifted), restores the original, and rejects a "lê / escreve" row that
@@ -173,6 +180,11 @@ file does not exist.
   `with_alpha(alpha)`), not a Portuguese placeholder: an author copies them
   as keywords. `validate_guia.check_parameter_rows` compares each against the
   signature; only `*args` callables may use a placeholder (`Color(nome)`).
+  `check_parameter_keywords` also rejects the placeholder words in
+  `validate_guia.WORDS` (`segundos`, `nome`, `cor`…; English `seconds`,
+  `name`…) unless the call that same row names really takes that keyword
+  (`keyp(key)`): `Parâmetros: segundos` stood for `wait(delay)` while a
+  keyword-loose `after` hid it from the signature check.
 - **Every keyword has a row.** `validate_guia.check_constructor_rows`: each
   public keyword of a documented constructor (`<p class="sig"><code>Name(…)`)
   needs a row in that section, unless the family documents it once (`layer=` /
@@ -346,6 +358,20 @@ runs its check in `quick`).
   step, so a sound starts in the block of the frame that shows its cause.
   Pulling before the step puts every sound one frame late; pumping by world
   time as well plays sounds at double speed (guards: `tests/test_record_game.py`).
+- **A video take is a whole run.** The shot list (`tools/video/takes.py`)
+  shows each game by its last version (`naves_6_atos`, not `naves_4_escudo`)
+  in several takes, a run each (a win, a loss, another track); the edit
+  picks the best parts. A video pilot (`tools/video/pilots.py`) plays like a
+  player: it re-aims a few times a second, starts a key past a threshold and
+  lets go inside a smaller one, and misses on purpose when the take asks. It
+  sets `game.done` when the run is over and the take ends after a tail;
+  `seconds` is then a cap. Every take writes a review sheet (frames every
+  5 s, still and silent seconds); a still stretch the pilot did not mean is
+  flagged. `--review` makes only the sheet, small and fast: check a pilot
+  there before a full render. A take's variation must show: two takes that
+  play alike are one take (the catch pilot's careful and sloppy takes are
+  tested apart; a game hard enough that a perfect player misses needs a
+  bigger `miss` to look sloppy).
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

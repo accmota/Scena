@@ -49,13 +49,15 @@ WORDS = {
         "params": "Parâmetros", "returns": "Retorna", "joins": ("ou", "e"),
         "read_write": "lê / escreve",
         "placeholders": ("nome", "nomes", "intervalo", "alvo", "tecla", "botão",
-                         "ângulo", "ligado", "condição", "outro", "parte", "ponto", "cor"),
+                         "ângulo", "ligado", "condição", "outro", "parte", "ponto", "cor",
+                         "segundos"),
     },
     "en": {
         "params": "Parameters", "returns": "Returns", "joins": ("or", "and"),
         "read_write": "read / write",
         "placeholders": ("name", "names", "interval", "target", "key", "button",
-                         "angle", "condition", "other", "part", "point", "color"),
+                         "angle", "condition", "other", "part", "point", "color",
+                         "seconds"),
     },
 }
 # English text of the search index (titles, one-liners, catalog type words):
@@ -224,7 +226,7 @@ CORE_SYMBOLS = [
     {"name": "Sound", "kind": "class", "chapter": "som", "section": "som-play",
      "anchor": "som-play", "oneLiner": "Material de áudio. Não toca sozinho."},
     {"name": "Microphone", "kind": "class", "chapter": "som", "section": "som-mic",
-     "anchor": "som-mic", "oneLiner": "Captura. Sem gravação para Sound."},
+     "anchor": "som-mic", "oneLiner": "Captura do microfone; record() grava um Sound."},
     {"name": "distance", "kind": "function", "chapter": "geometria", "section": "geo-helpers",
      "anchor": "geo-helpers", "oneLiner": "Distância entre dois pontos."},
     {"name": "heading", "kind": "function", "chapter": "geometria", "section": "geo-helpers",
@@ -1607,21 +1609,39 @@ def check_member_cards() -> list[str]:
     return errors
 
 
-def check_parameter_keywords() -> list[str]:
-    """A Parâmetros: token outside the meaning parentheses must be the real keyword."""
-    src = HTML.read_text(encoding="utf-8")
+def check_parameter_keywords(src: str | None = None) -> list[str]:
+    """A Parâmetros: token outside the meaning parentheses must be the real keyword.
+
+    Bug: ``Parâmetros: segundos (número)`` stood for ``wait(delay)`` /
+    ``after(delay)`` / ``every(interval)`` until "segundos" joined the words.
+    """
+    if src is None:
+        src = HTML.read_text(encoding="utf-8")
     errors = []
-    # A placeholder that is also a real keyword somewhere (``key=``) is allowed.
-    real = {p for fns in _callable_index().values() for _o, fn in fns
-            for p in real_parameters(fn)[0]}
-    placeholder = re.compile(
-        r"\b(" + "|".join(w for w in W["placeholders"] if w not in real) + r")\b")
+    index = _callable_index()
+    words = set(W["placeholders"])
     for m in re.finditer(rf"{W['params']}: ([^<]+)", src):
+        # A placeholder word is allowed only when the call this row (or the
+        # signature line above it) names really takes it: ``key (key name)``
+        # for ``keyp(key)``. Any keyword elsewhere is no excuse —
+        # ``Microphone.record(seconds=)`` does not make ``wait(seconds)`` right.
+        start = max(src.rfind("<tr", 0, m.start()), src.rfind('<p class="sig">', 0, m.start()))
+        calls = re.findall(r"([\w.]+)\(", _html.unescape(strip_tags(src[max(start, 0):m.start()])))
+        fns = [fn for c in calls for _o, fn in index.get(c.split(".")[-1], [])]
+        # A path from a global (``keyp("A")``, ``keyp.held("A")``): the object
+        # itself, the way the author calls it.
+        for c in calls:
+            obj = _scena()
+            for part in c.split("."):
+                obj = getattr(obj, part, None)
+            if callable(obj):
+                fns.append(obj)
+        real = {p for fn in fns for p in real_parameters(fn)[0]}
         head = re.sub(r"\([^)]*\)", " ", m.group(1).split(".")[0])
         hits = []
         for piece in head.split(","):
             tok = re.match(r"\s*([A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_]*)", piece)
-            if tok and placeholder.fullmatch(tok.group(1)):
+            if tok and tok.group(1) in words and tok.group(1) not in real:
                 hits.append(tok.group(1))
         if hits:
             line = src.count("\n", 0, m.start()) + 1
@@ -1907,6 +1927,28 @@ def check_confuse_rows() -> list[str]:
     return errors
 
 
+def check_call_access_rows(src: str | None = None) -> list[str]:
+    """A row that names a call is not a field: it may not say "lê / escreve".
+
+    Bug: ``.spectrum(bins=8)``, ``audio.spectrum(bins=8)`` and
+    ``amp_db(x, floor=-60)`` read "lê / escreve" in the access column (a method
+    is not written). ``check_access_column`` skips calls, so nothing saw them.
+    Say what it is instead (``método`` / ``função``).
+    """
+    if src is None:
+        src = HTML.read_text(encoding="utf-8")
+    row_re = re.compile(r'<tr><td>((?:(?!</td>).)*)</td><td class="type">(?:(?!</tr>).)*?</td>'
+                        rf'<td>{re.escape(W["read_write"])}</td>', re.S)
+    errors = []
+    for m in row_re.finditer(src):
+        cell = _html.unescape(strip_tags(m.group(1)))
+        if "(" in cell:
+            line = src.count("\n", 0, m.start()) + 1
+            errors.append(f"html:{line}: {cell[:50]!r} é uma chamada, não um campo — "
+                          f"a coluna diz {W['read_write']!r}")
+    return errors
+
+
 _NO_PROBE = object()
 
 
@@ -2189,6 +2231,7 @@ def main() -> int:
     errors.extend(check_parameter_rows())
     errors.extend(check_member_cards())
     errors.extend(check_confuse_rows())
+    errors.extend(check_call_access_rows())
     examples = collect_examples(bags)
     errors.extend(check_examples_compile(examples))
     # A public knob the card omits is an undocumented parameter: an error.

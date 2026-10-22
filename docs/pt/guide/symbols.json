@@ -7663,7 +7663,7 @@
       "chapter": "som",
       "section": "som-mic",
       "anchor": "som-mic",
-      "oneLiner": "Captura. Sem gravação para Sound.",
+      "oneLiner": "Captura do microfone; record() grava um Sound.",
       "public": true,
       "chapterTitle": "Som",
       "sectionTitle": "Microphone",
