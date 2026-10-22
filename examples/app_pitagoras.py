@@ -11,7 +11,7 @@ Controles
 
 Uso
 ---
-    python examples/app_pitagoras_v3.py
+    python examples/app_pitagoras.py
 """
 from math import atan2, degrees, sqrt
 
