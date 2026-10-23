@@ -8,12 +8,13 @@ do ataque; as marcas em volta, como num relógio, mostram para onde ela virou.
 Duas vidas: a da nave e a do anel. Se uma delas acaba, o jogo acaba.
 
 Os ataques vêm em ondas, escritas numa tabela (ONDAS): de que lado vem,
-que inimigo, quantos, o zoom da câmera, o brilho da tela, quando a
-próxima onda começa e se a câmera vira. Para inventar uma onda, escreva
-mais uma linha.
+que inimigos, quantos, como a câmera mostra o anel (longe, normal, perto),
+o brilho da tela, quando a próxima onda começa, se a câmera vira e
+quantas minas cruzam a tela. Para inventar uma onda, escreva mais uma.
 
-A mina não atira: só desce devagar. Um tiro nela faz uma grande explosão
-que destrói os inimigos em volta, e outras minas explodem em cadeia.
+A mina não ataca: só cruza a tela na frente do anel. Um tiro nela faz uma
+grande explosão que destrói os inimigos em volta, e outras minas explodem
+em cadeia.
 
 Às vezes um inimigo destruído solta uma pílula. Ela desce para o anel;
 passe com a nave por cima dela para pegar um poder por alguns segundos:
@@ -25,7 +26,7 @@ passe com a nave por cima dela para pegar um poder por alguns segundos:
 
 Coisas para experimentar
 ------------------------
-  Uma onda nova      mais uma linha em ONDAS (20 cristais de todos os lados?)
+  Uma onda nova      mais um dict em ONDAS (20 cristais de todos os lados?)
   As duas luzes      mude AFASTAMENTO e o rate do chase: coladas na nave,
                      ou uma cauda comprida quando ela anda
   Um poder novo      uma pílula que devolve vida à nave (st.vida += 3)
@@ -58,9 +59,10 @@ CENTRO = Vec2(640, 400)
 RAIO = 115          # o meio do anel
 LARGURA = 16        # a largura do anel
 ORBITA = RAIO + 26  # a nave voa por fora do anel, logo acima da borda
-PORTA = 440         # a distância do centro de onde os inimigos saem
+PORTA = 600         # a distância do centro de onde os inimigos saem
+TRAVESSIA = 360     # a distância do centro por onde as minas cruzam a tela
 VIDA_NAVE = 12
-VIDA_ANEL = 20
+VIDA_ANEL = 30
 GIRO = 160          # graus por segundo
 AFASTAMENTO = 24    # graus entre a nave e cada luz
 CADENCIA = 0.2      # segundos entre dois tiros
@@ -147,7 +149,7 @@ def no_anel(angulo, r=ORBITA):
 # A área do jogo fica fixa em volta do anel, mesmo com a câmera girando.
 canvas.playfield.set(left=-700, bottom=-900, right=1980, top=1700)
 
-@leave_playfield("tiros", "balas", "pilulas")
+@leave_playfield("tiros", "balas", "pilulas", "minas")
 def saiu(coisa):
     coisa.destroy()
 
@@ -307,13 +309,13 @@ class Nave(Triangle, group="nave"):
 class Bala(Sprite, source="space/laserRed01.png", height=26, art_angle=90,
            group="balas"):
     def on_update(self, dt):
-        self.move_by(distance=320 * dt)
+        self.move_by(distance=210 * dt)
 
 
 class Raio(Sprite, source="space/laserGreen02.png", height=34, art_angle=90,
            group="balas"):
     def on_update(self, dt):
-        self.move_by(distance=480 * dt)
+        self.move_by(distance=310 * dt)
 
 
 @collide("balas", "nave")
@@ -332,7 +334,7 @@ def bala_no_anel(bala, anel):
 
 # As regras de todos os inimigos. Cada inimigo tem a sua vida, os seus
 # pontos e o seu jeito de explodir (explodir); o resto é igual para todos.
-@collide("tiros", "inimigos")
+@collide("tiros", ["inimigos", "minas"])
 def acertou(tiro, inimigo):
     if not tiro.atravessa:
         tiro.destroy()
@@ -419,8 +421,8 @@ class Mandala(RegularPolygon, n=5, radius=30, group="inimigos"):
         self.luz = GlowSpot(center=lambda: self.center, radius=46,
                             color="medium purple", amount=0.4)
         lado = heading(CENTRO, self) + uniform(-30, 30)   # cada uma num lugar
-        self.move_to(no_anel(lado, 300), time=3, ease="ease_out")
-        self.every(1.8, self.atirar)
+        self.move_to(no_anel(lado, 420), time=3, ease="ease_out")
+        self.every(2.4, self.atirar)
         self.after(12, lambda: self.move_to(CENTRO, speed=40))   # depois, desce
 
     def on_update(self, dt):
@@ -470,16 +472,16 @@ class Cristal(RegularPolygon, n=6, radius=30, group="inimigos"):
         self.miolo.destroy()
 
 
-# Mina: um círculo com anéis que pulsam devagar. Não atira; só desce. Um
-# tiro nela faz uma grande explosão que destrói os inimigos em volta, e as
-# outras minas no caminho explodem também, em cadeia.
-class Mina(Circle, radius=20, color="dark red", group="inimigos"):
+# Mina: um círculo com anéis que pulsam devagar. Não ataca: só cruza a tela
+# na frente do anel. Um tiro nela faz uma grande explosão que destrói os
+# inimigos em volta; as outras minas perto explodem também, em cadeia.
+# Ela fica no grupo "minas", e não em "inimigos": a onda não espera por ela.
+class Mina(Circle, radius=20, color="dark red", group="minas"):
     vida = 1
     pontos = 20
 
     def setup(self):
         self.visual = Halo("orange red", style="pulse", rings=2, speed=0.5)
-        self.move_to(CENTRO, speed=22)
 
     def explodir(self):
         onde = (self.center.x, self.center.y)
@@ -487,34 +489,63 @@ class Mina(Circle, radius=20, color="dark red", group="inimigos"):
         canvas.burst_at(onde, radius=ESTOURO, amount=6)
         canvas.ripple_at(onde, amount=0.6, radius=2 * ESTOURO)
         for vizinho in collision.query_circle(onde, radius=ESTOURO, group="inimigos"):
-            if not vizinho.active:          # outra mina da cadeia já levou
-                continue
-            st.pontos += vizinho.pontos
-            if isinstance(vizinho, Mina):
-                vizinho.explodir()
-            else:
+            if vizinho.active:          # uma mina da cadeia pode já ter levado
+                st.pontos += vizinho.pontos
                 canvas.debris_at(vizinho, color="silver", radius=50)
                 vizinho.destroy()
+        for mina in collision.query_circle(onde, radius=ESTOURO, group="minas"):
+            if mina.active:
+                st.pontos += mina.pontos
+                mina.explodir()
 
 
-# As ondas. lado: de onde vêm (o ângulo no anel); None = de todos os lados.
-# cada: segundos entre um inimigo e outro. claridade: a força do Bloom.
-# fim: "limpar" espera todos morrerem; um número espera esses segundos (ou
-# todos morrerem); 0 emenda a próxima onda nesta. virar: a câmera vira o
-# lado do ataque para cima (aqui, duas vezes no jogo todo).
+# Uma mina cruza a tela de um lado ao outro, a TRAVESSIA do centro, de frente
+# para o lado do ataque: passa na frente do anel, longe do grupo que chega.
+def cruzar_mina(lado):
+    if lado is None:
+        lado = uniform(0, 360)
+    sentido = choice([90, -90])
+    frente = no_anel(lado, TRAVESSIA)
+    mina = Mina(center=frente + vec_from_angle(lado + sentido, 650))
+    mina.move_to(frente + vec_from_angle(lado - sentido, 650), speed=70,
+                 on_done=mina.destroy)
+
+
+# Como a câmera mostra o anel em cada onda: (zoom, quanto ela anda para o
+# lado do ataque). longe: o anel fica pequeno, para ver todos os lados.
+# perto: o anel fica grande e embaixo, com espaço em cima para o ataque (por
+# isso a onda perto vem sempre do lado que está para cima na tela).
+VISTAS = {"longe": (0.55, 0), "normal": (0.75, 100), "perto": (1.05, 240)}
+
+# As ondas, uma depois da outra.
+#   lado       de onde vêm (o ângulo no anel); None = de todos os lados
+#   tipos      os inimigos, sorteados um a um (repetir um tipo o faz mais comum)
+#   quantos    quantos inimigos; cada: segundos entre um e outro
+#   vista      longe, normal ou perto (VISTAS)
+#   claridade  a força do Bloom
+#   fim        "limpar" espera todos morrerem; um número espera esses
+#              segundos (ou todos morrerem)
+#   virar      (se houver) a câmera vira o lado do ataque para cima
+#   minas      (se houver) quantas minas cruzam a tela durante a onda
 ONDAS = [
-    # nome               lado  tipo   quantos cada  zoom claridade fim  virar
-    ("Setas do norte",     90, Seta,      14, 0.4,  0.95, 0.5, "limpar", False),
-    ("Mandalas",          210, Mandala,    5, 1.2,  0.9,  0.9, 12,       False),
-    ("Setas do sul",      270, Seta,      16, 0.3,  0.95, 0.6, 0,        False),
-    ("Cristais",          330, Cristal,    5, 2.0,  0.9,  0.7, "limpar", True),
-    ("Campo minado",       30, Mina,       7, 0.5,  0.9,  0.6, 0,        False),
-    ("Setas no campo",     30, Seta,      16, 0.3,  0.9,  0.8, "limpar", False),
-    ("Cerco",            None, Seta,      28, 0.2,  0.8,  0.8, 10,       False),
-    ("Coroa",            None, Mandala,    8, 0.8,  0.8,  1.0, "limpar", False),
-    ("Cristais do leste",   0, Cristal,    6, 1.2,  0.85, 1.2, 0,        True),
-    ("Minas e setas",     180, Mina,       5, 0.6,  0.85, 1.0, 0,        False),
-    ("E mais setas",      180, Seta,      20, 0.25, 0.85, 1.2, "limpar", False),
+    dict(nome="Setas do norte", lado=90, tipos=[Seta], quantos=16, cada=0.4,
+         vista="perto", claridade=0.5, fim="limpar"),
+    dict(nome="Mandalas", lado=210, tipos=[Mandala], quantos=5, cada=1.2,
+         vista="normal", claridade=0.9, fim=10, minas=2),
+    dict(nome="Mistura do sul", lado=270, tipos=[Seta, Seta, Cristal], quantos=18,
+         cada=0.4, vista="normal", claridade=0.6, fim="limpar"),
+    dict(nome="Cerco", lado=None, tipos=[Seta], quantos=30, cada=0.3,
+         vista="longe", claridade=0.8, fim="limpar", minas=3),
+    dict(nome="Cristais", lado=330, tipos=[Cristal], quantos=6, cada=1.5,
+         vista="perto", claridade=0.7, fim="limpar", virar=True),
+    dict(nome="Enxame", lado=330, tipos=[Seta], quantos=50, cada=0.12,
+         vista="normal", claridade=1.0, fim="limpar", minas=2),
+    dict(nome="Coroa", lado=None, tipos=[Mandala, Cristal], quantos=10, cada=0.7,
+         vista="longe", claridade=1.0, fim=12, minas=3),
+    dict(nome="Leste", lado=0, tipos=[Seta, Seta, Mandala, Cristal], quantos=20,
+         cada=0.4, vista="perto", claridade=1.2, fim="limpar", virar=True),
+    dict(nome="Tempestade", lado=None, tipos=[Seta, Seta, Seta, Mandala, Cristal],
+         quantos=45, cada=0.3, vista="longe", claridade=1.2, fim="limpar", minas=4),
 ]
 
 
@@ -540,7 +571,7 @@ def abrir_portal(lado):
 
 class Jogo(Act):
     def setup(self):
-        canvas.zoom_to(0.95)
+        canvas.zoom_to(0.75)
         self.nave = Nave(radius=28, base_ratio=0.55)
         self.placar = Text("", top_left=(24, 780), color="white")
         self.placar["text"] @= lambda: (
@@ -553,16 +584,17 @@ class Jogo(Act):
     async def diretor(self):
         await wait(1.5)
         for numero, onda in enumerate(ONDAS):
-            nome, lado, tipo, quantos, cada, zoom, claridade, fim, virar = onda
-            anunciar(f"ONDA {numero + 1}   {nome}")
-            st.brilho = claridade
-            # a câmera aproxima ou afasta, e anda um pouco para o lado do ataque
+            lado = onda["lado"]
+            anunciar(f"ONDA {numero + 1}   {onda['nome']}")
+            st.brilho = onda["claridade"]
+            # a câmera aproxima ou afasta, e anda para o lado do ataque
+            zoom, avanco = VISTAS[onda["vista"]]
             canvas.zoom_to(zoom, time=2, ease="ease_in_out")
             if lado is None:
                 canvas.pan_to(CENTRO, time=2, ease="ease_in_out")
             else:
-                canvas.pan_to(no_anel(lado, 80), time=2, ease="ease_in_out")
-            if virar:
+                canvas.pan_to(no_anel(lado, avanco), time=2, ease="ease_in_out")
+            if onda.get("virar"):
                 canvas.rotate_to(90 - lado, time=2, ease="ease_in_out")
             await wait(2)
 
@@ -572,12 +604,15 @@ class Jogo(Act):
                 vento = WindStreaks(angle=lado + 180 + canvas.rotation,
                                     density=0.9, alpha=0.6)
                 self.after(2.5, vento.remove)
+            for i in range(onda.get("minas", 0)):
+                self.after(1 + 3 * i, lambda: cruzar_mina(lado))
             portal = abrir_portal(lado)
-            for i in range(quantos):
-                chegar(tipo, lado)
-                await wait(cada)
+            for i in range(onda["quantos"]):
+                chegar(choice(onda["tipos"]), lado)
+                await wait(onda["cada"])
             self.after(1, portal.destroy)
 
+            fim = onda["fim"]
             if fim == "limpar":
                 await until_empty("inimigos")
                 brasas = Embers(color="gold", density=1.2)    # onda vencida

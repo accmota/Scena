@@ -5,7 +5,8 @@ The example says: the ship flies around the ring (one angle that is never
 wrapped, so the two lights that chase it never take the long way past
 360); it shoots outward, and a narrow radar pulls a shot onto an enemy almost
 in front; a Seta dies in one shot, a Mandala in three, a Cristal in five; a
-shot Mina blows up the enemies around it, other mines in a chain; an
+shot Mina (one that crosses the screen, apart from the wave) blows up the
+enemies around it, other mines in a chain; an
 enemy shot costs the ship (or the ring) one life, an enemy that reaches the
 ring costs the ring one; pills give double, fast and strong shots and a
 Portal shield for DURACAO seconds; the waves run one after the other to "O
@@ -144,7 +145,26 @@ class TestGuardiaoShip(unittest.TestCase):
             run.key_up("SPACE")
             run.step(30)
             self.assertEqual(list(ns["group"]["inimigos"]), [far])
+            self.assertEqual(count(ns, "minas"), 0)
             self.assertEqual(ns["st"].pontos, 20 + 20 + 10 + 50)
+
+
+    def test_a_mine_crosses_in_front_of_the_ring_and_leaves(self):
+        with ProgramRun(PATH) as run:
+            ns, nave = quiet(run)
+            ns["cruzar_mina"](90)
+            mina = list(ns["group"]["minas"])[0]
+            cx, cy = float(ns["CENTRO"].x), float(ns["CENTRO"].y)
+            nearest = 1e9
+            for _ in range(25 * SECOND):
+                run.step(1)
+                if not mina.active:
+                    break
+                nearest = min(nearest, math.dist((float(mina.center.x),
+                                                  float(mina.center.y)), (cx, cy)))
+            self.assertFalse(mina.active, "the mine never left")
+            self.assertAlmostEqual(nearest, ns["TRAVESSIA"], delta=5)
+            self.assertEqual(ns["st"].anel, ns["VIDA_ANEL"])
 
 
 class TestGuardiaoLives(unittest.TestCase):
@@ -153,7 +173,7 @@ class TestGuardiaoLives(unittest.TestCase):
             ns, nave = quiet(run)
             st = ns["st"]
             ns["Bala"](center=ns["no_anel"](90, 420), angle=-90)
-            run.step(SECOND)
+            run.step(2 * SECOND)
             self.assertEqual(st.vida, ns["VIDA_NAVE"] - 1)
             still(ns, "Seta", 270, 420)         # no shot of its own
             run.step(4 * SECOND)
@@ -266,7 +286,7 @@ class TestGuardiaoWaves(unittest.TestCase):
             hold("RIGHT", False)
             self.assertTrue(act().acabou, "the waves never ended")
             self.assertGreater(ns["st"].anel, 0, "vacuous: the ring fell")
-            turns = [onda[1] for onda in ns["ONDAS"] if onda[-1]]
+            turns = [onda["lado"] for onda in ns["ONDAS"] if onda.get("virar")]
             self.assertEqual(len(turns), 2, "the table should turn the camera twice")
             self.assertAlmostEqual(first, 0, delta=0.01, msg="the camera turned on wave 1")
             self.assertAlmostEqual(ns["canvas"].rotation, 90 - turns[-1], delta=1,

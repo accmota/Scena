@@ -52,12 +52,12 @@ left out.
 - New example `examples/guardiao.py` (Guardião do Anel), an arcade defence
   game: the ship flies around a glowing ring and shoots outward, and both the
   ship and the ring have life. Three geometric enemies, each with its own
-  shot and explosion, and a mine whose blast takes the enemies around it;
-  the waves are a table read by one task, which zooms the camera toward the
-  attack side (and turns it twice), opens a `Portal` for the enemies and
-  changes the `Bloom`. Pills give power-ups, including a `Portal` shield;
-  a narrow radar (`collision.query_sector`) pulls each shot onto an enemy
-  almost in front.
+  shot and explosion, and mines that cross the screen, whose blast takes
+  the enemies around them; the waves are a table read by one task, which
+  shows the ring far, normal or close (and turns the camera twice), opens a
+  `Portal` for the enemies and changes the `Bloom`. Pills give power-ups,
+  including a `Portal` shield; a narrow radar (`collision.query_sector`)
+  pulls each shot onto an enemy almost in front.
 - Twelve showcase examples, in English, listed under "Showcases" in
   `examples/README.md`: art pieces (`genesis.py`, the life of a star;
   `tesla.py`, an electric garden in the rain; `rose_window.py`, an endless
