@@ -131,6 +131,11 @@ class TestCodeParity(unittest.TestCase):
         self.assertEqual(errors_of('Level("levels/ninja.json")\n', 'Level("levels/ninja_perigos.json")\n'), [],
                          "an existing file (an English level file will be one)")
 
+    def test_text_with_a_star_is_not_a_file(self):
+        # Tutorial 14i shows code on screen: Text("campo.angle += 45 * dt").
+        self.assertEqual(errors_of('Text("campo.angle += 45 * dt")\n', 'Text("field.angle += 45 * dt")\n'), [])
+        self.assertTrue(errors_of('Sheet("plane/Fly*.png")\n', 'Sheet("plane/Voa*.png")\n'))
+
     def test_a_function_body_box_pairs(self):
         self.assertEqual(errors_of("return Neon(color=cor)", "return Neon(color=colour)"), [])
 
@@ -340,7 +345,7 @@ class TestRealPages(unittest.TestCase):
                 with self.subTest(page=key):
                     out = tp.draft(key, tp.PT_DIR, en, names)
                     text = pt_pages[key].read_text(encoding="utf-8")
-                    self.assertEqual(tp.check_page(key, text, out.read_text(encoding="utf-8"), {}, names), [])
+                    self.assertEqual(tp.check_page(key, text, out.read_text(encoding="utf-8"), {}, names, en), [])
                     steps = pages.extract_steps(str(out))
                     self.assertEqual([s.code for s in steps],
                                      [s.code for s in pages.extract_steps(str(pt_pages[key]))])
@@ -359,7 +364,7 @@ class TestRealPages(unittest.TestCase):
                 with self.subTest(page=key):
                     out = tp.draft(key, tp.PT_DIR, en, names)
                     self.assertEqual(tp.check_page(key, path.read_text(encoding="utf-8"),
-                                                   out.read_text(encoding="utf-8"), {}, names), [])
+                                                   out.read_text(encoding="utf-8"), {}, names, en), [])
                     out.unlink()
 
     def test_english_level_files_follow_the_portuguese(self):
@@ -386,7 +391,7 @@ class TestRealPages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             out = tp.draft(key, tp.PT_DIR, Path(folder) / "docs" / "en" / "tutorial", gloss)
             self.assertEqual(tp.check_page(key, pt_path.read_text(encoding="utf-8"),
-                                           out.read_text(encoding="utf-8"), {}, gloss), [])
+                                           out.read_text(encoding="utf-8"), {}, gloss, out.parent), [])
             steps = pages.extract_steps(str(out))
             self.assertIn("estrela_en", steps[-1].code)
             for (ats, snips), step in zip(pages.step_notes(str(out)), steps):

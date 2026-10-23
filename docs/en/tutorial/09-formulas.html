@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formulas — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "09",
+  title: "Formulas",
+  steps: [
+    {
+      title: "The spreadsheet",
+      body: [
+        `
+        <p>This tutorial is not a game. It is a small machine of shapes linked to one another: a sun, a moon, a wire, a hand that spins. Each step adds one link, and you watch the change run through the machine. The <code>@=</code> of the scoreboard, the <code>lambda</code> that ties one shape to another and the fields of <code>st</code> are a single idea, and here you see it whole.</p>
+        <p>Think of a spreadsheet, like the ones in Excel or Google Sheets. Each cell has a name, like A1 or B1, and holds a number or a formula. If B1 holds the formula <code>=A1/3</code>, it shows a third of what is in A1. Change the number in A1, and B1 redoes the math on its own. Nobody tells B1 to update: the formula says where the value comes from, and the spreadsheet takes care of the rest.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 150" role="img" aria-label="Three cells of a spreadsheet: A1 holding 40, B1 with the formula =A1/3 showing 13, C1 with the formula =A1*3 showing 120; arrows go from A1 to B1 and to C1">
+            <defs>
+              <marker id="seta-planilha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="dot" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <path class="ray" fill="none" d="M 90 58 Q 145 18 195 56" marker-end="url(#seta-planilha)"/>
+            <path class="ray" fill="none" d="M 90 58 Q 200 -8 305 56" marker-end="url(#seta-planilha)"/>
+            <rect class="bar" x="40" y="60" width="100" height="36"/>
+            <rect class="bar child" x="150" y="60" width="100" height="36"/>
+            <rect class="bar child" x="260" y="60" width="100" height="36"/>
+            <text x="90" y="83" text-anchor="middle">40</text>
+            <text x="200" y="83" text-anchor="middle">13</text>
+            <text x="310" y="83" text-anchor="middle">120</text>
+            <text x="90" y="115" text-anchor="middle">A1</text>
+            <text x="200" y="115" text-anchor="middle">B1  =A1/3</text>
+            <text x="310" y="115" text-anchor="middle">C1  =A1*3</text>
+            <text x="200" y="140" text-anchor="middle">change 40 to 60: B1 becomes 20, C1 becomes 180</text>
+          </svg>
+          <figcaption>A1 holds a number. B1 and C1 hold formulas that read A1. The arrows go from what is read to what reads it: that is the path a change takes.</figcaption>
+        </figure>
+        <p>Scena works the same way:</p>
+        `,
+        {
+          snip: `st.radius_value = 40
+...
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")`
+        },
+        `
+        <p><code>st.radius_value = 40</code> creates a field holding 40: it is our A1. <code>radius=lambda: st.radius_value</code> gives the sun's radius a formula instead of a number: the radius comes from <code>st.radius_value</code>. Scena reads the formula once, when it is linked, and notes what it reads, here the field <code>radius_value</code>. From then on, every time the field changes, Scena redoes the math.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+run()
+`,
+      notes: [
+        {
+          at: "Slider(st[\"radius_value\"]",
+          text: "The <code>Slider</code> is what changes the field. It gets the field in brackets, <code>st[\"radius_value\"]</code>, and writes to it as you drag: from 20 to 120, whole numbers only (<code>only_int</code>)."
+        }
+      ],
+      after: `
+        <p>Run it and drag. The slider writes, the sun reads. No line of the program “updates the sun”.</p>
+      `,
+      try: [
+        {
+          note: "The copy, to see the difference. Without <code>lambda</code>, Python reads <code>st.radius_value</code> once, when the sun is made: the radius is 40 and stays 40, however much you drag.",
+          replaces: ['sun = Circle('],
+          code: `sun = Circle(center=(400, 330), radius=st.radius_value, color="gold")`
+        }
+      ]
+    },
+    {
+      title: "One formula reads another",
+      body: `
+        <p>Now the moon, which depends on the sun, and a wire between the two. The slider writes to <code>st.radius_value</code>; the sun's radius reads <code>st.radius_value</code>; the moon reads the sun; the wire reads the sun and the moon. It is the spreadsheet with more cells in the chain: a formula can read the result of another formula.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 480 180" role="img" aria-label="A chain of formulas: Slider writes to st.radius_value; sun.radius reads st.radius_value; moon.center and moon.radius read sun.radius; wire reads moon.center">
+            <defs>
+              <marker id="seta-cadeia" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="dot" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <rect class="bar child" x="5" y="76" width="62" height="30" rx="4"/>
+            <rect class="bar" x="92" y="76" width="74" height="30" rx="4"/>
+            <rect class="bar" x="192" y="76" width="88" height="30" rx="4"/>
+            <rect class="bar" x="310" y="26" width="90" height="30" rx="4"/>
+            <rect class="bar" x="310" y="126" width="90" height="30" rx="4"/>
+            <rect class="bar" x="424" y="26" width="50" height="30" rx="4"/>
+            <text x="36" y="95" text-anchor="middle">Slider</text>
+            <text x="129" y="95" text-anchor="middle">st.radius_value</text>
+            <text x="236" y="95" text-anchor="middle">sun.radius</text>
+            <text x="355" y="45" text-anchor="middle">moon.center</text>
+            <text x="355" y="145" text-anchor="middle">moon.radius</text>
+            <text x="449" y="45" text-anchor="middle">wire</text>
+            <line class="ray" x1="67" y1="91" x2="90" y2="91" marker-end="url(#seta-cadeia)"/>
+            <line class="ray" x1="166" y1="91" x2="190" y2="91" marker-end="url(#seta-cadeia)"/>
+            <line class="ray" x1="280" y1="84" x2="308" y2="50" marker-end="url(#seta-cadeia)"/>
+            <line class="ray" x1="280" y1="98" x2="308" y2="132" marker-end="url(#seta-cadeia)"/>
+            <line class="ray" x1="400" y1="41" x2="422" y2="41" marker-end="url(#seta-cadeia)"/>
+            <text x="79" y="70" text-anchor="middle">writes</text>
+            <text x="178" y="70" text-anchor="middle">reads</text>
+          </svg>
+          <figcaption>Who reads whom. Drag the slider and the change runs the way the arrows point, all the way to the wire.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+moon = Circle(
+    center=lambda: (sun.center.x + sun.radius * 3, sun.center.y),
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+run()
+`,
+      notes: [
+        {
+          at: "sun.radius * 3, sun.center.y)",
+          text: "The moon's <code>center</code> is a formula that returns a pair <code>(x, y)</code>: three sun radii to the right of the sun's center, at the same height."
+        },
+        {
+          at: "radius=lambda: sun.radius / 3,",
+          text: "The moon's <code>radius</code> is a third of the sun's radius."
+        },
+        {
+          at: "wire = Line(",
+          text: "The <code>wire</code> is a <code>Line</code> with one end, <code>p1</code>, on the sun and the other, <code>p2</code>, on the moon."
+        }
+      ],
+      after: `
+        <p>Run it and drag the slider: the sun grows, the moon moves away and grows with it, and the wire stretches. The order of the lines does not matter, nor how many formulas are in the chain: Scena knows who reads whom, and before it draws the next frame the whole chain is up to date.</p>
+        <details class="ask"><summary>What if the sun also read the moon?</summary><p>That would be a calculation that depends on its own result, like putting <code>=B1</code> inside B1 in a spreadsheet. Scena refuses it when you link it: the arrows only go one way.</p></details>
+      `,
+      try: [
+        {
+          note: "Other formulas for the moon, one at a time. A moon that shrinks as the sun grows:",
+          replaces: ['radius=lambda: sun.radius / 3,'],
+          code: `radius=lambda: 60 - sun.radius / 3,`
+        },
+        {
+          note: "A moon that rises as the sun grows:",
+          replaces: ['center=lambda: (sun.center.x'],
+          code: `center=lambda: (sun.center.x + sun.radius * 3, sun.center.y + sun.radius),`
+        }
+      ]
+    },
+    {
+      title: "The field on screen",
+      body: [
+        `
+        <p>One new line puts the radius on screen:</p>
+        `,
+        {
+          snip: `Text(st["radius_value"])`
+        },
+        `
+        <p>It is a text that shows the field, and the brackets are what matters in it. Picture the field as a box with a name written on the outside. <code>st["radius_value"]</code>, with brackets, is the box itself. <code>st.radius_value</code>, with a dot, is the number inside it right now, a copy: 40. Whoever gets the box can follow it or write to it. Whoever gets the number keeps 40, and the box forgets about it.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 170" role="img" aria-label="A box named st[radius_value] with 40 inside; the Slider writes to the box and the Text shows it; to the side, st.radius_value takes a loose copy of the number 40">
+            <defs>
+              <marker id="seta-caixa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="dot" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <rect class="bar child" x="10" y="30" width="70" height="30" rx="4"/>
+            <rect class="bar child" x="10" y="110" width="70" height="30" rx="4"/>
+            <text x="45" y="49" text-anchor="middle">Slider</text>
+            <text x="45" y="129" text-anchor="middle">Text</text>
+            <rect class="bar" x="140" y="55" width="100" height="60" rx="6"/>
+            <text x="190" y="47" text-anchor="middle">st["radius_value"]</text>
+            <text x="190" y="89" text-anchor="middle">40</text>
+            <line class="ray" x1="80" y1="45" x2="138" y2="70" marker-end="url(#seta-caixa)"/>
+            <line class="ray" x1="138" y1="100" x2="82" y2="125" marker-end="url(#seta-caixa)"/>
+            <text x="100" y="40">writes</text>
+            <text x="98" y="140">shows</text>
+            <line class="guide" x1="240" y1="85" x2="305" y2="85" marker-end="url(#seta-caixa)"/>
+            <text x="272" y="77" text-anchor="middle">st.radius_value</text>
+            <rect class="bar child" x="308" y="70" width="44" height="30" rx="4"/>
+            <text x="330" y="89" text-anchor="middle">40</text>
+            <text x="330" y="120" text-anchor="middle">a copy</text>
+          </svg>
+          <figcaption>The brackets hand over the box: the slider writes to it, the text shows it, and both see every change. The dot takes a copy of the current number; the copy never changes again.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+moon = Circle(
+    center=lambda: (sun.center.x + sun.radius * 3, sun.center.y),
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+Text(st["radius_value"])
+
+run()
+`,
+      notes: [
+        {
+          at: "Text(st[\"radius_value\"])",
+          text: "With no position, the <code>Text</code> goes into the column, right below the slider. It only shows: what changes the number is whatever writes to the field, the slider or a line like <code>st.radius_value = 60</code>."
+        }
+      ],
+      after: [
+        `
+        <p>Run it and drag: the number follows. Now, the mistake everyone makes once, writing it with a dot:</p>
+        `,
+        {
+          snip: `Text(st.radius_value)`,
+          alt: true
+        },
+        `
+        <p>That way the text would get only the number 40, with no way to follow the field. Scena refuses it with a <code>TypeError</code> that tells you the fix: the brackets.</p>
+        <p>The brackets go where something will follow the field or write to it: the <code>Slider</code> that writes, the <code>Text</code> that shows. Everywhere else (reading the number, doing math, an <code>if</code>), the dot.</p>
+        `
+      ]
+    },
+    {
+      title: "A text with a formula",
+      body: `
+        <p><code>Text(st["radius_value"])</code> shows the field as it is: just the number, with no name. To write a sentence, or put two values together, the text needs a formula: <code>Text(lambda: …)</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+moon = Circle(
+    center=lambda: (sun.center.x + sun.radius * 3, sun.center.y),
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+run()
+`,
+      notes: [
+        {
+          at: "Text(lambda: f\"Sun",
+          text: "The <code>f</code> before the quotes makes an f-string: the value of each <code>{…}</code> goes into the sentence. <code>round</code> drops the digits after the decimal point: with the sun at 40, the moon's radius is 13.333…, and the sentence shows 13."
+        }
+      ],
+      after: [
+        `
+        <p>Run it and drag: <code>Sun 40   Moon 13</code> becomes <code>Sun 90   Moon 30</code>. The formula reads two things, the field and the moon's radius; whichever one changes, the sentence is redone.</p>
+        <p>Inside the formula it is the dot, not brackets. What keeps the sentence alive is the <code>lambda</code>: Scena reads its code once, finds <code>st.radius_value</code> and <code>moon.radius</code>, and redoes the math on every change. Each time the math runs, it wants the number of that moment, and that is what <code>st.radius_value</code> gives. With brackets, it would get the box instead of the number:</p>
+        `,
+        {
+          snip: `Text(lambda: f"Sun {st['radius_value']}   Moon {round(moon.radius)}")`,
+          alt: true
+        },
+        `
+        <p>Scena refuses it when you link it, with a <code>TypeError</code> that points at the line and tells you to write <code>st.radius_value</code>.</p>
+        `
+      ],
+      try: [
+        {
+          note: "The same link in two lines, like a scoreboard: the text starts empty, and <code>@=</code> links its <code>text</code> field afterward. A <code>lambda</code> when the object is made and an <code>@=</code> right after are the same thing.",
+          replaces: ['Text(lambda'],
+          code: `scoreboard = Text("")
+scoreboard["text"] @= lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}"`
+        }
+      ]
+    },
+    {
+      title: "The clock",
+      body: [
+        `
+        <p>A part that moves on its own: a hand pinned to the moon, spinning, with a spark at its tip. The spin comes from this line:</p>
+        `,
+        {
+          snip: `hand["angle"] @= lambda: clock.time * 90`
+        },
+        `
+        <p><code>@=</code> links a field after the object already exists. It is the general form, the one that works on any field of any object, at any time: the field in brackets on the left; the formula on the right. Once again the brackets point at the box, this time the hand's <code>angle</code> field: that is what gets the formula.</p>
+        <p><code>clock.time</code> counts the seconds since the program started: 0, 0.5, 1, 1.5… The angle is in degrees, and at 90 degrees per second the hand makes a full turn every 4 seconds:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 190" role="img" aria-label="A circle with the hand pointing right, at 0 degrees; 90 degrees is at the top, 180 on the left, 270 at the bottom; an arrow shows the spin to the left, counterclockwise">
+            <defs>
+              <marker id="seta-giro" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="dot" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <circle class="guide" cx="200" cy="100" r="60"/>
+            <line class="ray" x1="200" y1="100" x2="260" y2="100"/>
+            <circle class="dot" cx="200" cy="100" r="4"/>
+            <circle class="hot" cx="260" cy="100" r="5"/>
+            <circle class="dot" cx="200" cy="40" r="3"/>
+            <circle class="dot" cx="140" cy="100" r="3"/>
+            <circle class="dot" cx="200" cy="160" r="3"/>
+            <path class="ray" fill="none" d="M 272 76 A 75 75 0 0 0 238 35" marker-end="url(#seta-giro)"/>
+            <text x="272" y="104">0° · 0 s and 4 s</text>
+            <text x="200" y="28" text-anchor="middle">90° · 1 s</text>
+            <text x="130" y="104" text-anchor="end">180° · 2 s</text>
+            <text x="200" y="182" text-anchor="middle">270° · 3 s</text>
+          </svg>
+          <figcaption>The angle in degrees: 0 points right, 90 points up, and 360 is a full turn, spinning to the left. At 90 degrees per second, the hand passes 90 at 1 s and is back at 0 at 4 s.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+moon = Circle(
+    center=lambda: (sun.center.x + sun.radius * 3, sun.center.y),
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+run()
+`,
+      notes: [
+        {
+          at: "hand = Line(",
+          text: "A <code>Line</code> written another way: the end <code>p1</code> at the moon's center, a <code>length</code> of two moon radii and an <code>angle</code> of 0. The angle starts as a copy, a number; the line below links it."
+        },
+        {
+          at: "center=lambda: hand.p2",
+          text: "The <code>spark</code> sits at the other end, <code>hand.p2</code>. Nobody gave Scena that end: it computes it from <code>p1</code>, the length and the angle. Even so, a formula can read it."
+        }
+      ],
+      after: `
+        <p>Run it. Since the clock changes every frame, the angle's formula is redone every frame, and the spark follows the tip. Not the sun's formula: it is redone only when <code>st.radius_value</code> changes.</p>
+      `,
+      dive: [
+        {
+          title: "What a formula can read",
+          body: `
+            <p>Scena finds out when to redo a formula by reading its code, once, at the moment of the <code>@=</code>. So the formula has to read something Scena follows:</p>
+            <ul>
+              <li>a field of <code>st</code> (<code>st.radius_value</code>);</li>
+              <li>a field of a Scena object, one you gave or one Scena computes (<code>sun.radius</code>, <code>moon.center</code>, <code>hand.p2</code>);</li>
+              <li>the clock and the input: <code>clock</code>, <code>mouse</code>, <code>keyp</code> (the keyboard).</li>
+            </ul>
+            <p>A plain variable does not tell anyone when it changes. With <code>spin = 90</code> at the top of the file, <code>lambda: spin * 2</code> is refused: <code>TypeError</code>, the formula has no sources Scena follows. Scena refuses it rather than link a formula that would sit still without you knowing. The way out is to keep the value in a field (<code>st.spin = 90</code>) and read <code>st.spin</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#reativo-fontes">What can be linked</a>.</p>
+          `,
+          try: [
+            {
+              note: "Other sources for the angle, one at a time. The hand follows the mouse sideways (each unit, one degree):",
+              replaces: ['hand["angle"]'],
+              code: `hand["angle"] @= lambda: mouse.x`
+            },
+            {
+              note: "The hand points up while SPACE is held:",
+              replaces: ['hand["angle"]'],
+              code: `hand["angle"] @= lambda: 90 if keyp("SPACE") else 0`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "Formula or event",
+      body: [
+        `
+        <p>Now the sun's color will follow its size. A formula would do it, as for the radius:</p>
+        `,
+        {
+          snip: `sun["color"] @= lambda: …`,
+          alt: true
+        },
+        `
+        <p>Here we take another road, to meet an <strong>event</strong>: a function Scena runs when something happens. It writes the color with <code>=</code> every time the radius changes. The glow and the visual (<code>glow</code>, <code>visual</code>) do not go into formulas: for them, an event is the only way.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+moon = Circle(
+    center=lambda: (sun.center.x + sun.radius * 3, sun.center.y),
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+@on_change(st["radius_value"])
+def recolor(value):
+    sun.color = Color.from_hsv(value / 200, 0.8, 1)
+
+run()
+`,
+      notes: [
+        {
+          at: "@on_change(st[\"radius_value\"])",
+          text: "<code>@on_change</code> runs the function on every change of the field. It gets the field, with brackets: it has to follow it, not read the number once."
+        },
+        {
+          at: "def recolor(value):",
+          text: "Scena hands the field's new value to the parameter <code>value</code>."
+        },
+        {
+          at: "Color.from_hsv(",
+          text: "<code>Color.from_hsv</code> builds a color from three numbers from 0 to 1: hue, saturation and brightness. The table below shows what each one does."
+        }
+      ],
+      after: `
+        <div class="tbl"><table><thead><tr><th>Number</th><th>From 0 to 1</th></tr></thead><tbody>
+          <tr><td>hue (<code>value / 200</code>)</td><td>goes around the color wheel: 0 is red, 0.17 yellow, 0.33 green, 0.5 cyan, 0.67 blue</td></tr>
+          <tr><td>saturation (<code>0.8</code>)</td><td>from gray (0) to vivid color (1)</td></tr>
+          <tr><td>brightness (<code>1</code>)</td><td>from black (0) to brightest (1)</td></tr>
+        </tbody></table></div>
+        <p>With <code>value / 200</code>, the hue goes from 0.1 to 0.6: the sun goes from orange (radius 20) to blue (radius 120). Run it and drag the slider.</p>
+        <details class="ask"><summary>Why does the sun start out gold?</summary><p>Because an event only runs when something happens, and at the start nothing has changed yet: the function waits for the first change. That is the difference between a formula and an event. A formula says what a field <em>is</em>, all the time: the sun's radius is always <code>st.radius_value</code>. An event says what to do <em>when</em> something happens: paint the sun, play a sound.</p></details>
+      `,
+      try: [
+        {
+          note: "Another way to write it: follow a field of an object. That takes a <code>lambda</code>, because <code>sun.radius</code> alone would be the current number.",
+          replaces: ['@on_change('],
+          code: `@on_change(lambda: sun.radius)`
+        }
+      ]
+    },
+    {
+      title: "A condition",
+      body: `
+        <p>An event of another kind: when the sun goes past 100, it bursts. <code>@when</code> takes a yes-or-no question and runs the function when the answer turns to yes.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+moon = Circle(
+    center=lambda: (sun.center.x + sun.radius * 3, sun.center.y),
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+@on_change(st["radius_value"])
+def recolor(value):
+    sun.color = Color.from_hsv(value / 200, 0.8, 1)
+
+@when(lambda: sun.radius > 100)
+def big():
+    canvas.burst_at(sun, radius=150, rings=True)
+
+run()
+`,
+      notes: [
+        {
+          at: "@when(lambda: sun.radius > 100)",
+          text: "The question goes in a <code>lambda</code>, so Scena can ask it again every frame. Without one, <code>@when(sun.radius &gt; 100)</code> would do the math once, when the line is read, and hand over just <code>False</code>; Scena refuses it with a <code>TypeError</code>."
+        },
+        {
+          at: "canvas.burst_at(sun, radius=150, rings=True)",
+          text: "A burst on the sun, with <code>rings</code>."
+        }
+      ],
+      after: `
+        <p>Run it and move the slider back and forth around 100.</p>
+        <details class="ask"><summary>Does the sun burst again while it stays big?</summary><p>No. Scena checks the question every frame, but fires only when the answer goes from no to yes. To burst again, the sun has to drop back to 100 or less and cross again.</p></details>
+        <figure class="fig">
+          <svg viewBox="0 0 380 150" role="img" aria-label="The sun's radius over time rises, goes past 100, stays above, drops below 100 and rises again; a mark at each upward crossing">
+            <line class="ray" x1="20" y1="130" x2="370" y2="130"/>
+            <line class="guide" x1="20" y1="70" x2="370" y2="70"/>
+            <polyline class="ray" fill="none" points="20,120 80,110 120,80 150,50 200,45 230,60 260,95 290,90 320,55 360,40"/>
+            <circle class="hot" cx="130" cy="70" r="5"/>
+            <circle class="hot" cx="307" cy="70" r="5"/>
+            <text x="24" y="64">radius_value 100</text>
+            <text x="138" y="88">fires</text>
+            <text x="314" y="88">fires</text>
+            <text x="205" y="36" text-anchor="middle">above: nothing</text>
+            <text x="365" y="145" text-anchor="end">time</text>
+          </svg>
+          <figcaption><code>@when</code> fires only on the crossings from below to above. Staying above the line does not count; going down does not count.</figcaption>
+        </figure>
+        <p>The two events complement each other: <code>@on_change</code> runs on every change of the value; <code>@when</code>, when a condition becomes true.</p>
+      `,
+      try: [
+        {
+          note: "Other questions, one at a time. The burst on SPACE (<code>@when</code> already fires only on the frame the key is pressed, not while it is held):",
+          replaces: ['@when('],
+          code: `@when(lambda: keyp("SPACE"))`
+        },
+        {
+          note: "Only at the end of the slider:",
+          replaces: ['@when('],
+          code: `@when(lambda: st.radius_value == 120)`
+        }
+      ]
+    },
+    {
+      title: "Releasing the moon",
+      body: [
+        `
+        <p>So far, the moon obeys the sun. What if you want to put it somewhere else? The first idea would be to change its center with <code>=</code>:</p>
+        `,
+        {
+          snip: `moon.center = (600, 200)`,
+          alt: true
+        },
+        `
+        <p>Scena refuses it, and the message says what to do: call <code>unlink()</code> first. A linked field has an owner, the formula. If the <code>=</code> went through, the formula would write over it on the next frame, and the moon would jump back without you knowing why. Scena would rather tell you right away, on the line with the <code>=</code>.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+moon = Circle(
+    center=lambda: (sun.center.x + sun.radius * 3, sun.center.y),
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+@on_change(st["radius_value"])
+def recolor(value):
+    sun.color = Color.from_hsv(value / 200, 0.8, 1)
+
+@when(lambda: sun.radius > 100)
+def big():
+    canvas.burst_at(sun, radius=150, rings=True)
+
+def unpin():
+    moon["center"].unlink()
+    moon.draggable = True
+
+Button(label="Release the moon", on_click=unpin)
+
+run()
+`,
+      notes: [
+        {
+          at: "moon[\"center\"].unlink()",
+          text: "<code>unlink</code> frees the center from the formula. The center keeps its last value, and the moon stays where it was. From then on it accepts <code>=</code>, <code>move_to</code> and dragging."
+        },
+        {
+          at: "moon.draggable = True",
+          text: "<code>draggable</code> lets you drag the moon with the mouse."
+        },
+        {
+          at: "Button(label=\"Release the moon\"",
+          text: "A <code>Button</code> that calls <code>unpin</code> on every click."
+        }
+      ],
+      after: `
+        <p>Run it, click “Release the moon” and drag the moon. The wire and the hand follow: they read <code>moon.center</code>, and those links still hold.</p>
+        <details class="ask"><summary>With the moon released, move the slider. What does it do?</summary><p>It stays put, but still changes size. <code>unlink</code> cut only one arrow, the center's; the moon's radius still reads the sun.</p></details>
+      `
+    },
+    {
+      title: "Pinning it back",
+      body: [
+        `
+        <p>To pin the moon back, a second button links the center again with <code>@=</code>. The formula would be the same as the one at the top of the file; instead of writing the math twice, we give it a name:</p>
+        `,
+        {
+          snip: `def moon_spot():
+    return (sun.center.x + sun.radius * 3, sun.center.y)
+...
+    center=moon_spot,`
+        },
+        `
+        <p><code>moon_spot</code> is an ordinary function, with <code>def</code> and <code>return</code>, that returns the moon's place. The <code>Circle</code> gets the function <strong>without parentheses</strong>: <code>center=moon_spot</code> hands over the function, for Scena to call when it needs to. Scena reads its code the way it reads a <code>lambda</code>'s, and knows it depends on the sun.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+def moon_spot():
+    return (sun.center.x + sun.radius * 3, sun.center.y)
+
+moon = Circle(
+    center=moon_spot,
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+@on_change(st["radius_value"])
+def recolor(value):
+    sun.color = Color.from_hsv(value / 200, 0.8, 1)
+
+@when(lambda: sun.radius > 100)
+def big():
+    canvas.burst_at(sun, radius=150, rings=True)
+
+def unpin():
+    moon["center"].unlink()
+    moon.draggable = True
+
+def pin():
+    if moon.draggable:
+        moon.draggable = False
+        moon["center"] @= moon_spot
+
+Button(label="Release the moon", on_click=unpin)
+Button(label="Pin the moon", on_click=pin)
+
+run()
+`,
+      notes: [
+        {
+          at: "if moon.draggable:",
+          text: "Asks whether the moon is released. That way, clicking “Pin” when the moon is already pinned does not link the center twice."
+        },
+        {
+          at: "moon.draggable = False",
+          text: "First, turn dragging off: dragging and a formula do not mix."
+        },
+        {
+          at: "moon[\"center\"] @= moon_spot",
+          text: "Then link it again, with the same function, without parentheses. The moon jumps back to its place."
+        }
+      ],
+      after: [
+        `
+        <p>Run it: release, drag, pin. The parentheses are the mistake to watch for here:</p>
+        `,
+        {
+          snip: `center=moon_spot(),`,
+          alt: true
+        },
+        `
+        <p>With parentheses, Python calls the function right there and hands over the current result, a pair of numbers. The moon would get a copy of the place and stay put when the sun grew.</p>
+        `
+      ]
+    },
+    {
+      title: "A string of beads",
+      body: `
+        <p>A decoration: five beads on the wire, like a necklace, evenly spaced between the sun and the moon.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 110" role="img" aria-label="A wire from the sun to the moon; five beads split it into six equal parts, at 1/6, 2/6, 3/6, 4/6 and 5/6 of the way; the sun is t equals 0 and the moon is t equals 1">
+            <line class="ray" x1="50" y1="50" x2="370" y2="50"/>
+            <circle class="bar" cx="50" cy="50" r="18"/>
+            <circle class="bar child" cx="370" cy="50" r="8"/>
+            <circle class="dot" cx="103.3" cy="50" r="4"/>
+            <circle class="dot" cx="156.7" cy="50" r="4"/>
+            <circle class="dot" cx="210" cy="50" r="4"/>
+            <circle class="dot" cx="263.3" cy="50" r="4"/>
+            <circle class="dot" cx="316.7" cy="50" r="4"/>
+            <text x="103.3" y="30" text-anchor="middle">1/6</text>
+            <text x="156.7" y="30" text-anchor="middle">2/6</text>
+            <text x="210" y="30" text-anchor="middle">3/6</text>
+            <text x="263.3" y="30" text-anchor="middle">4/6</text>
+            <text x="316.7" y="30" text-anchor="middle">5/6</text>
+            <text x="50" y="90" text-anchor="middle">sun, t = 0</text>
+            <text x="370" y="90" text-anchor="middle">moon, t = 1</text>
+          </svg>
+          <figcaption>Where each bead should go. <code>lerp(sun.center, moon.center, t)</code> walks along the wire: <code>t</code> 0 is the sun, 1 is the moon, and bead <code>i</code> sits at <code>i / 6</code> of the way.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+def moon_spot():
+    return (sun.center.x + sun.radius * 3, sun.center.y)
+
+moon = Circle(
+    center=moon_spot,
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+for i in range(1, 6):
+    Circle(center=lambda: lerp(sun.center, moon.center, i / 6), radius=4, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+@on_change(st["radius_value"])
+def recolor(value):
+    sun.color = Color.from_hsv(value / 200, 0.8, 1)
+
+@when(lambda: sun.radius > 100)
+def big():
+    canvas.burst_at(sun, radius=150, rings=True)
+
+def unpin():
+    moon["center"].unlink()
+    moon.draggable = True
+
+def pin():
+    if moon.draggable:
+        moon.draggable = False
+        moon["center"] @= moon_spot
+
+Button(label="Release the moon", on_click=unpin)
+Button(label="Pin the moon", on_click=pin)
+
+run()
+`,
+      notes: [
+        {
+          at: "for i in range(1, 6):",
+          text: "A <code>for</code> makes the five beads, each one a small <code>Circle</code>. <code>range(1, 6)</code> counts from 1 to 5: the 6 is left out."
+        },
+        {
+          at: "lerp(sun.center, moon.center, i / 6)",
+          text: "<code>lerp(a, b, t)</code> is a point on the way from <code>a</code> to <code>b</code>: with <code>t</code> 0, at <code>a</code>; with 1, at <code>b</code>; with 0.5, halfway. The center is a formula, so the beads follow the sun and the moon."
+        }
+      ],
+      after: `
+        <p>Run it.</p>
+        <details class="ask"><summary>How many beads show up?</summary><p>Just one, near the moon. All five are there, but in the same place, one on top of the other.</p></details>
+        <p>The formula reads <code>i</code> later. A <code>lambda</code> does not do the math when it is written: it keeps the math, and Scena does it later, when it needs the center. It keeps the <em>name</em> <code>i</code>, not the number <code>i</code> held on that pass. By the time Scena does the math, the <code>for</code> has finished, and <code>i</code> is 5 for all of them: the five beads all sit at 5/6 of the way.</p>
+      `
+    },
+    {
+      title: "Each bead with its own i",
+      body: `
+        <p>The fix is small: <code>lambda i=i:</code> instead of <code>lambda:</code>. Each bead has to keep its own number at the moment it is made.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+def moon_spot():
+    return (sun.center.x + sun.radius * 3, sun.center.y)
+
+moon = Circle(
+    center=moon_spot,
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+for i in range(1, 6):
+    Circle(center=lambda i=i: lerp(sun.center, moon.center, i / 6), radius=4, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+@on_change(st["radius_value"])
+def recolor(value):
+    sun.color = Color.from_hsv(value / 200, 0.8, 1)
+
+@when(lambda: sun.radius > 100)
+def big():
+    canvas.burst_at(sun, radius=150, rings=True)
+
+def unpin():
+    moon["center"].unlink()
+    moon.draggable = True
+
+def pin():
+    if moon.draggable:
+        moon.draggable = False
+        moon["center"] @= moon_spot
+
+Button(label="Release the moon", on_click=unpin)
+Button(label="Pin the moon", on_click=pin)
+
+run()
+`,
+      notes: [
+        {
+          at: "lambda i=i:",
+          text: "Names can come before the colon of a <code>lambda</code>, like inside the parentheses of a <code>def</code>. <code>i=i</code> creates an <code>i</code> <em>inside</em> the <code>lambda</code> and gives it, right away, the value of the <code>for</code>'s <code>i</code> on that pass: on the first, 1; on the second, another <code>lambda</code> is made with 2; and so on."
+        }
+      ],
+      after: `
+        <p>Run it: five beads, spaced along the wire. Move the slider, release the moon and drag it: the necklace follows.</p>
+        <p>The rule holds for any name: a <code>lambda</code> made inside a <code>for</code> that reads the <code>for</code>'s variable takes that variable with <code>=</code> (<code>lambda n=n:</code>, <code>lambda shape=shape:</code>). Names that do not change in the <code>for</code>, like <code>sun</code> and <code>moon</code>, stay as they are.</p>
+      `
+    },
+    {
+      title: "The ideas",
+      example: "formula_machine.py",
+      body: `
+        <p>The machine is done. The boxes below gather what it taught, each idea with an example you can paste at the end of the program and run.</p>
+        <p>No need to memorize. When a formula does not do what you expect, come back here: the answer is almost always in one of these boxes.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Formulas")
+Wallpaper("dark navy")
+
+st.radius_value = 40
+Slider(st["radius_value"], label="Radius", min_value=20, max_value=120, only_int=True)
+
+sun = Circle(center=(400, 330), radius=lambda: st.radius_value, color="gold")
+
+def moon_spot():
+    return (sun.center.x + sun.radius * 3, sun.center.y)
+
+moon = Circle(
+    center=moon_spot,
+    radius=lambda: sun.radius / 3,
+    color="light steel blue",
+)
+wire = Line(p1=lambda: sun.center, p2=lambda: moon.center, color="white")
+
+for i in range(1, 6):
+    Circle(center=lambda i=i: lerp(sun.center, moon.center, i / 6), radius=4, color="white")
+
+Text(st["radius_value"])
+Text(lambda: f"Sun {st.radius_value}   Moon {round(moon.radius)}")
+
+hand = Line(p1=lambda: moon.center, length=lambda: moon.radius * 2, angle=0, color="coral")
+hand["angle"] @= lambda: clock.time * 90
+spark = Circle(center=lambda: hand.p2, radius=5, color="coral")
+spark.glow = True
+
+@on_change(st["radius_value"])
+def recolor(value):
+    sun.color = Color.from_hsv(value / 200, 0.8, 1)
+
+@when(lambda: sun.radius > 100)
+def big():
+    canvas.burst_at(sun, radius=150, rings=True)
+
+def unpin():
+    moon["center"].unlink()
+    moon.draggable = True
+
+def pin():
+    if moon.draggable:
+        moon.draggable = False
+        moon["center"] @= moon_spot
+
+Button(label="Release the moon", on_click=unpin)
+Button(label="Pin the moon", on_click=pin)
+
+run()
+`,
+      dive: [
+        {
+          title: "= copies, @= links",
+          body: `
+            <p>With <code>=</code>, the field gets the value of <strong>right now</strong>, once. After that, nothing links the two: if the <code>st</code> field changes, the other field never finds out.</p>
+            <p>With <code>@=</code>, the field gets a <strong>formula</strong>. Scena notes what it reads and redoes the math whenever any of that changes. A <code>lambda</code> given when the object is made (<code>radius=lambda: st.radius_value</code>) is the same link, written at creation.</p>
+            <p>A linked field has an owner, the formula: <code>=</code> on it is refused. To write to it again, <code>unlink()</code> first, like the released moon.</p>
+          `,
+          try: [
+            {
+              note: "A mark that follows the sun's radius, linked with <code>@=</code>. Change the <code>@=</code> to <code>=</code> and remove the <code>lambda:</code>: the mark keeps its current size and no longer follows the slider.",
+              code: `mark = Circle(center=(850, 550), radius=10, color="orchid")
+mark["radius"] @= lambda: st.radius_value / 2`
+            }
+          ]
+        },
+        {
+          title: "Brackets or dot?",
+          body: `
+            <p>Think of the field as a box with a name. The <strong>brackets</strong> hand over the box: <code>st["radius_value"]</code>. The <strong>dot</strong> hands over the number inside it right now: <code>st.radius_value</code>.</p>
+            <p>The question that decides it: will whatever gets it <em>follow</em> the field or <em>write</em> to it? Then brackets. Will it just use the number once? Dot.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Where</th><th>Write</th></tr></thead>
+              <tbody>
+                <tr><td>A widget that writes to the field</td><td><code>Slider(st["radius_value"])</code></td></tr>
+                <tr><td>A text that shows the field</td><td><code>Text(st["radius_value"])</code></td></tr>
+                <tr><td>An event that watches the field</td><td><code>@on_change(st["radius_value"])</code></td></tr>
+                <tr><td>The field that gets a formula</td><td><code>hand["angle"] @= …</code></td></tr>
+                <tr><td>Math, an <code>if</code>, a <code>print</code></td><td><code>st.radius_value</code></td></tr>
+                <tr><td>Inside a <code>lambda</code></td><td><code>st.radius_value</code>, always</td></tr>
+              </tbody>
+            </table></div>
+          `,
+          try: [
+            {
+              note: "Two texts side by side. The first gets the box and follows the slider. The second gets the current number, turned into text with <code>str</code>, and stays stuck at 40.",
+              code: `Text(st["radius_value"], top_left=(800, 680))
+Text(str(st.radius_value), top_left=(900, 680))`
+            }
+          ]
+        },
+        {
+          title: "Inside a lambda, always the dot",
+          body: `
+            <p>The <code>lambda</code> is already what keeps the math alive: Scena redoes it on every change. Each time it runs, it wants the number of that moment, and that is what the dot gives.</p>
+            <p>So inside a <code>lambda</code> there are no brackets: <code>lambda: st.radius_value * 2</code>, never <code>lambda: st["radius_value"] * 2</code>. With brackets, the math would try to multiply the box, and Scena refuses it when you link it, with a <code>TypeError</code> that points at the line.</p>
+            <p>The same goes for the fields of an object: <code>lambda: sun.radius</code>, <code>lambda: moon.center</code>.</p>
+          `,
+          try: [
+            {
+              note: "A sentence with two values, both with the dot inside the <code>lambda</code>:",
+              code: `Text(lambda: f"Radius {st.radius_value}, double {st.radius_value * 2}", top_left=(20, 680))`
+            }
+          ]
+        },
+        {
+          title: "A lambda in a for",
+          body: `
+            <p>A <code>lambda</code> keeps the <em>name</em> of the things it reads, not their current value. Inside a <code>for</code>, that catches you by surprise: the loop variable changes on every pass, and in the end every <code>lambda</code> reads the last value.</p>
+            <p>The fix is to give the <code>lambda</code> its own value at the moment it is made: <code>lambda i=i:</code>. Only the <code>for</code> variable needs this.</p>
+          `,
+          try: [
+            {
+              note: "Three little dots in a row below the sun, each with its own <code>n</code>. Remove the <code>n=n</code> and run it: all three go to the same place.",
+              code: `for n in range(3):
+    Circle(center=lambda n=n: (sun.center.x - 30 + n * 30, sun.center.y - sun.radius - 20), radius=3, color="gold")`
+            }
+          ]
+        },
+        {
+          title: "Formulas and events",
+          body: `
+            <p>A <strong>formula</strong> says what a field <em>is</em>, all the time: the sun's radius is <code>st.radius_value</code>. An <strong>event</strong> says what to <em>do</em> when something happens: paint the sun, set off a burst.</p>
+            <p>A color can be a formula or change in an event; the glow and the visual (<code>glow</code>, <code>visual</code>) do not go into formulas: they change with <code>=</code>, inside an event. Two events help:</p>
+            <ul>
+              <li><code>@on_change</code> runs on every change of a value, like the sun changing color with every step of the slider.</li>
+              <li><code>@when</code> runs once, when a question goes from no to yes, like the burst when the sun goes past 100.</li>
+            </ul>
+            <p>In the Guide: <a href="../guide/index.html#reativo-liga">Link</a> · <a href="../guide/index.html#reativo-fontes">What can be linked</a> · <a href="../guide/index.html#reativo-construtor">Formulas in constructors</a> · <a href="../guide/index.html#reativo-state">st</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Drag the slider to change the sun's radius; go past 100 to see the burst. “Release the moon” lets you drag it; “Pin the moon” puts it back in its place. The beads on the wire follow everything.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>lambda</code> — a formula: the field holds the result of the math, and Scena redoes it when something it reads changes, as in a spreadsheet.</li>
+          <li><code>st["radius_value"]</code> and <code>st.radius_value</code> — the field, for whatever follows it or writes to it, and the current number, for math and for inside a <code>lambda</code>.</li>
+          <li><code>clock.time</code> — a source that changes every frame.</li>
+          <li><code>@on_change</code> and <code>@when</code> — events: the color changes with every change of the radius; the burst fires on the crossing.</li>
+          <li><code>unlink()</code> frees a field; <code>@=</code> with a named function links it again.</li>
+          <li><code>lambda i=i:</code> — in a <code>for</code>, each formula keeps its own value.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#reativo-liga">Link</a> · <a href="../guide/index.html#reativo-fontes">What can be linked</a> · <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#reagir-on-change">@on_change</a> · <a href="../guide/index.html#reagir-when">@when</a> · <a href="../guide/index.html#desenhar-text">Text</a>.</p>
+        <p><strong>Next:</strong> balls that bounce and knock into each other, with velocity and collision.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add a small planet that circles the moon: one more formula in the chain.</li>
+          <li>Can you show the distance between the moon and the sun in a text that is always right?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hooks in the class — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlude",
+  title: "Hooks in the class",
+  steps: [
+    {
+      title: "From the top into the class",
+      body: [
+        `
+        <p>Scena's hooks, the lines that say when a function runs (<code>@click</code>, <code>@hover</code>, <code>@every</code>, <code>@collide</code>, <code>@when</code>…), have almost always sat at the top of the file. But what belongs to each object reads better in its class: the firefly knows what to do when it is clicked. This interlude moves each hook into a class, with fireflies you catch with the mouse.</p>
+        <p>At the top, the click would look like this, with an outside function that receives the clicked firefly:</p>
+        `,
+        {
+          snip: `@click(group["fireflies"])
+def caught(firefly):
+    st.catches += 1
+    firefly.destroy()`,
+          alt: true
+        },
+        `
+        <p>In the class, the same click is a method, and the one clicked is <code>self</code> itself.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Fireflies")
+Wallpaper("#0a0f1e")
+
+st.catches = 0
+Text(lambda: f"Caught: {st.catches}", top_left=(20, 680))
+
+
+class Firefly(Circle, radius=10, color="khaki", group="fireflies"):
+    def on_click(self):
+        st.catches += 1
+        self.destroy()
+
+
+for i in range(6):
+    Firefly(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Text(lambda: f\"Caught",
+          text: "The text is a formula: it shows the count and changes by itself when <code>st.catches</code> changes."
+        },
+        {
+          at: "def on_click(self):",
+          text: "<code>on_click</code> is a method with a fixed name. It takes no <code>@</code>: the name already says when it runs. And it receives no one: <code>self</code> already is the clicked firefly."
+        }
+      ],
+      after: `
+        <p>Run it and catch the six fireflies.</p>
+      `
+    },
+    {
+      title: "Hovering over",
+      body: `
+        <p>The firefly glows when the mouse passes over it.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Fireflies")
+Wallpaper("#0a0f1e")
+
+st.catches = 0
+Text(lambda: f"Caught: {st.catches}", top_left=(20, 680))
+
+
+class Firefly(Circle, radius=10, color="khaki", group="fireflies"):
+    def on_click(self):
+        st.catches += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+
+for i in range(6):
+    Firefly(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_hover(self):",
+          text: "<code>on_hover</code> (the mouse came in) and <code>on_hover_exit</code> (the mouse left) are the <code>@hover</code> and <code>@hover_exit</code> pair, as methods. What one turns on, the other turns off."
+        }
+      ]
+    },
+    {
+      title: "Each one's own time",
+      body: [
+        `
+        <p>Now the fireflies fly and blink. The blinking is a timer, and a timer fits in the class too:</p>
+        `,
+        {
+          snip: `@every(1.2)
+def flicker(self):
+    self.flash(0.3)`
+        },
+        `
+        <p>Above a method, <code>@every</code> makes a timer for each object: every firefly gets its own, which starts when the firefly is born. <code>flash(0.3)</code> brightens the firefly for 0.3 s.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Fireflies")
+Wallpaper("#0a0f1e")
+
+st.catches = 0
+Text(lambda: f"Caught: {st.catches}", top_left=(20, 680))
+
+
+class Firefly(Circle, radius=10, color="khaki", group="fireflies"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.catches += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def flicker(self):
+        self.flash(0.3)
+
+
+for i in range(6):
+    Firefly(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "uniform(-60, 60) * dt, 40 * dt",
+          text: "It rises 40 per second. Sideways, a random value every frame, between −60 and 60: the zigzag."
+        }
+      ],
+      after: `
+        <p>Run it and watch the six.</p>
+        <details class="ask"><summary>Do they blink together, or each at its own pace?</summary><p>Together: the six were born on the same frame, and the six clocks started together. A firefly born later would blink out of step.</p></details>
+        <p>Catch one: its timer stops with it. No one has to remember to cancel anything.</p>
+      `
+    },
+    {
+      title: "Leaving the screen",
+      body: `
+        <p>A firefly that flies off the screen does not come back, yet it would stay in the game, flying where no one sees it. It has to be destroyed when it leaves.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Fireflies")
+Wallpaper("#0a0f1e")
+
+st.catches = 0
+Text(lambda: f"Caught: {st.catches}", top_left=(20, 680))
+
+
+class Firefly(Circle, radius=10, color="khaki", group="fireflies"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.catches += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def flicker(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def escaped(self):
+        self.destroy()
+
+
+for i in range(6):
+    Firefly(center=(uniform(100, 900), uniform(100, 600)))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "@leave_playfield",
+          text: "In the class, <code>@leave_playfield</code> goes without a group name: it applies to each object of the class, and the method receives only <code>self</code>, the one that left. At the top, it would be <code>@leave_playfield(\"fireflies\")</code>."
+        }
+      ],
+      after: `
+        <p>Run it and wait: the fireflies you don't catch rise until they are gone.</p>
+      `
+    },
+    {
+      title: "An invisible night",
+      body: `
+        <p>The fireflies run out. Someone has to release new ones from time to time, but that is not a firefly's job: it is the night's. And the night draws nothing.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Fireflies")
+Wallpaper("#0a0f1e")
+
+st.catches = 0
+Text(lambda: f"Caught: {st.catches}", top_left=(20, 680))
+
+
+class Firefly(Circle, radius=10, color="khaki", group="fireflies"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.catches += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def flicker(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def escaped(self):
+        self.destroy()
+
+
+class Night(Entity):
+    @every(0.8)
+    def release(self):
+        Firefly(center=(uniform(50, 950), uniform(20, 300)))
+
+
+for i in range(6):
+    Firefly(center=(uniform(100, 900), uniform(100, 600)))
+
+night = Night()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "class Night(Entity):",
+          text: "<code>Entity</code> is Scena's simplest object: it has no shape, it does not show, it does not collide. But it has everything a Scena class has: <code>setup</code>, <code>on_update</code>, timers, hooks."
+        },
+        {
+          at: "night = Night()",
+          text: "Creating the night starts its timer: a new firefly every 0.8 seconds, at a random spot."
+        }
+      ],
+      after: `
+        <p>Run it: the new ones are born at different moments, each with its own clock, and now they blink out of step.</p>
+        <details class="ask"><summary>Why not an <code>@every</code> at the top?</summary><p>It would work. But an object owns its time: when the night is destroyed, its timer stops with it, like the firefly's.</p></details>
+      `
+    },
+    {
+      title: "A bat in the night",
+      body: `
+        <p>The night has a danger: a bat crosses the screen from side to side, and any firefly it touches gets eaten. Touching is a collision, and collision also has its own form in the class.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Fireflies")
+Wallpaper("#0a0f1e")
+
+st.catches = 0
+Text(lambda: f"Caught: {st.catches}", top_left=(20, 680))
+
+
+class Firefly(Circle, radius=10, color="khaki", group="fireflies"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.catches += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def flicker(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def escaped(self):
+        self.destroy()
+
+
+class Bat(Circle, radius=24, color="#5b4b8a", group="bats"):
+    def setup(self):
+        self.pace = 260
+
+    def on_update(self, dt):
+        self.move_by(self.pace * dt, 0)
+        if self.center.x > 950:
+            self.pace = -260
+        if self.center.x < 50:
+            self.pace = 260
+
+    @collide_with("fireflies")
+    def eat(self, firefly):
+        firefly.destroy()
+        self.pop()
+
+
+class Night(Entity):
+    @every(0.8)
+    def release(self):
+        Firefly(center=(uniform(50, 950), uniform(20, 300)))
+
+
+for i in range(6):
+    Firefly(center=(uniform(100, 900), uniform(100, 600)))
+
+night = Night()
+bat = Bat(center=(100, 450))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.pace = -260",
+          text: "At the right edge, the speed turns negative: the bat comes back. At the left, positive again. Naming the direction (<code>-260</code>, not <code>-self.pace</code>) keeps it from getting stuck, shaking at the edge."
+        },
+        {
+          at: "@collide_with(\"fireflies\")",
+          text: "<code>@collide_with</code>, above a method: when <em>this</em> bat touches a member of the <code>\"fireflies\"</code> group, <code>eat</code> runs. Only one group in the parentheses: the other side is the object itself."
+        },
+        {
+          at: "def eat(self, firefly):",
+          text: "The method receives <code>self</code>, the bat, and the other one: the firefly it touched. The bat destroys the firefly and gives a little hop (<code>pop</code>)."
+        }
+      ],
+      after: [
+        `
+        <p>Run it and watch the bat sweep the middle of the screen. The rising fireflies fly past it, and some never reach the top.</p>
+        <p>At the top of the file, the same rule would name both groups, and the function would receive both objects:</p>
+        `,
+        {
+          snip: `@collide("bats", "fireflies")
+def eat(bat, firefly):`,
+          alt: true
+        },
+        `
+        <p>In the class, one of the two is always <code>self</code>. Just as <code>on_hover</code> has its <code>on_hover_exit</code>, the collision has its pair: <code>@collide_with_stay</code> runs on every frame the two keep touching, and <code>@collide_with_exit</code> when they come apart.</p>
+        <details class="ask"><summary>Could the rule live in the firefly?</summary><p>It could: <code>@collide_with("bats")</code> on a method of <code>Firefly</code>, which destroys <code>self</code>. Both work. Put the rule in the one that acts: here the bat does the eating, and the firefly doesn't need to know bats exist.</p></details>
+        `
+      ]
+    },
+    {
+      title: "A condition in the class",
+      body: `
+        <p>With ten fireflies caught, the jar is full: a notice appears, and the night ends.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Fireflies")
+Wallpaper("#0a0f1e")
+
+st.catches = 0
+Text(lambda: f"Caught: {st.catches}", top_left=(20, 680))
+notice = Text("Jar full!", center=(500, 350), font_size=60, color="gold")
+notice.visible = False
+
+
+class Firefly(Circle, radius=10, color="khaki", group="fireflies"):
+    def on_update(self, dt):
+        self.move_by(uniform(-60, 60) * dt, 40 * dt)
+
+    def on_click(self):
+        st.catches += 1
+        self.destroy()
+
+    def on_hover(self):
+        self.glow = True
+
+    def on_hover_exit(self):
+        self.glow = False
+
+    @every(1.2)
+    def flicker(self):
+        self.flash(0.3)
+
+    @leave_playfield
+    def escaped(self):
+        self.destroy()
+
+
+class Bat(Circle, radius=24, color="#5b4b8a", group="bats"):
+    def setup(self):
+        self.pace = 260
+
+    def on_update(self, dt):
+        self.move_by(self.pace * dt, 0)
+        if self.center.x > 950:
+            self.pace = -260
+        if self.center.x < 50:
+            self.pace = 260
+
+    @collide_with("fireflies")
+    def eat(self, firefly):
+        firefly.destroy()
+        self.pop()
+
+
+class Night(Entity):
+    @every(0.8)
+    def release(self):
+        Firefly(center=(uniform(50, 950), uniform(20, 300)))
+
+    @when(lambda self: st.catches >= 10)
+    def full(self):
+        notice.visible = True
+        self.destroy()
+
+
+for i in range(6):
+    Firefly(center=(uniform(100, 900), uniform(100, 600)))
+
+night = Night()
+bat = Bat(center=(100, 450))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "@when(lambda self:",
+          text: "<code>@when</code> checks the question every frame; when the answer turns to yes, <code>full</code> runs once. In the class, the <code>lambda</code> receives the object. This question doesn't use <code>self</code>, but it could: <code>lambda self: self.radius &gt; 20</code>."
+        }
+      ],
+      after: `
+        <p>Run it and catch ten.</p>
+        <details class="ask"><summary>What about the fireflies still flying?</summary><p>They keep going until they are caught or leave the screen. The <code>self.destroy()</code> in <code>full</code> destroys only the night, and its timer with it: no new firefly is born.</p></details>
+      `,
+      dive: [
+        {
+          title: "Each hook, in both places",
+          body: `
+            <p>Every hook at the top of the file has its form in the class. Mouse gestures become methods with fixed names, without <code>@</code>; the others keep their <code>@</code>, but without the group name, because they apply to each object of the class.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>At the top of the file</th><th>In the class</th></tr></thead>
+              <tbody>
+                <tr><td><code>@click(goal)</code></td><td><code>def on_click(self)</code></td></tr>
+                <tr><td><code>@hover(goal)</code> · <code>@hover_exit(goal)</code></td><td><code>def on_hover(self)</code> · <code>def on_hover_exit(self)</code></td></tr>
+                <tr><td><code>@drag_to(piece)</code></td><td><code>def on_drag_to(self, goal, pos)</code></td></tr>
+                <tr><td><code>@drop_by(goal)</code></td><td><code>def on_drop_by(self, piece, pos)</code></td></tr>
+                <tr><td><code>@collide("a", "b")</code></td><td><code>@collide_with("b")</code></td></tr>
+                <tr><td><code>@collide_stay</code> · <code>@collide_exit</code></td><td><code>@collide_with_stay</code> · <code>@collide_with_exit</code></td></tr>
+                <tr><td><code>@every(1)</code> · <code>@after(2)</code></td><td><code>@every(1)</code> · <code>@after(2)</code>, per object</td></tr>
+                <tr><td><code>@leave_playfield("group")</code></td><td><code>@leave_playfield</code>, no name</td></tr>
+                <tr><td><code>@when(lambda: …)</code></td><td><code>@when(lambda self: …)</code></td></tr>
+                <tr><td><code>@on_change(st["x"])</code></td><td><code>@on_change(lambda self: …)</code></td></tr>
+                <tr><td><code>def update(dt)</code></td><td><code>def on_update(self, dt)</code></td></tr>
+                <tr><td><code>on_mouse_click</code>, <code>on_key_down</code>…</td><td>top only; in the class, <code>keyp</code> in <code>on_update</code></td></tr>
+              </tbody>
+            </table></div>
+            <p>Mouse gestures don't take <code>@click</code> above a method: in the class there is no object to click yet. Scena refuses and tells you the method's name. If you want another name, connect it in <code>setup</code>: <code>self.on_click = self.grab</code>.</p>
+            <p>Which to choose? What belongs to each one (the click on a firefly, its blinking, leaving the screen) goes in the class. What belongs to the whole set (the count, a scoreboard, a rule between two groups) stays at the top, or in an object like the night.</p>
+            <p>In the Guide: <a href="../guide/index.html#reagir-callbacks-entity">Entity callbacks</a> · <a href="../guide/index.html#reagir-pointer">Click / drag</a>.</p>
+          `,
+          try: [
+            {
+              note: "A change watcher in the class: every firefly flashes when another one is caught. <code>@on_change(lambda self: st.catches)</code> runs on each firefly, each time the count changes; the function receives the new value. Inside the <code>Firefly</code> class, in place of the <code>@every</code> and <code>flicker</code>:",
+              replaces: ['@every(1.2)', 'def flicker(self):', 'self.flash(0.3)'],
+              code: `@on_change(lambda self: st.catches)
+def startle(self, value):
+    self.flash(0.3)`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Catch the fireflies with the mouse before the bat does; they glow when the mouse passes over them and blink on their own. The night releases a new one every 0.8 seconds, until the jar fills up with ten.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add a second, faster bat flying at another height.</li>
+          <li>Fireflies in two colors, worth different points.</li>
+          <li>Can you make a still web in the middle of the screen that holds any firefly touching it until you click it?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

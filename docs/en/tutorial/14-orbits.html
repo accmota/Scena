@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbits — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "14",
+  title: "Orbits",
+  steps: [
+    {
+      title: "The sun",
+      body: `
+        <p>The tracks become a solar system: planets in orbit, a moon that leaves a trail and a probe that roams among them. First, the sun, a glowing ball in an almost black sky.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Stars()",
+          text: "<code>Stars</code> is an animated background: a sky of twinkling stars behind everything."
+        },
+        {
+          at: "type=\"radial\"",
+          text: "<code>.fill</code> is the paint inside the shape; besides a color, it can be a <code>Gradient</code>. With <code>type=\"radial\"</code> (from the center outward), the first color sits in the middle and the second at the rim. Light yellow at the core and orange at the edge: the sun looks like a glowing ball, not a flat disc."
+        },
+        {
+          at: "Halo(style=\"fill\")",
+          text: "<code>Halo</code> lights up the edge with a glow around it. On its own, it draws the shape as a hollow shell of light; <code>style=\"fill\"</code> keeps the inside, here the gradient."
+        }
+      ],
+      try: [
+        {
+          note: "Other suns, one at a time, in place of the <code>sun.fill</code> line. A gradient can have more than two colors; <code>\"plasma\"</code> is a ready-made gradient.",
+          replaces: ['sun.fill = '],
+          code: `sun.fill = Gradient("white", "gold", "red", type="radial")
+sun.fill = Gradient("plasma", type="radial")
+sun.fill = Gradient("light yellow", "orange", angle=90)`
+        },
+        {
+          note: "Other halos, one at a time, in place of the <code>sun.visual</code> line. <code>\"soft\"</code> blurs the edge; <code>\"pulse\"</code> sends rings of light out from inside.",
+          replaces: ['sun.visual = '],
+          code: `sun.visual = Halo(style="soft")
+sun.visual = Halo(style="pulse", rings=3)
+sun.visual = Halo()`
+        }
+      ]
+    },
+    {
+      title: "A planet",
+      body: `
+        <p>Now a planet: a circular track around the sun, and a ball that travels along it, with the same gradient and the same halo as the sun.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+
+orbit = Track.circle(center=sun.center, radius=190, color="#2c3654")
+earth = Circle(radius=18)
+earth.fill = Gradient("light cyan", "royal blue", type="radial")
+earth.visual = Halo(style="fill")
+earth.move_along(orbit, time=9, loops="forever")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "center=sun.center",
+          text: "Reads the sun's center once, when the orbit is created. The sun stays put, so that is enough; no <code>lambda</code> needed."
+        },
+        {
+          at: "color=\"#2c3654\"",
+          text: "A dark blue, barely visible against the sky: the orbit shows without stealing the scene."
+        }
+      ],
+      after: `
+        <p>Run it: the Earth goes around once every 9 seconds.</p>
+      `
+    },
+    {
+      title: "Several planets",
+      body: [
+        `
+        <p>Two more planets would mean ten more lines almost the same as the Earth's, with only a few numbers and colors changed. When a block repeats with differences, it becomes a function, and the differences become its parameters, the values it receives:</p>
+        `,
+        {
+          snip: `def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+...
+planet(110, 5, 12, "white", "tomato")`
+        },
+        `
+        <p>Each call hands over its values in the order the parameters appear in the <code>def</code>. In this one, the red inner planet:</p>
+        <div class="tbl"><table><thead><tr><th>Parameter</th><th>In the call</th><th>What it is</th></tr></thead><tbody>
+          <tr><td><code>orbit_radius</code></td><td><code>110</code></td><td>the radius of the orbit</td></tr>
+          <tr><td><code>lap_time</code></td><td><code>5</code></td><td>the seconds one lap takes</td></tr>
+          <tr><td><code>size</code></td><td><code>12</code></td><td>the radius of the planet</td></tr>
+          <tr><td><code>inner_color</code></td><td><code>"white"</code></td><td>the color at the core of the gradient</td></tr>
+          <tr><td><code>outer_color</code></td><td><code>"tomato"</code></td><td>the color at the edge</td></tr>
+        </tbody></table></div>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    ball = Circle(radius=size)
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "radius=orbit_radius",
+          text: "The body of the function is the Earth's block, with the numbers replaced by the names of the parameters."
+        },
+        {
+          at: "return ball",
+          text: "<code>return</code> hands the new planet back to whoever called the function."
+        },
+        {
+          at: "earth = planet(",
+          text: "<code>earth</code> keeps the planet the function returned. The red inner one needs no name; the Earth and the giant do, because the script will talk about them later."
+        }
+      ],
+      after: `
+        <p>Run it: three planets, each at its own pace. The inner ones move faster, as in the real solar system.</p>
+      `
+    },
+    {
+      title: "The moon",
+      body: [
+        `
+        <p>The moon goes around the Earth, and the Earth never holds still: the moon's orbit has to move along with it. For that, the orbit's center is a <code>lambda</code>:</p>
+        `,
+        {
+          snip: `moon_orbit = Track.circle(center=lambda: earth.center, radius=40)`
+        },
+        `
+        <p>Scena reads the Earth's center again every frame and brings the orbit's circle there. The moon travels along a track that moves, and the two laps add up:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="The sun in the middle of a large orbit; the Earth appears at two places on the orbit, and at each one it has its small circle around it, the moon's orbit, with the moon on it">
+            <circle class="guide" cx="200" cy="105" r="70"/>
+            <circle class="hot" cx="200" cy="105" r="11"/>
+            <circle class="guide" cx="270" cy="105" r="20"/>
+            <circle class="dot" cx="270" cy="105" r="7"/>
+            <circle class="bar child" cx="270" cy="85" r="4"/>
+            <circle class="guide" cx="165" cy="44.4" r="20"/>
+            <circle class="dot" cx="165" cy="44.4" r="7"/>
+            <circle class="bar child" cx="146.2" cy="51.2" r="4"/>
+            <text x="200" y="134" text-anchor="middle">sun</text>
+            <text x="298" y="109">Earth</text>
+            <text x="192" y="28">the Earth, 3 s later</text>
+          </svg>
+          <figcaption>The small circle, the moon's orbit, has its center on the Earth. When the Earth moves along the large orbit, the circle goes with it, and the moon keeps going around the Earth.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    ball = Circle(radius=size)
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7)
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+
+run()
+`,
+      after: [
+        `
+        <p>Run it: the moon goes around the Earth once every 2 seconds, and travels with it across the sky.</p>
+        <p>It might seem the same to write the center directly, without the <code>lambda</code>:</p>
+        `,
+        {
+          snip: `moon_orbit = Track.circle(center=earth.center, radius=40)`,
+          alt: true
+        },
+        `
+        <p>But <code>earth.center</code> on its own copies the Earth's position at the moment the orbit is created. The moon would keep circling there, around an empty spot, while the Earth went away. With the sun, which stays put, the copy was enough; with the Earth, it is not.</p>
+        `
+      ]
+    },
+    {
+      title: "The moon's trail",
+      body: `
+        <p>Seen from far away, what path does the moon take? To see it, the moon will leave a trail of little dots, and the trail keeps only the newest ones.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    ball = Circle(radius=size)
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7)
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+trail = History(max_points=80, on_leave=lambda dot: dot.dissolve_out(0.4))
+
+
+def drop_dot():
+    trail.add(Circle(center=moon.center, radius=2, color="light gray"))
+
+
+every(0.05, drop_dot)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "max_points=80",
+          text: "<code>History</code> is a queue that keeps what you put in with <code>add</code>. <code>max_points=80</code> (at most 80): when the 81st dot arrives, the oldest one leaves the queue and is destroyed. Without this limit, the dots would pile up forever."
+        },
+        {
+          at: "dot.dissolve_out(0.4)",
+          text: "<code>on_leave</code> receives each dot that leaves the queue, and <code>dissolve_out(0.4)</code> fades it out gradually, over 0.4 s, instead of making it vanish at once."
+        },
+        {
+          at: "trail.add(",
+          text: "Each call creates a small circle where the moon is now and puts it in the queue."
+        },
+        {
+          at: "every(0.05, drop_dot)",
+          text: "<code>every</code> calls the function every 0.05 s: 20 dots per second."
+        }
+      ],
+      after: `
+        <p>Run it and look at the curve. The two laps together draw loops: on each lap around the Earth, the moon moves backward a little across the sky.</p>
+        <details class="ask"><summary>How many seconds of travel does the trail show?</summary><p>Four. 20 dots are born per second, and the queue keeps at most 80.</p></details>
+      `,
+      dive: [
+        {
+          title: "History and Contrail",
+          body: `
+            <p><code>Contrail</code> also leaves a trail. The difference is in what stays on the screen.</p>
+            <p><code>Contrail</code> is a stroke: a single line that passes through the points you give it. <code>History</code> draws nothing: it keeps objects you created, each with its own shape, color and glow, and destroys the oldest ones. Each dot of the trail is a real <code>Circle</code>: it could have a visual, change color, even collide.</p>
+            <p>A queue of objects with a maximum size is good for more things: the body of a snake, the last cards played, a character's footprints.</p>
+            <p>In the Guide: <a href="../guide/index.html#history">History</a>.</p>
+          `,
+          try: [
+            {
+              note: "A trail that fades by time, not by count: <code>duration=2</code> removes each dot 2 seconds after it is born. In place of the <code>trail</code> line.",
+              replaces: ['trail = History('],
+              code: `trail = History(duration=2, on_leave=lambda dot: dot.dissolve_out(0.4))`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "The ring",
+      body: `
+        <p>The giant gets a spinning ring: an empty, dashed circle around it.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    ball = Circle(radius=size)
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7)
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+trail = History(max_points=80, on_leave=lambda dot: dot.dissolve_out(0.4))
+
+
+def drop_dot():
+    trail.add(Circle(center=moon.center, radius=2, color="light gray"))
+
+
+every(0.05, drop_dot)
+
+ring = Circle(center=lambda: giant.center, radius=40, color="khaki")
+ring.fill = None
+ring.line_width = 2
+ring.dash = "dash"
+ring.rotate_by(360, time=1.0, loops="forever")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "center=lambda: giant.center",
+          text: "The ring's center is tied to the giant by a <code>lambda</code>, like the moon's orbit."
+        },
+        {
+          at: "ring.fill = None",
+          text: "<code>None</code>: with nothing inside, the circle is just the stroke."
+        },
+        {
+          at: "ring.dash = \"dash\"",
+          text: "<code>dash</code> cuts the stroke into short dashes."
+        },
+        {
+          at: "ring.rotate_by(",
+          text: "<code>rotate_by</code> turns the shape 360 degrees, one full turn, in 1 second. With <code>time=</code>, the turn is a trip, like the ones along a track, and <code>loops=\"forever\"</code> joins one turn onto the next."
+        }
+      ],
+      after: `
+        <p>Run it: the ring spins around the giant and goes with it along the orbit.</p>
+        <details class="ask"><summary>Why is the ring dashed?</summary><p>A plain circle spinning around its own center looks still: each piece of the edge is replaced by an identical one. The dashes show the spin.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the <code>rotate_by</code> line. With <code>ease=\"ease_in_out\"</code>, each turn starts slowly and brakes at the end, and the ring seems to jerk. Also change <code>360</code> to <code>-360</code>: a negative number turns the other way, clockwise.",
+          replaces: ['ring.rotate_by('],
+          code: `ring.rotate_by(360, time=1.0, loops="forever", ease="ease_in_out")`
+        }
+      ]
+    },
+    {
+      title: "The sun pulses",
+      body: [
+        `
+        <p>The sun is going to breathe: grow and shrink, slowly, without stopping. One line does it:</p>
+        `,
+        {
+          snip: `tween(sun["radius"], 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)`
+        },
+        `
+        <p>The name comes from <em>in-between</em>: the frames in the middle of an animation. <code>tween</code> takes a number from the value it has now to another, gradually, over a time you choose. Here, it takes the sun's radius from 44 to 52 in 1.5 s: every frame, Scena writes the in-between value into the radius, 44, 44.1, 44.3… until it reaches 52. The other parameters are the ones trips take, and the figure shows what each one does:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 200" role="img" aria-label="Graph of the sun's radius over time: it rises from 44 to 52 in one and a half seconds, slowly at the start and at the end, goes back to 44 and rises again">
+            <line class="ray" x1="50" y1="170" x2="360" y2="170"/>
+            <line class="ray" x1="50" y1="170" x2="50" y2="30"/>
+            <line class="guide" x1="50" y1="40" x2="350" y2="40"/>
+            <line class="guide" x1="50" y1="160" x2="149" y2="40"/>
+            <path class="ray" fill="none" d="M 50.0 160.0 L 58.2 157.6 L 66.5 151.1 L 74.8 141.2 L 83.0 128.9 L 91.2 114.9 L 99.5 100.0 L 107.8 85.1 L 116.0 71.1 L 124.2 58.8 L 132.5 48.9 L 140.8 42.4 L 149.0 40.0 L 157.2 42.4 L 165.5 48.9 L 173.8 58.8 L 182.0 71.1 L 190.2 85.1 L 198.5 100.0 L 206.8 114.9 L 215.0 128.9 L 223.2 141.2 L 231.5 151.1 L 239.8 157.6 L 248.0 160.0 L 256.2 157.6 L 264.5 151.1 L 272.8 141.2 L 281.0 128.9 L 289.2 114.9 L 297.5 100.0 L 305.8 85.1 L 314.0 71.1 L 322.2 58.8 L 330.5 48.9 L 338.8 42.4 L 347.0 40.0"/>
+            <circle class="hot" cx="149" cy="40" r="4"/>
+            <circle class="hot" cx="248" cy="160" r="4"/>
+            <text x="44" y="44" text-anchor="end">52</text>
+            <text x="44" y="164" text-anchor="end">44</text>
+            <text x="149" y="186" text-anchor="middle">1.5 s</text>
+            <text x="248" y="186" text-anchor="middle">3 s</text>
+            <text x="347" y="186" text-anchor="middle">4.5 s</text>
+            <text x="56" y="26">radius</text>
+            <text x="96" y="68" text-anchor="end">linear</text>
+            <text x="102" y="112">ease_in_out</text>
+            <text x="198" y="56">back (yoyo)</text>
+          </svg>
+          <figcaption>The <code>tween</code> of the sun's radius. The dashed line is the straight path (<code>"linear"</code>); with <code>ease="ease_in_out"</code>, the number starts slowly, speeds up in the middle and brakes as it arrives. <code>yoyo=True</code> makes the way back; <code>loops="forever"</code> repeats forever.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+tween(sun["radius"], 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    ball = Circle(radius=size)
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7)
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+trail = History(max_points=80, on_leave=lambda dot: dot.dissolve_out(0.4))
+
+
+def drop_dot():
+    trail.add(Circle(center=moon.center, radius=2, color="light gray"))
+
+
+every(0.05, drop_dot)
+
+ring = Circle(center=lambda: giant.center, radius=40, color="khaki")
+ring.fill = None
+ring.line_width = 2
+ring.dash = "dash"
+ring.rotate_by(360, time=1.0, loops="forever")
+
+
+run()
+`,
+      after: [
+        `
+        <p>Run it: the sun breathes. The orbits do not move with it: they read the sun's center, and the center does not change; only the size does.</p>
+        <p>Notice the brackets in <code>sun["radius"]</code>. With a dot, the line looks the same:</p>
+        `,
+        {
+          snip: `tween(sun.radius, 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)`,
+          alt: true
+        },
+        `
+        <p>But <code>sun.radius</code> is the current number, 44, a copy, and the <code>tween</code> would have nowhere to write. <code>sun["radius"]</code> is the field, the box where the number lives. Scena refuses the version with a dot and explains in the error: the <code>tween</code> needs the box.</p>
+        `
+      ],
+      dive: [
+        {
+          title: "tween and the motion verbs",
+          body: `
+            <p>You have already animated things over time: <code>move_to</code> and <code>move_by</code> (position), <code>rotate_by</code> (angle), <code>scale_to</code> (size), all with <code>time=</code>. They are named verbs, one for each thing, and they take care of what is special about each.</p>
+            <p><code>tween</code> is the general case: it animates any number of an object, even ones with no verb, such as the radius, the <code>line_width</code> or a number of your own. For position, angle and size, prefer the verb; for the rest, <code>tween</code>, with the same time parameters.</p>
+            <p>A new <code>tween</code> on the same field takes the place of the previous one, and the console warns you. When replacing is what you want (a sun that sometimes pulses harder), give it a name: <code>tween(…, name="pulse")</code>. A <code>tween</code> with the same name replaces the previous one quietly.</p>
+            <p>In the Guide: <a href="../guide/index.html#mover-tween">tween</a> · <a href="../guide/index.html#suite">Time parameters</a>.</p>
+          `,
+          try: [
+            {
+              note: "Another curve, in place of the <code>tween</code> line: <code>\"elastic\"</code> overshoots and comes back, and the sun wobbles as it grows. Without <code>loops</code> and <code>yoyo</code>, the tween happens only once, and the sun stays big.",
+              replaces: ['tween(sun['],
+              code: `tween(sun["radius"], 52, time=1.5, ease="elastic", loops="forever", yoyo=True)`
+            },
+            {
+              note: "The same pulse with the size verb, in place of the <code>tween</code> line. <code>scale_to(1.2)</code> takes the scale to 1.2 (20% bigger).",
+              replaces: ['tween(sun['],
+              code: `sun.scale_to(1.2, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "The orbits draw themselves",
+      body: `
+        <p>An opening effect: when the program starts, each orbit draws itself on the screen, like a line traced with a compass.</p>
+        <p>A track has a stroke window: <code>begin</code> and <code>end</code>, two numbers from 0 to 1 that say which piece of the path is drawn. The default is the whole path, from 0 to 1:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="Three circular tracks; on the first, only a quarter of the stroke, from the right-hand point to the top, is drawn; on the second, the top half; on the third, the whole circle">
+            <circle class="guide" cx="70" cy="58" r="40"/>
+            <path class="ray" fill="none" d="M 110 58 A 40 40 0 0 0 70 18"/>
+            <circle class="dot" cx="110" cy="58" r="3.5"/>
+            <circle class="guide" cx="200" cy="58" r="40"/>
+            <path class="ray" fill="none" d="M 240 58 A 40 40 0 0 0 160 58"/>
+            <circle class="dot" cx="240" cy="58" r="3.5"/>
+            <circle class="ray" fill="none" cx="330" cy="58" r="40"/>
+            <circle class="dot" cx="370" cy="58" r="3.5"/>
+            <text x="70" y="120" text-anchor="middle">end = 0.25</text>
+            <text x="200" y="120" text-anchor="middle">end = 0.5</text>
+            <text x="330" y="120" text-anchor="middle">end = 1</text>
+          </svg>
+          <figcaption>The dashed line is the whole track, which is always there; the solid line is what shows. The stroke starts at the right-hand point and goes, in the direction of the lap, up to the fraction <code>end</code>. With <code>end = 0</code>, nothing shows.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+tween(sun["radius"], 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    orbit.end = 0
+    tween(orbit["end"], 1, time=2, ease="ease_out")
+    ball = Circle(radius=size)
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7)
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+trail = History(max_points=80, on_leave=lambda dot: dot.dissolve_out(0.4))
+
+
+def drop_dot():
+    trail.add(Circle(center=moon.center, radius=2, color="light gray"))
+
+
+every(0.05, drop_dot)
+
+ring = Circle(center=lambda: giant.center, radius=40, color="khaki")
+ring.fill = None
+ring.line_width = 2
+ring.dash = "dash"
+ring.rotate_by(360, time=1.0, loops="forever")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "orbit.end = 0",
+          text: "The orbit starts out invisible: the stroke goes from the start to the start."
+        },
+        {
+          at: "tween(orbit[\"end\"], 1, time=2, ease=\"ease_out\")",
+          text: "The <code>tween</code> takes the end from 0 to 1 in 2 seconds. No verb touches <code>end</code>: it is a field only <code>tween</code> reaches. <code>\"ease_out\"</code> starts fast and brakes at the end, like a line drawn by hand."
+        }
+      ],
+      after: `
+        <p>Run it and watch the opening: the three orbits trace themselves at the same time.</p>
+        <details class="ask"><summary>Do the planets wait for the line to reach them before they move?</summary><p>No. The window changes only the drawing: the path is still whole, and the planets travel along it from the first frame. If <code>end</code> stayed at 0, they would circle an invisible orbit.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the orbit's <code>tween</code> line: a line that never stops. It draws the orbit, erases it back and draws it again.",
+          replaces: ['tween(orbit["end"]'],
+          code: `tween(orbit["end"], 1, time=3, ease="ease_in_out", loops="forever", yoyo=True)`
+        }
+      ]
+    },
+    {
+      title: "The probe",
+      body: [
+        `
+        <p>Now the idea of the tutorial: a probe that roams among the planets and stays connected, by a line, to whichever planet is closest to it. Every frame, <code>update</code> looks for that planet and brings the end of the line to it:</p>
+        `,
+        {
+          snip: `def update(dt):
+    target = group["planet"].nearest(probe)
+    line.p2 = target.center`
+        },
+        `
+        <p><code>nearest</code> looks at every object in the <code>planet</code> group and returns the one closest to the probe. The result goes into <code>target</code>, and <code>line.p2 = target.center</code> puts the second end of the line at its center.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+tween(sun["radius"], 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    orbit.end = 0
+    tween(orbit["end"], 1, time=2, ease="ease_out")
+    ball = Circle(radius=size, group="planet")
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7, group="planet")
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+trail = History(max_points=80, on_leave=lambda dot: dot.dissolve_out(0.4))
+
+
+def drop_dot():
+    trail.add(Circle(center=moon.center, radius=2, color="light gray"))
+
+
+every(0.05, drop_dot)
+
+ring = Circle(center=lambda: giant.center, radius=40, color="khaki")
+ring.fill = None
+ring.line_width = 2
+ring.dash = "dash"
+ring.rotate_by(360, time=1.0, loops="forever")
+
+route = Track.eight(width=820, height=520, center=(500, 350))
+probe = Triangle(radius=14, color="white")
+probe.move_along(route, time=14, loops="forever")
+
+line = Line(p1=lambda: probe.center, p2=sun.center, color="light cyan")
+
+
+def update(dt):
+    target = group["planet"].nearest(probe)
+    line.p2 = target.center
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ball = Circle(radius=size, group=\"planet\")",
+          text: "<code>group=\"planet\"</code> puts each planet in the group that <code>nearest</code> will look at. The moon joins too; the sun does not."
+        },
+        {
+          at: "route = Track.eight(",
+          text: "A large figure eight, 820 by 520, over the whole system, and with no color: it is only the path. The eight starts at the crossing in the middle, so the probe is born on top of the sun."
+        },
+        {
+          at: "p1=lambda: probe.center",
+          text: "One end of the line is tied to the probe. The other starts at the sun, and <code>update</code> changes it every frame."
+        }
+      ],
+      after: `
+        <p>Run it: the line jumps from one planet to another as the probe goes by.</p>
+        <details class="ask"><summary>The probe's end is a <code>lambda</code>. Why isn't the target's end?</summary><p>Which planet is closest changes all the time, and the answer depends on looking at the whole group. A <code>lambda</code> can't do that: if you try, Scena refuses and explains. Calculations over a group go in <code>update</code>, which runs every frame.</p></details>
+      `
+    },
+    {
+      title: "Pointing",
+      body: `
+        <p>The probe moves sideways, always pointing right. It should look at the planet on the line: its angle comes from the direction that goes from the probe to the target.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 200" role="img" aria-label="A triangle on the left points at a circle above and to the right; a dashed line leaves the triangle to the right, and an arc marks the angle between it and the line to the circle">
+            <line class="guide" x1="90" y1="150" x2="320" y2="150"/>
+            <line class="ray" x1="106.4" y1="142.6" x2="290" y2="60"/>
+            <path class="ray" fill="none" d="M 150 150 A 60 60 0 0 0 144.7 125.4"/>
+            <polygon class="bar" points="106.4,142.6 75.4,139.5 88.2,167.9"/>
+            <circle class="hot" cx="106.4" cy="142.6" r="3"/>
+            <circle class="dot" cx="290" cy="60" r="13"/>
+            <text x="326" y="154">0°</text>
+            <text x="160" y="140">heading</text>
+            <text x="290" y="36" text-anchor="middle">target</text>
+            <text x="90" y="190" text-anchor="middle">probe</text>
+            <text x="112" y="128" text-anchor="end">tip</text>
+          </svg>
+          <figcaption><code>heading(probe, target)</code> is the angle of the line from the probe to the target. Put into <code>probe.angle</code>, it makes the triangle's tip point there.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+tween(sun["radius"], 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    orbit.end = 0
+    tween(orbit["end"], 1, time=2, ease="ease_out")
+    ball = Circle(radius=size, group="planet")
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7, group="planet")
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+trail = History(max_points=80, on_leave=lambda dot: dot.dissolve_out(0.4))
+
+
+def drop_dot():
+    trail.add(Circle(center=moon.center, radius=2, color="light gray"))
+
+
+every(0.05, drop_dot)
+
+ring = Circle(center=lambda: giant.center, radius=40, color="khaki")
+ring.fill = None
+ring.line_width = 2
+ring.dash = "dash"
+ring.rotate_by(360, time=1.0, loops="forever")
+
+route = Track.eight(width=820, height=520, center=(500, 350))
+probe = Triangle(radius=14, color="white")
+probe.move_along(route, time=14, loops="forever")
+
+line = Line(p1=lambda: probe.center, p2=sun.center, color="light cyan")
+
+
+def update(dt):
+    target = group["planet"].nearest(probe)
+    line.p2 = target.center
+    probe.angle = heading(probe, target)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "probe.angle = heading(probe, target)",
+          text: "<code>heading</code> returns the angle from the one looking (the first) to the one being looked at (the second), in degrees. Written into <code>probe.angle</code>, it turns the triangle, and the tip points at the target."
+        }
+      ],
+      after: `
+        <p>Run it: the probe's tip follows the planet on the line, and turns at once when the line jumps to another.</p>
+        <details class="ask"><summary>Why not <code>face=True</code> in the probe's <code>move_along</code>?</summary><p><code>face=True</code> turns the triangle toward where it is going. Here it should point where it is looking, which is something else; that is why the angle comes from <code>update</code>.</p></details>
+      `
+    },
+    {
+      title: "The spark",
+      example: "orbits.py",
+      body: `
+        <p>When the probe gets close to a planet, the line becomes an electric bolt; when it moves away, it goes back to being a plain line.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Orbits")
+Wallpaper("#0b1020")
+Stars()
+
+sun = Circle(center=(500, 350), radius=44)
+sun.fill = Gradient("light yellow", "orange", type="radial")
+sun.visual = Halo(style="fill")
+tween(sun["radius"], 52, time=1.5, ease="ease_in_out", loops="forever", yoyo=True)
+
+
+def planet(orbit_radius, lap_time, size, inner_color, outer_color):
+    orbit = Track.circle(center=sun.center, radius=orbit_radius, color="#2c3654")
+    orbit.end = 0
+    tween(orbit["end"], 1, time=2, ease="ease_out")
+    ball = Circle(radius=size, group="planet")
+    ball.fill = Gradient(inner_color, outer_color, type="radial")
+    ball.visual = Halo(style="fill")
+    ball.move_along(orbit, time=lap_time, loops="forever")
+    return ball
+
+
+planet(110, 5, 12, "white", "tomato")
+earth = planet(190, 9, 18, "light cyan", "royal blue")
+giant = planet(300, 16, 26, "khaki", "chocolate")
+
+moon_orbit = Track.circle(center=lambda: earth.center, radius=40)
+moon = Circle(radius=7, group="planet")
+moon.fill = Gradient("white", "gray", type="radial")
+moon.move_along(moon_orbit, time=2, loops="forever")
+
+trail = History(max_points=80, on_leave=lambda dot: dot.dissolve_out(0.4))
+
+
+def drop_dot():
+    trail.add(Circle(center=moon.center, radius=2, color="light gray"))
+
+
+every(0.05, drop_dot)
+
+ring = Circle(center=lambda: giant.center, radius=40, color="khaki")
+ring.fill = None
+ring.line_width = 2
+ring.dash = "dash"
+ring.rotate_by(360, time=1.0, loops="forever")
+
+route = Track.eight(width=820, height=520, center=(500, 350))
+probe = Triangle(radius=14, color="white")
+probe.move_along(route, time=14, loops="forever")
+
+line = Line(p1=lambda: probe.center, p2=sun.center, color="light cyan")
+
+
+def update(dt):
+    target = group["planet"].nearest(probe)
+    line.p2 = target.center
+    probe.angle = heading(probe, target)
+    if distance(probe, target) < 120:
+        line.visual = ElectricBolt()
+    else:
+        line.visual = None
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if distance(probe, target) < 120:",
+          text: "<code>distance</code> returns the distance between the two centers, in units. Closer than 120, the line gets the <code>ElectricBolt</code> visual."
+        },
+        {
+          at: "line.visual = None",
+          text: "<code>None</code> removes the visual, and the line goes back to being a light blue stroke."
+        }
+      ],
+      after: `
+        <p>Run it: the probe is born in the middle, near the red planet, and the line crackles right away. Then the probe moves off, the line calms down, and the bolt comes back on the next pass near a planet or the moon.</p>
+      `,
+      try: [
+        {
+          note: "Other effects for when it is close, one at a time, in place of the <code>ElectricBolt</code> line. <code>amount=</code> makes the bolt stronger; <code>Laser</code> is a beam of light; <code>Neon</code>, a glowing tube.",
+          replaces: ['line.visual = ElectricBolt('],
+          code: `line.visual = ElectricBolt(amount=9)
+line.visual = Laser()
+line.visual = Neon()`
+        },
+        {
+          note: "The probe follows the mouse instead of the eight. In place of the <code>probe.move_along</code> line.",
+          replaces: ['probe.move_along('],
+          code: `probe["center"] @= lambda: mouse`
+        }
+      ],
+      closing: `
+        <p>Three planets and a moon go around the pulsing sun; the orbits draw themselves at the start, and the giant's ring spins without stopping. The probe roams along a figure eight, points at the closest planet and stays connected to it by a line, which becomes an electric bolt when the distance drops below 120.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Gradient(…, type="radial")</code> and <code>Halo(style="fill")</code> — a gradient from the center to the edge, with the edge lit up.</li>
+          <li><code>Track.circle(center=lambda: …)</code> — a track that moves: the moon goes around something that is itself going around.</li>
+          <li><code>History</code> — a queue of objects with a maximum size: the oldest leaves (and is destroyed) when a new one arrives; the moon's trail.</li>
+          <li><code>rotate_by(360, time=1.0, loops="forever")</code> — one turn per second, forever, with no <code>update</code>.</li>
+          <li><code>tween</code> — takes a number from where it is to another value, over a time, with <code>ease=</code>; it works for any field, such as <code>radius</code> and the track's <code>end</code>.</li>
+          <li><code>nearest</code> — the member of the group closest to a point; as a calculation over the group, it goes in <code>update</code>.</li>
+          <li><code>heading</code> and <code>distance</code> — the heading from one point to another, in degrees, and the distance between the two.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#mat-grad">Gradient</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#history">History</a> · <a href="../guide/index.html#mover-pose">rotate_by</a> · <a href="../guide/index.html#mover-tween">tween</a> · <a href="../guide/index.html#track-window">Stroke window</a> · <a href="../guide/index.html#geo-helpers">heading, distance and nearest</a> · <a href="../guide/index.html#mundo-grupos">Grupos</a>.</p>
+        <p><strong>Next:</strong> the interlude Turn and grow puts side by side the ways of turning the series has used so far; then, a plane between pillars, the first of three games with it.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add a planet with two moons, each at its own pace.</li>
+          <li>A comet on a long path, leaving a trail.</li>
+          <li>Can you make a click on a planet send the probe to it?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

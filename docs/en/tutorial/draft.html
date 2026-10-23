@@ -60,6 +60,46 @@
     <h2>Ships IV · Shield</h2>
     <p>A falling gift turns on a shield that wears out: <code>active</code>, <code>@on_change</code>, collision with <code>info</code> and an impact where the laser hit.</p>
   </a>
+  <a class="card" href="09-formulas.html">
+    <div class="num">09</div>
+    <h2>Formulas</h2>
+    <p>A machine of linked shapes, like a spreadsheet: fields and formulas, brackets × dot (<code>st["x"]</code> × <code>st.x</code>), <code>=</code> × <code>@=</code>, <code>@on_change</code>, <code>@when</code>, <code>unlink</code> and the rules of the reactive system. Not a game.</p>
+  </a>
+  <a class="card" href="10-balls.html">
+    <div class="num">10</div>
+    <h2>Balls</h2>
+    <p>Balls that bounce off the walls and off each other: <code>resolve</code>, <code>vel</code>, <code>mass</code>, a trail with <code>Tail</code>, camera zoom and a speed bar with <code>@=</code> and <code>Colormap</code>.</p>
+  </a>
+  <a class="card" href="11-interaction.html">
+    <div class="num">11</div>
+    <h2>Interaction</h2>
+    <p>The mouse in one place: click, hover (<code>@hover</code>), the right button, drag, drop on a trash can (<code>@drop_by</code>) and a grid that marks the cell under the mouse (<code>Box</code>, <code>cell_at</code>). At the end, the mouse on the canvas with no object at all (<code>on_mouse_click</code>, double click, wheel). No game: one feature per step.</p>
+  </a>
+  <a class="card interlude" href="11i-hooks-in-the-class.html">
+    <div class="num">Interlude</div>
+    <h2>Hooks in the class</h2>
+    <p>Each top-of-file hook inside a class: <code>on_click</code>, <code>on_hover</code>, <code>@every</code> and <code>@leave_playfield</code> for each object, <code>@when(lambda self: …)</code>, and an <code>Entity</code> with no drawing that owns its own time.</p>
+  </a>
+  <a class="card" href="12-movement.html">
+    <div class="num">12</div>
+    <h2>Movement</h2>
+    <p>A ship that goes where you click: place or travel (<code>move_to</code> with <code>time=</code> or <code>speed=</code>), speed up and slow down (<code>ease=</code>), facing forward (<code>face=</code>), the arrival event (<code>on_done=</code>), the handle of the trip (<code>cancel</code>) and a chase every frame (<code>approach</code>).</p>
+  </a>
+  <a class="card" href="13-tracks.html">
+    <div class="num">13</div>
+    <h2>Tracks</h2>
+    <p>A showcase of tracks (<code>Track</code>): ready-made shapes, your own paths, there and back (<code>yoyo</code>), a pendulum (<code>ease</code>), a queue (<code>phase</code>) and the tip that follows the path (<code>face</code>).</p>
+  </a>
+  <a class="card" href="14-orbits.html">
+    <div class="num">14</div>
+    <h2>Orbits</h2>
+    <p>A solar system: planets in orbit, a moon that leaves a trail of dots (<code>History</code>), a pulsing sun (<code>tween</code>) and a probe that points at the nearest planet (<code>nearest</code>, <code>heading</code>).</p>
+  </a>
+  <a class="card interlude" href="14i-turn-and-grow.html">
+    <div class="num">Interlude</div>
+    <h2>Turn and grow</h2>
+    <p>Turn to and turn by (<code>rotate_to</code>, <code>rotate_by</code>), the <code>angle</code> field and the point that stays still, <code>about=</code>, a box held by two anchors next to a loose one, and the same pair for size (<code>scale_to</code>, <code>scale_by</code>).</p>
+  </a>
   <a class="card" href="24-ships-modes.html">
     <div class="num">24</div>
     <h2>Ships V · Chapters and sequences</h2>

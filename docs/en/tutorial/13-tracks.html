@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracks — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "13",
+  title: "Tracks",
+  steps: [
+    {
+      title: "A track",
+      body: `
+        <p>A script with no game: a showcase of tracks. A <code>Track</code> is an invisible path that something travels along. On an ordinary trip, the object goes in a straight line to a point; here it follows the shape of the path. We start with a ball that goes around a circle.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 220" role="img" aria-label="A circular track, with its center marked and the radius out to the right edge; the trip starts at the rightmost point and goes counterclockwise">
+            <circle class="guide" cx="180" cy="110" r="80"/>
+            <line class="ray" x1="180" y1="110" x2="260" y2="110"/>
+            <circle class="dot" cx="180" cy="110" r="3.5"/>
+            <circle class="hot" cx="260" cy="110" r="7"/>
+            <path class="ray" fill="none" d="M 269.3 77.5 A 95 95 0 0 0 212.5 20.7"/>
+            <line class="ray" x1="212.5" y1="20.7" x2="218.3" y2="27.6"/>
+            <line class="ray" x1="212.5" y1="20.7" x2="221.4" y2="19.1"/>
+            <text x="176" y="128" text-anchor="end">center</text>
+            <text x="206" y="104">radius</text>
+            <text x="272" y="114">starts here</text>
+            <text x="250" y="34">direction of travel</text>
+          </svg>
+          <figcaption>The <code>Track.circle</code> track: a center and a radius. The ball joins at the rightmost point and goes around counterclockwise, the opposite way from a clock's hands.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110)
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+run()
+`,
+      notes: [
+        {
+          at: "Track.circle(center=(170, 520), radius=110)",
+          text: "A track shaped like a circle, with a center and a radius like a <code>Circle</code>. It does not show on screen: it is only the shape of the path. With <code>center=</code>, it is pinned to that spot in the window."
+        },
+        {
+          at: "ball = Circle(radius=14",
+          text: "The ball has no <code>center=</code>: whatever travels a pinned track goes to it."
+        },
+        {
+          at: "ball.move_along(",
+          text: "<code>move_along</code> puts the ball on the track. <code>time=4</code> is one whole lap every 4 seconds; <code>loops=\"forever\"</code> starts another lap when one ends."
+        }
+      ],
+      after: `
+        <p>Run it: the ball circles a center you cannot see. The script does not even have an <code>update</code>: one line asks for the trip, and Scena plays it by itself, frame by frame.</p>
+      `,
+      try: [
+        {
+          note: "Without <code>center=</code>, the track is loose: it starts where the object is, and each ball dances a figure eight around the spot where it was created. The name of a preset as a string (<code>\"eight\"</code>) is the shortcut for a loose track at the default size. At the end of the file, before <code>run()</code>.",
+          code: `dancer = Circle(center=(500, 200), radius=10, color="white")
+dancer.move_along(Track.eight(width=120, height=50), time=3, loops="forever")
+other = Circle(center=(750, 200), radius=10, color="white")
+other.move_along("eight", time=3, loops="forever")`
+        }
+      ]
+    },
+    {
+      title: "Seeing the track",
+      body: `
+        <p>An invisible track is right when it only drives the movement: a moon does not leave a line across the sky. But while you are building the path, seeing it helps.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110, color="dim gray")
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+run()
+`,
+      notes: [
+        {
+          at: "color=\"dim gray\"",
+          text: "Giving it a style is enough: <code>color</code> paints the stroke, here <code>\"dim gray\"</code>, and the track is now drawn as a line."
+        }
+      ],
+      after: `
+        <p>Run it: the path appears, and the ball runs on top of it.</p>
+        <p>There is also a way that leaves the drawing alone. With the program running, <kbd>Ctrl+Shift+7</kbd> draws every track in magenta, even the invisible ones; press it again to hide them. It is a help while you build, not part of the game (the other keys are in <a href="../../pt/tutorial/A-depuracao.html">Appendix A</a>).</p>
+      `,
+      try: [
+        {
+          note: "Other strokes, one at a time, in place of the <code>wheel</code> line. <code>line_width</code> makes the stroke thicker.",
+          replaces: ['wheel = Track.circle('],
+          code: `wheel = Track.circle(center=(170, 520), radius=110, color="dim gray", line_width=4)
+wheel = Track.circle(center=(170, 520), radius=110, color="gold", line_width=2)`
+        }
+      ]
+    },
+    {
+      title: "Presets",
+      body: `
+        <p>The circle is one of the ready-made shapes of <code>Track</code>, its <em>presets</em>. Three more go on screen, each pinned in its place by <code>center=</code> and each with a ball:</p>
+        <div class="tbl"><table><thead><tr><th>Shape</th><th>The path</th><th>The size</th></tr></thead><tbody>
+          <tr><td><code>Track.eight</code></td><td>a figure eight lying on its side; the ball joins at the crossing in the middle</td><td><code>width</code> and <code>height</code></td></tr>
+          <tr><td><code>Track.star</code></td><td>a star</td><td><code>points</code> is the number of points of the star, not a list of positions; <code>radius</code> goes from the center to a tip</td></tr>
+          <tr><td><code>Track.shuttle</code></td><td>a shuttle (like a loom's shuttle): a straight stroke the ball travels back and forth</td><td><code>length</code></td></tr>
+        </tbody></table></div>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110, color="dim gray")
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+figure8 = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+car = Circle(radius=12, color="gold")
+car.move_along(figure8, time=6, loops="forever")
+
+star = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+comet = Circle(radius=12, color="turquoise")
+comet.move_along(star, time=8, loops="forever")
+
+seesaw = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+piston = Circle(radius=12, color="orchid")
+piston.move_along(seesaw, time=3, loops="forever")
+
+run()
+`,
+      notes: [
+        {
+          at: "comet.move_along(star, time=8",
+          text: "Each ball has its own <code>time=</code>: the star is a long path and gets 8 seconds per lap; the short shuttle takes 3."
+        }
+      ],
+      after: `
+        <p>Run it: four tracks, four rhythms.</p>
+        <details class="ask"><summary>If the star got <code>time=4</code>, would the comet move slower or faster than the ball on the circle?</summary><p>Faster. <code>time=</code> is the time for the whole lap, whether the track is big or small. In the same 4 seconds, the comet has much more path to cover on the star, so it has to go faster.</p></details>
+      `,
+      try: [
+        {
+          note: "Other shapes in place of the star, one at a time. <code>inner</code> is the radius of the inner corners: with it, the star gets fatter or thinner. A figure eight taller than it is wide stands upright.",
+          replaces: ['star = Track.star('],
+          code: `star = Track.star(points=8, radius=110, inner=70, center=(830, 520), color="dim gray")
+star = Track.eight(width=120, height=240, center=(830, 520), color="dim gray")
+star = Track.circle(radius=60, center=(830, 520), color="dim gray")`
+        }
+      ]
+    },
+    {
+      title: "A path of your own",
+      body: `
+        <p>Besides the presets, a track can go through points you choose. A green ant will travel a four-point path, at the bottom left:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="Four points joined in order by a smooth curve: (60, 100) at the bottom left, (160, 290) at the top, (260, 120) at the bottom and (380, 240) on the right; the path starts at the first and ends at the last">
+            <path class="ray" fill="none" d="M 20 170 C 50 125.7 80 39.3 110 37 C 140 34.7 167 150.2 200 156 C 233 161.8 272 100 308 72"/>
+            <circle class="dot" cx="20" cy="170" r="4"/>
+            <circle class="dot" cx="110" cy="37" r="4"/>
+            <circle class="dot" cx="200" cy="156" r="4"/>
+            <circle class="dot" cx="308" cy="72" r="4"/>
+            <text x="14" y="192">start (60, 100)</text>
+            <text x="110" y="22" text-anchor="middle">(160, 290)</text>
+            <text x="200" y="178" text-anchor="middle">(260, 120)</text>
+            <text x="308" y="54" text-anchor="middle">finish (380, 240)</text>
+          </svg>
+          <figcaption>The four points of the list, in the order they appear. The track passes over each one in a smooth curve, and it has a start and an end.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110, color="dim gray")
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+figure8 = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+car = Circle(radius=12, color="gold")
+car.move_along(figure8, time=6, loops="forever")
+
+star = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+comet = Circle(radius=12, color="turquoise")
+comet.move_along(star, time=8, loops="forever")
+
+seesaw = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+piston = Circle(radius=12, color="orchid")
+piston.move_along(seesaw, time=3, loops="forever")
+
+path = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+ant = Circle(radius=12, color="light green")
+ant.move_along(path, time=3, loops="forever")
+
+run()
+`,
+      notes: [
+        {
+          at: "path = Track(points=[",
+          text: "<code>points</code> is a list of <code>(x, y)</code>. The track joins them all in the order of the list."
+        }
+      ],
+      after: `
+        <p>Run it and watch the green ant.</p>
+        <details class="ask"><summary>What does it do when it reaches the end of the path?</summary><p>It jumps back to the start. The presets are closed: the end meets the start, and the next lap carries on without a seam. This track is open, and <code>loops="forever"</code> restarts the trip back at the first point, far from the last one.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the <code>path</code>. With <code>smooth=0</code>, the track joins the points with straight lines instead of curves. Notice that, with curves, the path goes a little past the points to make the turn.",
+          replaces: ['path = Track('],
+          code: `path = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], smooth=0, color="dim gray")`
+        }
+      ]
+    },
+    {
+      title: "There and back",
+      body: `
+        <p>The ant should not jump: at the end of the path, it should turn around and come back along the same line.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110, color="dim gray")
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+figure8 = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+car = Circle(radius=12, color="gold")
+car.move_along(figure8, time=6, loops="forever")
+
+star = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+comet = Circle(radius=12, color="turquoise")
+comet.move_along(star, time=8, loops="forever")
+
+seesaw = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+piston = Circle(radius=12, color="orchid")
+piston.move_along(seesaw, time=3, loops="forever")
+
+path = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+ant = Circle(radius=12, color="light green")
+ant.move_along(path, time=3, loops="forever", yoyo=True)
+
+run()
+`,
+      notes: [
+        {
+          at: "yoyo=True",
+          text: "<code>yoyo=True</code>: instead of starting over from the start, the next lap travels the path in reverse, from the end to the start, and the one after goes forward again."
+        }
+      ],
+      after: `
+        <p>Run it: the ant goes to the end, turns around and comes back, without jumping.</p>
+        <p>On an open track that repeats, <code>yoyo=True</code> is almost always what you want. On a closed one, there is no need: the end already touches the start.</p>
+      `
+    },
+    {
+      title: "The pendulum",
+      body: `
+        <p>A pendulum: a weight that swings at the end of a wire. The weight's path is a piece of a circle, an arc, cut between two angles:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 185" role="img" aria-label="A center at the top and, below it, an arc of a circle that goes from angle 225, at the bottom left, to angle 315, at the bottom right; the lowest point, 270, is in the middle, and the wire joins the center to the weight">
+            <line class="guide" x1="200" y1="24" x2="115.1" y2="108.9"/>
+            <line class="guide" x1="200" y1="24" x2="284.9" y2="108.9"/>
+            <path class="ray" fill="none" d="M 115.1 108.9 A 120 120 0 0 0 284.9 108.9"/>
+            <line class="ray" x1="200" y1="24" x2="200" y2="144"/>
+            <circle class="dot" cx="200" cy="24" r="3.5"/>
+            <circle class="hot" cx="200" cy="144" r="9"/>
+            <text x="210" y="20">(560, 330)</text>
+            <text x="106" y="114" text-anchor="end">225°</text>
+            <text x="294" y="114">315°</text>
+            <text x="200" y="174" text-anchor="middle">270°</text>
+          </svg>
+          <figcaption>The arc from 225° to 315° is the bottom piece of the circle, with 270°, the lowest point, in the middle. The wire goes from the center to the weight.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110, color="dim gray")
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+figure8 = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+car = Circle(radius=12, color="gold")
+car.move_along(figure8, time=6, loops="forever")
+
+star = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+comet = Circle(radius=12, color="turquoise")
+comet.move_along(star, time=8, loops="forever")
+
+seesaw = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+piston = Circle(radius=12, color="orchid")
+piston.move_along(seesaw, time=3, loops="forever")
+
+path = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+ant = Circle(radius=12, color="light green")
+ant.move_along(path, time=3, loops="forever", yoyo=True)
+
+swing = Track.arc(center=(560, 330), radius=200, from_angle=225, to_angle=315, color="dim gray")
+bob = Circle(radius=18, color="sky blue")
+bob.move_along(swing, time=1.2, loops="forever", yoyo=True, ease="ease_in_out")
+wire = Line(p1=(560, 330), p2=lambda: bob.center, color="white")
+
+run()
+`,
+      notes: [
+        {
+          at: "Track.arc(",
+          text: "<code>Track.arc</code> is the circle cut from <code>from_angle</code> to <code>to_angle</code>, in degrees. The arc has a start and an end, so the weight gets <code>yoyo=True</code>."
+        },
+        {
+          at: "ease=\"ease_in_out\"",
+          text: "<code>ease</code> is the timing curve of the trip. A real pendulum slows down at the ends, where it stops and turns back, and speeds through the bottom: <code>\"ease_in_out\"</code> starts slowly, speeds up in the middle and slows down as it arrives."
+        },
+        {
+          at: "p2=lambda: bob.center",
+          text: "The wire is a <code>Line</code> from the fixed point to the weight. Its end <code>p2</code> is a <code>lambda</code>: Scena reads the weight's center every frame, and the wire follows."
+        }
+      ],
+      after: `
+        <p>Run it: the weight stops at the ends and speeds through the bottom, like a clock's pendulum.</p>
+      `,
+      try: [
+        {
+          note: "Another curve, in place of the <code>bob.move_along</code> line: <code>\"bounce\"</code> bounces as it reaches each end. Try <code>\"linear\"</code> too, and the pendulum turns into a windshield wiper, or <code>\"elastic\"</code>, which overshoots and comes back.",
+          replaces: ['bob.move_along('],
+          code: `bob.move_along(swing, time=1.2, loops="forever", yoyo=True, ease="bounce")`
+        }
+      ]
+    },
+    {
+      title: "A train",
+      body: [
+        `
+        <p>Several balls on the same track, one behind the other, like the cars of a train. A <code>for</code> creates the eight wagons and puts each one on the loop:</p>
+        `,
+        {
+          snip: `for i in range(8):
+    wagon = Circle(radius=8, color="gold")
+    wagon.move_along(ring, time=8, loops="forever", phase=i / 8)`
+        },
+        `
+        <p>If they all left from the start, they would sit on top of each other, and you would see a single ball. <code>phase=</code> says how far ahead the wagon starts, as a fraction of the lap: <code>0</code> starts at the beginning, <code>0.5</code> starts halfway along the path. <code>i / 8</code> gives 0 for wagon 0, 0.125 (one eighth) for wagon 1, 0.5 for wagon 4. Each one starts an eighth of a lap ahead of the one before:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 220" role="img" aria-label="Eight small balls evenly spaced on a circular track; each one has a label with its phase, from 0 to seven eighths, counterclockwise">
+            <circle class="guide" cx="180" cy="110" r="72"/>
+            <circle class="hot" cx="252" cy="110" r="6"/>
+            <circle class="dot" cx="230.9" cy="59.1" r="5"/>
+            <circle class="dot" cx="180" cy="38" r="5"/>
+            <circle class="dot" cx="129.1" cy="59.1" r="5"/>
+            <circle class="dot" cx="108" cy="110" r="5"/>
+            <circle class="dot" cx="129.1" cy="160.9" r="5"/>
+            <circle class="dot" cx="180" cy="182" r="5"/>
+            <circle class="dot" cx="230.9" cy="160.9" r="5"/>
+            <text x="264" y="114">i = 0 → phase 0</text>
+            <text x="243" y="50">1/8</text>
+            <text x="180" y="24" text-anchor="middle">2/8</text>
+            <text x="117" y="50" text-anchor="end">3/8</text>
+            <text x="96" y="114" text-anchor="end">4/8</text>
+            <text x="117" y="178" text-anchor="end">5/8</text>
+            <text x="180" y="204" text-anchor="middle">6/8</text>
+            <text x="243" y="178">7/8</text>
+          </svg>
+          <figcaption>Eight wagons on a track, with <code>phase=i / 8</code>. Each one starts an eighth of a lap ahead of the one before; the line stays evenly spaced and moves together.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110, color="dim gray")
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+figure8 = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+car = Circle(radius=12, color="gold")
+car.move_along(figure8, time=6, loops="forever")
+
+star = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+comet = Circle(radius=12, color="turquoise")
+comet.move_along(star, time=8, loops="forever")
+
+seesaw = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+piston = Circle(radius=12, color="orchid")
+piston.move_along(seesaw, time=3, loops="forever")
+
+path = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+ant = Circle(radius=12, color="light green")
+ant.move_along(path, time=3, loops="forever", yoyo=True)
+
+swing = Track.arc(center=(560, 330), radius=200, from_angle=225, to_angle=315, color="dim gray")
+bob = Circle(radius=18, color="sky blue")
+bob.move_along(swing, time=1.2, loops="forever", yoyo=True, ease="ease_in_out")
+wire = Line(p1=(560, 330), p2=lambda: bob.center, color="white")
+
+ring = Track(points=[(760, 80), (940, 120), (900, 300), (720, 260)], closed=True, color="dim gray")
+for i in range(8):
+    wagon = Circle(radius=8, color="gold")
+    wagon.move_along(ring, time=8, loops="forever", phase=i / 8)
+
+run()
+`,
+      notes: [
+        {
+          at: "closed=True",
+          text: "<code>closed=True</code> joins the last point back to the first, and the path becomes a loop. Closed, it needs no <code>yoyo</code>."
+        },
+        {
+          at: "for i in range(8):",
+          text: "Repeats the block eight times, with <code>i</code> being 0, 1, 2… up to 7. Each pass creates one wagon."
+        }
+      ],
+      after: `
+        <p>Run it: the eight move together, always the same distance apart.</p>
+      `,
+      try: [
+        {
+          note: "A short train: the wagons take up only a quarter of the loop. In place of the <code>wagon.move_along</code> line.",
+          replaces: ['wagon.move_along('],
+          code: `wagon.move_along(ring, time=8, loops="forever", phase=i / 32)`
+        }
+      ]
+    },
+    {
+      title: "Facing forward",
+      example: "tracks.py",
+      body: `
+        <p>A ball looks the same from any side. A shape with a point does not: the car on the figure eight becomes a gold triangle, and it should point where it is going.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Tracks")
+Wallpaper("#141b2d")
+
+wheel = Track.circle(center=(170, 520), radius=110, color="dim gray")
+ball = Circle(radius=14, color="coral")
+ball.move_along(wheel, time=4, loops="forever")
+
+figure8 = Track.eight(width=300, height=120, center=(500, 540), color="dim gray")
+car = Triangle(radius=16, color="gold")
+car.move_along(figure8, time=6, loops="forever", face=True)
+
+star = Track.star(points=5, radius=110, center=(830, 520), color="dim gray")
+comet = Circle(radius=12, color="turquoise")
+comet.move_along(star, time=8, loops="forever")
+
+seesaw = Track.shuttle(length=300, center=(500, 380), color="dim gray")
+piston = Circle(radius=12, color="orchid")
+piston.move_along(seesaw, time=3, loops="forever")
+
+path = Track(points=[(60, 100), (160, 290), (260, 120), (380, 240)], color="dim gray")
+ant = Circle(radius=12, color="light green")
+ant.move_along(path, time=3, loops="forever", yoyo=True)
+
+swing = Track.arc(center=(560, 330), radius=200, from_angle=225, to_angle=315, color="dim gray")
+bob = Circle(radius=18, color="sky blue")
+bob.move_along(swing, time=1.2, loops="forever", yoyo=True, ease="ease_in_out")
+wire = Line(p1=(560, 330), p2=lambda: bob.center, color="white")
+
+ring = Track(points=[(760, 80), (940, 120), (900, 300), (720, 260)], closed=True, color="dim gray")
+for i in range(8):
+    wagon = Circle(radius=8, color="gold")
+    wagon.move_along(ring, time=8, loops="forever", phase=i / 8)
+
+run()
+`,
+      notes: [
+        {
+          at: "car = Triangle(",
+          text: "A <code>Triangle</code> points to the right when its angle is 0, the same direction as a track's 0. Turned along the path, its tip goes first."
+        },
+        {
+          at: "face=True",
+          text: "<code>face=True</code>: on a straight trip, the object turns once, at the start. On a track, <code>move_along</code> turns it every frame, toward the direction of the path at that point."
+        }
+      ],
+      after: `
+        <p>Run it and watch the triangle lean into the curves of the figure eight.</p>
+      `,
+      try: [
+        {
+          note: "The shuttle's piston facing where it goes: at the ends, it turns around. In place of the <code>piston</code> line and its <code>move_along</code>.",
+          replaces: ['piston = Circle(', 'piston.move_along('],
+          code: `piston = Triangle(radius=14, color="orchid")
+piston.move_along(seesaw, time=3, loops="forever", face=True)`
+        }
+      ],
+      closing: `
+        <p>Seven visible tracks, each with its own passenger: a circle, a figure eight with a triangle that points along the path, a star, a shuttle, an open path traveled there and back, a pendulum and an eight-wagon train.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Track</code> — a path; it starts out invisible, and <code>color=</code> draws it.</li>
+          <li><code>move_along</code> — travels the track; <code>time=</code> is the time for one lap, and <code>loops="forever"</code> never stops.</li>
+          <li><code>Track.circle</code>, <code>Track.eight</code>, <code>Track.star</code>, <code>Track.shuttle</code>, <code>Track.arc</code> — presets, with <code>center=</code> and sizes.</li>
+          <li><code>points=</code> — a path of your own, curving through the points; open unless you add <code>closed=True</code>.</li>
+          <li><code>yoyo=True</code> — the next lap comes back in reverse: the way to repeat an open path.</li>
+          <li><code>ease=</code>, <code>phase=</code>, <code>face=True</code> — the timing curve, each one's head start in a line, and the tip that follows the path.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#shape-track">Track</a> · <a href="../guide/index.html#track-preset">Presets</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#suite">Time parameters</a> · <a href="../guide/index.html#debug-metodos">Debug</a>.</p>
+        <p><strong>Next:</strong> a solar system, with orbits, a moon that leaves a trail and a probe.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Draw your own track with <code>Track(points=…)</code>: the first letter of your name, for example.</li>
+          <li>Can you build a subway: two tracks that cross, each with a train of colored wagons?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

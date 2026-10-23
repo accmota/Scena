@@ -24,12 +24,12 @@ Portuguese one, name for name.
 | 06 Naves II · Classes | `bolhas.py`, `naves_2_classes.py` | `bubbles.py`, `ships_2_classes.py` |
 | 07 Naves III · Atlas, explosão, vidas | `naves_3_vidas.py` | `ships_3_lives.py` |
 | 08 Naves IV · Escudo | `naves_4_escudo.py` | `ships_4_shield.py` |
-| 09 Fórmulas | `formulas.py` |  |
-| 10 Bolas | `bolas.py` |  |
-| 11 Interação | `interacao.py`, `ceu_estrelado.py` |  |
-| 12 Movimento | `movimento.py` |  |
-| 13 Trilhas | `trilhas.py` |  |
-| 14 Órbitas | `orbitas.py` |  |
+| 09 Fórmulas | `formulas.py` | `formula_machine.py` |
+| 10 Bolas | `bolas.py` | `balls.py` |
+| 11 Interação | `interacao.py`, `ceu_estrelado.py` | `interaction.py`, `starry_sky.py` |
+| 12 Movimento | `movimento.py` | `movement.py` |
+| 13 Trilhas | `trilhas.py` | `tracks.py` |
+| 14 Órbitas | `orbitas.py` | `orbits.py` |
 | 15 Avião | `aviao.py` |  |
 | 16 Avião II · Profundidade | `aviao_profundidade.py` |  |
 | 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` |  |

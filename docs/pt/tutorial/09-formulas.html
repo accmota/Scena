@@ -401,17 +401,17 @@ run()
       ]
     },
     {
-      title: "A cor não liga",
+      title: "Fórmula ou evento",
       body: [
         `
-        <p>Agora queremos que a cor do sol dependa do tamanho dele. A primeira ideia seria uma fórmula:</p>
+        <p>Agora a cor do sol vai acompanhar o tamanho dele. Uma fórmula faria isso, como no raio:</p>
         `,
         {
           snip: `sol["color"] @= lambda: …`,
           alt: true
         },
         `
-        <p>O Scena recusa: a cor é <strong>pintura</strong>, e a pintura (<code>color</code>, <code>glow</code>, <code>visual</code>) fica fora das fórmulas. A mensagem do erro diz o caminho: escrever a cor com <code>=</code>, dentro de um evento, uma função que o Scena roda quando algo acontece.</p>
+        <p>Aqui vamos por outro caminho, para conhecer um <strong>evento</strong>: uma função que o Scena roda quando algo acontece. Ela escreve a cor com <code>=</code>, a cada mudança do raio. O brilho e o visual (<code>glow</code>, <code>visual</code>) não entram em fórmulas: para eles, o evento é o único caminho.</p>
         `
       ],
       code: `from scena import *
@@ -1022,7 +1022,7 @@ Text(str(st.raio), top_left=(900, 680))`
           title: "Fórmulas e eventos",
           body: `
             <p>Uma <strong>fórmula</strong> diz o que um campo <em>é</em>, o tempo todo: o raio do sol é <code>st.raio</code>. Um <strong>evento</strong> diz o que <em>fazer</em> quando algo acontece: pintar o sol, soltar um estouro.</p>
-            <p>A pintura (<code>color</code>, <code>glow</code>, <code>visual</code>) não entra em fórmulas: ela muda com <code>=</code>, dentro de um evento. Dois eventos ajudam:</p>
+            <p>A cor pode ser uma fórmula ou mudar num evento; o brilho e o visual (<code>glow</code>, <code>visual</code>) não entram em fórmulas: mudam com <code>=</code>, dentro de um evento. Dois eventos ajudam:</p>
             <ul>
               <li><code>@on_change</code> roda a cada mudança de um valor, como o sol que muda de cor a cada passo do slider.</li>
               <li><code>@when</code> roda uma vez, quando uma pergunta passa de não para sim, como o estouro quando o sol passa de 100.</li>
@@ -1039,7 +1039,7 @@ Text(str(st.raio), top_left=(900, 680))`
           <li><code>lambda</code> — uma fórmula: o campo vale a conta, e o Scena a refaz quando algo que ela lê muda, como numa planilha.</li>
           <li><code>st["raio"]</code> e <code>st.raio</code> — a célula, para quem acompanha ou escreve, e o número de agora, para as contas e para dentro de uma <code>lambda</code>.</li>
           <li><code>clock.time</code> — uma fonte que muda a cada quadro.</li>
-          <li><code>@on_change</code> e <code>@when</code> — eventos: a cor, que não liga, muda num evento; o estouro dispara na passagem.</li>
+          <li><code>@on_change</code> e <code>@when</code> — eventos: a cor muda a cada mudança do raio; o estouro dispara na passagem.</li>
           <li><code>unlink()</code> solta um campo; <code>@=</code> com uma função com nome o liga de novo.</li>
           <li><code>lambda i=i:</code> — num <code>for</code>, cada fórmula guarda o seu valor.</li>
         </ul>

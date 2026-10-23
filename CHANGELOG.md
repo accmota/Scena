@@ -96,6 +96,12 @@ left out.
   (`ship`, `"enemy"`); the API is the same. A link at the top of the
   sidebar switches language and keeps the section. The tutorials are still
   Portuguese only; their English version is in progress.
+- Tutorials, corrections found while translating them into English: 09
+  no longer says a color cannot be linked with `@=` (it can since 0.9.0;
+  `glow` and `visual` cannot), and its step is now "Fórmula ou evento";
+  12 no longer says a new `move_to` warns when it replaces a trip (it
+  replaces it quietly); 01 says over a hundred color names, not seventy;
+  04 and 10 lose two small inaccuracies.
 - Guia: the error catalog moved from Começar to the end of Debug (same
   anchor, `#erros-catalogo`), and the Reativo chapter now comes after
   Aparência, before Mundo.

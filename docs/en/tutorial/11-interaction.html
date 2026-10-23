@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interaction — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "11",
+  title: "Interaction",
+  steps: [
+    {
+      title: "Three shapes and a click",
+      part: "Script 1 · Click and hover",
+      body: `
+        <p>This tutorial is not a game: it is a test bench for the mouse. Each step brings one feature, and the shapes do nothing but show it. There are three scripts: clicking and hovering; dragging and dropping onto a grid; the mouse on the canvas, with no object at all.</p>
+        <p>We start with three shapes and a click. The square covers part of the hexagon on purpose: that is where you see who gets the mouse when two shapes are in the same place.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+hexagon = RegularPolygon(n=6, center=(300, 380), radius=100, color="coral", group="shapes")
+square = Square(center=(420, 300), length=130, color="gold", group="shapes")
+triangle = Triangle(center=(720, 350), radius=100, color="deep sky blue", group="shapes")
+
+
+@click(group["shapes"])
+def clicked(shape):
+    shape.color = Color.random()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "square = Square(",
+          text: "The square is created after the hexagon, and whatever is created later is drawn on top."
+        },
+        {
+          at: "@click(group[\"shapes\"])",
+          text: "<code>@click</code> also takes a group: it applies to each of its shapes, and the parameter <code>shape</code> receives the one that was clicked. The group is read when the <code>@click</code> line runs; that is why the shapes are created first."
+        },
+        {
+          at: "Color.random()",
+          text: "<code>Color.random()</code> picks a color at random."
+        }
+      ],
+      after: `
+        <p>Run it and click all three: each click picks a random color. Now click where the square covers the hexagon.</p>
+        <details class="ask"><summary>Which of the two changes color?</summary><p>Only the square. A click goes to one object only, the one drawn on top.</p></details>
+      `
+    },
+    {
+      title: "Hovering",
+      body: [
+        `
+        <p>Now the mouse without clicking: the shape glows while the pointer is on it. There are two hooks, one for each moment:</p>
+        `,
+        {
+          snip: `@hover(group["shapes"])
+...
+@hover_exit(group["shapes"])`
+        },
+        `
+        <p><code>@hover</code> runs when the pointer enters a shape; <code>@hover_exit</code>, when it leaves. Both are events: each runs once, at the instant the thing happens. While the mouse stays on top, nothing runs.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 120" role="img" aria-label="A timeline: the mouse is outside, enters the shape, stays on it for a while and leaves; @hover runs on entering, @hover_exit on leaving, and in between nothing runs">
+            <line class="ray" x1="20" y1="70" x2="380" y2="70"/>
+            <rect class="bar" x="120" y="58" width="150" height="24"/>
+            <circle class="hot" cx="120" cy="70" r="5"/>
+            <circle class="hot" cx="270" cy="70" r="5"/>
+            <text x="120" y="26" text-anchor="middle">@hover</text>
+            <text x="120" y="44" text-anchor="middle">lights up</text>
+            <text x="270" y="26" text-anchor="middle">@hover_exit</text>
+            <text x="270" y="44" text-anchor="middle">goes out</text>
+            <text x="195" y="104" text-anchor="middle">mouse on top: nothing runs</text>
+            <text x="20" y="104">outside</text>
+            <text x="380" y="104" text-anchor="end">outside</text>
+          </svg>
+          <figcaption>The mouse passing over the shape. Each event runs once, at the moment of crossing. In between, the glow stays on only because nobody turned it off.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+hexagon = RegularPolygon(n=6, center=(300, 380), radius=100, color="coral", group="shapes")
+square = Square(center=(420, 300), length=130, color="gold", group="shapes")
+triangle = Triangle(center=(720, 350), radius=100, color="deep sky blue", group="shapes")
+
+
+@click(group["shapes"])
+def clicked(shape):
+    shape.color = Color.random()
+
+
+@hover(group["shapes"])
+def entered(shape):
+    shape.glow = True
+
+
+@hover_exit(group["shapes"])
+def gone(shape):
+    shape.glow = False
+
+
+run()
+`,
+      notes: [
+        {
+          at: "shape.glow = True",
+          text: "<code>glow</code> is an add-on: it adds a glow to the shape without touching its color."
+        },
+        {
+          at: "def gone(shape):",
+          text: "Every enter has exactly one exit, and what <code>@hover</code> turns on, <code>@hover_exit</code> turns off. Without it, the shape would stay lit forever after the first visit."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse over the shapes. Then move it over the part where the square covers the hexagon.</p>
+        <details class="ask"><summary>How many glow there?</summary><p>Only the square. Like the click, hover belongs to one object only, the one on top.</p></details>
+      `
+    },
+    {
+      title: "While the mouse is on top",
+      body: `
+        <p>The triangle will spin while the pointer is on it. <code>@hover</code> does not fit: it tells you once, on entering, and spinning is a little every frame, the whole time the mouse is there.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+hexagon = RegularPolygon(n=6, center=(300, 380), radius=100, color="coral", group="shapes")
+square = Square(center=(420, 300), length=130, color="gold", group="shapes")
+triangle = Triangle(center=(720, 350), radius=100, color="deep sky blue", group="shapes")
+
+
+@click(group["shapes"])
+def clicked(shape):
+    shape.color = Color.random()
+
+
+@hover(group["shapes"])
+def entered(shape):
+    shape.glow = True
+
+
+@hover_exit(group["shapes"])
+def gone(shape):
+    shape.glow = False
+
+
+def update(dt):
+    if triangle.pointer_hover:
+        triangle.rotate_by(90 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if triangle.pointer_hover:",
+          text: "<code>pointer_hover</code> is not an event: it is a yes-or-no answer that holds right now, <code>True</code> while the mouse is over the triangle. Scena updates it every frame, and <code>update</code>, which also runs every frame, reads it."
+        },
+        {
+          at: "rotate_by(90 * dt)",
+          text: "<code>rotate_by</code> turns it 90 degrees per second: a small piece every frame, with the same <code>dt</code> used for moving."
+        }
+      ],
+      after: `
+        <p>Run it and rest the mouse on the triangle: it keeps spinning. Move the mouse away, and it stops wherever it is.</p>
+        <p><code>pointer_hover</code> only becomes <code>True</code> on a shape that responds to the mouse. The triangle responds because it is in the <code>@click</code> group; a shape with no mouse hook at all would always answer <code>False</code>.</p>
+      `,
+      try: [
+        {
+          note: "Another way to write the glow, with the state instead of the two events. Inside <code>update</code>, a line that copies the answer into <code>glow</code> every frame: on while the mouse is on top, off the rest of the time.",
+          code: `triangle.glow = triangle.pointer_hover`
+        }
+      ]
+    },
+    {
+      title: "The right button",
+      body: `
+        <p>An eraser: with the right button held, every shape under the mouse turns gray. <code>@click</code> is for the left button only; the right one is read every frame, in <code>update</code>, like <code>pointer_hover</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+hexagon = RegularPolygon(n=6, center=(300, 380), radius=100, color="coral", group="shapes")
+square = Square(center=(420, 300), length=130, color="gold", group="shapes")
+triangle = Triangle(center=(720, 350), radius=100, color="deep sky blue", group="shapes")
+
+
+@click(group["shapes"])
+def clicked(shape):
+    shape.color = Color.random()
+
+
+@hover(group["shapes"])
+def entered(shape):
+    shape.glow = True
+
+
+@hover_exit(group["shapes"])
+def gone(shape):
+    shape.glow = False
+
+
+def update(dt):
+    if triangle.pointer_hover:
+        triangle.rotate_by(90 * dt)
+    if mouse.press(Mouse.BTN_RIGHT):
+        for shape in group["shapes"]:
+            if shape.contains_point(mouse):
+                shape.color = "gray"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "mouse.press(Mouse.BTN_RIGHT)",
+          text: "<code>mouse.press</code> is another state: <code>True</code> while the button is held. <code>BTN_RIGHT</code> is the right button; on a trackpad, the two-finger click."
+        },
+        {
+          at: "shape.contains_point(mouse)",
+          text: "The <code>for</code> goes through the three shapes, and <code>contains_point</code> asks each one: does the mouse point fall inside your drawing?"
+        }
+      ],
+      after: `
+        <p>Run it, hold the right button and move over the shapes. Then do it where the square covers the hexagon.</p>
+        <details class="ask"><summary>How many turn gray there?</summary><p>Both. <code>contains_point</code> does not care who is on top; it asks each shape whether the point is inside it. The left click, in the same place, only paints the square.</p></details>
+      `,
+      dive: [
+        {
+          title: "Three questions",
+          body: `
+            <p>This script asked the mouse three different questions. They look like the same one, but the difference shows where two shapes overlap.</p>
+            <p><code>@click</code> and <code>@hover</code> are <strong>events</strong>: Scena calls your function once, at the instant something happens (a click, an enter, an exit), and only for the object on top. <code>pointer_hover</code> is a <strong>state</strong>: a yes-or-no answer that holds right now, read every frame in <code>update</code>, also only for the object on top. <code>contains_point</code>, on the other hand, is a <strong>geometry</strong> question asked of one shape: does the point fall inside its drawing? It does not care who is on top, and that is why, where the square covers the hexagon, both shapes say yes.</p>
+            <figure class="fig">
+              <svg viewBox="0 0 460 200" role="img" aria-label="A hexagon and, on top of it, a square that covers part of it; the mouse pointer is on the covered part. Beside it, the three answers: the click and the hover go only to the square; pointer_hover is True only on the square; contains_point is True on both">
+                <polygon class="bar" points="190,100 155,39.4 85,39.4 50,100 85,160.6 155,160.6"/>
+                <rect class="bar child" x="150" y="70" width="90" height="90"/>
+                <circle class="hot" cx="168" cy="122" r="5"/>
+                <text x="80" y="185">hexagon</text>
+                <text x="196" y="64">square</text>
+                <text x="176" y="140">mouse</text>
+                <text x="262" y="52">@click / @hover:</text>
+                <text x="262" y="67">  only square</text>
+                <text x="262" y="102">pointer_hover:</text>
+                <text x="262" y="117">  True only on square</text>
+                <text x="262" y="152">contains_point(mouse):</text>
+                <text x="262" y="167">  True on both</text>
+              </svg>
+              <figcaption>The mouse where the square covers the hexagon. The click, the hover and <code>pointer_hover</code> belong to one object only, the one on top. <code>contains_point</code> answers for each shape, by its own drawing.</figcaption>
+            </figure>
+            <p>To choose: something that happens once (changing the color, playing a sound) goes in an event; something that lasts while the mouse is there (spinning, pushing) reads the state in <code>update</code>; and when you want every shape under a point, even the ones underneath, ask each one with <code>contains_point</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#ptr-hover">Hover</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Click a shape and it changes color. Move the mouse over it and it glows; over the triangle, the triangle spins. Hold the right button and move over the shapes: they turn gray.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>@click</code> on a group — one function for every shape in the group; it receives the one clicked. Where two overlap, only the one on top.</li>
+          <li><code>@hover</code> and <code>@hover_exit</code> — the mouse came in, the mouse went out: two events, always in a pair.</li>
+          <li><code>pointer_hover</code> — a state: is the mouse on top right now? Read every frame, in <code>update</code>.</li>
+          <li><code>mouse.press(Mouse.BTN_RIGHT)</code> — is the right button held right now?</li>
+          <li><code>contains_point</code> — does the point fall inside this shape's drawing? It works for each one, even the ones underneath.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#reagir-pointer">Click / drag</a> · <a href="../guide/index.html#ptr-hover">Hover</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
+        <p><strong>Next script:</strong> dragging pieces, dropping them into a trash bin and onto a grid.</p>
+      `
+    },
+    {
+      title: "Pieces to drag",
+      part: "Script 2 · Dragging and the grid",
+      fresh: true,
+      body: `
+        <p>Second script, in a new file: pieces to drag, a trash bin and a grid. First, three pieces.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+Square(center=(120, 560), length=70, color="coral", group="pieces")
+Square(center=(120, 440), length=70, color="gold", group="pieces")
+Square(center=(120, 320), length=70, color="orchid", group="pieces")
+group["pieces"].draggable = True
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"pieces\"].draggable = True",
+          text: "<code>draggable</code>: with <code>True</code>, you grab the piece with the mouse and take it wherever you want. Written on the group, it applies to each piece."
+        }
+      ],
+      after: `
+        <p>Run it and drag. A piece stays where you drop it, and dropping does not mean anything yet.</p>
+      `,
+      try: [
+        {
+          note: "One more line, after <code>draggable</code>: <code>wheel_rotate</code>. Hold the button on a piece and turn the mouse wheel: the piece rotates. Without the button held, the wheel leaves it alone.",
+          code: `group["pieces"].wheel_rotate = True`
+        }
+      ]
+    },
+    {
+      title: "The trash bin",
+      body: `
+        <p>A trash bin: dropping a piece on it deletes the piece.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+trash = Rect(center=(860, 130), width=160, height=110, color="gray")
+Text("trash", center=(860, 130))
+
+Square(center=(120, 560), length=70, color="coral", group="pieces")
+Square(center=(120, 440), length=70, color="gold", group="pieces")
+Square(center=(120, 320), length=70, color="orchid", group="pieces")
+group["pieces"].draggable = True
+
+
+@drop_by(trash)
+def tossed(piece, target, pos):
+    piece.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "trash = Rect(",
+          text: "The trash bin is created before the pieces, so it is drawn under them: the dragged piece passes over it."
+        },
+        {
+          at: "@drop_by(trash)",
+          text: "<code>@drop_by</code> goes on the target, the object that receives: it runs when something dragged is dropped on the trash bin."
+        },
+        {
+          at: "def tossed(piece, target, pos):",
+          text: "Three values: the dragged piece, the target (here, the trash bin itself) and <code>pos</code> (short for <em>position</em>), the point where the mouse let go. Only the piece matters here: <code>destroy</code> deletes it."
+        }
+      ],
+      after: `
+        <p>Run it and drop a piece in the trash bin: it disappears. Drop it somewhere else: nothing happens, because nobody there receives it.</p>
+      `
+    },
+    {
+      title: "The trash bin lights up",
+      body: [
+        `
+        <p>It would be nice to know, before dropping, that the piece is over the trash bin: the bin lights up red. The one who knows where the piece is passing is the piece itself:</p>
+        `,
+        {
+          snip: `@drag_over(group["pieces"])
+def passing(piece, target, pos):`
+        },
+        `
+        <p><code>@drag_over</code> goes on the thing being dragged, the pieces, and runs during the drag, every time the mouse moves. It receives the same three values as <code>@drop_by</code>. Now <code>target</code> is the object under the mouse that accepts drops: the trash bin, when the piece passes over it, or <code>None</code> (nothing) anywhere else.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+trash = Rect(center=(860, 130), width=160, height=110, color="gray")
+Text("trash", center=(860, 130))
+
+Square(center=(120, 560), length=70, color="coral", group="pieces")
+Square(center=(120, 440), length=70, color="gold", group="pieces")
+Square(center=(120, 320), length=70, color="orchid", group="pieces")
+group["pieces"].draggable = True
+
+
+@drop_by(trash)
+def tossed(piece, target, pos):
+    piece.destroy()
+    trash.color = "gray"
+
+
+@drag_over(group["pieces"])
+def passing(piece, target, pos):
+    if target is trash:
+        trash.color = "red"
+    else:
+        trash.color = "gray"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if target is trash:",
+          text: "<code>is</code> asks whether the two things are the same object: is the target the trash bin itself? Over it, red; away from it, gray again."
+        }
+      ],
+      after: `
+        <p>Run it and move a piece over the trash bin without dropping it, then take it away: the bin lights up and goes dark. Drop it on top: the piece disappears, and the bin goes back to gray.</p>
+        <details class="ask"><summary>What is the new line in <code>tossed</code> for?</summary><p>Dropping ends the drag, and <code>@drag_over</code> stops running. Without that line, nobody would turn the bin off: it would stay red after swallowing the piece.</p></details>
+      `,
+      try: [
+        {
+          note: "Drag the top piece over the other two: it passes underneath, because it was created before them. <code>move_to_front()</code> draws it in front of the others. As the first line of <code>passing</code>:",
+          code: `piece.move_to_front()`
+        }
+      ]
+    },
+    {
+      title: "The grid",
+      body: `
+        <p>Now the grid: a board of 4 columns and 3 rows in the middle of the screen, sliced from a region of 400 by 300.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 200" role="img" aria-label="A region of 400 by 300 sliced into 4 columns and 3 rows of equal cells, with a gap of 8 between them; cell (0, 0) is at the top left and (3, 2) at the bottom right">
+            <rect class="guide" x="80" y="20" width="200" height="150"/>
+            <rect class="bar" x="80" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="131" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="182" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="233" y="20" width="47" height="47.3"/>
+            <rect class="bar" x="80" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="131" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="182" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="233" y="71.3" width="47" height="47.3"/>
+            <rect class="bar" x="80" y="122.7" width="47" height="47.3"/>
+            <rect class="bar" x="131" y="122.7" width="47" height="47.3"/>
+            <rect class="bar" x="182" y="122.7" width="47" height="47.3"/>
+            <rect class="bar" x="233" y="122.7" width="47" height="47.3"/>
+            <text x="103.5" y="48" text-anchor="middle">(0, 0)</text>
+            <text x="256.5" y="150" text-anchor="middle">(3, 2)</text>
+            <text x="180" y="192" text-anchor="middle">400</text>
+            <text x="68" y="99" text-anchor="end">300</text>
+            <text x="292" y="72">gap=8</text>
+          </svg>
+          <figcaption>The <code>zone</code>, sliced into 4 equal columns and 3 equal rows, with a gap of 8 between the cells. Counting starts at (0, 0), the top-left cell.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+zone = Box(center=(520, 380), width=400, height=300)
+board = zone.grid(4, 3, gap=8)
+for cell in board:
+    Rect(box=cell, color="#33406a")
+
+trash = Rect(center=(860, 130), width=160, height=110, color="gray")
+Text("trash", center=(860, 130))
+
+Square(center=(120, 560), length=70, color="coral", group="pieces")
+Square(center=(120, 440), length=70, color="gold", group="pieces")
+Square(center=(120, 320), length=70, color="orchid", group="pieces")
+group["pieces"].draggable = True
+
+
+@drop_by(trash)
+def tossed(piece, target, pos):
+    piece.destroy()
+    trash.color = "gray"
+
+
+@drag_over(group["pieces"])
+def passing(piece, target, pos):
+    if target is trash:
+        trash.color = "red"
+    else:
+        trash.color = "gray"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "zone = Box(",
+          text: "A <code>Box</code> is a rectangle that is not drawn: it is for measuring and placing. You write it like a <code>Rect</code>, with a center, a width and a height."
+        },
+        {
+          at: "zone.grid(4, 3, gap=8)",
+          text: "<code>grid</code> slices the zone into 4 equal columns and 3 equal rows; <code>gap=8</code> leaves 8 between the cells. Each cell is a <code>Box</code> too."
+        },
+        {
+          at: "Rect(box=cell",
+          text: "A <code>Box</code> does not show; to see the cells, the <code>for</code> puts a <code>Rect</code> in each of the 12. <code>box=cell</code> fits the rectangle into the cell: in its place, at its size."
+        }
+      ],
+      after: `
+        <p>Run it: a blue board, under the trash bin and the pieces, because it was created before them. The pieces pass over it as if it were not there.</p>
+      `,
+      try: [
+        {
+          note: "Other grids, in place of the <code>grid</code> line. More cells, smaller ones; without <code>gap</code>, the cells touch:",
+          replaces: ['board = zone.grid('],
+          code: `board = zone.grid(8, 6, gap=4)`
+        }
+      ]
+    },
+    {
+      title: "The cell under the mouse",
+      body: [
+        `
+        <p>The cell under the mouse gets a white frame. For that, the grid answers the other way around: given a point, which cell is under it?</p>
+        `,
+        {
+          snip: `cell = board.cell_at(mouse)`
+        },
+        `
+        <p><code>cell_at</code> takes a point and returns the cell under it, or <code>None</code> if the point falls outside the grid or in a gap between two cells.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+zone = Box(center=(520, 380), width=400, height=300)
+board = zone.grid(4, 3, gap=8)
+for cell in board:
+    Rect(box=cell, color="#33406a")
+
+light = Rect(box=board.cell(0, 0), color="white")
+light.fill = None
+light.line_width = 4
+light.visible = False
+
+trash = Rect(center=(860, 130), width=160, height=110, color="gray")
+Text("trash", center=(860, 130))
+
+Square(center=(120, 560), length=70, color="coral", group="pieces")
+Square(center=(120, 440), length=70, color="gold", group="pieces")
+Square(center=(120, 320), length=70, color="orchid", group="pieces")
+group["pieces"].draggable = True
+
+
+@drop_by(trash)
+def tossed(piece, target, pos):
+    piece.destroy()
+    trash.color = "gray"
+
+
+@drag_over(group["pieces"])
+def passing(piece, target, pos):
+    if target is trash:
+        trash.color = "red"
+    else:
+        trash.color = "gray"
+
+
+def update(dt):
+    cell = board.cell_at(mouse)
+    if cell is None:
+        light.visible = False
+    else:
+        light.visible = True
+        light.center = cell.center
+
+
+run()
+`,
+      notes: [
+        {
+          at: "light = Rect(box=board.cell(0, 0)",
+          text: "<code>board.cell(0, 0)</code> is the cell in column 0 and row 0, at the top left. Here it only gives the frame its size."
+        },
+        {
+          at: "light.fill = None",
+          text: "With no <code>fill</code>, the outline is what is left; <code>line_width = 4</code> makes it thicker."
+        },
+        {
+          at: "if cell is None:",
+          text: "The question is asked again every frame, in <code>update</code>. With no cell, the frame hides (<code>visible</code>); with a cell, it shows and moves to that cell's center."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse over the grid: the frame jumps from cell to cell and disappears in the gaps and outside the grid. Now drag a piece across the grid: the frame shows the cell under the mouse, where the piece would be dropped.</p>
+      `,
+      try: [
+        {
+          note: "Another way to write it: a <code>Box</code> does not get the mouse, but each drawn cell is a <code>Rect</code>, and a <code>Rect</code> takes <code>@hover</code>, like the shapes of the first script. First, the cells in a group, in place of the <code>Rect</code> in the <code>for</code>:",
+          replaces: ['Rect(box=cell'],
+          code: `Rect(box=cell, color="#33406a", group="cells")`
+        },
+        {
+          note: "Then, at the end of the script, before <code>run()</code>, the hover pair. Move the mouse: the cell gets lighter. Now drag a piece across the grid: the cell does not get lighter. During the drag, what is under the mouse is the piece, and hover belongs only to the object on top. <code>cell_at</code> does not ask who is on top; it only does the grid math. That is why the step uses <code>cell_at</code>.",
+          code: `@hover(group["cells"])
+def lit_up(cell):
+    cell.color = "#5a6db0"
+
+
+@hover_exit(group["cells"])
+def faded(cell):
+    cell.color = "#33406a"`
+        }
+      ]
+    },
+    {
+      title: "Snapping into place",
+      example: "interaction.py",
+      body: [
+        `
+        <p>Last step of the script: dropping a piece on the grid snaps it to the center of the cell.</p>
+        `,
+        {
+          snip: `@drag_to(group["pieces"])
+def released(piece, target, pos):
+    cell = board.cell_at(pos)`
+        },
+        `
+        <p><code>@drag_to</code> goes on the pieces, like <code>@drag_over</code>, but runs only once, when the drag ends, wherever the piece lands: on the grid, in the trash bin or on empty space. This time what matters is <code>pos</code>, the point where the mouse let go, and <code>cell_at</code> from the previous step says which cell is there.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Interaction")
+Wallpaper("dark navy")
+
+zone = Box(center=(520, 380), width=400, height=300)
+board = zone.grid(4, 3, gap=8)
+for cell in board:
+    Rect(box=cell, color="#33406a")
+
+light = Rect(box=board.cell(0, 0), color="white")
+light.fill = None
+light.line_width = 4
+light.visible = False
+
+trash = Rect(center=(860, 130), width=160, height=110, color="gray")
+Text("trash", center=(860, 130))
+
+Square(center=(120, 560), length=70, color="coral", group="pieces")
+Square(center=(120, 440), length=70, color="gold", group="pieces")
+Square(center=(120, 320), length=70, color="orchid", group="pieces")
+group["pieces"].draggable = True
+
+
+@drop_by(trash)
+def tossed(piece, target, pos):
+    piece.destroy()
+    trash.color = "gray"
+
+
+@drag_over(group["pieces"])
+def passing(piece, target, pos):
+    if target is trash:
+        trash.color = "red"
+    else:
+        trash.color = "gray"
+
+
+@drag_to(group["pieces"])
+def released(piece, target, pos):
+    cell = board.cell_at(pos)
+    if cell is not None:
+        piece.center = cell.center
+
+
+def update(dt):
+    cell = board.cell_at(mouse)
+    if cell is None:
+        light.visible = False
+    else:
+        light.visible = True
+        light.center = cell.center
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if cell is not None:",
+          text: "Outside the grid, <code>cell</code> is <code>None</code>: the <code>if</code> skips the line, and the piece stays where it was dropped."
+        }
+      ],
+      after: `
+        <p>Run it and drop the pieces on the grid: each one snaps to the middle of a cell, the one the white frame showed during the drag.</p>
+      `,
+      dive: [
+        {
+          title: "Three drag hooks",
+          body: `
+            <p>Scena has three hooks for drag and drop, and each one answers a question:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Hook</th><th>Goes on</th><th>Runs</th><th>The question</th></tr></thead>
+              <tbody>
+                <tr><td><code>@drag_to(piece)</code></td><td>the thing being dragged</td><td>once, when it is dropped, anywhere</td><td><em>where was this piece dropped?</em></td></tr>
+                <tr><td><code>@drag_over(piece)</code></td><td>the thing being dragged</td><td>during the drag, on every mouse movement</td><td><em>where is it passing over?</em></td></tr>
+                <tr><td><code>@drop_by(trash)</code></td><td>the target</td><td>when something is dropped on it</td><td><em>what was dropped here?</em></td></tr>
+              </tbody>
+            </table></div>
+            <p>All three receive the same three values: what was dragged, the target (the object under the mouse that accepts drops, or <code>None</code>) and the point. Choose by the question: the trash bin only cares about what lands in it, so the hook is the bin's; the piece needs an answer wherever it lands, even outside the grid, so the hook is the piece's.</p>
+            <p>In the Guide: <a href="../guide/index.html#ptr-drag">Drag / drop</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Drag the pieces. Drop one in a cell and it snaps to the cell's center; drop it in the trash bin and it disappears. The cell under the mouse is marked.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>draggable</code> — grab it and carry it with the mouse; written on the group, it applies to each piece.</li>
+          <li><code>@drop_by</code> — on the target: something was dropped here.</li>
+          <li><code>@drag_over</code> — on the thing being dragged: on every drag movement, which target it is over.</li>
+          <li><code>@drag_to</code> — on the thing being dragged: it was dropped, and <code>pos</code> says where.</li>
+          <li><code>Box</code> and <code>grid</code> — a region that does not show, sliced into equal cells; <code>box=cell</code> fits an object into a cell.</li>
+          <li><code>cell_at</code> — the reverse path: from the point to the cell, or <code>None</code> outside the grid.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#ptr-drag">Drag / drop</a> · <a href="../guide/index.html#colocar-box">Box</a> · <a href="../guide/index.html#colocar-grid">Grid</a> · <a href="../guide/index.html#colocar-fit">box=</a>.</p>
+      `
+    },
+    {
+      title: "A click on the canvas",
+      part: "Script 3 · The mouse on the canvas",
+      fresh: true,
+      body: `
+        <p>Third script, and no shape to click. Until now the mouse always talked to an object. Sometimes what matters is what it does anywhere in the window, with no object under it: a click here, a drag from there to there, a turn of the wheel. Let's make a sky where each click lights a star.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Starry sky")
+Wallpaper("black")
+
+
+def on_mouse_click(x, y, button):
+    star = Circle(center=(x, y), radius=6, color="white", group="stars")
+    star.glow = True
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "<code>on_mouse_click</code> is a function with a fixed name, like <code>update</code>: written at the top level of the file, with no <code>@</code>, Scena calls it on every click on the canvas. It receives where the click was, <code>x</code> and <code>y</code>, and <code>button</code>, which button it was."
+        }
+      ],
+      after: `
+        <p>Run it and click around the sky: a small, glowing star at each point.</p>
+      `,
+      try: [
+        {
+          note: "<code>button</code> says which button it was: the right one (<code>Mouse.BTN_RIGHT</code>, as in Script 1) lights a golden star. In place of the <code>star</code> line:",
+          replaces: ['star = Circle('],
+          code: `color = "white"
+if button == Mouse.BTN_RIGHT:
+    color = "gold"
+star = Circle(center=(x, y), radius=6, color=color, group="stars")`
+        }
+      ]
+    },
+    {
+      title: "Double click",
+      body: `
+        <p>A double click clears the sky.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Starry sky")
+Wallpaper("black")
+
+
+def on_mouse_click(x, y, button):
+    star = Circle(center=(x, y), radius=6, color="white", group="stars")
+    star.glow = True
+
+
+def on_mouse_double_click(x, y, button):
+    group["stars"].destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_double_click(x, y, button):",
+          text: "<code>on_mouse_double_click</code> runs when two clicks come quickly, close to each other."
+        },
+        {
+          at: "group[\"stars\"].destroy()",
+          text: "<code>destroy</code> on the group destroys all the stars at once."
+        }
+      ],
+      after: `
+        <p>Run it, light a few stars and double-click.</p>
+        <details class="ask"><summary>Do the two clicks of the double click light stars?</summary><p>They do: they are clicks too, and <code>on_mouse_click</code> runs twice. Right after, the double click arrives and clears everything, those two included. That is why a double click suits an action that includes what the single click does, as here.</p></details>
+        <p>The double click is for the canvas only: there is no object version, like <code>@click</code>. To know whether it landed on a shape, ask each one with <code>contains_point</code>, as the box below does.</p>
+      `,
+      try: [
+        {
+          note: "The double click clears only the stars under the mouse. In place of the <code>destroy</code> line:",
+          replaces: ['group["stars"].destroy()'],
+          code: `for star in group["stars"]:
+    if star.contains_point(x, y):
+        star.destroy()`
+        }
+      ]
+    },
+    {
+      title: "Dragging on the canvas",
+      body: `
+        <p>Now, stardust: dragging the mouse leaves a trail of specks.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Starry sky")
+Wallpaper("black")
+
+
+def on_mouse_click(x, y, button):
+    star = Circle(center=(x, y), radius=6, color="white", group="stars")
+    star.glow = True
+
+
+def on_mouse_double_click(x, y, button):
+    group["stars"].destroy()
+
+
+def on_mouse_drag(x, y, button):
+    Circle(center=(x, y), radius=2, color="light steel blue", group="stars")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_drag(x, y, button):",
+          text: "<code>on_mouse_drag</code> runs on every movement of the mouse with a button held, wherever it is. Each call leaves a speck at the point <code>(x, y)</code>."
+        }
+      ],
+      after: `
+        <p>Run it and drag across the sky.</p>
+        <details class="ask"><summary>Does the drag light stars too?</summary><p>No: only the dust comes out. A click is pressing and releasing in the same place; pressing, moving and releasing far away is a drag, and <code>on_mouse_click</code> does not run.</p></details>
+        <p>In Script 2, dragging carried a piece along with the mouse (<code>draggable</code>). Here nothing is carried: the function only learns where the mouse passes.</p>
+      `
+    },
+    {
+      title: "The mouse wheel",
+      example: "starry_sky.py",
+      body: `
+        <p>Last, the mouse wheel picks the size of the next star, and a ring around the pointer shows that size before the click.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Starry sky")
+Wallpaper("black")
+
+st.radius_value = 6
+brush = Circle(center=lambda: mouse, radius=lambda: st.radius_value, color="white")
+brush.fill = None
+
+
+def on_mouse_click(x, y, button):
+    star = Circle(center=(x, y), radius=st.radius_value, color="white", group="stars")
+    star.glow = True
+
+
+def on_mouse_double_click(x, y, button):
+    group["stars"].destroy()
+
+
+def on_mouse_drag(x, y, button):
+    Circle(center=(x, y), radius=2, color="light steel blue", group="stars")
+
+
+def on_mouse_scroll(xoffset, yoffset):
+    st.radius_value = max(2, st.radius_value + yoffset)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.radius_value = 6",
+          text: "<code>st.radius_value</code> holds the radius of the next star. The click uses it in <code>radius=st.radius_value</code>."
+        },
+        {
+          at: "brush = Circle(",
+          text: "The brush is a ring that moves with the mouse (<code>center=lambda: mouse</code>) and has the stored radius (<code>radius=lambda: st.radius_value</code>). It is not clickable, so the click goes through to the canvas."
+        },
+        {
+          at: "def on_mouse_scroll(xoffset, yoffset):",
+          text: "<code>on_mouse_scroll</code> runs when the wheel turns. <code>yoffset</code> says how much and which way: positive is up, negative is down. On a trackpad, it is a two-finger swipe."
+        },
+        {
+          at: "max(2, st.radius_value + yoffset)",
+          text: "<code>max</code> (the larger of the two) keeps the radius from going below 2."
+        }
+      ],
+      after: `
+        <p>Run it and turn the wheel: the ring grows and shrinks. Click, and the star appears at the ring's size.</p>
+      `,
+      dive: [
+        {
+          title: "The canvas mouse functions",
+          body: `
+            <p>They are all written at the top level of the file, with the exact name, and Scena calls them when the thing happens anywhere in the window:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Function</th><th>When Scena calls it</th></tr></thead>
+              <tbody>
+                <tr><td><code>on_mouse_click(x, y, button)</code></td><td>A click: pressing and releasing in the same place.</td></tr>
+                <tr><td><code>on_mouse_double_click(x, y, button)</code></td><td>Two quick clicks, close to each other (after the two single clicks).</td></tr>
+                <tr><td><code>on_mouse_down(x, y, button)</code></td><td>A button went down.</td></tr>
+                <tr><td><code>on_mouse_up(x, y, button)</code></td><td>A button came up.</td></tr>
+                <tr><td><code>on_mouse_drag(x, y, button)</code></td><td>The mouse moved with a button held.</td></tr>
+                <tr><td><code>on_mouse_move(x, y)</code></td><td>The mouse moved, with or without a button.</td></tr>
+                <tr><td><code>on_mouse_scroll(xoffset, yoffset)</code></td><td>The wheel turned.</td></tr>
+              </tbody>
+            </table></div>
+            <p>These functions are events: they run once, at the instant the thing happens. Script 1 read the mouse another way, every frame, in <code>update</code>: <code>mouse.press(…)</code> (is the button held right now?) and <code>mouse</code> itself as a point. Something that happens once, like lighting a star, fits in an event; something that lasts while the button is held, like the eraser, reads the state in <code>update</code>.</p>
+            <p>And when should you use the object click? When the click is on a thing (a key, a piece): <code>@click</code>, or a class's <code>on_click</code>, already hands you the clicked thing. When the click is on a place (a point in the sky, a shot toward the mouse), the canvas function is the right one.</p>
+            <p>In the Guide: <a href="../guide/index.html#reagir-callbacks">Script callbacks</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Click to light a star; drag to scatter dust; turn the wheel to change the size of the next star; a double click clears the sky.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>on_mouse_click</code> — a function with a fixed name at the top level of the file: a click anywhere in the window, with <code>x</code>, <code>y</code> and <code>button</code>.</li>
+          <li><code>on_mouse_double_click</code> — the double click, which arrives after the two single clicks.</li>
+          <li><code>on_mouse_drag</code> — the mouse moving with a button held; dragging is not clicking.</li>
+          <li><code>on_mouse_scroll</code> — the wheel; a positive <code>yoffset</code> is up.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#reagir-callbacks">Script callbacks</a> · <a href="../guide/index.html#frame-mouse">Mouse</a>.</p>
+        <p><strong>Next:</strong> before moving on, an interlude: each of these hooks inside a class. After that, travel: a ship that goes where you click.</p>
+      `,
+      explore: `
+        <ul>
+          <li>On the grid, make each cell change color when a piece snaps into it.</li>
+          <li>In the sky, stars in random colors, and some that twinkle.</li>
+          <li>Can you make a trash bin that only accepts pieces of one color?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

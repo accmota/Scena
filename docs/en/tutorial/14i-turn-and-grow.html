@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turn and grow — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlude",
+  title: "Turn and grow",
+  steps: [
+    {
+      title: "Rotate to, rotate by",
+      part: "To and by",
+      fresh: true,
+      body: `
+        <p>An interlude is a pause between two tutorials to take a close look at an idea the series has already used. The series has turned things in three ways: <code>rotate_to</code>, <code>rotate_by</code> and writing to the <code>angle</code> field. Here you see when they do the same thing and when they don't; at the end, the same for size.</p>
+        <p>First, two bars and the space bar: on each press, one turns <em>to</em> 45 degrees, the other turns <em>by</em> 45 degrees.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+to = Rect(center=(300, 380), width=220, height=16, color="sky blue")
+by = Rect(center=(700, 380), width=220, height=16, color="gold")
+Text("rotate_to(45)", center=(300, 220))
+Text("rotate_by(45)", center=(700, 220))
+Text(lambda: f"angle = {round(to.angle)}", center=(300, 180))
+Text(lambda: f"angle = {round(by.angle)}", center=(700, 180))
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        to.rotate_to(45)
+        by.rotate_by(45)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "round(to.angle)",
+          text: "<code>angle</code> is how far the bar is turned, in degrees, counted counterclockwise (the wheel of degrees is in <a href='../../pt/tutorial/D-vetores.html'>Appendix D</a>). The text is a formula: it reads <code>angle</code> and redraws itself when the number changes."
+        },
+        {
+          at: "to.rotate_to(45)",
+          text: "<code>rotate_to</code> takes the angle to a number: afterwards, the angle is 45, wherever the bar started from."
+        },
+        {
+          at: "by.rotate_by(45)",
+          text: "<code>rotate_by</code> adds: 45 more degrees from where the bar is."
+        }
+      ],
+      after: `
+        <p>Run it and press Space a few times.</p>
+        <details class="ask"><summary>After three presses, where is each bar?</summary><p>The blue one is at 45, as after the first: going to 45 when you are already there changes nothing. The gold one is at 135: each press added another eighth of a turn.</p></details>
+      `
+    },
+    {
+      title: "With time",
+      body: `
+        <p>With <code>time=</code>, the turn lasts one second, and you can see the way it goes. Now the request is a full turn: 360 degrees.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+to = Rect(center=(300, 380), width=220, height=16, color="sky blue")
+by = Rect(center=(700, 380), width=220, height=16, color="gold")
+Text("rotate_to(360, time=1)", center=(300, 220))
+Text("rotate_by(360, time=1)", center=(700, 220))
+Text(lambda: f"angle = {round(to.angle)}", center=(300, 180))
+Text(lambda: f"angle = {round(by.angle)}", center=(700, 180))
+
+
+def update(dt):
+    if keyp.once("SPACE") and ready("spin", 1):
+        to.rotate_to(360, time=1)
+        by.rotate_by(360, time=1)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ready(\"spin\", 1)",
+          text: "<code>ready</code> lets one turn start per second. Without it, a press in the middle of a turn would start another, and the console would warn that the new one took the old one's place."
+        },
+        {
+          at: "to.rotate_to(360, time=1)",
+          text: "360 degrees points the same way as 0, and the bar is already there. There is no way to go to a place where you already are."
+        }
+      ],
+      after: `
+        <p>Run it and press Space: the blue one stays put, and the gold one makes a full turn in one second.</p>
+        <details class="ask"><summary>Press again after each turn. What numbers does the gold one show?</summary><p>360, 720, 1080: <code>rotate_by</code> always adds, and the angle doesn't go back to 0. These are full turns, so the bar always points the same way.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the two turns. With time, <code>rotate_to</code> takes the shortest way: to 270, the short way is a quarter turn back, clockwise. <code>rotate_by(270)</code> adds: three quarters of a turn forward.",
+          replaces: ['to.rotate_to(', 'by.rotate_by('],
+          code: `to.rotate_to(270, time=1)
+by.rotate_by(270, time=1)`
+        }
+      ]
+    },
+    {
+      title: "A field and a verb",
+      part: "The angle field",
+      fresh: true,
+      body: `
+        <p><code>angle</code> is also a field, like <code>width</code>: you can read it, write it with <code>=</code> and link it with <code>@=</code>. This script turns two boxes in <code>update</code>, 45 degrees per second: the blue one adds to the field, the gold one calls the verb.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+field = Rect(center=(300, 350), width=220, height=80, color="sky blue")
+verb = Rect(center=(700, 350), width=220, height=80, color="gold")
+Text("field.angle += 45 * dt", center=(300, 160))
+Text("verb.rotate_by(45 * dt)", center=(700, 160))
+
+
+def update(dt):
+    field.angle += 45 * dt
+    verb.rotate_by(45 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "field = Rect(center=",
+          text: "Both boxes are placed by the center, <code>center=(…)</code>."
+        }
+      ],
+      after: `
+        <p>Run it: the two turn together, with no difference at all. The center, which they were placed by, is also the point the verb turns around. On a shape placed by its center, writing to the field and calling the verb come to the same thing.</p>
+      `
+    },
+    {
+      title: "What stays still",
+      body: `
+        <p>Now both boxes are placed by <code>top_left</code>, the top left corner. The turning code is the same.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+field = Rect(top_left=(200, 400), width=220, height=80, color="sky blue")
+verb = Rect(top_left=(600, 400), width=220, height=80, color="gold")
+Text("field.angle += 45 * dt", center=(300, 160))
+Text("verb.rotate_by(45 * dt)", center=(700, 160))
+Circle(center=field.top_left, radius=6, color="white")
+Circle(center=verb.center, radius=6, color="white")
+
+
+def update(dt):
+    field.angle += 45 * dt
+    verb.rotate_by(45 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Circle(center=field.top_left",
+          text: "A small white dot on the blue one's corner, another on the gold one's center: the points to watch when you run it."
+        }
+      ],
+      after: `
+        <p>Run it. Now the boxes turn differently: the blue one around its corner, the gold one around its center. Each white dot marks the point that stays still.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="Two identical boxes turned 30 degrees: the left one around its top left corner, the right one around its center">
+            <rect class="bar" x="50" y="80" width="100" height="36"/>
+            <rect class="bar child" x="50" y="80" width="100" height="36" transform="rotate(-30 50 80)"/>
+            <circle class="hot" cx="50" cy="80" r="4"/>
+            <rect class="bar" x="250" y="80" width="100" height="36"/>
+            <rect class="bar child" x="250" y="80" width="100" height="36" transform="rotate(-30 300 98)"/>
+            <circle class="hot" cx="300" cy="98" r="4"/>
+            <text x="100" y="170" text-anchor="middle">field.angle = 30</text>
+            <text x="100" y="186" text-anchor="middle">the corner stays</text>
+            <text x="300" y="170" text-anchor="middle">verb.rotate_by(30)</text>
+            <text x="300" y="186" text-anchor="middle">the center stays</text>
+          </svg>
+          <figcaption>The same box, placed by <code>top_left</code>, turned 30 degrees in two ways. The red dot stays put: the corner, when you write the field; the center, when you call the verb.</figcaption>
+        </figure>
+        <p>Writing the <code>angle</code> field (with <code>=</code>, with <code>@=</code> or right in <code>Rect(…, angle=30)</code>) turns the shape around the point it was placed by, and that point stays where it is. It is the same idea as <code>width</code>: changing the width of a box placed by <code>top_left</code> doesn't move the corner. The verbs <code>rotate_to</code> and <code>rotate_by</code>, on the other hand, turn the whole shape around its center, whatever it was placed by.</p>
+      `,
+      try: [
+        {
+          note: "A <code>Line</code> placed by one end follows the same rule: its <code>angle</code> turns around <code>p1</code>, like a clock hand pinned to the middle of the dial. At the end of the file, before <code>run()</code>. The line starts pointing up (90 degrees); the formula takes away 6 degrees per second, and a shrinking angle turns clockwise: one turn per minute, like the second hand.",
+          code: `hand = Line(p1=(500, 560), length=100, angle=90, color="white", line_width=4)
+hand["angle"] @= lambda: 90 - 6 * clock.time`
+        }
+      ]
+    },
+    {
+      title: "Choosing the point: about=",
+      body: [
+        `
+        <p>What if the verb has to turn around the corner? <code>about=</code> chooses the point that stays still:</p>
+        `,
+        {
+          snip: `verb.rotate_by(45 * dt, about=corner)`
+        },
+        `
+        <p><code>corner</code> holds the gold one's corner, the place where it was placed, and the verb turns around it instead of the center.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+field = Rect(top_left=(200, 400), width=220, height=80, color="sky blue")
+verb = Rect(top_left=(600, 400), width=220, height=80, color="gold")
+Text("field.angle += 45 * dt", center=(300, 160))
+Text("verb.rotate_by(45 * dt, about=corner)", center=(700, 160))
+Circle(center=field.top_left, radius=6, color="white")
+corner = verb.top_left
+Circle(center=corner, radius=6, color="white")
+
+
+def update(dt):
+    field.angle += 45 * dt
+    verb.rotate_by(45 * dt, about=corner)
+
+
+run()
+`,
+      after: `
+        <p>Run it: now the two boxes turn the same way, each around its own corner.</p>
+        <p>So which one do you use? It depends on what the turn is:</p>
+        <div class="tbl"><table><thead><tr><th>Use</th><th>When</th></tr></thead><tbody>
+          <tr><td>the <code>angle</code> field</td><td>the shape was placed by the point that should stay still (the hand pinned by its end), or you already know the direction and just write it (the probe that reads the planet's heading)</td></tr>
+          <tr><td>the verb <code>rotate_by</code> / <code>rotate_to</code></td><td>the turn is a movement: a full turn, a little each frame, around the center or, with <code>about=</code>, around any point, like a door on its hinge</td></tr>
+        </tbody></table></div>
+      `,
+      try: [
+        {
+          note: "In place of the corner, a point outside the box. The gold one now circles around it, like a moon around a planet.",
+          replaces: ['corner = verb.top_left'],
+          code: `corner = (700, 520)`
+        }
+      ]
+    },
+    {
+      title: "Pinned by the corners",
+      part: "Two anchors",
+      fresh: true,
+      body: `
+        <p>A <code>Rect</code> can also be placed by two opposite corners, <code>p1</code> and <code>p2</code>: the bottom left one and the top right one. Here both corners are pinned to two anchors, and the arrows change the <code>angle</code> field. What happens to a pinned box when it turns?</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+end1 = Anchor(180, 300)
+end2 = Anchor(420, 400)
+pinned = Rect(p1=lambda: end1.center, p2=lambda: end2.center, color="sky blue")
+Text(lambda: f"angle {round(pinned.angle)}   {round(pinned.width)} x {round(pinned.height)}", center=(300, 160))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        pinned.angle += 45 * dt
+    if keyp("RIGHT"):
+        pinned.angle -= 45 * dt
+
+
+run()
+`,
+      notes: [
+        {
+          at: "end1 = Anchor(180, 300)",
+          text: "An <code>Anchor</code> is a point that starts out visible and that you can drag with the mouse."
+        },
+        {
+          at: "pinned = Rect(p1=lambda",
+          text: "Both corners are formulas: they read the anchors, and the box stays pinned to them."
+        }
+      ],
+      after: `
+        <p>Run it and drag an anchor: the box stretches along. Now hold the left arrow and watch the text.</p>
+        <details class="ask"><summary>Does the whole box turn?</summary><p>No. The corners are pinned to the anchors, and the <code>angle</code> field keeps the points the box was placed by. So it tilts and, to keep its corners on the anchors, changes size: the text shows the width and height changing.</p></details>
+        <p>Near 23 degrees, the box becomes a line. The diagonal, the straight line from one anchor to the other, rises about 23 degrees; at that angle it lies along one side, and the box has no height at all. Keep going: then it fills out again, and at 90 degrees it is back with the width and height swapped.</p>
+      `
+    },
+    {
+      title: "Free, it turns whole",
+      body: `
+        <p>On the right, the same box, placed by the same two corners, but with numbers: nothing pins it. The arrows turn this one with the verb.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="On the left, a box pinned by two opposite corners tilts 60 degrees and changes shape, with its free corners on a circle; on the right, the same box turns 60 degrees whole around its center">
+            <circle class="guide" cx="100" cy="105" r="65"/>
+            <rect class="bar" x="40" y="80" width="120" height="50"/>
+            <polygon class="bar child" points="40,130 91.65,40.54 160,80 108.33,169.46"/>
+            <circle class="hot" cx="40" cy="130" r="4"/>
+            <circle class="hot" cx="160" cy="80" r="4"/>
+            <text x="28" y="146" text-anchor="end">p1</text>
+            <text x="170" y="78">p2</text>
+            <rect class="bar" x="240" y="80" width="120" height="50"/>
+            <rect class="bar child" x="240" y="80" width="120" height="50" transform="rotate(-60 300 105)"/>
+            <circle class="hot" cx="300" cy="105" r="4"/>
+            <text x="100" y="194" text-anchor="middle">pinned.angle = 60</text>
+            <text x="300" y="194" text-anchor="middle">free.rotate_by(60)</text>
+          </svg>
+          <figcaption>On the left, corners <code>p1</code> and <code>p2</code> stay: the other two travel along the dashed circle, which has the diagonal as its diameter, and the box changes shape. On the right, the verb turns the whole box around its center, and every corner moves.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+end1 = Anchor(180, 300)
+end2 = Anchor(420, 400)
+pinned = Rect(p1=lambda: end1.center, p2=lambda: end2.center, color="sky blue")
+Text(lambda: f"angle {round(pinned.angle)}   {round(pinned.width)} x {round(pinned.height)}", center=(300, 160))
+
+free = Rect(p1=(580, 300), p2=(820, 400), color="gold")
+Text(lambda: f"angle {round(free.angle)}   {round(free.width)} x {round(free.height)}", center=(700, 160))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        pinned.angle += 45 * dt
+        free.rotate_by(45 * dt)
+    if keyp("RIGHT"):
+        pinned.angle -= 45 * dt
+        free.rotate_by(-45 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "free = Rect(p1=(580, 300), p2=(820, 400)",
+          text: "The same corners as the blue one, but numbers instead of formulas: nothing pins this box."
+        }
+      ],
+      after: [
+        `
+        <p>Hold an arrow: the gold one turns whole, always the same size, and its corners leave the places they started at. The blue one keeps tilting, pinned to the anchors.</p>
+        <p>Why not turn the pinned one with the verb too?</p>
+        `,
+        {
+          snip: `pinned.rotate_by(45 * dt)`,
+          alt: true
+        },
+        `
+        <p>Turning the whole box would pull the corners off the anchors, and the formulas are in charge of the corners. Scena refuses that line, and the message says why: <code>p1</code> has a formula. It is the same refusal as an <code>=</code> on a linked field.</p>
+        `
+      ]
+    },
+    {
+      title: "Scale to, scale by",
+      part: "Size",
+      fresh: true,
+      body: `
+        <p>Size has the same pair, to and by. <code>scale</code> is the size as a multiple: 1 is the size the shape started with, 2 is double, 0.5 is half.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+to = Square(center=(300, 380), length=80, color="sky blue")
+by = Square(center=(700, 380), length=80, color="gold")
+Text("scale_to(1.5)", center=(300, 160))
+Text("scale_by(1.5)", center=(700, 160))
+Text(lambda: f"scale = {round(to.scale, 2)}", center=(300, 120))
+Text(lambda: f"scale = {round(by.scale, 2)}", center=(700, 120))
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        to.scale_to(1.5)
+        by.scale_by(1.5)
+    if keyp.once("R"):
+        to.scale_to(1)
+        by.scale_to(1)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "to.scale_to(1.5)",
+          text: "<code>scale_to</code> takes the scale to 1.5."
+        },
+        {
+          at: "by.scale_by(1.5)",
+          text: "<code>scale_by</code> multiplies the scale the shape already has by 1.5."
+        },
+        {
+          at: "keyp.once(\"R\")",
+          text: "The R key takes both back to their starting size, scale 1."
+        }
+      ],
+      after: `
+        <p>Run it and press Space a few times.</p>
+        <details class="ask"><summary>After three presses, what is each square's scale?</summary><p>The blue one is at 1.5, as after the first. The gold one went to 1.5, then 2.25 (1.5 times 1.5), then 3.38: each press multiplies, and it grows faster and faster.</p></details>
+        <p><code>scale</code> is also a field: <code>square.scale = 2</code> does the same as <code>square.scale_to(2)</code>. Here there is no difference like the one with <code>angle</code>: the field and the verb always change the size from the center.</p>
+      `
+    },
+    {
+      title: "Growing from the floor",
+      body: `
+        <p>With <code>time=</code>, the size changes gradually, and two squares resting on a floor grow and shrink nonstop. What differs between them is the point they grow from.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Turn and grow")
+
+from_middle = Square(center=(300, 260), length=100, color="sky blue")
+from_floor = Square(center=(700, 260), length=100, color="gold")
+Rect(top_left=(0, 210), width=1000, height=210, color="dark forest green")
+Text("scale_to(2, …)", center=(300, 120))
+Text("scale_to(2, …, about=from_floor.bottom_center)", center=(700, 120))
+
+from_middle.scale_to(2, time=1, loops="forever", yoyo=True)
+from_floor.scale_to(2, time=1, loops="forever", yoyo=True, about=from_floor.bottom_center)
+
+run()
+`,
+      notes: [
+        {
+          at: "Rect(top_left=(0, 210)",
+          text: "The floor is created after the squares, so it is drawn on top of them."
+        },
+        {
+          at: "from_middle.scale_to(2, time=1",
+          text: "In 1 second, the scale goes to 2; <code>yoyo=True</code> brings it back, and <code>loops=\"forever\"</code> repeats nonstop."
+        },
+        {
+          at: "yoyo=True, about=from_floor",
+          text: "<code>about=</code> works here too. <code>bottom_center</code> is the bottom center, resting on the floor: it stays still."
+        }
+      ],
+      after: `
+        <p>Run it and compare the two.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="Two small squares on the floor line and, behind each, the version at double size; the left one grew around its center and went below the floor; the right one grew upward, with its bottom center still on the floor">
+            <rect class="bar child" x="60" y="80" width="80" height="80"/>
+            <rect class="bar" x="80" y="100" width="40" height="40"/>
+            <rect class="bar child" x="260" y="60" width="80" height="80"/>
+            <rect class="bar" x="280" y="100" width="40" height="40"/>
+            <line class="ray" x1="20" y1="140" x2="380" y2="140"/>
+            <circle class="hot" cx="100" cy="120" r="4"/>
+            <circle class="hot" cx="300" cy="140" r="4"/>
+            <text x="380" y="132" text-anchor="end">floor</text>
+            <text x="100" y="190" text-anchor="middle">from_middle</text>
+            <text x="300" y="190" text-anchor="middle">from_floor</text>
+          </svg>
+          <figcaption>Both start resting on the floor; behind each, the same square at scale 2. The red dot stays still. On the left, the center: the square grows up and down, and its lower part goes into the floor, which hides it. On the right, the bottom center: the square grows only upward, like a plant.</figcaption>
+        </figure>
+      `,
+      dive: [
+        {
+          title: "Turning and growing, side by side",
+          body: `
+            <p>The verbs come in pairs: the one ending in <code>_to</code> goes <em>to</em> a value, and the one ending in <code>_by</code> moves <em>by</em> an amount, from where the shape is. The <code>angle</code> and <code>scale</code> fields hold the current value.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Code</th><th>What it does</th><th>The point that stays still</th></tr></thead>
+              <tbody>
+                <tr><td><code>rotate_to(45)</code></td><td>turns to 45 degrees; with <code>time=</code>, the short way</td><td>the center, or <code>about=</code></td></tr>
+                <tr><td><code>rotate_by(45)</code></td><td>adds 45 degrees; 360 is a full turn</td><td>the center, or <code>about=</code></td></tr>
+                <tr><td><code>angle = 45</code>, <code>["angle"] @=</code>, <code>angle=45</code></td><td>writes the field: the same number as <code>rotate_to(45)</code></td><td>the point the shape was placed by</td></tr>
+                <tr><td><code>scale_to(1.5)</code></td><td>scales to 1.5 (1 is the starting size)</td><td>the center, or <code>about=</code></td></tr>
+                <tr><td><code>scale_by(1.5)</code></td><td>multiplies the scale by 1.5</td><td>the center, or <code>about=</code></td></tr>
+                <tr><td><code>scale = 1.5</code></td><td>the same as <code>scale_to(1.5)</code></td><td>the center</td></tr>
+              </tbody>
+            </table></div>
+            <p>The difference is always in the point that stays still. On a shape placed by its center, which is the case for almost every <code>Sprite</code> in the series, the field and the verb turn the same way. On a shape placed by a corner or an end, the field turns around that point, and the verb around the center. On a shape pinned by its corners with formulas, only the field works.</p>
+            <p>In the Guide: <a href="../guide/index.html#mover-pose">move / rotate / scale</a> · <a href="../guide/index.html#suite">Time parameters (time=)</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>Four scripts: two bars that turn to and by, boxes that turn around a corner or the center, a box pinned to two anchors beside a free one, and two squares that grow, one from the middle and one from the floor. After this interlude, Plane puts an airplane in the air, and its nose turns with <code>rotate_to</code>.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Build a clock: three hands that turn nonstop, each at its own speed.</li>
+          <li>Can you make a door that turns on its hinge, opening and closing on each press of Space?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

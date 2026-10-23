@@ -8,6 +8,7 @@ examples/aviao.py
 examples/aviao_paisagem.py
 examples/aviao_profundidade.py
 examples/ball_chain.py
+examples/balls.py
 examples/banner.py
 examples/barras_girando.py
 examples/bolas.py
@@ -26,8 +27,10 @@ examples/duelo.py
 examples/entropia.py
 examples/estudio_voz.py
 examples/first_script.py
+examples/formula_machine.py
 examples/formulas.py
 examples/interacao.py
+examples/interaction.py
 examples/letreiro.py
 examples/ligue4.py
 examples/media/CREDITS.md
@@ -301,6 +304,7 @@ examples/media/tilesets/Tiles/3.png
 examples/media/tilesets/Tiles/5.png
 examples/media/tilesets/licence.txt
 examples/midpoint.py
+examples/movement.py
 examples/movimento.py
 examples/naves_1.py
 examples/naves_2_classes.py
@@ -314,6 +318,7 @@ examples/ninja_3_nivel.py
 examples/ninja_4_perigos.py
 examples/ninja_5_espada.py
 examples/orbitas.py
+examples/orbits.py
 examples/osciloscopio.py
 examples/pegar_estrelas.py
 examples/piano.py
@@ -326,4 +331,6 @@ examples/ships_3_lives.py
 examples/ships_4_shield.py
 examples/ships_5_modes.py
 examples/ships_6_acts.py
+examples/starry_sky.py
+examples/tracks.py
 examples/trilhas.py

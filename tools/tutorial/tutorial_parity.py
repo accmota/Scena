@@ -191,7 +191,8 @@ _NAMES = {
 }
 _LIST_NAMES = {ast.Global: "names", ast.Nonlocal: "names"}
 _WORD = re.compile(r"^\w+$")
-_PATH = re.compile(r"[/\\*]|\.\w{2,4}$")
+# A file name or pattern: no spaces ("45 * dt" on screen is text, not a glob).
+_PATH = re.compile(r"^\S*(?:[/\\*]\S*|\.\w{2,4})$")
 
 _SHADOW: set | None = None
 
@@ -530,7 +531,7 @@ def page_rename(pt_text: str, en_text: str, key: str) -> tuple[Rename, list[str]
 
 
 def check_page(key: str, pt_text: str, en_text: str, state: dict, names: dict,
-               en_name: str = "", pt_name: str = "") -> list[str]:
+               en_dir: Path = EN_DIR) -> list[str]:
     errors = []
     if not re.search(r'<html lang="en"', en_text):
         errors.append(f"{key}: a página em inglês precisa de <html lang=\"en\"> (o motor escreve no idioma da página)")
@@ -553,7 +554,7 @@ def check_page(key: str, pt_text: str, en_text: str, state: dict, names: dict,
         if a == b:
             errors.append(f"{key}: o exemplo em inglês tem nome em inglês (não {b}: examples/ guarda os dois)")
     for href in re.findall(r"""href=["']\.\./\.\./pt/tutorial/((?:\d\di?|[A-Z])-[^"'#/]*\.html)""", en_text):
-        twin = pages(EN_DIR).get(page_key(href))
+        twin = pages(en_dir).get(page_key(href))
         if twin is not None:
             errors.append(f"{key}: o link para ../../pt/tutorial/{href} já tem página em inglês ({twin.name})")
     eu = dict(units(key, en_text))
@@ -582,7 +583,7 @@ def check(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = Non
             errors.append(f"{epath.name}: nenhuma página em português com a chave {key}")
             continue
         errors += check_page(key, pt[key].read_text(encoding="utf-8"),
-                             epath.read_text(encoding="utf-8"), state, names)
+                             epath.read_text(encoding="utf-8"), state, names, en_dir)
     known = {n for k, p in pt.items() for n, _ in units(k, p.read_text(encoding="utf-8"))}
     for name in sorted(set(state) - known):
         errors.append(f"{name}: está no {STATE.name}, mas a unidade não existe mais no pt — tire a linha")

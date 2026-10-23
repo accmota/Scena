@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Movement — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "12",
+  title: "Movement",
+  steps: [
+    {
+      title: "Place",
+      body: `
+        <p>A thing can move in two ways: a little each frame, in <code>update</code>, or on its own, from an order given once. This tutorial takes a close look at the second way, trips, and ends by comparing the two. It is not a game: a ship that goes wherever you click.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    ship.move_to(x, y)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "The fixed-name function Scena calls on every click on the canvas, with the point <code>(x, y)</code>."
+        },
+        {
+          at: "ship.move_to(x, y)",
+          text: "<code>move_to</code> puts the ship at the point. With nothing else, it happens at once: the ship vanishes from where it was and appears there, as if you wrote <code>ship.center = (x, y)</code>."
+        }
+      ],
+      after: `
+        <p>Run it and click around the screen: the ship jumps from one place to another.</p>
+      `
+    },
+    {
+      title: "Travel",
+      body: `
+        <p>One more number, and the ship no longer jumps: it travels to the point.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    ship.move_to(x, y, time=1)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "time=1",
+          text: "<code>time=1</code>: the ship travels to the point in 1 second. The click function runs once and ends right away; Scena is the one that moves the ship, a little each frame, until it arrives. Not a single line in <code>update</code>."
+        }
+      ],
+      after: `
+        <p>Run it and click near the ship, then far away.</p>
+        <details class="ask"><summary>Which of the two trips is faster?</summary><p>The long one. Both last 1 second, and to get far in the same time the ship has to go faster.</p></details>
+        <p>Click again in the middle of a trip: the new one takes the place of the old one, with no warning.</p>
+      `
+    },
+    {
+      title: "Same speed",
+      body: `
+        <p>A ship that goes faster when the destination is far away looks odd. Better to fix the speed and let each trip's time come from the distance:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 150" role="img" aria-label="Two trips, a short one and a long one. With time=1, both take 1 second. With speed=400, the short one takes half a second and the long one takes 2 seconds">
+            <text x="10" y="22">time=1</text>
+            <line class="ray" x1="20" y1="42" x2="120" y2="42"/>
+            <circle class="dot" cx="120" cy="42" r="4"/>
+            <text x="130" y="46">near: 1 s</text>
+            <line class="ray" x1="20" y1="64" x2="300" y2="64"/>
+            <circle class="dot" cx="300" cy="64" r="4"/>
+            <text x="310" y="68">far: 1 s</text>
+            <text x="10" y="100">speed=400</text>
+            <line class="ray" x1="20" y1="118" x2="120" y2="118"/>
+            <circle class="hot" cx="120" cy="118" r="4"/>
+            <text x="130" y="122">near: 0.5 s</text>
+            <line class="ray" x1="20" y1="140" x2="300" y2="140"/>
+            <circle class="hot" cx="300" cy="140" r="4"/>
+            <text x="310" y="144">far: 2 s</text>
+          </svg>
+          <figcaption>With <code>time=</code>, every trip lasts the same, and the speed changes. With <code>speed=</code>, every trip has the same speed, and the time changes.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    ship.move_to(x, y, speed=400)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "speed=400",
+          text: "<code>speed=400</code>, in place of <code>time=</code>: 400 per second. A distance of 200 takes half a second; 800 takes 2. Use one or the other, never both: both say how long the trip lasts."
+        }
+      ],
+      after: `
+        <p>Run it and click near and far: now the long trip takes longer, at the same speed.</p>
+      `
+    },
+    {
+      title: "Speed up, slow down",
+      body: `
+        <p>The ship leaves at full speed and stops dead. One more parameter lets it pick up speed and brake, without changing how long the trip lasts:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 110" role="img" aria-label="Two rows of dots, the ship's position every tenth of a second on a 1-second trip. In linear, the dots are evenly spaced. In ease_in_out, the dots bunch up at the start and at the end and spread out in the middle">
+            <text x="60" y="20">linear</text>
+            <circle class="dot" cx="60" cy="36" r="3"/>
+            <circle class="dot" cx="88" cy="36" r="3"/>
+            <circle class="dot" cx="116" cy="36" r="3"/>
+            <circle class="dot" cx="144" cy="36" r="3"/>
+            <circle class="dot" cx="172" cy="36" r="3"/>
+            <circle class="dot" cx="200" cy="36" r="3"/>
+            <circle class="dot" cx="228" cy="36" r="3"/>
+            <circle class="dot" cx="256" cy="36" r="3"/>
+            <circle class="dot" cx="284" cy="36" r="3"/>
+            <circle class="dot" cx="312" cy="36" r="3"/>
+            <circle class="dot" cx="340" cy="36" r="3"/>
+            <text x="60" y="74">ease_in_out</text>
+            <circle class="hot" cx="60" cy="90" r="3"/>
+            <circle class="hot" cx="61.1" cy="90" r="3"/>
+            <circle class="hot" cx="69" cy="90" r="3"/>
+            <circle class="hot" cx="90.2" cy="90" r="3"/>
+            <circle class="hot" cx="131.7" cy="90" r="3"/>
+            <circle class="hot" cx="200" cy="90" r="3"/>
+            <circle class="hot" cx="268.3" cy="90" r="3"/>
+            <circle class="hot" cx="309.8" cy="90" r="3"/>
+            <circle class="hot" cx="331" cy="90" r="3"/>
+            <circle class="hot" cx="338.9" cy="90" r="3"/>
+            <circle class="hot" cx="340" cy="90" r="3"/>
+          </svg>
+          <figcaption>Where the ship is every tenth of a second, on a 1-second trip. Without <code>ease=</code>, equal steps. With <code>"ease_in_out"</code>, short steps at the start and at the end (it picks up speed and brakes) and long ones in the middle.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350))
+
+
+def on_mouse_click(x, y, button):
+    ship.move_to(x, y, speed=400, ease="ease_in_out")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ease=\"ease_in_out\"",
+          text: "<code>ease</code> comes from <em>easing</em>, smoothing out a motion; <code>\"ease_in_out\"</code> smooths the way in and the way out. Without <code>ease=</code>, the trip is <code>\"linear\"</code>: the same speed from start to finish."
+        }
+      ],
+      after: `
+        <p>Run it and click far away: the ship leaves slowly, speeds up in the middle and brakes as it arrives.</p>
+      `,
+      try: [
+        {
+          note: "Other rhythms, one at a time, in place of the <code>move_to</code> line. <code>\"ease_out\"</code> leaves fast and brakes; <code>\"bounce\"</code> arrives bouncing; <code>\"elastic\"</code> overshoots the point and comes back.",
+          replaces: ['ship.move_to('],
+          code: `ship.move_to(x, y, speed=400, ease="ease_out")
+ship.move_to(x, y, speed=400, ease="bounce")
+ship.move_to(x, y, speed=400, ease="elastic")`
+        }
+      ]
+    },
+    {
+      title: "Facing forward",
+      body: `
+        <p>The ship travels sideways, backward, always pointing up. We want its nose pointing where it is going. To turn the ship the right way, Scena needs to know which way the drawing in the image points:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 140" role="img" aria-label="Scena's angles: 0 points right and 90 points up; the ship's drawing points up, at 90">
+            <line class="guide" x1="150" y1="68" x2="150" y2="24"/>
+            <line class="ray" x1="150" y1="90" x2="250" y2="90"/>
+            <polygon class="dot" points="258,90 249,85 249,95"/>
+            <polygon class="hot" points="150,70 138,104 162,104"/>
+            <text x="266" y="94">0: right</text>
+            <text x="150" y="16" text-anchor="middle">90: up</text>
+            <text x="150" y="128" text-anchor="middle">the drawing points at 90</text>
+          </svg>
+          <figcaption>In Scena's math, angle 0 points right and 90 points up. This ship's drawing points up, and <code>art_angle=90</code> says so.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+
+
+def on_mouse_click(x, y, button):
+    ship.move_to(x, y, speed=400, ease="ease_in_out", face=True)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "art_angle=90",
+          text: "<code>art_angle</code> (the angle of the art) says which way the drawing in the image points. Without it, the ship would travel sideways."
+        },
+        {
+          at: "face=True",
+          text: "<code>face=True</code> turns the ship toward the direction of travel, at the start of each trip."
+        }
+      ],
+      after: `
+        <p>Run it and click around the ship: the nose points at each destination before the ship sets off.</p>
+      `
+    },
+    {
+      title: "Arrived",
+      body: `
+        <p>A dashed gold circle marks the destination: it appears on the click and disappears when the ship arrives.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+target = Circle(center=(500, 350), radius=24, color="gold")
+target.fill = None
+target.dash = "dash"
+target.visible = False
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+
+
+def landed():
+    target.visible = False
+
+
+def on_mouse_click(x, y, button):
+    target.center = (x, y)
+    target.visible = True
+    ship.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=landed)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "target = Circle(",
+          text: "The target is created before the ship, so it sits under it, and hidden (<code>visible = False</code>). The click puts it at the point and shows it."
+        },
+        {
+          at: "target.dash = \"dash\"",
+          text: "<code>dash</code> draws the outline as dashes."
+        },
+        {
+          at: "on_done=landed",
+          text: "<code>on_done</code> hands the trip a function to call when it ends. It goes without parentheses: <code>landed</code> is the function, for Scena to call later."
+        }
+      ],
+      after: [
+        `
+        <p>Run it and click: the circle marks the destination and disappears when the ship lands.</p>
+        <p>An easy mistake is to write the parentheses:</p>
+        `,
+        {
+          snip: `ship.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=landed())`,
+          alt: true
+        },
+        `
+        <p>With them, <code>landed()</code> runs now, at the moment of the click, and hides the target right after the click shows it: the circle never appears. The trip gets what the function returned, nothing, and calls no one at the end.</p>
+        `
+      ]
+    },
+    {
+      title: "The trip's handle",
+      body: [
+        `
+        <p>So far, a trip once started went all the way. But <code>move_to</code> with <code>time=</code> or <code>speed=</code> returns a handle for the trip, and with it in hand you can cancel it, pause it, ask whether it is over. The handle is kept in a field of the ship:</p>
+        `,
+        {
+          snip: `ship.trip = ship.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=landed)`
+        },
+        `
+        <p>When the ship is standing still, the field holds <code>None</code> (nothing): before the first trip, after it stops and when it lands. So <code>if ship.trip:</code> means “the ship is traveling”.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+target = Circle(center=(500, 350), radius=24, color="gold")
+target.fill = None
+target.dash = "dash"
+target.visible = False
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+ship.trip = None
+
+
+def landed():
+    ship.trip = None
+    target.visible = False
+
+
+def halt():
+    if ship.trip:
+        ship.trip.cancel()
+        ship.trip = None
+    target.visible = False
+
+
+def on_mouse_click(x, y, button):
+    halt()
+    target.center = (x, y)
+    target.visible = True
+    ship.trip = ship.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=landed)
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        halt()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def landed():",
+          text: "Landing also clears the field: the trip is over."
+        },
+        {
+          at: "ship.trip.cancel()",
+          text: "<code>cancel</code> ends the trip and leaves the ship where it is."
+        },
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "The click goes through <code>halt()</code> before the new trip, like Space: the marker hides and the field is cleared, and only then does the ship leave for the new destination."
+        },
+        {
+          at: "if keyp.once(\"SPACE\"):",
+          text: "<code>keyp.once</code> is true only on the frame the key is pressed: one tap on Space stops the ship."
+        }
+      ],
+      after: `
+        <p>Run it, click far away and, midway, press Space or click somewhere else.</p>
+      `,
+      try: [
+        {
+          note: "Pause and resume: inside <code>update</code>, the P key freezes the trip; R lets it go on from where it was.",
+          code: `if keyp.once("P") and ship.trip:
+    ship.trip.pause()
+if keyp.once("R") and ship.trip:
+    ship.trip.resume()`
+        }
+      ]
+    },
+    {
+      title: "Follow the mouse",
+      example: "movement.py",
+      body: [
+        `
+        <p>Last, the other way to move: with the right button held, the ship chases the mouse, even while it moves. A trip won't do for this:</p>
+        `,
+        {
+          snip: `ship.move_to(mouse, speed=400)`,
+          alt: true
+        },
+        `
+        <p>That line copies where the mouse is at the moment of the order and goes there, even if the mouse moves away. To follow a target that moves, you have to ask again, every frame, where it is.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Movement")
+Wallpaper("#0b1020")
+Stars()
+
+target = Circle(center=(500, 350), radius=24, color="gold")
+target.fill = None
+target.dash = "dash"
+target.visible = False
+
+ship = Sprite("space/playerShip1_red.png", width=60, center=(500, 350), art_angle=90)
+ship.trip = None
+
+
+def landed():
+    ship.trip = None
+    target.visible = False
+
+
+def halt():
+    if ship.trip:
+        ship.trip.cancel()
+        ship.trip = None
+    target.visible = False
+
+
+def on_mouse_click(x, y, button):
+    halt()
+    target.center = (x, y)
+    target.visible = True
+    ship.trip = ship.move_to(x, y, speed=400, ease="ease_in_out", face=True, on_done=landed)
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        halt()
+    if mouse.press(Mouse.BTN_RIGHT):
+        halt()
+        ship.move_to(approach(ship.center, mouse, 300), face=True)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if mouse.press(Mouse.BTN_RIGHT):",
+          text: "Before the step, <code>halt()</code> cancels any trip under way: the two can't steer the ship at the same time."
+        },
+        {
+          at: "approach(ship.center, mouse, 300)",
+          text: "<code>approach</code> returns a point one small step closer to the mouse: the step of something moving at 300 per second, during this frame. <code>move_to</code> without a time puts the ship there, and <code>face=True</code> turns it that way."
+        }
+      ],
+      after: `
+        <p>Run it, hold the right button and move the mouse around: the ship goes after it, nose first, wherever it goes. Let go of the button, and it stops.</p>
+      `,
+      dive: [
+        {
+          title: "Trip or step by step?",
+          body: `
+            <p>There are two ways to make a thing move, and each one suits a different case.</p>
+            <div class="tbl"><table>
+              <thead><tr><th></th><th>A trip</th><th>A step each frame</th></tr></thead>
+              <tbody>
+                <tr><td>How</td><td><code>move_to(…, time=)</code> or <code>speed=</code>, once</td><td><code>move_to(approach(…))</code> in <code>update</code></td></tr>
+                <tr><td>The destination</td><td>Copied at the start: if it moves, the trip doesn't see it</td><td>Read again every frame: follows a moving target</td></tr>
+                <tr><td>Rhythm</td><td><code>ease=</code> to pick up speed and brake</td><td>Always the same speed</td></tr>
+                <tr><td>At the end</td><td><code>on_done=</code> tells you</td><td>You ask, every frame</td></tr>
+                <tr><td>Handle</td><td>Returns one, to cancel or pause</td><td>Just stop calling</td></tr>
+              </tbody>
+            </table></div>
+            <p>The same <code>time=</code>, <code>speed=</code>, <code>ease=</code> and <code>on_done=</code> work for other verbs: <code>move_by</code> (moves by an amount, from where it is), <code>rotate_to</code> and <code>rotate_by</code> (turn), <code>scale_to</code> (change the size) and the tracks' <code>move_along</code>. They all return a handle.</p>
+            <p>In the Guide: <a href="../guide/index.html#suite">Time parameters (time=)</a> · <a href="../guide/index.html#mover-pose">move / rotate / scale</a>.</p>
+          `,
+          try: [
+            {
+              note: "The chase with <code>chase</code>, in place of the <code>approach</code> line: the ship rushes when the mouse is far away and arrives gently.",
+              replaces: ['ship.move_to(approach('],
+              code: `ship.move_to(chase(ship.center, mouse, rate=4), face=True)`
+            },
+            {
+              note: "A relative trip: <code>move_by</code> moves 200 to the right from where the ship is, there and back, forever. At the end of the program.",
+              code: `ship.move_by(200, 0, time=1, ease="ease_in_out", loops="forever", yoyo=True)`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>Click and the ship travels to the point, nose first, picking up speed and braking; the gold circle marks the destination. Click somewhere else midway to change destination; Space stops the ship. Hold the right button and it chases the mouse.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>move_to(x, y)</code> — without a time, places at once; with <code>time=</code> or <code>speed=</code>, travels, and Scena moves the object every frame.</li>
+          <li><code>time=</code> and <code>speed=</code> — the same duration for every trip, or the same speed.</li>
+          <li><code>ease=</code> — the rhythm within the trip: <code>"ease_in_out"</code> picks up speed and brakes.</li>
+          <li><code>face=True</code> and <code>art_angle=</code> — the first turns the object toward the direction of travel; the second says which way the drawing points.</li>
+          <li><code>on_done=</code> — the function the trip calls when it ends.</li>
+          <li>The trip's handle — what <code>move_to</code> returns: <code>cancel()</code>, <code>pause()</code>, <code>resume()</code>.</li>
+          <li><code>approach</code> — one step per frame toward a target that may move.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#suite">Time parameters (time=)</a> · <a href="../guide/index.html#mover-pose">move / rotate / scale</a> · <a href="../guide/index.html#agendar-handle">Handle</a>.</p>
+        <p><strong>Next:</strong> trips along curved paths (Tracks).</p>
+      `,
+      explore: `
+        <ul>
+          <li>Try other <code>ease</code> values and other speeds, and pick the trip that feels most natural.</li>
+          <li>Can you make the ship visit, one after another, every point you clicked? A list of destinations and <code>on_done</code> will do it.</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

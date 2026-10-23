@@ -80,7 +80,7 @@ run()
       after: `
         <p>Rode e clique perto da nave, depois longe.</p>
         <details class="ask"><summary>Qual das duas viagens é mais rápida?</summary><p>A longa. As duas duram 1 segundo, e para chegar longe no mesmo tempo a nave corre mais.</p></details>
-        <p>Clique de novo no meio de uma viagem: a nova toma o lugar da velha, e o console avisa a troca.</p>
+        <p>Clique de novo no meio de uma viagem: a nova toma o lugar da velha, sem aviso.</p>
       `
     },
     {
@@ -370,7 +370,7 @@ run()
         },
         {
           at: "def on_mouse_click(x, y, button):",
-          text: "O clique para a viagem velha antes de começar a nova: trocar de destino no meio do caminho não gera mais aviso no console."
+          text: "O clique passa por <code>parar()</code> antes da viagem nova, como o Espaço: o alvo some e o campo zera, e só então a nave parte para o novo destino."
         },
         {
           at: "if keyp.once(\"SPACE\"):",

@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Balls — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "10",
+  title: "Balls",
+  steps: [
+    {
+      title: "The walls",
+      body: `
+        <p>A new game: a box of balls that bounce off the walls and off each other. The whole tutorial turns on one idea, a collision rule that stays in force. First, the box: four walls, one on each edge of the 1000 by 720 window.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 225" role="img" aria-label="The window with a wall on each edge; the center of each wall is marked: (500, 704) at the top, (500, 16) at the bottom, (16, 360) on the left and (984, 360) on the right">
+            <rect class="bar" x="70" y="20" width="250" height="8"/>
+            <rect class="bar" x="70" y="192" width="250" height="8"/>
+            <rect class="bar" x="70" y="20" width="8" height="180"/>
+            <rect class="bar" x="312" y="20" width="8" height="180"/>
+            <circle class="hot" cx="195" cy="24" r="3"/>
+            <circle class="hot" cx="195" cy="196" r="3"/>
+            <circle class="hot" cx="74" cy="110" r="3"/>
+            <circle class="hot" cx="316" cy="110" r="3"/>
+            <text x="195" y="44" text-anchor="middle">(500, 704)</text>
+            <text x="195" y="184" text-anchor="middle">(500, 16)</text>
+            <text x="86" y="114">(16, 360)</text>
+            <text x="304" y="114" text-anchor="end">(984, 360)</text>
+            <text x="70" y="216" text-anchor="middle">(0, 0)</text>
+            <text x="320" y="12" text-anchor="middle">(1000, 720)</text>
+          </svg>
+          <figcaption>Each wall is 32 thick and sits against the edge of the window; the marked point is its center. That leaves the balls the space from 32 to 968 in x and from 32 to 688 in y.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "SkyGradient(\"night\")",
+          text: "<code>SkyGradient</code> paints the background as a sky; <code>\"night\"</code> is the dark one."
+        },
+        {
+          at: "Rect(center=(500, 16)",
+          text: "A <code>Rect</code> (rectangle) has a center, a <code>width</code> and a <code>height</code>. The bottom wall has its center 16 above the floor and is 32 tall: it covers 0 to 32."
+        },
+        {
+          at: "group[\"wall\"].visual = Metal()",
+          text: "A group takes what an object takes: <code>visual</code> on the group gives all four walls the metal at once."
+        }
+      ]
+    },
+    {
+      title: "One ball",
+      body: [
+        `
+        <p>Now a ball that moves on its own. It is a class, and this time the mold is a shape, <code>Circle</code>, not a sprite. What is new is its velocity, kept in an arrow:</p>
+        `,
+        {
+          snip: `self.vel = Vec2(200, 120)
+...
+self.move_by(self.vel.x * dt, self.vel.y * dt)`
+        },
+        `
+        <p><code>self.vel</code> (short for <em>velocity</em>) is how far the ball moves per second. <code>Vec2(200, 120)</code> is an arrow, a vector of two numbers: 200 to the right and 120 up. Each frame, the ball moves the piece of the arrow that fits in that frame, <code>vel.x * dt</code> and <code>vel.y * dt</code>: in a frame of 1/60 of a second, 3.3 to the right and 2 up.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 180" role="img" aria-label="A ball and its velocity arrow, pointing up and to the right; the arrow breaks down into 200 to the right and 120 up">
+            <line class="guide" x1="60" y1="150" x2="260" y2="150"/>
+            <line class="guide" x1="260" y1="150" x2="260" y2="30"/>
+            <line class="ray" x1="68" y1="145" x2="252" y2="35"/>
+            <polygon class="dot" points="260,30 254,39.4 248.9,30.9"/>
+            <circle class="hot" cx="60" cy="150" r="9"/>
+            <text x="120" y="74" text-anchor="middle">Vec2(200, 120)</text>
+            <text x="160" y="168" text-anchor="middle">200 to the right</text>
+            <text x="268" y="94">120 up</text>
+          </svg>
+          <figcaption>The arrow <code>Vec2(200, 120)</code>: every second, 200 to the right and 120 up. The ball moves diagonally, along the arrow.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = Vec2(200, 120)
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+Ball(center=(200, 200))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "class Ball(Circle, radius=14",
+          text: "Radius, color and group go on the class line: every ball is born with <code>radius=14</code>, tomato red, in the group <code>ball</code>."
+        },
+        {
+          at: "def setup(self):",
+          text: "Scena calls <code>setup</code> when each ball is born. The arrow is made there, so each ball gets its own."
+        }
+      ],
+      after: `
+        <p>Run it and wait for the ball to reach the edge.</p>
+        <details class="ask"><summary>What does the ball do at the wall?</summary><p>It goes through and disappears. The wall is still just a drawing: nothing stops the ball.</p></details>
+      `
+    },
+    {
+      title: "A rule that stays in force",
+      body: [
+        `
+        <p>The ball has to stop at the wall and come back. Instead of checking its position every frame, we write a rule, just once:</p>
+        `,
+        {
+          snip: `resolve("ball", "wall", bounce=1)`
+        },
+        `
+        <p><code>resolve</code> sits outside any function and holds on every frame: ball and wall do not pass through each other. It does not move the ball; the moving is still done by <code>on_update</code>, as before. <code>resolve</code> only undoes what the movement would get wrong: when the ball goes into the wall, it puts the ball back at the point of contact and flips the part of the arrow that was going in.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="A ball moves diagonally to a wall on the right; it stops at the point of contact; the arrow before points into the wall and the arrow after points out of it, with the same upward part">
+            <rect class="bar" x="300" y="12" width="24" height="186" rx="3"/>
+            <circle class="guide" cx="96" cy="160" r="15"/>
+            <line class="ray" x1="110" y1="152" x2="270" y2="106"/>
+            <circle class="hot" cx="285" cy="102" r="15"/>
+            <line class="guide" x1="270" y1="94" x2="120" y2="40"/>
+            <circle class="guide" cx="106" cy="35" r="15"/>
+            <line class="ray" x1="210" y1="140" x2="250" y2="140"/>
+            <line class="ray" x1="250" y1="140" x2="243" y2="135"/>
+            <line class="ray" x1="250" y1="140" x2="243" y2="145"/>
+            <line class="ray" x1="250" y1="62" x2="210" y2="62"/>
+            <line class="ray" x1="210" y1="62" x2="217" y2="57"/>
+            <line class="ray" x1="210" y1="62" x2="217" y2="67"/>
+            <text x="132" y="176">vel before: (200, 120)</text>
+            <text x="124" y="28">vel after: (-200, 120)</text>
+            <text x="330" y="106">wall</text>
+          </svg>
+          <figcaption>The ball reaches the wall; <code>resolve</code> stops it at the contact and flips the part of the arrow that was going into the wall. The upward part stays as it was.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = Vec2(200, 120)
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("ball", "wall", bounce=1)
+
+Ball(center=(200, 200))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"wall\"].mass = STATIC",
+          text: "<code>mass</code> decides who gives way when two objects touch. <code>STATIC</code> never gives way: it is the right mass for walls and floors."
+        },
+        {
+          at: "bounce=1",
+          text: "<code>bounce</code> says how much of the force is left after the hit. With 1, the ball leaves with the same force it hit with."
+        }
+      ],
+      after: `
+        <p>Run it: the ball bounces off all four walls and never stops.</p>
+        <details class="ask"><summary>And without the <code>mass</code> line?</summary><p>The wall would have mass 1, like the ball, and the two would push each other half and half. A wall that gives way to half the push holds nothing back.</p></details>
+      `,
+      try: [
+          {
+            note: "One at a time, in place of <code>bounce=1</code>. With 0.6 the ball loses force at every hit; above 1, it gains force.",
+            replaces: ['resolve("ball", "wall"'],
+            code: `resolve("ball", "wall", bounce=0.6)
+resolve("ball", "wall", bounce=1.2)`
+          }
+        ]
+    },
+    {
+      title: "Many balls",
+      body: [
+        `
+        <p>Twenty balls, each in its own place and heading its own way. Each one's arrow is built a different way:</p>
+        `,
+        {
+          snip: `self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))`
+        },
+        `
+        <p><code>vec_from_angle</code> (an arrow from an angle) does not say how far the ball moves in x and in y: it says where the arrow points, in degrees, and how long it is (<code>length</code>). <code>vec_from_angle(90, length=260)</code> points up, and the ball moves 260 per second. Here the angle is picked at random between 0 and 360 and the length between 180 and 340: each ball heads off its own way, at its own speed.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("ball", "wall", bounce=1)
+
+for i in range(20):
+    Ball(center=(uniform(80, 920), uniform(80, 640)))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Ball(center=(uniform(80, 920), uniform(80, 640)))",
+          text: "<code>uniform</code> picks a random number between the two. Here, a place away from the walls."
+        }
+      ],
+      after: `
+        <p>Run it and follow two balls heading toward each other.</p>
+        <details class="ask"><summary>What happens when they meet?</summary><p>They pass through each other. The rule covers ball and wall; ball and ball, not yet.</p></details>
+      `
+    },
+    {
+      title: "Ball and ball",
+      body: `
+        <p>One more rule, this time between the group and itself.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+resolve("ball", "wall", bounce=1)
+resolve("ball", "ball", bounce=1)
+
+for i in range(20):
+    Ball(center=(uniform(80, 920), uniform(80, 640)))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "resolve(\"ball\", \"ball\", bounce=1)",
+          text: "Both sides are the same group. When two balls touch, Scena pulls them apart and changes both arrows: the one that hit backs off, and the one that was hit moves away."
+        }
+      ],
+      after: `
+        <p>Run it. The hits are too fast for the eye; press <kbd>Ctrl+Shift+P</kbd> a few times. Game time goes from running to paused, then to a quarter of the speed, and back to running. At ¼ you can watch each ball arrive, touch and leave. The other debug keys are in <a href="../../pt/tutorial/A-depuracao.html">Appendix A</a>.</p>
+        <p>Every ball has mass 1, the default, so two balls push each other equally. A heavier ball pushes harder and gets pushed less: in the box below, a big ball of mass 8 plows its way through the small ones.</p>
+      `,
+      try: [
+          {
+            note: "A heavy ball, bigger and in another color. At the end of the file, before <code>run()</code>. The <code>radius=</code> given at creation wins over the one on the class line.",
+            code: `heavy = Ball(center=(500, 360), radius=40, color="steel blue")
+heavy.mass = 8`
+          }
+        ]
+    },
+    {
+      title: "The touch",
+      body: [
+        `
+        <p><code>resolve</code> makes the ball bounce, but it tells no one. For a sound and a flash at every hit on the wall, the ball needs to hear about the touch:</p>
+        `,
+        {
+          snip: `@collide_with("wall")
+def crashed(self, wall, info):`
+        },
+        `
+        <p><code>@collide_with</code>, inside the class, makes Scena call <code>crashed</code> when this ball touches a wall. The two lines work together, each with its own job: <code>resolve</code> holds the ball back, <code>@collide_with</code> tells you about it.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("ball", "wall", bounce=1)
+resolve("ball", "ball", bounce=1)
+
+for i in range(20):
+    Ball(center=(uniform(80, 920), uniform(80, 640)))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "canvas.hit_at(info, radius=10",
+          text: "<code>info</code> carries the details of the touch, among them the point. <code>canvas.hit_at</code> draws the impact there; <code>style=\"disc\"</code> is the light one, a round flash without sparks, good when there are many hits at once."
+        },
+        {
+          at: "volume=0.5",
+          text: "Half volume: there are many hits per second."
+        }
+      ],
+      after: `
+        <p>Run it: every hit on a wall flashes and makes a sound.</p>
+        <details class="ask"><summary>And the hits between two balls?</summary><p>They stay silent. <code>@collide_with</code> only mentions <code>"wall"</code>; the balls' <code>resolve</code> holds them apart without telling anyone.</p></details>
+      `,
+      try: [
+          {
+            note: "Each hit at a different pitch. In <code>crashed</code>, in place of the <code>play_sound</code>: a <code>pitch</code> above 1 is higher.",
+            replaces: ['play_sound("audio/impactGeneric'],
+            code: `play_sound("audio/impactGeneric_light_003.ogg", volume=0.5, pitch=uniform(0.7, 1.4))`
+          },
+          {
+            note: "The full impact, with sparks, in place of the light <code>hit_at</code>.",
+            replaces: ['canvas.hit_at('],
+            code: `canvas.hit_at(info, color="gold")`
+          }
+        ]
+    },
+    {
+      title: "The chosen one",
+      body: `
+        <p>Among twenty identical balls, the eye cannot follow any of them. One of them becomes the chosen one: gold, with a trail.</p>
+      `,
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("ball", "wall", bounce=1)
+resolve("ball", "ball", bounce=1)
+
+for i in range(20):
+    Ball(center=(uniform(80, 920), uniform(80, 640)))
+
+chosen = choice(group["ball"])
+chosen.color = "gold"
+chosen.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "choice(group[\"ball\"])",
+          text: "<code>choice</code> picks a random item from a list; here, a ball from the group."
+        },
+        {
+          at: "chosen.tail = Tail(",
+          text: "<code>tail</code> is an add-on: ghost copies behind the object, added to its look. The settings go in <code>Tail(…)</code>: the <code>color</code> of the copies, <code>size</code> (the length of the trail) and <code>amount</code> (how strong the copies are)."
+        }
+      ],
+      after: `
+        <p>Run it and follow the gold ball for a few hits.</p>
+        <details class="ask"><summary>Which way does the trail point?</summary><p>Always behind the ball. Without <code>angle=</code>, the trail follows the movement: it turns when the ball bounces and grows when the ball speeds up.</p></details>
+      `,
+      try: [
+          {
+            note: "One at a time, in place of the chosen ball's <code>Tail</code>. <code>angle=180</code> locks the trail to the left, wherever the ball goes.",
+            replaces: ['chosen.tail ='],
+            code: `chosen.tail = Tail(color="gold", size=3)
+chosen.tail = Tail(color="gold", angle=180)
+chosen.tail = True`
+          }
+        ]
+    },
+    {
+      title: "A real stroke",
+      body: [
+        `
+        <p><code>Tail</code> only shows the last instant. To see the whole path, a line through the chosen ball's latest positions: <code>Contrail</code> (named after the streak a plane leaves in the sky). The line does not watch the ball by itself; someone has to hand it each position:</p>
+        `,
+        {
+          snip: `chosen.every(0.05, lambda: trail.snapshot(chosen))`
+        },
+        `
+        <p><code>every</code> calls a function at regular intervals, here every 0.05 s, 20 times per second. It is the ball's <code>every</code>: the timer belongs to the ball. At each call, <code>snapshot</code> stores in the trail the position the chosen ball is at.</p>
+        `
+      ],
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("ball", "wall", bounce=1)
+resolve("ball", "ball", bounce=1)
+
+for i in range(20):
+    Ball(center=(uniform(80, 920), uniform(80, 640)))
+
+chosen = choice(group["ball"])
+chosen.color = "gold"
+chosen.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+trail = Contrail(duration=8, fade=True, color="gold", line_width=3)
+chosen.every(0.05, lambda: trail.snapshot(chosen))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "duration=8",
+          text: "<code>duration=8</code> keeps only the last 8 seconds, and <code>fade=True</code> fades out the old end little by little. <code>line_width</code> is the thickness of the line."
+        }
+      ],
+      after: [
+        `
+        <p>Run it: behind the gold ball lies its path over the last 8 seconds, with every hit drawn in.</p>
+        <p>So why the <code>lambda</code>? <code>every</code> needs a function to call later. These two spellings look like they would work, and neither does:</p>
+        `,
+        {
+          snip: `chosen.every(0.05, trail.snapshot)
+chosen.every(0.05, trail.snapshot(chosen))`,
+          alt: true
+        },
+        `
+        <p>The first hands over the function but does not say whose position to store. The second has parentheses: the call runs now, only once, and <code>every</code> receives its result, not a function. The <code>lambda</code> wraps the whole call, argument included, and <code>every</code> runs it each time. In practice: a function with no arguments goes without parentheses; one with arguments goes inside a <code>lambda:</code>.</p>
+        `
+      ],
+      dive: [
+        {
+          title: "Tail and Contrail",
+          body: `
+            <p>Both draw where something has been, in different ways. <code>Tail</code> is an add-on of the ball itself; <code>Contrail</code> is a separate object, a line.</p>
+            <div class="tbl"><table>
+              <thead><tr><th></th><th>Tail</th><th>Contrail</th></tr></thead>
+              <tbody>
+                <tr><td>What it draws</td><td>copies of the ball, fainter toward the back</td><td>a line through the stored positions</td></tr>
+                <tr><td>Who stores</td><td>it sees the movement itself: <code>ball.tail = Tail(…)</code> is all it takes</td><td>you, with <code>snapshot</code>, whenever you want</td></tr>
+                <tr><td>How long it lasts</td><td>the last instant</td><td>whatever <code>duration</code> says</td></tr>
+                <tr><td>The shape</td><td>the object's own</td><td>a line, with its own color or visual, that stays in the world after the ball has gone</td></tr>
+              </tbody>
+            </table></div>
+            <p>In the Guide: <a href="../guide/index.html#aparencia-selos">Add-ons</a> · <a href="../guide/index.html#contrail">Contrail</a>.</p>
+          `,
+          try: [
+              {
+                note: "A laser stroke, and a longer one. In place of the <code>Contrail</code>; <code>visual=</code> goes in place of <code>color=</code>.",
+                replaces: ['trail = Contrail('],
+                code: `trail = Contrail(duration=15, fade=True, visual=Laser("gold"), line_width=3)`
+              }
+            ]
+        }
+      ]
+    },
+    {
+      title: "Closer",
+      body: `
+        <p>To see the hits up close, the mouse wheel zooms the camera in and out.</p>
+      `,
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("ball", "wall", bounce=1)
+resolve("ball", "ball", bounce=1)
+
+for i in range(20):
+    Ball(center=(uniform(80, 920), uniform(80, 640)))
+
+chosen = choice(group["ball"])
+chosen.color = "gold"
+chosen.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+trail = Contrail(duration=8, fade=True, color="gold", line_width=3)
+chosen.every(0.05, lambda: trail.snapshot(chosen))
+
+
+def on_mouse_scroll(xoffset, yoffset):
+    if yoffset > 0:
+        canvas.zoom_by(1.1, about=mouse)
+    else:
+        canvas.zoom_by(1 / 1.1, about=mouse)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_scroll(xoffset, yoffset):",
+          text: "<code>on_mouse_scroll</code> is a function with a fixed name, like <code>update</code>: Scena calls it when the wheel turns. <code>yoffset</code> says how far it turned: positive one way, negative the other."
+        },
+        {
+          at: "canvas.zoom_by(1.1, about=mouse)",
+          text: "<code>zoom_by(1.1)</code> zooms in by 10%; the <code>1 / 1.1</code> on the line below undoes it. <code>about=mouse</code> holds the point under the pointer still: the zoom goes where you point."
+        }
+      ],
+      after: `
+        <p>Run it, point at a corner and turn the wheel.</p>
+        <details class="ask"><summary>Did the balls change places?</summary><p>No. The camera does not touch the objects: it only changes what the window shows. A ball at (300, 200) is still at (300, 200); it just looks bigger.</p></details>
+      `,
+      try: [
+          {
+            note: "R puts the camera back where it started, in half a second. At the end of the file, before <code>run()</code>.",
+            code: `def update(dt):
+    if keyp.once("R"):
+        canvas.reset_view(time=0.5)`
+          },
+          {
+            note: "The camera follows the chosen ball. Zoom in with the wheel and watch up close. At the end of the file, before <code>run()</code>.",
+            code: `def update(dt):
+    canvas.pan_to(chosen)`
+          },
+          {
+            note: "Gravity: the balls fall and bounce on the floor. In the <code>on_update</code> of <code>Ball</code>, before the <code>move_by</code>.",
+            code: `self.vel.y -= 400 * dt`
+          },
+          {
+            note: "A bar spinning in the middle of the box, a wall too. At the end of the file, before <code>run()</code>.",
+            code: `wheel = Rect(center=(500, 360), width=200, height=20, group="wall")
+wheel.visual = Halo("deep sky blue")
+wheel.mass = STATIC
+
+
+def update(dt):
+    wheel.rotate_by(50 * dt)`
+          }
+        ]
+    },
+    {
+      title: "The speedometer",
+      example: "balls.py",
+      body: [
+        `
+        <p>A bar at the top shows the chosen ball's speed: short and green when it moves slowly, long and red when it races. The speed is already in the arrow: it is the arrow's length.</p>
+        `,
+        {
+          snip: `bar["width"] @= lambda: 300 * min(chosen.vel.length / 500, 1)`
+        },
+        `
+        <p><code>vel.length</code> reads back the <code>length=</code> of <code>vec_from_angle</code>: a ball with a <code>vel.length</code> of 250 moves 250 per second, whichever way it is going. The formula divides by 500 and multiplies by the 300 of the track, and <code>min(…, 1)</code> (the smaller of the two) keeps the result from going past 1:</p>
+        <div class="tbl"><table><thead><tr><th>Speed</th><th>Speed / 500</th><th>Bar width</th></tr></thead><tbody>
+          <tr><td>100</td><td>0.2</td><td>60</td></tr>
+          <tr><td>250</td><td>0.5</td><td>150, half the track</td></tr>
+          <tr><td>500</td><td>1</td><td>300, the whole track</td></tr>
+          <tr><td>700</td><td>1.4, and <code>min</code> makes it 1</td><td>300: it does not go past the end</td></tr>
+        </tbody></table></div>
+        `
+      ],
+      code: `from random import uniform, choice
+from scena import *
+
+init(width=1000, height=720, title="Balls")
+SkyGradient("night")
+
+Rect(center=(500, 16), width=1000, height=32, group="wall")
+Rect(center=(500, 704), width=1000, height=32, group="wall")
+Rect(center=(16, 360), width=32, height=720, group="wall")
+Rect(center=(984, 360), width=32, height=720, group="wall")
+group["wall"].visual = Metal()
+group["wall"].mass = STATIC
+
+
+class Ball(Circle, radius=14, color="tomato", group="ball"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), length=uniform(180, 340))
+
+    def on_update(self, dt):
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        canvas.hit_at(info, radius=10, style="disc")
+        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+
+
+resolve("ball", "wall", bounce=1)
+resolve("ball", "ball", bounce=1)
+
+for i in range(20):
+    Ball(center=(uniform(80, 920), uniform(80, 640)))
+
+chosen = choice(group["ball"])
+chosen.color = "gold"
+chosen.tail = Tail(color="gold", size=1.4, amount=1.2)
+
+trail = Contrail(duration=8, fade=True, color="gold", line_width=3)
+chosen.every(0.05, lambda: trail.snapshot(chosen))
+
+ramp = Colormap.from_colors("lime", "gold", "red")
+
+Rect(top_left=(40, 710), width=300, height=12, color="#262B55", layer="ui")
+bar = Rect(top_left=(40, 710), width=0, height=12, layer="ui")
+bar["width"] @= lambda: 300 * min(chosen.vel.length / 500, 1)
+bar["color"] @= lambda: ramp.get_color(chosen.vel.length / 500)
+
+
+def on_mouse_scroll(xoffset, yoffset):
+    if yoffset > 0:
+        canvas.zoom_by(1.1, about=mouse)
+    else:
+        canvas.zoom_by(1 / 1.1, about=mouse)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ramp = Colormap.from_colors(",
+          text: "A <code>Colormap</code> is a color ramp: this one starts at green (<code>lime</code>), passes through yellow and ends at red."
+        },
+        {
+          at: "color=\"#262B55\", layer=\"ui\"",
+          text: "The dark rectangle, with no name, is the track: it shows how far the bar can go. <code>layer=\"ui\"</code> (the interface layer) puts track and bar on the window, not in the world: the mouse wheel zooms in on the balls, and the bar stays where it is."
+        },
+        {
+          at: "bar[\"width\"] @=",
+          text: "<code>@=</code> links the width to the formula, as in Formulas (09): every time the chosen ball's <code>vel</code> changes, Scena works it out again. No one tells the bar; when <code>resolve</code> corrects the arrow in a hit, the bar follows."
+        },
+        {
+          at: "ramp.get_color(",
+          text: "<code>get_color(t)</code> returns the color at point <code>t</code> of the ramp, from 0 (the start) to 1 (the end): 0.5 is the yellow in the middle, and above 1 the color stays red. The ramp only picks the color; the painting is done by this formula, on the bar's <code>color</code>."
+        }
+      ],
+      after: `
+        <p>Run it and watch the bar while the gold ball hits things.</p>
+        <details class="ask"><summary>Why does the bar change only when the gold ball hits another ball?</summary><p>At the wall, with <code>bounce=1</code>, only the direction flips: the arrow turns around, and its length stays the same. In a hit with another ball, the two trade force, and the speed changes.</p></details>
+      `,
+      try: [
+          {
+            note: "One at a time, in place of the <code>ramp</code>. A ready-made ramp (<code>plasma</code>, from purple to yellow) or just two colors.",
+            replaces: ['ramp = Colormap'],
+            code: `ramp = Colormap.from_preset("plasma")
+ramp = Colormap.from_colors("deep sky blue", "red")`
+          },
+          {
+            note: "The number next to the bar, on the window too. At the end of the file, before <code>run()</code>. <code>:.0f</code> shows the number with no decimal places.",
+            code: `Text(lambda: f"{chosen.vel.length:.0f}", top_left=(352, 716), font_size=16, color="white", layer="ui")`
+          }
+        ],
+      closing: `
+        <p>Twenty balls bounce off the walls and off each other, with a sound at every hit on a wall; the gold one leaves a trail, and the bar at the top shows its speed. The mouse wheel zooms in and out.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>class Ball(Circle)</code> — a shape is a mold too; radius, color and group go on the class line.</li>
+          <li><code>vel</code> and <code>Vec2</code> — velocity is an arrow: how far it moves in x and in y per second. <code>vec_from_angle</code> builds the arrow from an angle and a length.</li>
+          <li><code>resolve</code> — a rule that stays in force: it pulls the two bodies apart and corrects the velocity; <code>bounce=</code> says how much of the bounce is left.</li>
+          <li><code>mass</code> and <code>STATIC</code> — who gives way in a push; <code>STATIC</code> never does.</li>
+          <li><code>Tail</code> — the trail of copies, with color, size and strength; without an angle, it follows the movement.</li>
+          <li><code>canvas.zoom_by</code> — the camera zooms in; the objects stay where they are.</li>
+          <li><code>vel.length</code> and <code>@=</code> — the arrow's length is the speed; the bar's width and color are linked to it and change on their own at every hit.</li>
+          <li><code>Colormap</code> — a color ramp; <code>get_color(t)</code> gives the color at a point from 0 to 1.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#colisao-resolve">Make it solid (resolve)</a> · <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#aparencia-selos">Add-ons</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#mundo-camera">Camera</a> · <a href="../guide/index.html#frame-mouse">Mouse</a> · <a href="../guide/index.html#reativo-aparencia">Linked color and visibility</a> · <a href="../guide/index.html#aparencia-colormap">Colormap</a>.</p>
+        <p><strong>Next:</strong> the mouse, all in one place: clicking, hovering, dragging, and a grid that lights up the cell under the mouse (Interaction).</p>
+      `,
+      explore: `
+        <ul>
+          <li>Mix balls of different sizes and masses and see who pushes whom.</li>
+          <li>Put fixed pins (<code>STATIC</code>) in the middle of the box, like in a pinball machine.</li>
+          <li>Can you make a click create a new ball where the mouse is, flying off in a random direction?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
