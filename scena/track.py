@@ -263,6 +263,22 @@ class _TrackCenterSlot(ContainerSlot):
         instance._note_placed()
 
 
+# Chord tolerance of a modifier's loop (design units): orbit(laps=40) and
+# zigzag(waves=50) sampled 8 points a loop drew octagons (showcase E).
+_LOOP_CHORD_TOL = 0.25
+
+
+def _samples_per_loop(size) -> int:
+    """Samples for one loop / wave of ``size`` (orbit radius, zigzag amount):
+    enough that a chord strays at most ``_LOOP_CHORD_TOL`` from the curve,
+    8 … 64."""
+    r = abs(float(size))
+    if r <= _LOOP_CHORD_TOL:
+        return 8
+    n = math.pi / math.acos(1.0 - _LOOP_CHORD_TOL / r)
+    return int(max(8, min(64, math.ceil(n))))
+
+
 def _line_center_from_p1(p1, length: float, angle: float) -> Tuple[float, float]:
     """Defining pose so ``at(0)`` lands on ``p1`` for a sizes-form line."""
     sx, sy = _point_xy_static(p1)
@@ -1039,9 +1055,13 @@ class Track(Shape):
             xs, ys = fx, fy
 
         if self._mod_zigzag or self._mod_orbit or self._mod_wander:
-            waves = 0.0 if self._mod_zigzag is None else abs(float(self._mod_zigzag[1]))
-            laps = 0.0 if self._mod_orbit is None else abs(float(self._mod_orbit[1]))
-            need = max(len(xs), int(max(waves, laps, 1.0) * 8.0))
+            need = max(len(xs), 8)
+            if self._mod_zigzag is not None:
+                amount, waves = self._mod_zigzag[0], self._mod_zigzag[1]
+                need = max(need, int(abs(float(waves)) * _samples_per_loop(amount)))
+            if self._mod_orbit is not None:
+                radius, laps = self._mod_orbit
+                need = max(need, int(abs(float(laps)) * _samples_per_loop(radius)))
             xs, ys = densify_polyline(xs, ys, closed=closed, n=need)
 
         xs, ys = self._apply_modifiers(xs, ys, closed)
@@ -1529,7 +1549,12 @@ class Track(Shape):
         if k not in ("sine", "saw"):
             raise ValueError('zigzag kind= must be "sine" or "saw"')
         from .validate import number
-        host._mod_zigzag = (number(amount, "zigzag amount"), number(waves, "zigzag waves"), k)
+        new = (number(amount, "zigzag amount"), number(waves, "zigzag waves"), k)
+        # The same values change nothing: no re-bake (a call every frame
+        # re-baked the whole table; showcase D8).
+        if host._mod_zigzag == new:
+            return self
+        host._mod_zigzag = new
         self._invalidate_bake()
         return self
 
@@ -1542,7 +1567,12 @@ class Track(Shape):
         """
         host = self._table_host()
         from .validate import number
-        host._mod_orbit = (number(radius, "orbit radius"), number(laps, "orbit laps"))
+        new = (number(radius, "orbit radius"), number(laps, "orbit laps"))
+        # The same values change nothing: no re-bake (a call every frame
+        # re-baked the whole table; showcase D8).
+        if host._mod_orbit == new:
+            return self
+        host._mod_orbit = new
         self._invalidate_bake()
         return self
 
@@ -1558,7 +1588,12 @@ class Track(Shape):
         seed = as_payload(seed)
         if isinstance(seed, bool) or not isinstance(seed, int):
             raise TypeError(f"wander seed must be a whole number, got {type(seed).__name__}")
-        host._mod_wander = (number(amount, "wander amount"), seed)
+        new = (number(amount, "wander amount"), seed)
+        # The same values change nothing: no re-bake (a call every frame
+        # re-baked the whole table; showcase D8).
+        if host._mod_wander == new:
+            return self
+        host._mod_wander = new
         self._invalidate_bake()
         return self
 
@@ -2105,8 +2140,13 @@ class Track(Shape):
         kwargs.setdefault("closed", False)
         pose = None
         if start is not None:
-            sx, sy = _point_xy_static(start)
-            pose = (sx + length * 0.5, sy)
+            # ``at(0)`` stays on ``start`` under a numeric ``angle=`` too: the
+            # pose turns the wave about its middle, so the middle goes along
+            # the angle (as ``Track.line(p1=, angle=)`` does).
+            angle = kwargs.get("angle")
+            if not isinstance(angle, (int, float)) or isinstance(angle, bool):
+                angle = 0.0
+            pose = _line_center_from_p1(start, length, angle)
         return cls(
             _spec=("wave", length, amplitude, waves),
             center=pose, **kwargs,
@@ -2334,7 +2374,8 @@ def _preset_local(spec, sps: int) -> Tuple[List[float], List[float], bool]:
         for i in range(n):
             t = 2.0 * math.pi * i / n
             xs.append((w * 0.5) * math.sin(t))
-            ys.append((h * 0.5) * math.sin(t) * math.cos(t))
+            # sin t·cos t peaks at 1/2: h·sin t·cos t spans h (showcase F).
+            ys.append(h * math.sin(t) * math.cos(t))
         return xs, ys, True
     if kind == "star":
         npts, r, inner = int(spec[1]), float(spec[2]), float(spec[3])

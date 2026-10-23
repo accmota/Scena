@@ -432,8 +432,8 @@ class Pulsar(Act):
 
         # the magnetosphere: field loops that turn with the star; the outer
         # one burns bright, the inner one is a quiet line
-        outer = Track.eight(width=520, height=200, center=C, visual=Laser("deep sky blue"))
-        inner = Track.eight(width=290, height=110, center=C,
+        outer = Track.eight(width=520, height=100, center=C, visual=Laser("deep sky blue"))
+        inner = Track.eight(width=290, height=55, center=C,
                             color=Color("deep sky blue").with_alpha(0.6), line_width=1.5)
         inner.blend = "add"
         self.loops = [outer, inner]

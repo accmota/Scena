@@ -240,7 +240,7 @@ async def eight():
     await tween(line["end"], 0, time=2.5, ease="ease_in_out")
     line.destroy()
 
-    line = new_line(Track.eight(width=820, height=300, center=CENTER), VIOLET)
+    line = new_line(Track.eight(width=820, height=150, center=CENTER), VIOLET)
     await tween(line["end"], 1, time=3, ease="ease_in_out")
     shadow = echo(line, VIOLET, -8, 0.6)
     comet(line, VIOLET)

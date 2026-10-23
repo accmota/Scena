@@ -1963,9 +1963,12 @@ class Neon(Recipe):
             # world drawCircle / drawPoints fast path in _stroke_group_world.
             kind = _world_stroke_kind(shp) or "path"
             knobs = _host_stroke_knobs(shp)
+            # Stroke types (Line, Track, open paths) keep a stroked body, as
+            # _draw_body does for one shape: a closed Track filled its disk
+            # once two Neon shapes drew as a group (showcase A12).
             key = (
                 tint[0], tint[1], tint[2], round(base_w, 3), kind,
-                knobs["cap"], knobs.get("join"),
+                knobs["cap"], knobs.get("join"), _is_line_shape(shp),
             )
             if key not in buckets:
                 buckets[key] = []
@@ -1991,7 +1994,7 @@ class Neon(Recipe):
                 blend=BlendMode.ADD, mask=mask, **knobs,
             )
             _stroke_group_world(group, skia_canvas, halo, centers=centers)
-            if kind == "line":
+            if kind == "line" or key[7]:
                 w = max(_host_line_width(group[0]), 0.8)
                 body = self._stroke_paint(color=tint, width=w, **knobs)
                 _stroke_group_world(group, skia_canvas, body, centers=centers)

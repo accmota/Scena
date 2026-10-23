@@ -1226,6 +1226,8 @@ class Handle:
         def write(u):
             self.volume = start + (end - start) * float(u)
 
+        # A new fade retargets the voice's fade (last wins), no warning.
+        _preempt_tween_keys(("sound-fade", id(self)), quiet=True)
         tw = _start_tween(
             duration=duration,
             ease=ease,
@@ -1266,6 +1268,7 @@ class Handle:
                 get_mixer().finish_voice(self._voice_id)
             self._fire_once()
 
+        _preempt_tween_keys(("sound-fade", id(self)), quiet=True)
         tw = _start_tween(
             duration=duration,
             ease=ease,

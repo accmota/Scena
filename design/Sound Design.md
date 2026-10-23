@@ -104,6 +104,8 @@ hint on a non-sound handle — same precedent as `.velocity` on `after`.
   author writes `fade_in=` / `.fade_out()` / `crossfade=`.
 - `.fade_out(time=)` ramps to silence and **stops** (natural end → `on_done`);
   no effect tail after an author fade-to-stop. `.fade_to(0)` only ramps.
+  A new fade on a voice with a fade in flight retargets it (last wins, no
+  warning; it warned from the scheduler's fallback until 2026-10-23).
   `time=` must be finite and `>= 0` (`ValueError` otherwise), same rule as
   any other tween.
 - `.volume` is unbounded above 1.0 but is a **magnitude**: negative raises
@@ -294,7 +296,8 @@ banner (amber), same Ctrl+Shift+E dismiss. Terminal
 ## Analysis
 
 `.level` / `.spectrum(bins=)` on `audio` (master mix), a sound `Handle` (one
-voice), and `Microphone` are read-only and EMA-smoothed (`audio.level_tau`,
+voice, metered after its own volume and pan, before the master: `h.volume = 0`
+reads 0; it read the source until showcase A11, 2026-10-23), and `Microphone` are read-only and EMA-smoothed (`audio.level_tau`,
 default `0.08`). One τ for level and spectrum, everywhere. `level_tau` must
 be **finite and > 0** (`ValueError` otherwise, including `nan`). Spectrum
 bands are **log-spaced** (~40 Hz … 16 kHz); DC is

@@ -679,7 +679,11 @@ def render(
             if slot is None:
                 slot = np.zeros((n_frames, 2), dtype=np.float32)
                 voice_dry[vid] = slot
-            slot[a:b] = frames
+            # The voice's meter (h.level / h.spectrum) reads it after its own
+            # volume and pan, before the master: "how loud this sound is"
+            # (it read the source, so volume = 0 still read loud; showcase A11).
+            slot[a:b, 0] = wet[:, 0] * gL
+            slot[a:b, 1] = wet[:, 1] * gR
             if finish_now:
                 voice.finished = True
                 finished.append((vid, a + int(finish_at if finish_at is not None else seg)))

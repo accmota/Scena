@@ -528,7 +528,11 @@ the Entity pose mechanism (odd-lap `u → 1 − u`);
 see [Actors Design.md](Actors%20Design.md).
 
 Three tween channels on the one global camera (later write on a channel
-cancels the earlier Handle; different channels run together):
+cancels the earlier Handle, quietly: a retarget is last-wins, as a timed pose
+verb's is; different channels run together). `_camera_tween` preempts its
+keys before it starts; the scheduler's fallback warning is for a tween that
+slipped through without a preempt (showcase A9, 2026-10-23: zoom_to then
+zoom_to warned at `canvas.py`; `test_canvas.TestTimedCamera.test_every_verb_retargets_in_flight_without_warning`):
 
 | Channel | Occupied by |
 | --- | --- |

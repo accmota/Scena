@@ -159,6 +159,7 @@ def _camera_tween(
     from .process import (
         _NO_SPEED,
         _infer_owner,
+        _preempt_tween_keys,
         _require_loop_kwargs,
         _require_timed_completion,
         _start_tween,
@@ -172,6 +173,10 @@ def _camera_tween(
         loops=loops, yoyo=yoyo, time=time, call_name=call_name, speed=speed,
     )
     owner, scope = _infer_owner()
+    # A camera verb on a busy channel retargets it (last wins, Canvas Design
+    # "Timed camera"), as a timed pose verb does: cancel the old one quietly
+    # (the scheduler's fallback warned at canvas.py; showcase A9).
+    _preempt_tween_keys(*tween_keys, quiet=True)
     return _start_tween(
         duration=seconds(time, f"{call_name} time="),
         ease=ease,

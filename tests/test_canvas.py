@@ -11,6 +11,7 @@ import math
 import os
 import sys
 import unittest
+import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -918,12 +919,40 @@ class TestTimedCamera(CanvasTestCase):
     def test_same_channel_cancels(self):
         canvas.pan_to(0, 0)
         h1 = canvas.pan_to(100, 0, time=1.0)
-        h2 = canvas.pan_to(0, 100, time=1.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            h2 = canvas.pan_to(0, 100, time=1.0)
         self._frame(1.0)
         self.assertTrue(h1.cancelled)
         self.assertTrue(h2.done)
         self.assertAlmostEqual(canvas.pan_x, 0.0, places=4)
         self.assertAlmostEqual(canvas.pan_y, 100.0, places=4)
+
+    def test_every_verb_retargets_in_flight_without_warning(self):
+        # Showcase A9: zoom_to(2, time=5) then zoom_to(1, time=1) a second
+        # later warned "replaces a previous in-flight tween" from the
+        # scheduler's fallback (the camera never preempted its channel).
+        # Bug class: a timed verb that starts a tween without preempting.
+        verbs = {
+            "pan_to": lambda v: canvas.pan_to(v * 100, 0, time=1.0),
+            "pan_by": lambda v: canvas.pan_by(v * 50, 0, time=1.0),
+            "zoom_to": lambda v: canvas.zoom_to(1 + v, time=1.0),
+            "zoom_by": lambda v: canvas.zoom_by(1 + v * 0.1, time=1.0),
+            "rotate_to": lambda v: canvas.rotate_to(v * 30, time=1.0),
+            "rotate_by": lambda v: canvas.rotate_by(v * 10, time=1.0),
+            "set_origin": lambda v: canvas.set_origin("center" if v == 1 else "corner", time=1.0),
+        }
+        for name, verb in verbs.items():
+            with self.subTest(verb=name):
+                canvas.reset_view()
+                first = verb(1)
+                self._frame(0.2)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error")
+                    second = verb(2)
+                self.assertTrue(first.cancelled, name)
+                self._frame(1.0)
+                self.assertTrue(second.done, name)
 
     def test_orthogonal_pan_and_zoom(self):
         canvas.reset_view()

@@ -147,7 +147,7 @@ async def history():
     # the History holds the last 40 dots; the oldest one leaves dissolving
     trail = History(max_points=40, on_leave=lambda dot: dot.dissolve_out(0.5))
     mover = Circle(center=(640, 230), radius=8, color="white")
-    mover.move_along(Track.eight(center=(640, 230), width=620, height=140),
+    mover.move_along(Track.eight(center=(640, 230), width=620, height=70),
                      time=4, loops="forever")
     mover.every(0.06, lambda: drop_dot(mover, trail))
     await wait(HOLD + 0.8)
@@ -207,7 +207,7 @@ async def difference():
 
 async def procession():
     title = credit("move_along", "for walking the eight, again and again")
-    path = Track.eight(center=(640, 225), width=640, height=150,
+    path = Track.eight(center=(640, 225), width=640, height=75,
                        color=Color("white").with_alpha(0.12), line_width=1.5)
     # a little parade, one step apart (phase), each facing where it walks
     for i in range(16):

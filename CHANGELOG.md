@@ -52,6 +52,30 @@ left out.
 
 ### Fixed
 
+- `Track.eight(width=, height=)` drew a figure half as tall as `height=`
+  (the default `Track()` / `move_along("eight")` was 90 × 20, not 90 × 40).
+  It now spans `width` × `height`, as the docstring and the Guia say: every
+  figure eight is twice as tall as before. If you tuned an eight by eye,
+  halve its `height=` to keep the old look.
+- `Track.wave(start=, angle=)` turned the wave about its middle, so `at(0)`
+  was not on `start`. `start=` now plants `u=0` at any angle, as
+  `Track.line(p1=, angle=)` does.
+- Neon on two or more closed Tracks (or other line-type shapes) filled each
+  one with a solid disk; one alone drew only its line. Every Neon host keeps
+  its body kind: a line stays a line.
+- A timed camera verb on a channel already moving (`canvas.zoom_to(1,
+  time=1)` while a `zoom_to(2, time=5)` runs) warned "replaces a previous
+  in-flight tween" at a line inside Scena. It retargets quietly (last wins),
+  as the design says. The same for a second `h.fade_to(…)` / `h.fade_out()`
+  on a sound whose fade is still running.
+- A sound Handle's `.level` and `.spectrum()` ignored its `.volume` and
+  `.pan`: `h.volume = 0` still read loud. They now measure the sound after
+  its own volume and pan (before the master volume, which `audio.level`
+  follows).
+- `orbit(laps=40)` / `zigzag(waves=50)` looked faceted (8 points a loop).
+  Each loop now gets enough points to stay round. Calling `zigzag` /
+  `orbit` / `wander` again with the same values no longer rebuilds the track
+  (it cost ~0.1 ms a track per call).
 - `Vortex(target=hero)`, `ZoomBlur(center=hero)`, `Perspective(target=hero)`
   (and `target=` on `Lamp`, `GodRays`, `Spotlight`, `origin=` on
   `Spotlight`) raised `TypeError` at the first drawn frame when given an

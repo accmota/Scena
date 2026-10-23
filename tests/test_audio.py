@@ -776,6 +776,23 @@ class TestFades(PlaySoundTestCase):
         self.assertAlmostEqual(h.volume, 1.0, places=2)
         self.assertFalse(h.done)
 
+    def test_fade_retargets_in_flight_without_warning(self):
+        # Bug class of showcase A9: a timed verb that starts a tween on a busy
+        # key without preempting it warned from the scheduler's fallback. A
+        # new fade on the same voice is last-wins.
+        h = play_sound(_pcm(4.0), volume=1.0)
+        first = h.fade_to(0.0, time=2.0)
+        _frame(0.2)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            second = h.fade_to(1.0, time=0.5)
+            _frame(0.1)
+            out = h.fade_out(time=0.5)
+        self.assertTrue(first.cancelled)
+        self.assertTrue(second.cancelled)
+        _frame(0.6)
+        self.assertTrue(out.done)
+
     def test_pause_holds_clip_without_on_done(self):
         from scena.audio_mixer import get_mixer
         n = []
@@ -965,6 +982,32 @@ class TestAnalysis(PlaySoundTestCase):
         h = play_sound(Sound._from_pcm(samples), loops="forever")
         _frame(0.05)
         self.assertEqual(int(np.argmax(h.spectrum(bins=8))), low)
+
+    def test_voice_meter_reads_after_its_volume_and_pan(self):
+        # Showcase A11: h.volume = 0 left h.level reading loud (the meter read
+        # the source, before the voice's gains). "How loud this sound is now"
+        # (Guia) is after its own volume and pan, before the master.
+        from scena.audio_mixer import AnalysisState, BufferSource, Voice, render
+        n = 2048
+        samples = _sine(440, n / _SR, amp=1.0)
+
+        def level(volume, pan=0.0):
+            an = AnalysisState()
+            v = {1: Voice(1, BufferSource(samples.copy()), volume=volume, pan=pan)}
+            return render(v, n, analysis=an, level_tau=0.001).voice_levels[1]
+
+        loud = level(1.0)
+        self.assertGreater(loud, 0.1)
+        self.assertEqual(level(0.0), 0.0)
+        self.assertLess(level(0.25), loud)
+        self.assertLess(level(1.0, pan=1.0), loud)   # one side silent
+        h = play_sound(Sound._from_pcm(_sine(440, 2.0, amp=1.0)), loops="forever")
+        _frame(0.1)
+        self.assertGreater(h.level, 0.05)
+        h.volume = 0
+        for _ in range(10):
+            _frame(0.1)
+        self.assertLess(h.level, 1e-3)
 
     def test_level_tau_change_affects_rise(self):
         from scena.audio_mixer import AnalysisState, BufferSource, Voice, render

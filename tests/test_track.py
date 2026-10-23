@@ -925,6 +925,44 @@ class TestModifiers(TrackTestCase):
         self.assertIs(base.wander(amount=12, seed=7), base)
         self.assertGreater(float(base.length), before)
 
+    def test_same_values_do_not_rebake(self):
+        # Showcase D8: zigzag / orbit / wander called every frame with the
+        # same values re-baked the table each call (~140 µs a track).
+        for name, call in (
+            ("zigzag", lambda t: t.zigzag(5, 12)),
+            ("orbit", lambda t: t.orbit(radius=6, laps=10)),
+            ("wander", lambda t: t.wander(amount=4, seed=3)),
+        ):
+            with self.subTest(modifier=name):
+                t = self.track(Track.circle(center=(0, 0), radius=80))
+                call(t)
+                t.at(0.0)
+                n = t._rebuilds
+                for _ in range(5):
+                    call(t)
+                    t.at(0.3)
+                self.assertEqual(t._rebuilds, n)
+                t.zigzag(9, 3)          # a real change still re-bakes
+                t.at(0.3)
+                self.assertGreater(t._rebuilds, n)
+
+    def test_many_loops_stay_round(self):
+        # Showcase E: orbit(laps=40) and zigzag(waves=50) sampled 8 points a
+        # loop and drew octagons. Each loop now has enough samples that the
+        # polyline stays near the curve: on a straight base, an orbit's
+        # points sit on circles of its radius, and no chord between two
+        # samples cuts in further than a small tolerance.
+        radius, laps = 30.0, 40
+        t = self.track(Track(points=[(0, 0), (4000, 0)], smooth=0).orbit(radius=radius, laps=laps))
+        t._ensure_samples()
+        per_loop = len(t._xs) / laps
+        step = 2.0 * math.pi / per_loop
+        sag = radius * (1.0 - math.cos(step / 2.0))
+        self.assertLess(sag, 0.5, f"{per_loop:.1f} samples a loop: sag {sag:.2f}")
+        z = self.track(Track(points=[(0, 0), (5000, 0)], smooth=0).zigzag(amount=25, waves=50))
+        z._ensure_samples()
+        self.assertGreaterEqual(len(z._xs) / 50, 16)
+
     def test_constant_speed_after_zigzag(self):
         p = self.track(Track(points=[(0, 0), (200, 0)], smooth=0).zigzag(amount=15, waves=4))
         rider = self.track(Circle(center=(0, 0), radius=3))
@@ -1696,8 +1734,22 @@ class TestRotationCtor(TrackTestCase):
         ))
         self.assertTrue(_xy_close(raw.local_at(0.0), spun.local_at(0.0), places=4))
         self.assertTrue(_xy_close(raw.at(0.0), (0.0, 0.0), places=1))
-        # Local (-100, 0) about center (100, 0), 90° CCW → (100, -100).
-        self.assertTrue(_xy_close(spun.at(0.0), (100.0, -100.0), places=1))
+        # start= plants u=0 at any angle: the middle goes along the angle
+        # (it turned about the middle, at(0) = (100, -100); showcase A3).
+        self.assertTrue(_xy_close(spun.at(0.0), (0.0, 0.0), places=1))
+        self.assertTrue(_xy_close(spun.at(1.0), (0.0, 200.0), places=1))
+        self.assertTrue(_xy_close((float(spun.center.x), float(spun.center.y)), (0.0, 100.0), places=1))
+
+    def test_wave_start_matches_line_p1_at_any_angle(self):
+        # Bug class: a started preset whose start= ignores angle=. Every
+        # started preset plants u=0 on its start point, as Track.line does.
+        for angle in (0, 30, 90, -135, 270):
+            wave = self.track(Track.wave(length=330, amplitude=22, waves=3,
+                                         start=(640, 400), angle=angle))
+            line = self.track(Track.line(p1=(640, 400), length=330, angle=angle))
+            self.assertTrue(_xy_close(wave.at(0.0), (640.0, 400.0), places=1), angle)
+            self.assertTrue(_xy_close(line.at(0.0), (640.0, 400.0), places=1), angle)
+            self.assertTrue(_xy_close(wave.at(1.0), line.at(1.0), places=1), angle)
 
     def test_eight_rotation_about_center(self):
         raw = self.track(Track.eight(width=80, height=40, center=(0, 0)))
@@ -1705,6 +1757,41 @@ class TestRotationCtor(TrackTestCase):
         self.assertTrue(_xy_close(raw.local_at(0.25), spun.local_at(0.25), places=4))
         lx, ly = raw.local_at(0.25)
         self.assertTrue(_xy_close(spun.at(0.25), (-ly, lx), places=1))
+
+
+class TestPresetSizes(TrackTestCase):
+    """A preset's size keywords are the size it draws.
+
+    Showcase F: ``Track.eight(width=w, height=h)`` drew a figure h/2 tall
+    (``(h/2)·sin t·cos t`` peaks at h/4). Bug class: a preset whose formula
+    scales its size keyword by a stray factor.
+    """
+
+    def span(self, track, n=720):
+        pts = [track.local_at(k / n) for k in range(n + 1)]
+        xs = [float(p[0]) for p in pts]
+        ys = [float(p[1]) for p in pts]
+        return max(xs) - min(xs), max(ys) - min(ys), max(math.hypot(x, y) for x, y in zip(xs, ys))
+
+    def test_sizes(self):
+        cases = [
+            ("eight 820x300", Track.eight(width=820, height=300, center=(0, 0)), (820, 300, None)),
+            ("eight default", Track.eight(center=(0, 0)), (90, 40, None)),
+            ("eight tall", Track.eight(width=120, height=240, center=(0, 0)), (120, 240, None)),
+            ("circle", Track.circle(radius=50, center=(0, 0)), (100, 100, 50)),
+            ("star", Track.star(radius=60, center=(0, 0)), (None, None, 60)),
+            ("wave", Track.wave(length=300, amplitude=25, waves=3, start=(0, 0)), (300, 50, None)),
+        ]
+        for name, track, (w, h, r) in cases:
+            with self.subTest(preset=name):
+                self.track(track)
+                sw, sh, sr = self.span(track)
+                if w is not None:
+                    self.assertAlmostEqual(sw, w, delta=w * 0.01)
+                if h is not None:
+                    self.assertAlmostEqual(sh, h, delta=h * 0.01)
+                if r is not None:
+                    self.assertAlmostEqual(sr, r, delta=r * 0.01)
 
 
 class TestSpiralOrigin(TrackTestCase):

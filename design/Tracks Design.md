@@ -116,7 +116,8 @@ Track.line / .circle / .arc / .eight / .star / .spiral / .wave / .shuttle
 Two preset families, two placement keywords:
 
 - **Centered** (`circle`, `arc`, `star`, `eight`, `spiral`, `shuttle`) — `center=` is the focal / middle (same point `Shape.center` / `move_to` already mean).
-- **Started** (`line`, `wave`, `vectors=`) — `p1=` on `line`, `start=` on `wave` / `vectors=`. That keyword plants **`u=0`**, not the geometric middle. `.center` stays the midpoint.
+- **Started** (`line`, `wave`, `vectors=`) — `p1=` on `line`, `start=` on `wave` / `vectors=`. That keyword plants **`u=0`**, not the geometric middle, at any `angle=`: the pose turns the track about its middle, so the middle is placed along the angle (`_line_center_from_p1`; `Track.wave` placed it as if the angle were 0 until showcase A3, 2026-10-23). `.center` stays the midpoint.
+- A preset's size keywords are the size it draws: `eight(width=, height=)` spans width × height (it drew height/2 until showcase F; `test_track.TestPresetSizes`).
 
 `Track.line` has two constructors, mirroring `Line`:
 
@@ -362,6 +363,14 @@ Cancel only if nothing was baked yet.
 `path.zigzag(amount, waves, kind="sine"|"saw")`, `.orbit(radius, laps)`,
 `.wander(amount, seed)` mutate in place and return `self`. `clone()` first if
 you need the unmodified copy.
+
+- A call with the values the track already has is a no-op (no re-bake): a
+  modifier called every frame with the same values re-baked the whole table
+  (~140 µs a track; showcase D8).
+- The bake samples each loop / wave by a chord tolerance
+  (`_samples_per_loop`: ≤ 0.25 design units off the curve, 8 … 64 a loop),
+  not a fixed 8: `orbit(laps=40)` and `zigzag(waves=50)` drew octagons
+  (showcase E). `test_track.TestModifiers`.
 
 # Overlay
 
