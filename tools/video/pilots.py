@@ -1103,6 +1103,38 @@ def tour(game, t, *, script=(), end=30.0, glide=0.8):
         game.done = True
 
 
+# ── Debug keys over a run ───────────────────────────────────────────────────
+
+def with_debug_keys(game, t, *, pilot, args=None, chords=()):
+    """Another pilot's run, with Ctrl+Shift chords at set times: ``chords`` is
+    ``(time, key)`` each ("7" hitboxes and overlays, "6" processes, "8" debug
+    zoom). The modifiers go down a moment before the key and come up after
+    it: keys pressed in one frame arrive in name order, and a "7" before its
+    Ctrl and Shift is a plain 7."""
+    from record_game import load_pilot
+    fly = memo(game).setdefault("_base", load_pilot(pilot))
+    extra = []
+    for when, key in chords:
+        if when - 0.1 <= t < when + 0.25:
+            extra += ["LEFT_CTRL", "LEFT_SHIFT"]
+        if at(t, when, 3):
+            extra.append(key)
+    hold = game.hold
+    called = []
+
+    def hold_too(*keys):
+        called.append(True)
+        hold(*keys, *extra)
+
+    game.hold = hold_too
+    try:
+        fly(game, t, **(args or {}))
+    finally:
+        game.hold = hold
+    if not called:                   # a pilot that holds no keys (watch): the chord alone
+        hold(*extra)
+
+
 PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, fly_plane,
                                   race, run_robot, play_connect4, duel_match, ninja_route,
-                                  slider_tour, tour)}
+                                  slider_tour, tour, with_debug_keys)}

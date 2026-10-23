@@ -25,6 +25,9 @@ Bug classes guarded:
 * **A build-up marks the wrong lines.** Each step's marked lines are what it
   adds or changes since the step before (none for a step that only
   explains), and every step spec names a real step (``TestBuildup``).
+* **A debug chord arrives as a plain key.** Ctrl+Shift+7 / 6 / 8 over a run
+  switch the overlays in turn, each kept as the next comes, and the HUD's
+  FPS says the video's rate, not the render's (``TestDebugKeys``).
 * **The shot list rots, or a pilot does not do what it says.** Every take
   names a program that exists, a pilot that loads and keywords the pilot
   accepts (``TestTakes``). The tutorial-01 tour must reach every feature it
@@ -403,6 +406,57 @@ class TestBuildup(unittest.TestCase):
             self.assertEqual(rows.max() - rows.min() + 1, len(rows), "one band")
         self.assertEqual(len(first), len(third))
         self.assertEqual(third.min() - first.min(), 2 * len(first), "two lines lower")
+
+
+class TestDebugKeys(unittest.TestCase):
+    """Debug-mode takes: each chord reaches the engine as Ctrl+Shift+digit
+    (the modifiers go down first: keys of one frame arrive in name order, and
+    a "7" before its Ctrl and Shift is a plain 7), and an earlier overlay
+    stays on when the next one comes."""
+
+    def test_chords_switch_the_overlays_in_turn(self):
+        import pilots
+        from scena import process_overlay
+        seen = {}
+
+        def pilot(game, t):
+            pilots.with_debug_keys(game, t, pilot="watch",
+                                   chords=((0.5, "7"), (1.0, "6"), (1.5, "8")))
+            fw = game.run.world.fw
+            for when in (0.9, 1.4, 1.9):
+                if abs(t - when) < 1 / 120:
+                    seen[when] = (fw._overlay_pack, process_overlay.processes_overlay_level(),
+                                  fw._debug_zoom)
+
+        sinks = []
+        try:
+            rg.record("examples/ping.py", lambda size, fps: sinks.append(_Memory(size, fps))
+                      or sinks[-1], pilot=pilot, source=_PING, size=(160, 90), gpu=False,
+                      progress=False, seconds=2.0)
+        finally:
+            # These switches live on the framework, not the world: left on, the
+            # next test's clicks land through a 50 % view (each take runs in a
+            # process of its own, so a recording never inherits them).
+            from scena.orchestration import ScenaFramework
+            fw = ScenaFramework.get_instance()
+            if fw._overlay_pack:
+                fw._toggle_overlay_pack()
+            fw._set_debug_zoom(1.0)
+            if process_overlay.processes_overlay_level():
+                process_overlay.show_processes(False)
+        self.assertEqual(seen, {0.9: (True, 0, 1.0), 1.4: (True, 1, 1.0), 1.9: (True, 1, 0.5)})
+
+    def test_the_hud_reports_the_video_rate(self):
+        """Offline, frames per wall-clock second is the render's speed: the
+        HUD's FPS must say what the video plays at."""
+        rates = []
+
+        def pilot(game, t):
+            rates.append(game.run.world.fw.clock.fps)
+
+        rg.record("examples/ping.py", lambda size, fps: _Memory(size, fps), pilot=pilot,
+                  source=_PING, size=(160, 90), gpu=False, progress=False, seconds=0.5)
+        self.assertEqual(set(rates[1:]), {float(rg.GAME_FPS)})
 
 
 class TestPilotClock(unittest.TestCase):

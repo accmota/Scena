@@ -216,6 +216,19 @@ TAKES = {
     "catch-the-stars/code": dict(program="README.md#catch-the-stars", pilot="catch_falling",
                                  args=dict(_CATCH, miss=0.1, seed=3), seed=3, lead=0.5,
                                  layout="code"),
+    # Debug mode over a run: none at first, then each overlay in turn, the
+    # earlier ones kept on. Ninja V: Ctrl+Shift+7 (hitboxes, view frame,
+    # HUD), then +6 (the process panel: the invincibility task, modes).
+    # Naves VI: +7, then +8 (debug zoom: the world past the screen).
+    "ninja_5_espada/debug": dict(program="examples/ninja_5_espada.py", pilot="with_debug_keys",
+                                 end="done", seconds=150,
+                                 args=dict(pilot="ninja_route", args=dict(route="full"),
+                                           chords=((9.0, "7"), (21.0, "6")))),
+    "naves_6_atos/debug": dict(program="examples/naves_6_atos.py", pilot="with_debug_keys",
+                               seed=1, end="done", seconds=240,
+                               args=dict(pilot="play_naves", args=dict(fire=0.6, seed=1),
+                                         chords=((7.0, "7"),     # the whole fleet boxed
+                                                 (19.0, "8")))),  # the boss, from off screen
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),

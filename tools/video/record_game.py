@@ -557,6 +557,11 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
         i = 0
         with SoundCard(get_mixer()) as card:
             while frames < stop:
+                # The HUD's FPS (Ctrl+Shift+1 / 7) counts frames per wall-clock
+                # second: offline that is the render's speed, not the video's.
+                # The video plays at GAME_FPS, so that is what the clock reports.
+                if getattr(fw, "clock", None) is not None:
+                    fw.clock._fps = float(GAME_FPS)
                 fly(game, i / GAME_FPS, **args)
                 if ended == "cap" and getattr(game, "done", False):
                     ended = "done"

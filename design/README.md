@@ -508,6 +508,16 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   (`docs/en/tutorial/`, "Step N"; a Portuguese page says "Passo N"). A page
   that ends in two programs (`30-spins`: the bars, then the oscilloscope)
   gives each build-up its own steps (`example=`), numbered from 1.
+- **Debug mode on video.** `pilots.with_debug_keys` plays another pilot's
+  run and adds Ctrl+Shift chords at set times (`ninja_5_espada/debug`:
+  7 hitboxes, then 6 processes; `naves_6_atos/debug`: 7, then 8 debug
+  zoom), each overlay kept as the next comes. A chord's modifiers go down
+  a moment before its digit (keys of one frame arrive in name order). The
+  HUD's FPS counts frames per wall-clock second, which offline is the
+  render's speed, so the recorder reports the video's 60. The overlay
+  pack, debug zoom and process panel live on the framework, not the world:
+  a test that switches them restores them, or the next test clicks
+  through a 50 % view.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block
