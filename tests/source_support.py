@@ -60,3 +60,38 @@ def path_key(path: str, sep: str = os.sep) -> str:
     letters and digits, ``"/"`` before them, so a plain sort puts
     ``sub/x.py`` and ``subA.py`` in a different order on Windows."""
     return path.replace(sep, "/")
+
+
+def link_entry(source: str, link: str) -> str:
+    """Make ``link`` name ``source`` (a file or a folder); returns how.
+
+    ``os.symlink`` needs a privilege on Windows (Developer Mode or an
+    administrator): without it, WinError 1314, and the laws twins lost every
+    example (WP29). Fallbacks that need none: a directory junction for a
+    folder, a hard link for a file (same volume), then a copy.
+    """
+    is_dir = os.path.isdir(source)
+    try:
+        os.symlink(source, link, target_is_directory=is_dir)
+        return "symlink"
+    except (OSError, NotImplementedError):
+        pass
+    if is_dir and os.name == "nt":
+        try:
+            import _winapi
+            _winapi.CreateJunction(os.path.abspath(source), os.path.abspath(link))
+            return "junction"
+        except OSError:
+            pass
+    if not is_dir:
+        try:
+            os.link(source, link)
+            return "hardlink"
+        except OSError:
+            pass
+    import shutil
+    if is_dir:
+        shutil.copytree(source, link)
+    else:
+        shutil.copy2(source, link)
+    return "copy"

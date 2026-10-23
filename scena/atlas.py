@@ -2729,10 +2729,12 @@ def _mask_to_sdf_image(mask: np.ndarray, *, pad: int = 8) -> Optional[skia.Image
     surf = skia.Surface.MakeRaster(info)
     if surf is None:
         return None
-    # Write pixels via pixmap
-    img = skia.Image.MakeRasterCopy(
-        skia.Pixmap(info, bytearray(np.ascontiguousarray(rgba).tobytes()), bw * 4),
-    )
+    # Write pixels via pixmap. A Pixmap borrows its buffer and holds no
+    # reference: the buffer stays named until the copy is made. A temporary
+    # (``bytearray(rgba.tobytes())``) was freed first and the allocator wrote
+    # into its first bytes: the top-left pixels came out as garbage (WP21).
+    pixels = np.ascontiguousarray(rgba)
+    img = skia.Image.MakeRasterCopy(skia.Pixmap(info, pixels, bw * 4))
     if img is None:
         # Fallback: draw as bitmap via canvas
         canvas = surf.getCanvas()

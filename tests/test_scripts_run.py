@@ -72,7 +72,7 @@ def scripts(smoke: bool = False):
                            skip_dirs={"media"})
     found = [f for f in found if not os.path.basename(f).startswith("_")]
     if smoke:
-        found += [os.path.join(ROOT, f) for f in EXTRA]
+        found += [os.path.normpath(os.path.join(ROOT, f)) for f in EXTRA]
     return sorted(found)
 
 
@@ -114,9 +114,9 @@ class TestScriptsRun(unittest.TestCase):
         self.assertEqual(examples & smoke, set())
         self.assertTrue(all(os.path.relpath(p, ROOT).startswith("examples" + os.sep)
                             for p in examples))
-        self.assertLessEqual({os.path.join(ROOT, f) for f in EXTRA}, smoke)
+        self.assertLessEqual({os.path.normpath(os.path.join(ROOT, f)) for f in EXTRA}, smoke)
         for folder in ("scripts/smoke", "tests/loads"):
-            found = {p for p in iter_files(os.path.join(ROOT, folder), ".py")
+            found = {p for p in iter_files(os.path.normpath(os.path.join(ROOT, folder)), ".py")
                      if not os.path.basename(p).startswith("_")}
             self.assertLessEqual(found, smoke, folder)
 

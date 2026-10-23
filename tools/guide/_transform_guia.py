@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 HTML = Path(__file__).resolve().parents[2] / "docs" / "pt" / "guide" / "index.html"
@@ -1206,4 +1207,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Prints "→": piped on Windows, stdout is cp1252 with errors="strict" (WP28).
+    sys.stdout.reconfigure(errors="backslashreplace")
     main()

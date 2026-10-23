@@ -21,6 +21,7 @@ line) so the twin's labels and function ids name the original lines.
 from __future__ import annotations
 
 import ast
+import functools
 import math
 import re
 from collections import Counter
@@ -288,11 +289,11 @@ def script_trace(path: str, frames: int, *, source: Optional[str] = None,
             # blamed the engine for a twin that had lost its art).
             folder = os.path.join(tmp, "twin")
             os.mkdir(folder)
-            from source_support import iter_entries
+            from source_support import iter_entries, link_entry
             here = os.path.dirname(path)
             for name in iter_entries(here):
                 if name != os.path.basename(path):
-                    os.symlink(os.path.join(here, name), os.path.join(folder, name))
+                    link_entry(os.path.join(here, name), os.path.join(folder, name))
             twin = os.path.join(folder, os.path.basename(path))
             with open(twin, "w", encoding="utf-8") as fh:
                 fh.write(source)
@@ -307,23 +308,40 @@ def script_trace(path: str, frames: int, *, source: Optional[str] = None,
 
 def e3_script(path: str, frames: int, *, limit: Optional[int] = None) -> List[str]:
     """E3 on an example or a tutorial step."""
+    runs, judge = e3_script_runs(path, frames, limit=limit)
+    return judge([run() for run in runs])
+
+
+def e3_script_runs(path: str, frames: int, *, limit: Optional[int] = None):
+    """``e3_script`` as independent runs a pool can spread: ``(runs, judge)``,
+    the base run then one per swap; ``judge(results)`` gives the messages.
+    Run one after another, an example with many candidates (ninja_5_espada:
+    36 E15 twins) held one pool slot past a gate job's 30 min (WP31)."""
     import os
     with open(path, encoding="utf-8") as fh:
         source = fh.read()
     file = os.path.basename(path)
     cands = swap_candidates(source)[:limit]
     if not cands:
-        return []
-    base = project(script_trace(path, frames), file=file)
-    out = []
-    for i, _j in cands:
+        return [], lambda results: []
+
+    def base():
+        return project(script_trace(path, frames), file=file)
+
+    def twin(i):
         twin_src, line_map = swap_statements(source, i)
-        twin = project(script_trace(path, frames, source=twin_src), line_map=line_map, file=file)
-        diff = compare(base, twin)
-        if diff:
-            line = ast.parse(source).body[i].lineno
-            out.append(f"E3 {file} swap at line {line}: " + "; ".join(diff))
-    return out
+        return project(script_trace(path, frames, source=twin_src), line_map=line_map, file=file)
+
+    def judge(results):
+        out = []
+        for (i, _j), got in zip(cands, results[1:]):
+            diff = compare(results[0], got)
+            if diff:
+                line = ast.parse(source).body[i].lineno
+                out.append(f"E3 {file} swap at line {line}: " + "; ".join(diff))
+        return out
+
+    return [base] + [functools.partial(twin, i) for i, _j in cands], judge
 
 
 # ---------------------------------------------------------------------------
@@ -693,20 +711,35 @@ def e15_program(program: str, spec_ns: Dict, scenario: str, *, limit: Optional[i
 
 def e15_script(path: str, frames: int, *, limit: Optional[int] = None) -> List[str]:
     """E15 on an example or a tutorial step."""
+    runs, judge = e15_script_runs(path, frames, limit=limit)
+    return judge([run() for run in runs])
+
+
+def e15_script_runs(path: str, frames: int, *, limit: Optional[int] = None):
+    """``e15_script`` as independent runs: ``(runs, judge)``, as
+    ``e3_script_runs`` (WP31)."""
     import os
     with open(path, encoding="utf-8") as fh:
         source = fh.read()
     cands = neutral_candidates(source)[:limit]
     if not cands:
-        return []
+        return [], lambda results: []
     file = os.path.basename(path)
-    base = e15_projection(script_trace(path, frames), file=file)
-    out = []
-    for a, b in cands:
+
+    def base():
+        return e15_projection(script_trace(path, frames), file=file)
+
+    def twin(a, b):
         twin_src, line_map = add_neutral_rule(source, a, b)
-        twin = e15_projection(script_trace(path, frames, source=twin_src),
+        return e15_projection(script_trace(path, frames, source=twin_src),
                               line_map=line_map, file=file)
-        diff = compare(base, twin)
-        if diff:
-            out.append(f"E15 {file} neutral {a!r} x {b!r}: " + "; ".join(diff))
-    return out
+
+    def judge(results):
+        out = []
+        for (a, b), got in zip(cands, results[1:]):
+            diff = compare(results[0], got)
+            if diff:
+                out.append(f"E15 {file} neutral {a!r} x {b!r}: " + "; ".join(diff))
+        return out
+
+    return [base] + [functools.partial(twin, a, b) for a, b in cands], judge

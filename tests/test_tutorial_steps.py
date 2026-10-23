@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,7 +41,7 @@ from typing import List, Optional, Sequence, Tuple
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tests.source_support import iter_files  # noqa: E402
+from tests.source_support import iter_files, link_entry  # noqa: E402
 from tests import test_tutorials as pages  # noqa: E402
 from tests.test_tutorials import (  # noqa: E402
     EXAMPLES, MEDIA, TUTORIALS, _check_fragment, _read, _reads_a_local, _step_locals,
@@ -55,12 +54,8 @@ TIMEOUT = 120.0
 
 
 def _link_media(folder: str) -> None:
-    """``folder/media`` → ``examples/media`` (a copy where links are not allowed)."""
-    target = os.path.join(folder, "media")
-    try:
-        os.symlink(MEDIA, target, target_is_directory=True)
-    except (OSError, NotImplementedError):
-        shutil.copytree(MEDIA, target)
+    """``folder/media`` → ``examples/media`` (a junction or a copy where links are not allowed)."""
+    link_entry(MEDIA, os.path.join(folder, "media"))
 
 
 def run_program(folder: str, name: str, program: str) -> Tuple[bool, str]:

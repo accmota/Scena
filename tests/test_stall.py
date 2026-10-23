@@ -15,6 +15,7 @@ import sys
 import tempfile
 import textwrap
 import time
+import types
 import unittest
 from contextlib import redirect_stderr
 from unittest import mock
@@ -117,6 +118,36 @@ class TestStallWatch(unittest.TestCase):
                 gc.collect()
                 self.assertIsNone(box(), "a reported frame keeps the program alive")
 
+    def test_a_report_keeps_no_frame_of_the_main_thread(self):
+        # WP20: the watch thread read the main thread's frame into a local of
+        # its endless loop and kept it after the report: the whole stack, and
+        # every value its locals held, stayed alive (oficina LEFTOVERS, five
+        # Points, on a cold Windows run where a top-level bake passed 8 s).
+        # Checked on the watch thread itself: which objects a held stack keeps
+        # depends on who called the program.
+        path = _program("""
+            import time
+            from scena import *
+            init(width=200, height=200)
+            time.sleep(0.6)   # slow loading at the top level
+            run()
+        """)
+        err = io.StringIO()
+        with redirect_stderr(err):
+            run = ProgramRun(path)
+            run.start()
+            run.close(strict=False)
+        self.assertIn("without reaching run()", err.getvalue())
+        time.sleep(4 * stall.POLL_S)            # the watch is back to polling
+        frame = sys._current_frames().get(stall._thread.ident)
+        held = []
+        while frame is not None:
+            held += [f"{frame.f_code.co_name}.{name}" for name, value in frame.f_locals.items()
+                     if isinstance(value, types.FrameType)]
+            frame = frame.f_back
+        del frame
+        self.assertEqual(held, [], "the watch thread holds a frame after its report")
+
     def test_a_quick_frame_says_nothing(self):
         path = _program("""
             from scena import *
@@ -170,6 +201,51 @@ class TestStallWatch(unittest.TestCase):
 
     def test_a_test_modules_run_does_not_arm(self):
         self.assertEqual(self._call_run("tests.algum").call_count, 0)
+
+
+def _frames_read_in_loops(tree):
+    """Line numbers of ``sys._current_frames()`` / ``sys._getframe()`` calls
+    in the body of a ``while`` loop (not in a function it calls)."""
+    import ast
+    out = []
+    for loop in ast.walk(tree):
+        if not isinstance(loop, ast.While):
+            continue
+        for node in ast.walk(loop):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in ("_current_frames", "_getframe")):
+                out.append(node.lineno)
+    return sorted(set(out))
+
+
+class TestNoFrameKeptByALoop(unittest.TestCase):
+    """WP20, the class: a frame read into a local of an endless loop stays
+    alive until the next pass reassigns it, which in a watch thread may be
+    never. Engine loops call a function that reads the frame and returns."""
+
+    def test_engine_loops_do_not_read_frames(self):
+        import ast
+        from tests.source_support import iter_files
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        bad = []
+        for path in iter_files(os.path.join(root, "scena"), ".py", recursive=True):
+            with open(path, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read(), path)
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            bad += [f"{rel}:{n}" for n in _frames_read_in_loops(tree)]
+        self.assertEqual(bad, [], "read the frame in a function the loop calls:\n"
+                         + "\n".join(bad))
+
+    def test_guard_sees_the_old_watch(self):
+        import ast
+        src = ("while True:\n"
+               "    time.sleep(1)\n"
+               "    frame = sys._current_frames().get(main)\n"           # 3
+               "def poll():\n"
+               "    frame = sys._current_frames().get(main)\n"
+               "while frame is not None:\n"
+               "    frame = frame.f_back\n")
+        self.assertEqual(_frames_read_in_loops(ast.parse(src)), [3])
 
 
 

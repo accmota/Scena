@@ -2297,4 +2297,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # It prints "→" and Portuguese: piped on Windows, stdout encodes with the
+    # locale (cp1252) and errors="strict", and "→" crashed the check (WP28).
+    sys.stdout.reconfigure(errors="backslashreplace")
     raise SystemExit(main())

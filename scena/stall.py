@@ -112,39 +112,36 @@ def stall_message(phase: str, seconds: float, frame) -> Optional[str]:
     )
 
 
-def _report(main, phase: str, since: float, waited: float):
-    """The stall message (None under a debugger), or False when the stall
-    ended meanwhile. The main thread's frame lives only in this call: kept in
-    ``_watch``'s locals, it held the frame (and its globals: the whole
-    program) until the next stall — a game system test under load counted a
-    finished run's Box as alive in the next run (oficina, 2026-10-22)."""
-    frame = sys._current_frames().get(main)
-    if frame is None or _state[0] != phase or _state[1] != since:
-        return False
-    return stall_message(phase, waited, frame)
-
-
 def _watch() -> None:
     main = threading.main_thread().ident
     while True:
         time.sleep(POLL_S)
-        phase, since, reported = _state
-        if phase is None or reported:
-            continue
-        limit = TOP_LEVEL_STALL_S if phase == "top" else STALL_S
-        waited = time.perf_counter() - since
-        if waited < limit:
-            continue
-        msg = _report(main, phase, since, waited)
-        if msg is False:
-            continue
-        _state[2] = True
-        if msg is not None:
-            try:
-                sys.stderr.write(msg + "\n")
-                sys.stderr.flush()
-            except Exception:
-                pass
+        _poll(main)
+
+
+def _poll(main: int) -> None:
+    """One look at the main thread. Its own function, so the frame it reads
+    dies when it returns: a local of the endless loop in ``_watch`` kept the
+    main thread's stack, and every value its locals held, alive after the
+    report (WP20)."""
+    phase, since, reported = _state
+    if phase is None or reported:
+        return
+    limit = TOP_LEVEL_STALL_S if phase == "top" else STALL_S
+    waited = time.perf_counter() - since
+    if waited < limit:
+        return
+    frame = sys._current_frames().get(main)
+    if frame is None or _state[0] != phase or _state[1] != since:
+        return
+    msg = stall_message(phase, waited, frame)
+    _state[2] = True
+    if msg is not None:
+        try:
+            sys.stderr.write(msg + "\n")
+            sys.stderr.flush()
+        except Exception:
+            pass
 
 
 # ``run()`` was entered (orchestration.run); read at exit. ``_made_from``:

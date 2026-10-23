@@ -711,17 +711,46 @@ class TestSilhouetteBakeSpeed(unittest.TestCase):
         got = img.toarray(colorType=skia.kRGBA_8888_ColorType)[:, :, 0]
         np.testing.assert_array_equal(got, want)
 
+    def test_sdf_bakes_agree_with_each_other(self):
+        # WP21: the pixels were read from a freed buffer; on Windows the first
+        # bytes changed from bake to bake (4 distinct images in 50).
+        from scena.atlas import _mask_to_sdf_image
+        mask = np.zeros((60, 50), dtype=bool)
+        mask[10:50, 15:35] = True
+        first = _mask_to_sdf_image(mask, pad=8).toarray(colorType=skia.kRGBA_8888_ColorType)
+        for _ in range(20):
+            churn = [bytearray(first.nbytes) for _ in range(8)]   # reuse freed blocks
+            again = _mask_to_sdf_image(mask, pad=8).toarray(colorType=skia.kRGBA_8888_ColorType)
+            del churn
+            np.testing.assert_array_equal(again, first)
+
     def test_bake_of_a_large_cell_is_fast(self):
         import time
         from scena.atlas import AtlasFrame, _bake_frame_fx
         img = skia.Image.open(media("ninja", "Attack__005.png"))
         frame = AtlasFrame(name="a", x=0, y=0, w=img.width(), h=img.height())
-        t = time.perf_counter()
-        fx = _bake_frame_fx(img, frame, sdf=True)
-        took = time.perf_counter() - t
-        self.assertIsNotNone(fx.sdf)
-        # Was ~0.2 s here; the bound leaves room for a loaded machine.
-        self.assertLess(took, 0.08)
+        self.assertIsNotNone(_bake_frame_fx(img, frame, sdf=True).sdf)
+        # A ratio against a Python hot loop timed in the same process (the
+        # scalar EDT on a 64 x 64 mask), interleaved, best block of each side
+        # (Testing Design: WP7, WP18). Was an absolute 0.08 s, sized on the
+        # Mac: a slower Windows machine read 0.12-0.17 s (WP22). The bake read
+        # ~0.2 s on the Mac before its hot loops went (ratio ~3); now ~0.6.
+        small = np.zeros((64, 64), dtype=bool)
+        small[16:48, 20:44] = True
+        bake = ref = float("inf")
+        for i in range(4):
+            for side in ((0, 1) if i % 2 == 0 else (1, 0)):
+                t = time.perf_counter()
+                if side == 0:
+                    _bake_frame_fx(img, frame, sdf=True)
+                else:
+                    _edt_2d_envelope(small)
+                took = time.perf_counter() - t
+                if side == 0:
+                    bake = min(bake, took)
+                else:
+                    ref = min(ref, took)
+        self.assertLess(bake / ref, 1.5, f"bake {bake * 1e3:.1f} ms, reference {ref * 1e3:.1f} ms")
 
 
 class TestMaskCache(unittest.TestCase):
