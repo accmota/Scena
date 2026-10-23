@@ -111,6 +111,27 @@ class TestTextPlacement(TextTestCase):
             Text("bad", layer="default")
 
 
+class TestGlowMetricsFollowTheGlow(TextTestCase):
+    """The caption glow ladder is kept per glow and its knobs (showcase D6:
+    a CheapGlow built a Glow for every cull box and draw). A changed glow,
+    a swapped glow and a removed one still read fresh."""
+
+    def test_memo_follows_changes(self):
+        t = Text("HI", center=(100, 100), layer="default")
+        t.glow = CheapGlow("red")
+        first = t._text_glow_metrics(t._glow)
+        self.assertIs(t._text_glow_metrics(t._glow), first)
+        t.glow = CheapGlow("cyan")
+        second = t._text_glow_metrics(t._glow)
+        self.assertNotEqual(first[1], second[1])
+        t.glow = Glow(color="lime", sigma=20)
+        third = t._text_glow_metrics(t._glow)
+        self.assertNotEqual(third[3], second[3])
+        t.glow = None
+        self.assertIsNone(t._text_glow())
+        t.destroy()
+
+
 class TestHudStack(TextTestCase):
     def theme_gap(self):
         self.wm.widget_theme._ensure()

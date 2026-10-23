@@ -1051,9 +1051,9 @@ class GodRays(PostEffect):
     """8-tap brightness-gated god rays, Plus-blended (SkSL).
 
     Args:
-        weight: How much each sample adds (default 0.35).
-        decay: Fall-off along the ray (default 0.86).
-        exposure: Exposure (default 1.8).
+        weight: How much each sample adds (default 0.08).
+        decay: Fall-off along the ray (default 0.9).
+        exposure: Exposure (default 0.8).
         target: Ray source; ``None`` = the mouse.
     """
 
@@ -1062,11 +1062,15 @@ class GodRays(PostEffect):
 
     def __init__(
         self,
-        weight: float = 0.35,
-        decay: float = 0.86,
-        exposure: float = 1.8,
+        weight: float = 0.08,
+        decay: float = 0.9,
+        exposure: float = 0.8,
         target=None,
     ):
+        # Defaults (2026-10-23): 0.35 / 0.86 / 1.8 washed the whole picture
+        # out and repeated every bright object along the rays (the shader takes
+        # 8 samples over the whole way to the light, so a strong ray shows
+        # them as copies). These keep a visible glow and rays at the light.
         self.weight = float(weight)
         self.decay = float(decay)
         self.exposure = float(exposure)

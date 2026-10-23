@@ -96,6 +96,23 @@ class TestKnobsAreFields(unittest.TestCase):
             self.assertAlmostEqual(fx.twist, 0.5)
             self.assertTrue(fx["amount"].is_linked)
 
+    def test_portal_angle_links_and_tweens(self):
+        from scena import Portal
+        with system_world(draw=True) as w:
+            st.k = 0.0
+            p = Portal(center=(100, 100), tilt=0.5, angle=lambda: 10 + 100 * st.k)
+            st.k = 0.5
+            w.step(1, dt=FRAME)
+            self.assertAlmostEqual(p.angle, 60.0)
+            p["angle"].unlink()
+            h = tween(p["angle"], 90.0, time=0.05)
+            w.step(6, dt=FRAME)
+            self.assertTrue(h.done)
+            self.assertAlmostEqual(p.angle, 90.0)
+            p.angle = 15
+            self.assertAlmostEqual(p.angle, 15.0)
+            p.destroy()
+
     def test_tutorial_23_glow_follows_its_formula(self):
         # estudio_voz: luz["amount"] @= lambda: 0.3 + st.voz
         with system_world(draw=False) as w:
@@ -119,10 +136,9 @@ class TestKnobsAreFields(unittest.TestCase):
                     and k not in fx._field_slots()
                 )
                 with self.subTest(kind=label):
-                    # Portal.angle is a heading (refused by the reserved-name
-                    # rule, not silently dead); soft_edge, a plain field of
-                    # every effect, moves into the field a bracket reaches.
-                    self.assertEqual([k for k in plain if k not in ("angle", "soft_edge")], [], label)
+                    # soft_edge, a plain field of every effect, moves into
+                    # the field a bracket reaches.
+                    self.assertEqual([k for k in plain if k != "soft_edge"], [], label)
                 fx.destroy()
 
 

@@ -854,7 +854,7 @@ does not hand it back (AC3; `test_postfx.TestPostFxStack.test_impacts_never_join
 | **Perspective**  | SHADER | Fake tilt UV                                          | `target=None` → mouse                                          |
 | **Lamp**         | SHADER | Omni point + specular                                 | range + radius; mouse by default                               |
 | **Spotlight**    | SHADER | Cone light + **range** cut-off                        | origin + aim (mouse)                                           |
-| **GodRays**      | SHADER | 8-tap brightness shafts, Plus                         |                                                                |
+| **GodRays**      | SHADER | 8-tap brightness shafts, Plus                         | Defaults 0.08 / 0.9 / 0.8 (2026-10-23; 0.35 / 0.86 / 1.8 washed the picture out). The 8 taps span the whole way to the light, so a strong ray repeats bright objects as copies ("ghosting"); more taps or a shorter march is a look change, not done |
 | **MotionTrail**  | SHADER | Past-frame afterimage; `fade` @ 60 Hz                 | residual-free (static → identity); crisp movers; mute / survival drops both ping-pong RTs |
 | **ColorSweep**   | SHADER | Spatial color-grade + sat/hue; 2–4 colors             | `axis="radial"                                                 |
 | **ColorWash**    | SHADER | Dancing plasma colorize of the scene                  | 2–3 colors; ≠ background `Plasma`                              |

@@ -475,13 +475,13 @@ const SPATIAL = [
       params: [P("range", "55% of the short side", "Cutoff, in design units", 0, "number"), P("origin", "None", "Where the light comes from; None = top center", 0, "point"), P("target", "None", "Where it points; None = mouse", 0, "point"), P("color", "(1.15, 1.05, 0.85)", "Light color (can go above 1 = stronger)"), P("cone_angle", "34", "Cone opening, in degrees"), P("softness", "14", "Soft edge of the cone, in degrees"), P("ambient", "0.1", "Light outside the cone, 0–1"), P("intensity", "1.45", "Light strength in the cone")] },
     { id: "post-godrays", kind: "anim", family: "post", name: "GodRays",
       idea: "Rays of light from the bright parts of the picture toward a point, like sun through clouds.",
-      code: "GodRays()\nGodRays(weight=0.4, target=(400, 300))",
+      code: "GodRays()\nGodRays(weight=0.15, target=(400, 300))",
       search: "godrays",
       thumb: "GodRays(target=(W * 0.62, H * 0.5))",
       params: [
-        P("weight", "0.35", "Ray strength (higher = brighter rays)", 1, "number"),
-        P("decay", "0.86", "Falloff along the ray", 0, "number"),
-        P("exposure", "1.8", "Exposure", 0, "number"),
+        P("weight", "0.08", "Ray strength (higher = brighter rays)", 1, "number"),
+        P("decay", "0.9", "Falloff along the ray", 0, "number"),
+        P("exposure", "0.8", "Exposure", 0, "number"),
         P("target", "mouse", "Where the rays come from. None = mouse")
       ] },
     { id: "post-motiontrail", kind: "anim", family: "post", name: "MotionTrail",

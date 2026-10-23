@@ -71,6 +71,10 @@ left out.
 
 ### Fixed
 
+- `GodRays()` with its defaults washed the whole picture out and repeated
+  bright objects along the rays. The defaults are gentler now:
+  `weight=0.08`, `decay=0.9`, `exposure=0.8` (they were `0.35`, `0.86`,
+  `1.8`; pass those to keep the old look).
 - `Lamp(radius=, range=)` were pixels of the post-effect image, so a lamp
   was a different size on each screen and changed size whenever the effect
   quality moved (`post_fx_scale`). They are design units now, scaled like an

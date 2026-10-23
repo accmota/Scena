@@ -982,7 +982,23 @@ class Text(Graphic, PaintState):
         return glow if isinstance(glow, (Glow, CheapGlow)) else None
 
     def _text_glow_metrics(self, glow):
-        """Caption ADD stroke ladder. CheapGlow uses Glow's halo (already cheap)."""
+        """Caption ADD stroke ladder. CheapGlow uses Glow's halo (already cheap).
+
+        Kept per glow and its knobs: the cull box and every draw asked again,
+        and a CheapGlow built a Glow (and its Color) each time — 50 glowing
+        captions off screen cost ~1 ms a frame (showcase D6, 2026-10-23)."""
+        from .visuals import CheapGlow
+        key = (glow, getattr(glow, "color", None), getattr(glow, "alpha", None),
+               getattr(glow, "amount", None), getattr(getattr(glow, "_glow", None), "_color", None),
+               getattr(getattr(glow, "_glow", None), "_blur", None))
+        memo = self.__dict__.get("_glow_metrics_memo")
+        if memo is not None and memo[0] == key:
+            return memo[1]
+        metrics = self._text_glow_metrics_build(glow)
+        self.__dict__["_glow_metrics_memo"] = (key, metrics)
+        return metrics
+
+    def _text_glow_metrics_build(self, glow):
         from .visuals import CheapGlow, Glow
         if isinstance(glow, CheapGlow):
             # Same filterless glyph halo as Glow() — not CheapGlow's shape bloom.

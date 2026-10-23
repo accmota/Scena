@@ -475,13 +475,13 @@ const SPATIAL = [
       params: [P("range", "55% do lado curto", "Corte, unidades de design", 0, "número"), P("origin", "None", "De onde a luz sai; None = topo-centro", 0, "ponto"), P("target", "None", "Para onde aponta; None = mouse", 0, "ponto"), P("color", "(1.15, 1.05, 0.85)", "Cor da luz (pode passar de 1 = mais forte)"), P("cone_angle", "34", "Abertura do cone em graus"), P("softness", "14", "Borda suave do cone, em graus"), P("ambient", "0.1", "Luz fora do cone, 0–1"), P("intensity", "1.45", "Força da luz no cone")] },
     { id: "post-godrays", kind: "anim", family: "post", name: "GodRays",
       idea: "Raios de luz saindo das partes claras da imagem em direção a um ponto, como sol entre nuvens.",
-      code: "GodRays()\nGodRays(weight=0.4, target=(400, 300))",
+      code: "GodRays()\nGodRays(weight=0.15, target=(400, 300))",
       search: "godrays",
       thumb: "GodRays(target=(W * 0.62, H * 0.5))",
       params: [
-        P("weight", "0.35", "Força dos raios (maior = raios mais claros)", 1, "número"),
-        P("decay", "0.86", "Queda ao longo do raio", 0, "número"),
-        P("exposure", "1.8", "Exposição", 0, "número"),
+        P("weight", "0.08", "Força dos raios (maior = raios mais claros)", 1, "número"),
+        P("decay", "0.9", "Queda ao longo do raio", 0, "número"),
+        P("exposure", "0.8", "Exposição", 0, "número"),
         P("target", "mouse", "Origem dos raios. None = mouse")
       ] },
     { id: "post-motiontrail", kind: "anim", family: "post", name: "MotionTrail",

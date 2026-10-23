@@ -2629,6 +2629,12 @@ class Portal(PointDomainFx):
 
     _reserved_fields = ("glow", "angle", "tilt")     # plain fields of ``__init__`` (RN2)
 
+    # The tilt axis's heading is a field like the knobs (``portal["angle"] @=``,
+    # ``tween``): it was a plain attribute the reserved-name rule refused to
+    # link, with a "Graphics only" message (showcase B1 follow-up, 2026-10-23).
+    # Not in ``_FX_KNOBS``: on Jet and directed Fire ``angle`` is a model part.
+    angle = ScalarSlot()
+
     # Default soft_edge= (help() / autocomplete read it: _publish_fx_signatures).
     _soft_edge = 0.3
 
@@ -2658,12 +2664,13 @@ class Portal(PointDomainFx):
         self.thickness = thickness
         self.chaos = chaos
         _init_knob(self, "tilt", tilt)
-        self.angle = float(angle)
+        _init_knob(self, "angle", angle)
         _init_knob(self, "glow", glow)
         self._rgb = resolve_rgb(color, default=_PORTAL_DEFAULT_COLOR)
         self._rgb2 = None if color2 is None else resolve_rgb(color2)
         self._init_point_domain(
-            center=center, radius=radius, soft_edge=soft_edge, **kwargs,
+            center=center, radius=radius, soft_edge=soft_edge,
+            extra_defining=("angle",), **kwargs,
         )
 
     @property
