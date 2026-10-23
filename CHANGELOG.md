@@ -176,6 +176,16 @@ left out.
 
 ### Documentation
 
+- Guia: a style set on a Track after it is made (`t.color = …`) does not
+  show an invisible track (write `t.visible = True`); shapes made without
+  `center=` start at the world's centre, which is the middle of the screen
+  only until the camera moves; a task started at the top of the file runs
+  its first part there (what it makes survives act changes; begin with
+  `await wait(0)`), and a tween it starts on an `st` field goes on after
+  `change_act`; `dissolve_out` / `fade_out` / `implode` / `burn_out` hide
+  without destroying (`on_done=shape.destroy` removes); `res_scale=` is on
+  the cloud and dust backgrounds only; a Track's `scale` enlarges its stroke
+  too.
 - The API Guide in English: [docs/en/guide/](https://accmota.github.io/Scena/en/guide/)
   mirrors the Portuguese Guia section by section, catalog cards included,
   with the same anchors (a link to `…/pt/guide/index.html#mundo-grupos`

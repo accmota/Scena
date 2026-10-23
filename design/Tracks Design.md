@@ -69,6 +69,9 @@ motion-track type and no `Shape.path` property — `Track(hexagon)` is the
 conversion. Any `Shape` is travelable: `bug.move_along(hexagon, time=4)`.
 
 Invisible until styled (`color=` / `visual=` / `line_width=` / `visible=True`), same as `Point`.
+Those are constructor keywords: a style set after construction (`t.color = …`)
+does not put an invisible track on a layer (the lifetime rule below); the Guia's
+`color` row says to write `t.visible = True` (showcase A1, 2026-10-23).
 Styling decides the lifetime, `visible` only the drawing: a styled track that
 is hidden (`visible = False`, or `visible=False` in the constructor) stays on
 its layer like a hidden `Rect` — an invisible collision band (a road asked

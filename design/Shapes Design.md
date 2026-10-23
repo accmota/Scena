@@ -257,6 +257,12 @@ The refusal on a computed field prints that line for the shape at hand
 Empty / `center=` / complete home-minus-center fill from class size defaults, then
 `_default_pose()` (`Circle()`, `Circle(radius=50)`, `Circle(center=(x, y))`,
 `Rect(width=, height=)`, `Line(center=…)`, `Line(length=, angle=)`).
+The default centre is the design's centre, `(width / 2, height / 2)` of `init`,
+in world coordinates: the camera (`pan_to`, `set_origin("center")`) does not move
+it, so after a camera move a shape made without `center=` is not in the middle
+of the screen (showcase A5, 2026-10-23: kept as is; a view-centre default would
+depend on when the shape is made). The Guia said "no centro da tela" and now
+says so. A `Text` without `center=` goes on the `ui` layer and stays put.
 Unknown or wrong-family keywords (`Circle(aaa=1)`, `Rect(radius=5)`, `Circle(frame=…)`)
 raise ``TypeError`` with a family hint — same fail-loud rule as Sprite. Incomplete expert
 paths (`Circle(p1=…)`, `Line(p2=…)`, `Rect(p1=…, width=…)`, `Line(p1=…)`) raise ``ValueError``.

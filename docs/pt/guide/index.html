@@ -1728,7 +1728,7 @@ ship.destroy()</pre>
 
   <section class="section prose" id="desenhar-shapes">
     <h2>Shapes</h2>
-    <p class="one-liner">Shapes são as formas geométricas: círculo, retângulo, linha, elipse, polígono, ponto. Aparecem assim que criadas; sem argumentos (<code>Circle()</code>) nascem com um tamanho médio no centro da tela. Todas aceitam <code>color=</code>, <code>visual=</code>, <code>line_width=</code>, <code>layer=</code> e <code>group=</code>.</p>
+    <p class="one-liner">Shapes são as formas geométricas: círculo, retângulo, linha, elipse, polígono, ponto. Aparecem assim que criadas; sem argumentos (<code>Circle()</code>) nascem com um tamanho médio no centro do mundo, <code>(width / 2, height / 2)</code> do <code>init</code> — o meio da tela enquanto a câmera não se move; depois de um <code>pan_to</code> ou <code>set_origin("center")</code>, passe <code>center=</code>. Todas aceitam <code>color=</code>, <code>visual=</code>, <code>line_width=</code>, <code>layer=</code> e <code>group=</code>.</p>
     <div class="code-panel">
       <button class="copy-btn" type="button">copiar</button>
 <pre>c = Circle(center=(400, 300), radius=50, color="cyan")
@@ -3720,7 +3720,7 @@ resolve(player, "wall", bounce=0.0)</pre>
             <tr><td><code>start</code></td><td>nome=</td><td class="type"><span class="t">ponto</span></td><td>Só em <code>vectors=</code> (e no preset <code>Track.wave</code>). Planta <code>u=0</code>. Omitido → flutua.</td></tr>
             <tr><td><code>floating</code></td><td>nome=</td><td class="type"><span class="t">bool ou omitido</span></td><td>Explícito sempre manda. Sem isto: colocação dada → ancorado; só tamanhos → flutua até receber um lugar (ligar / escrever <code>.center</code>, <code>move_to</code>, <code>move_by</code>), que a ancora. Com <code>floating=True</code> mover não a ancora.</td></tr>
             <tr><td><code>angle</code></td><td>nome=</td><td class="type"><span class="t">graus</span><span class="ex">0</span></td><td>Rumo inicial (pose). Não entra na polilinha local. Em <code>line</code> / <code>shuttle</code>, <code>angle=</code> é esse rumo: o segmento é feito ao longo de +x e girado, então <code>Track.line(angle=30).angle</code> é <code>30</code>.</td></tr>
-            <tr><td><code>color</code> / <code>visual</code></td><td>nome=</td><td class="type"><span class="t">cor ou Visual</span></td><td>Estilo. <code>color=</code> escreve o traço. Qualquer um torna o Track visível e o coloca na camada. Track é Shape: mesmo <code>.dash</code> / <code>.line_cap</code> / <code>.line_join</code> (strings).</td></tr>
+            <tr><td><code>color</code> / <code>visual</code></td><td>nome=</td><td class="type"><span class="t">cor ou Visual</span></td><td>Estilo. <code>color=</code> escreve o traço. Qualquer um, ao criar, torna o Track visível e o coloca na camada; um estilo dado depois (<code>t.color = "white"</code>) não mostra um Track invisível: escreva <code>t.visible = True</code>. Track é Shape: mesmo <code>.dash</code> / <code>.line_cap</code> / <code>.line_join</code> (strings). <code>scale</code> amplia o desenho inteiro, traço junto; para crescer só a forma de um círculo / arco, mude <code>radius</code>.</td></tr>
             <tr><td><code>line_width</code></td><td>nome=</td><td class="type"><span class="t">número</span></td><td>Espessura do traço. Também conta como estilo. Não é <code>width=</code> — isso é tamanho do <code>Track.eight</code>.</td></tr>
             <tr><td><code>begin</code> / <code>end</code></td><td>nome=</td><td class="type"><span class="t">número 0…1</span><span class="ex">0 / 1</span></td><td>Janela do <strong>traço</strong> (desenho, clique e colisão). Padrão: o caminho inteiro. Fora de 0…1 limita. Não muda <code>length</code> / <code>at</code> / <code>move_along</code>.</td></tr>
             <tr><td><code>visible</code></td><td>nome=</td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>Como Point: <code>True</code> sobe para a camada. Sem estilo e sem isto, fica fora da lista de desenho.</td></tr>
@@ -5071,7 +5071,7 @@ ship.dissolve_out(0.35, style="fade")</pre>
           <tr><th>Canal</th><th>Métodos</th><th>Ao terminar</th></tr>
         </thead>
         <tbody>
-          <tr><td>life</td><td><code>dissolve_out</code> <code>burn_out</code> <code>fade_out</code> <code>implode</code> <code>dissolve_in</code> <code>fade_in</code></td><td>morte: <code>visible=False</code>; spawn: mostra no começo; <code>on_done</code></td></tr>
+          <tr><td>life</td><td><code>dissolve_out</code> <code>burn_out</code> <code>fade_out</code> <code>implode</code> <code>dissolve_in</code> <code>fade_in</code></td><td>morte: <code>visible=False</code> (esconde, não destrói: para remover, <code>on_done=forma.destroy</code>); spawn: mostra no começo; <code>on_done</code></td></tr>
           <tr><td>flash</td><td><code>flash</code> <code>blink</code></td><td>limpa; <code>on_done</code></td></tr>
           <tr><td>text</td><td><code>flash_text(text, duration=1, *, on_done=None)</code> — só <code>Text</code> e widgets. Mostra <code>text</code> por <code>duration</code> segundos no lugar do texto de sempre (<code>placar.flash_text("+100", 0.5)</code>)</td><td>volta a mostrar o texto de sempre (se o texto está ligado a um campo, continua ligado); <code>on_done</code></td></tr>
           <tr><td>pulse</td><td><code>pulse_outline</code></td><td>limpa; <code>on_done</code></td></tr>
@@ -5769,7 +5769,7 @@ SkyGradient(top="navy", middle="sky blue", bottom="navy")</pre>
         <button class="chip" type="button" data-filter="ambient">Ambiente</button>
         <button class="chip" type="button" data-filter="fly">Fly</button>
       </div>
-      <p class="note"><strong>Como ler os parâmetros.</strong> <code>amount=</code> é densidade ou brilho (1 = padrão); <code>speed=</code> é o movimento próprio do fundo (0 = parado); <code>alpha=</code> é a opacidade, de 0 a 1. Os ajustes de câmera, em todo fundo: <code>pan_response=</code> 0 deixa o fundo preso à tela e 1 o faz andar junto com o mundo (valores no meio dão parallax); <code>zoom_response=</code> / <code>rotation_response=</code> fazem o mesmo para zoom e giro; <code>scroll=(dx, dy)</code> é uma deriva constante em unidades por segundo; <code>enabled=False</code> esconde. <code>res_scale=</code> é a resolução interna (1 = cheia; menor = mais barato e mais borrado).</p>
+      <p class="note"><strong>Como ler os parâmetros.</strong> <code>amount=</code> é densidade ou brilho (1 = padrão); <code>speed=</code> é o movimento próprio do fundo (0 = parado); <code>alpha=</code> é a opacidade, de 0 a 1. Os ajustes de câmera, em todo fundo: <code>pan_response=</code> 0 deixa o fundo preso à tela e 1 o faz andar junto com o mundo (valores no meio dão parallax); <code>zoom_response=</code> / <code>rotation_response=</code> fazem o mesmo para zoom e giro; <code>scroll=(dx, dy)</code> é uma deriva constante em unidades por segundo; <code>enabled=False</code> esconde. <code>res_scale=</code> (nos fundos de nuvem e poeira: Clouds, ChurningClouds, Stardust, Chromadust, Nebuladust, FilamentField) é a resolução interna (1 = cheia; menor = mais barato e mais borrado).</p>
     <div class="catalog-host" id="backgrounds-grid"></div>
     </section>
 
@@ -8291,6 +8291,7 @@ class Nave(Sprite):
       </ul>
       <h3>O que a tarefa começa é dela</h3>
       <p>Um <code>after</code>, um <code>wait</code>, um movimento ou outra tarefa iniciados dentro da tarefa acabam com ela: cancelar a tarefa (<code>h.cancel()</code>, <code>name=</code>, o dono destruído, o Act trocado) cancela esse trabalho. Uma tarefa que termina normalmente deixa esse trabalho seguir. A primeira parte (até o primeiro <code>await</code>) roda na hora, onde você chamou <code>run_task</code>; o resto roda na etapa de processos do frame, como um mode async.</p>
+      <p class="gotcha"><strong>Tarefa no topo do arquivo, antes de <code>run()</code>.</strong> A primeira parte roda ali, no topo: o que ela cria é do topo do arquivo e sobrevive às trocas de Act, e um <code>change_act</code> nela levanta erro (o jogo ainda não começou). Comece com <code>await wait(0)</code> para que o resto rode já no jogo. Uma tarefa assim é do jogo todo: um <code>tween</code> sobre um campo de <code>st</code> que ela começa segue depois de <code>change_act</code> (<code>st</code> não é de nenhum Act) — guarde o Handle e cancele-o, ou dê <code>name=</code>.</p>
       <details class="spec">
       <summary>Nesta tarefa</summary>
         <div class="tbl-wrap">
