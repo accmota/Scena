@@ -762,6 +762,10 @@ class Handle:
         "_sound_loops", "_clip_duration", "_sound_effects", "_sound_fade_out",
         "_record", "_end_held",
         "_task", "_task_parent", "_cancel_reason",
+        # A weak reference keeps nothing alive: the laws recorder ties a
+        # label to the handle, not to its address (a freed handle's id passed
+        # its label to the next one: WP35).
+        "__weakref__",
     )
 
     def __init__(self, *_args, **_kwargs) -> None:
