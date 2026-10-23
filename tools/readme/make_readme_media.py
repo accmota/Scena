@@ -462,7 +462,7 @@ def load_manifest() -> dict:
 
 def save_manifest(manifest: dict) -> None:
     MANIFEST.write_text(json.dumps(dict(sorted(manifest.items())), indent=1) + "\n",
-                        encoding="utf-8")
+                        encoding="utf-8", newline="\n")
 
 
 def status(ids, manifest: dict) -> dict[str, str]:

@@ -670,6 +670,57 @@ class TestToolsPrintOnACp1252Stdout(unittest.TestCase):
             "sys.stdout.reconfigure(errors='backslashreplace')\nprint('a → b')\n")), [])
 
 
+def _text_writes_without_newline(tree: ast.AST):
+    """Line numbers of text writes (``x.write_text(…)``, ``open(…, "w")`` /
+    ``"a"`` / ``"x"``, ``x.open("w")``) that do not name ``newline=``."""
+    out = []
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call) or any(k.arg == "newline" for k in call.keywords):
+            continue
+        name = _attr(call)
+        if name == "write_text":
+            out.append(call.lineno)
+            continue
+        if name != "open":
+            continue
+        pos = 0 if isinstance(call.func, ast.Attribute) else 1   # Path.open(mode) / open(path, mode)
+        mode = next((k.value for k in call.keywords if k.arg == "mode"),
+                    call.args[pos] if len(call.args) > pos else None)
+        if isinstance(mode, ast.Constant) and isinstance(mode.value, str) \
+                and set(mode.value) & set("wax") and "b" not in mode.value:
+            out.append(call.lineno)
+    return sorted(out)
+
+
+class TestToolsWriteLf(unittest.TestCase):
+    """``validate_guia.py`` wrote ``symbols.json`` and the Guia's symbol script
+    with ``write_text``: on Windows a text write turns each "\\n" into CRLF, so
+    every run listed the generated files as modified (``.gitattributes``
+    stores LF: no diff, only noise; WP28's "seen, not changed", fixed in
+    0.9.1). A tool's text write names ``newline="\\n"``: its files are the
+    repository's, the same bytes on every OS."""
+
+    def test_tools_name_the_newline_of_every_text_write(self):
+        bad = []
+        for path in iter_files(os.path.join(ROOT, "tools"), ".py", recursive=True):
+            with open(path, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read(), path)
+            rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+            bad += [f"{rel}:{n}" for n in _text_writes_without_newline(tree)]
+        self.assertEqual(bad, [], 'add newline="\\n" (Windows writes CRLF):\n' + "\n".join(bad))
+
+    def test_guard_sees_each_spelling(self):
+        src = ("p.write_text(t, encoding='utf-8')\n"
+               "open(p, 'w', encoding='utf-8')\n"
+               "open(p, mode='a', encoding='utf-8')\n"
+               "p.open('w', encoding='utf-8')\n"
+               "open(p, 'wb')\n"
+               "open(p, encoding='utf-8')\n"
+               "p.write_text(t, encoding='utf-8', newline='\\n')\n"
+               "open(p, 'w', encoding='utf-8', newline='\\n')\n")
+        self.assertEqual(_text_writes_without_newline(ast.parse(src)), [1, 2, 3, 4])
+
+
 # skia calls that borrow a Python buffer without a reference to it, and the
 # position of that buffer. ``fromarray`` / ``frombuffer`` borrow only with
 # ``copy=False``.

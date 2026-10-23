@@ -136,7 +136,7 @@ def _child(bid: str, n: int, review_only: bool) -> dict:
 def join(parts: list[Path], out: Path) -> Path:
     """The clips one after another, without re-encoding (ffmpeg concat)."""
     listing = out.with_suffix(".txt")
-    listing.write_text("".join(f"file '{p.resolve()}'\n" for p in parts), encoding="utf-8")
+    listing.write_text("".join(f"file '{p.resolve()}'\n" for p in parts), encoding="utf-8", newline="\n")
     subprocess.run([rg.find_ffmpeg(), "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
                     "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(out)],
                    check=True)

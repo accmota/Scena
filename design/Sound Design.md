@@ -465,6 +465,34 @@ and makeup is a ~30 ms peak envelope carried in that state — not a max over
 the current block — so a mix block and a bake of the same samples agree.
 Empty input is a no-op (no `max` on a zero-length buffer).
 
+**No effect steps through a numpy array a row at a time.** The chain runs on
+the mixer thread for a live voice, so its cost per second of audio is what
+a slower machine can spare in real time. A per-sample loop over rows paid
+numpy's call cost per sample: Reverb ~1.4 s per second of stereo on a slower
+Windows machine (more than real time), Distortion about the same (WP32). Now:
+
+- **Delay lines** (Echo, Reverb's combs and allpasses) go through
+  `_delay_line`: a sample reads what was written `n` samples before, so a run
+  of `n` samples reads only the run before it, and numpy takes a run per step.
+- **One-pole filters and the envelope** (LowPass, HighPass, Distortion) are
+  sequential sample to sample: a loop over Python floats per channel, the same
+  double arithmetic as numpy on a row without its overhead.
+
+Both give the 0.9.0 bytes exactly, for any block sizes
+(`test_audio_effects.TestEffectsMatchTheSampleLoop`, which keeps the
+per-sample loops as the reference); `TestNoSampleLoopOverRows` refuses a
+`for i in range(x.shape[0])` in `audio_effects.py`. **Fence:** a Reverb comb
+outputs the value it writes (`y = x + g·y[n ago]`, so the dry signal is in
+each comb's output), not the value it reads. That is what the per-sample code
+computed (its read was a numpy view of the slot it then overwrote), and the
+sound authors have; changing it changes every Reverb, and is a design change,
+not a fix.
+
+`Sound.bake` runs inside `stall.busy("baking <file> (<effects>)")`: a cold bake
+long enough to pass the stall limit is a SCENA NOTE naming the work, not the
+loop error, and its time does not count toward the stall (Actors Design, the
+stall watch).
+
 Live always. Freeze with `Sound.bake(...)` when the author wants one-shot
 compute. Sample keyboards: `pitch=2**(n/12)` or several baked `Sound`s — not a
 live vocoder per key.

@@ -30,6 +30,28 @@ def _knob(value, default: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
+def _delay_line(buf: np.ndarray, idx: int, n: int, x: np.ndarray, step):
+    """Run ``x`` through a delay line of ``n`` samples: ``(out, buf, idx)``.
+
+    Sample ``i`` reads what sample ``i - n`` wrote (``buf`` holds the last
+    ``n`` writes, the oldest at ``idx``); ``step(read, x) -> (out, written)``.
+    So a run of ``n`` samples reads only the run before it, and numpy takes a
+    whole run per step: the same float32 operations in the same order as a
+    loop over samples, bit for bit, at a fraction of the cost (a per-sample
+    loop made Reverb ~1.4 s per second of audio on a slower machine, too slow
+    for a live voice and a bake that tripped the stall watch: WP32).
+    """
+    length = x.shape[0]
+    hist = np.empty((n + length,) + x.shape[1:], dtype=buf.dtype)
+    hist[:n] = np.roll(buf, -idx, axis=0)
+    out = np.empty_like(x)
+    for k in range(0, length, n):
+        m = min(n, length - k)
+        out[k:k + m], hist[n + k:n + k + m] = step(hist[k:k + m], x[k:k + m])
+    idx = (idx + length) % n
+    return out, np.roll(hist[length:], idx, axis=0), idx
+
+
 def _effect_tail_seconds(effect: Any) -> float:
     if effect is None or not getattr(effect, "enabled", True):
         return 0.0
@@ -108,13 +130,16 @@ class LowPass(AudioEffect):
         prev = self._state
         if prev is None:
             prev = np.zeros(frames.shape[1], dtype=np.float64)
-        acc = prev.astype(np.float64)
-        src = frames.astype(np.float64)
+        acc = prev.astype(np.float64).tolist()
         a = float(alpha)
-        for i in range(src.shape[0]):
-            acc += a * (src[i] - acc)
-            y[i] = acc
-        self._state = acc.astype(np.float32)
+        for c, xs in enumerate(frames.astype(np.float64).T.tolist()):
+            lp, ys = acc[c], []
+            for x in xs:
+                lp += a * (x - lp)
+                ys.append(lp)
+            acc[c] = lp
+            y[:, c] = ys
+        self._state = np.array(acc, dtype=np.float32)
         return y.astype(np.float32)
 
 
@@ -140,13 +165,16 @@ class HighPass(AudioEffect):
         prev = self._state
         if prev is None:
             prev = np.zeros(frames.shape[1], dtype=np.float64)
-        lp = prev.astype(np.float64)
-        src = frames.astype(np.float64)
+        state = prev.astype(np.float64).tolist()
         a = float(alpha)
-        for i in range(src.shape[0]):
-            lp += a * (src[i] - lp)
-            y[i] = src[i] - lp
-        self._state = lp.astype(np.float32)
+        for c, xs in enumerate(frames.astype(np.float64).T.tolist()):
+            lp, ys = state[c], []
+            for x in xs:
+                lp += a * (x - lp)
+                ys.append(x - lp)
+            state[c] = lp
+            y[:, c] = ys
+        self._state = np.array(state, dtype=np.float32)
         return y.astype(np.float32)
 
 
@@ -196,16 +224,11 @@ class Echo(AudioEffect):
         if buf is None or buf.shape[0] != n_delay or buf.shape[1] != frames.shape[1]:
             buf = np.zeros((n_delay, frames.shape[1]), dtype=np.float32)
             idx = 0
-        out = np.empty_like(frames)
-        src = frames
-        for i in range(src.shape[0]):
-            delayed = buf[idx]
-            mixed = src[i] + delayed * decay
-            out[i] = mixed
-            buf[idx] = mixed
-            idx += 1
-            if idx >= n_delay:
-                idx = 0
+        def echo(read, x):
+            mixed = x + read * decay
+            return mixed, mixed
+
+        out, buf, idx = _delay_line(buf, idx, n_delay, frames, echo)
         self._state = (buf, idx)
         return out
 
@@ -265,39 +288,30 @@ class Reverb(AudioEffect):
         comb_g = _REVERB_COMB_G
         src = frames.astype(np.float32)
         wet = np.zeros_like(src)
-        for c, (buf, n) in enumerate(zip(state["comb"], comb_n)):
-            idx = state["comb_i"][c]
-            n = int(n)
-            acc = np.empty_like(src)
-            for i in range(src.shape[0]):
-                y = buf[idx]
-                buf[idx] = src[i] + y * comb_g
-                acc[i] = y
-                idx += 1
-                if idx >= n:
-                    idx = 0
-            state["comb_i"][c] = idx
+        def comb(read, x):
+            # Feedback comb y = x + g·y[n samples ago]: the output is what it
+            # writes, the sound Reverb has always had (the per-sample loop's
+            # read was a view of the slot it then overwrote).
+            y = x + read * comb_g
+            return y, y
+
+        for c, n in enumerate(comb_n):
+            acc, state["comb"][c], state["comb_i"][c] = _delay_line(
+                state["comb"][c], state["comb_i"][c], int(n), src, comb)
             wet += acc
         # Each comb's DC gain is 1/(1-g). Scale the bank back to about unity.
         n_combs = max(1, len(state["comb"]))
         wet *= (1.0 - comb_g) / float(n_combs)
         ap_g = 0.7
-        for a, (buf, n) in enumerate(zip(state["ap"], ap_n)):
-            idx = state["ap_i"][a]
-            n = int(n)
-            acc = np.empty_like(wet)
-            for i in range(wet.shape[0]):
-                buf_y = buf[idx]
-                x = wet[i]
-                # Schroeder allpass: y = buf - g x, buf = x + g y. Unity gain.
-                y = buf_y - ap_g * x
-                buf[idx] = x + ap_g * y
-                acc[i] = y
-                idx += 1
-                if idx >= n:
-                    idx = 0
-            state["ap_i"][a] = idx
-            wet = acc
+
+        def allpass(read, x):
+            # Schroeder allpass: y = buf - g x, buf = x + g y. Unity gain.
+            y = read - ap_g * x
+            return y, x + ap_g * y
+
+        for a, n in enumerate(ap_n):
+            wet, state["ap"][a], state["ap_i"][a] = _delay_line(
+                state["ap"][a], state["ap_i"][a], int(n), wet, allpass)
         self._state = state
         return (src * (1.0 - mix) + wet * mix).astype(np.float32)
 
@@ -342,26 +356,43 @@ class Distortion(AudioEffect):
             lp_de = np.asarray(state[1], dtype=np.float64)
             env_in = float(state[2])
             env_out = float(state[3])
+        alpha = float(alpha)
+        # The one-pole filters and the envelope are sequential: Python floats
+        # per channel (the same double arithmetic as numpy on a row, without
+        # its per-sample overhead: WP32).
+        lp_pre = lp_pre.tolist()
         pre = np.empty_like(src)
-        for i in range(src.shape[0]):
-            lp_pre += alpha * (src[i] - lp_pre)
-            pre[i] = src[i] + 0.55 * (src[i] - lp_pre)
+        for c, xs in enumerate(src.T.tolist()):
+            lp, ys = lp_pre[c], []
+            for x in xs:
+                lp += alpha * (x - lp)
+                ys.append(x + 0.55 * (x - lp))
+            lp_pre[c] = lp
+            pre[:, c] = ys
         # Asymmetric tanh: small DC offset → even + odd harmonics.
         shaped = np.tanh((pre + 0.08) * drive) / max(math.tanh(drive), 1e-12)
+        lp_de = lp_de.tolist()
         out = np.empty_like(shaped)
-        for i in range(shaped.shape[0]):
-            lp_de += alpha * (shaped[i] - lp_de)
-            out[i] = shaped[i] - 0.35 * (shaped[i] - lp_de)
+        for c, xs in enumerate(shaped.T.tolist()):
+            lp, ys = lp_de[c], []
+            for x in xs:
+                lp += alpha * (x - lp)
+                ys.append(x - 0.35 * (x - lp))
+            lp_de[c] = lp
+            out[:, c] = ys
         # Stateful peak envelope (~30 ms), not a per-block max. A short mix
         # block and a bake of the same samples take the same path.
         release = math.exp(-1.0 / max(float(sample_rate) * 0.03, 1.0))
-        for i in range(out.shape[0]):
-            env_in = max(float(np.max(np.abs(src[i]))), env_in * release)
-            env_out = max(float(np.max(np.abs(out[i]))), env_out * release)
-            out[i] *= (env_in * 1.1) / max(env_out, 1e-12)
+        gains = []
+        peaks = zip(np.max(np.abs(src), axis=1).tolist(), np.max(np.abs(out), axis=1).tolist())
+        for peak_in, peak_out in peaks:
+            env_in = max(peak_in, env_in * release)
+            env_out = max(peak_out, env_out * release)
+            gains.append((env_in * 1.1) / max(env_out, 1e-12))
+        out *= np.array(gains, dtype=np.float64)[:, None]
         self._state = (
-            lp_pre.astype(np.float32),
-            lp_de.astype(np.float32),
+            np.array(lp_pre, dtype=np.float32),
+            np.array(lp_de, dtype=np.float32),
             float(env_in),
             float(env_out),
         )

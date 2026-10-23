@@ -151,6 +151,15 @@ left out.
   not finished") message. The watch that prints the message kept a hold on
   everything the game had made at that moment, so objects you dropped or
   destroyed were never freed.
+- The sound effects `Reverb`, `Distortion`, `Echo`, `LowPass` and
+  `HighPass` run 15 to 600 times faster, with exactly the same sound. On a
+  slower computer, a live `Reverb` or `Distortion` on a sound could cost more
+  than real time, and `Sound.bake(Reverb())` at the top of a file could take
+  several seconds.
+- A slow `Sound.bake(...)` no longer gets the "SCENA ERROR: … A game needs no
+  loop of its own" message, which blamed your line for the engine's work. Past
+  the limit it prints one "SCENA NOTE: baking sino.wav (Reverb) has taken …",
+  and the game starts when the bake is done.
 
 ## 0.9.0 — 2026-10-22
 

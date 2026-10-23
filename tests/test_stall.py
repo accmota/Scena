@@ -239,6 +239,110 @@ class TestStallWatch(unittest.TestCase):
         self.assertEqual(self._call_run("tests.algum").call_count, 0)
 
 
+# A program that bakes; ``_run`` makes the effect take ``bake_s``: the
+# engine's work, as a cold ``Sound.bake(Reverb())`` was on a slower machine
+# (WP32).
+_SLOW_BAKE = """
+    import time
+    from scena import *
+    from scena.audio_effects import Reverb
+    from scena.audio_mixer import make_sine
+    init(width=200, height=200)
+"""
+
+
+class TestEngineWork(unittest.TestCase):
+    """WP32: a slow engine bake at the top level got the loop error ("a game
+    needs no loop of its own") naming the author's ``SINO.bake(...)`` line.
+    Work marked ``stall.busy`` gets a note naming it, and its time is not the
+    phase's: a loop after it is still a stall."""
+
+    def setUp(self):
+        for name, value in (("STALL_S", 0.3), ("TOP_LEVEL_STALL_S", 0.3), ("POLL_S", 0.02)):
+            p = mock.patch.object(stall, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def _run(self, body, steps=0, bake_s=0.6):
+        from scena.audio_effects import Reverb
+
+        # The stand-in is the engine's code, as the real effect is.
+        ns = {"time": time, "bake_s": bake_s}
+        exec(compile("def slow(fx, frames, sample_rate):\n"
+                     "    time.sleep(bake_s)\n"
+                     "    return frames\n",
+                     os.path.join(stall._ENGINE, "audio_effects.py"), "exec"), ns)
+        slow = ns["slow"]
+        err = io.StringIO()
+        with redirect_stderr(err), mock.patch.object(Reverb, "_process", slow):
+            run = ProgramRun(_program(body))
+            run.start()
+            try:
+                if steps:
+                    run.step(steps)
+            finally:
+                run.close(strict=False)
+        return err.getvalue()
+
+    def test_a_slow_top_level_bake_is_a_note_not_a_loop(self):
+        msg = self._run(_SLOW_BAKE + """
+    SINO = Sound._from_pcm(make_sine(440, 0.1), path="sino.wav").bake(Reverb())
+    run()
+""")
+        self.assertNotIn("SCENA ERROR", msg)
+        self.assertIn("SCENA NOTE: baking sino.wav (Reverb) has taken", msg)
+        self.assertIn("jogo.py:7 in <module>: SINO = Sound._from_pcm(", msg)
+        self.assertIn("the game starts when it is done", msg)
+        self.assertEqual(msg.count("SCENA NOTE"), 1, "once per piece of work")
+
+    def test_a_slow_bake_in_update_is_a_note(self):
+        msg = self._run(_SLOW_BAKE + """
+
+    def update(dt):
+        Sound._from_pcm(make_sine(440, 0.1), path="sino.wav").bake(Reverb())
+
+
+    run()
+""", steps=1)
+        self.assertNotIn("SCENA ERROR", msg)
+        self.assertIn("SCENA NOTE: baking sino.wav (Reverb)", msg)
+        self.assertIn("in update", msg)
+        self.assertIn("the window moves again", msg)
+
+    def test_the_bake_time_is_not_the_phases(self):
+        # 0.6 s of bake and 0.2 s of the author's own: neither past 0.3 s alone.
+        msg = self._run(_SLOW_BAKE + """
+    SINO = Sound._from_pcm(make_sine(440, 0.1), path="sino.wav").bake(Reverb())
+    time.sleep(0.2)
+    run()
+""")
+        self.assertIn("SCENA NOTE", msg)
+        self.assertNotIn("SCENA ERROR", msg)
+
+    def test_a_loop_after_a_slow_bake_is_still_a_stall(self):
+        msg = self._run(_SLOW_BAKE + """
+    SINO = Sound._from_pcm(make_sine(440, 0.1), path="sino.wav").bake(Reverb())
+    time.sleep(0.6)   # a loop of one's own
+    run()
+""")
+        self.assertIn("SCENA NOTE", msg)
+        self.assertIn("SCENA ERROR: the script has run for", msg)
+        self.assertIn("jogo.py:8 in <module>: time.sleep(0.6)", msg)
+
+    def test_work_on_another_thread_is_not_marked(self):
+        import threading
+        seen = []
+
+        def other():
+            with stall.busy("loading on a worker"):
+                seen.append(list(stall._busy))
+        t = threading.Thread(target=other)
+        t.start()
+        t.join()
+        self.assertEqual(seen, [[]])
+        self.assertEqual(stall._busy, [])
+
+
 def _frames_read_in_loops(tree):
     """Line numbers of ``sys._current_frames()`` / ``sys._getframe()`` calls
     in the body of a ``while`` loop (not in a function it calls)."""

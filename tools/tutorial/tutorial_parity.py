@@ -123,7 +123,7 @@ def read_state(path: Path = STATE) -> dict:
 
 def write_state(state: dict, path: Path = STATE) -> None:
     path.write_text(json.dumps(dict(sorted(state.items())), ensure_ascii=False, indent=1) + "\n",
-                    encoding="utf-8")
+                    encoding="utf-8", newline="\n")
 
 
 def read_names(path: Path = NAMES) -> dict:
@@ -514,7 +514,7 @@ def write_levels(names: dict | None = None) -> list[Path]:
         if missing:
             raise SystemExit(f"{pt_rel}: sem inglês no glossário para {', '.join(missing)}")
         target = MEDIA / entry["en"]
-        target.write_text(text, encoding="utf-8")
+        target.write_text(text, encoding="utf-8", newline="\n")
         out.append(target)
     return out
 
@@ -758,7 +758,7 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
             text = re.sub(rf'^(\s*example:\s*)"{re.escape(pt_ex)}"', rf'\1"{en_ex}"', text, flags=re.M)
     en_dir.mkdir(parents=True, exist_ok=True)
     out = en_dir / slug
-    out.write_text(text, encoding="utf-8")
+    out.write_text(text, encoding="utf-8", newline="\n")
     return out
 
 
@@ -919,7 +919,7 @@ def main(argv: list[str]) -> int:
             text = path.read_text(encoding="utf-8")
             new = cross_links(text, names)
             if new != text:
-                path.write_text(new, encoding="utf-8")
+                path.write_text(new, encoding="utf-8", newline="\n")
                 print(f"{path.relative_to(REPO)}: links atualizados")
         return 0
     if "--levels" in argv:

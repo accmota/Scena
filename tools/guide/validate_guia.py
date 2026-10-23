@@ -1106,6 +1106,7 @@ def write_symbols(symbols: list[dict]) -> None:
     SYMBOLS_JSON.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     slim = []
     for s in symbols:
@@ -1126,6 +1127,7 @@ def write_symbols(symbols: list[dict]) -> None:
         f"  w.ScenaGuideSymbols = {json.dumps(slim, ensure_ascii=False)};\n"
         "})(window);\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -1485,7 +1487,7 @@ def _sample_level() -> str:
                "sheets": sheets, "items": items}
         path = os.path.normpath(os.path.join(tempfile.mkdtemp(prefix="guia_level_"),
                                              _level_name("fase1") + ".json"))
-        with open(path, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
             json.dump(doc, f)
         _SAMPLE_LEVEL[LANG] = path
     return _SAMPLE_LEVEL[LANG]

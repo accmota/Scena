@@ -145,7 +145,7 @@ def read_state(path: Path = STATE) -> dict:
 
 def write_state(state: dict, path: Path = STATE) -> None:
     path.write_text(json.dumps(dict(sorted(state.items())), ensure_ascii=False, indent=1) + "\n",
-                    encoding="utf-8")
+                    encoding="utf-8", newline="\n")
 
 
 # ── Shape of a unit ────────────────────────────────────────────────────────
@@ -342,7 +342,7 @@ def sync() -> int:
         for e in errors:
             print("erro:", e)
         if text != en[kind]:
-            ef.write_text(text, encoding="utf-8")
+            ef.write_text(text, encoding="utf-8", newline="\n")
             print(f"{ef.relative_to(REPO)}: unidades pendentes copiadas do pt")
     return 0
 
@@ -416,7 +416,7 @@ def init() -> int:
             print(f"{ef.relative_to(REPO)} já existe; nada feito")
             return 1
     for kind, (pf, ef) in FILES.items():
-        ef.write_text(pf.read_text(encoding="utf-8"), encoding="utf-8")
+        ef.write_text(pf.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     write_state({})
     print("arquivos em inglês criados (tudo pendente)")
     return 0

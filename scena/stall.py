@@ -38,6 +38,35 @@ _STDLIB = os.path.dirname(os.__file__) + os.sep
 # [phase, started_at, reported]: phase "top" (init → run), "frame", None.
 _state: List = [None, 0.0, False]
 _thread: Optional[threading.Thread] = None
+# Engine work the main thread is inside (``busy``): [what, started_at, noted].
+_busy: List[list] = []
+_MAIN = threading.main_thread().ident
+
+
+class busy:
+    """``with stall.busy("baking a sound"):`` around engine work that may take
+    seconds. A stall inside it is the engine's, not a loop of the author's:
+    the watch prints a note naming the work and the author's call (once), and
+    the time it took does not count toward the phase's stall. A cold
+    top-level ``Sound.bake`` with Reverb on a slower machine got the loop
+    error, "a game needs no loop of its own" (WP32)."""
+
+    __slots__ = ("what",)
+
+    def __init__(self, what: str):
+        self.what = what
+
+    def __enter__(self):
+        if threading.get_ident() == _MAIN:
+            _busy.append([self.what, time.perf_counter(), False])
+        return self
+
+    def __exit__(self, *exc):
+        if threading.get_ident() == _MAIN and _busy:
+            since = _busy.pop()[1]
+            if not _busy and _state[0] is not None and _state[1] <= since:
+                _state[1] += time.perf_counter() - since
+        return False
 
 
 def frame_begin() -> None:
@@ -82,21 +111,41 @@ def _author_frames(frame) -> List[tuple]:
     return out
 
 
-def stall_message(phase: str, seconds: float, frame) -> Optional[str]:
-    """The SCENA ERROR for a stall, or None (under a debugger)."""
-    probe = frame
-    while probe is not None:
-        if probe.f_trace is not None:
-            return None
-        probe = probe.f_back
+def _debugged(frame) -> bool:
+    while frame is not None:
+        if frame.f_trace is not None:
+            return True
+        frame = frame.f_back
+    return False
+
+
+def _where(frame) -> str:
     import linecache
     where = _author_frames(frame)
-    if where:
-        path, line, fn = where[0]
-        code = linecache.getline(path, line).strip()
-        at = f"{os.path.basename(path)}:{line} in {fn}" + (f": {code}" if code else "")
-    else:
-        at = "engine code (no line of yours is running)"
+    if not where:
+        return "engine code (no line of yours is running)"
+    path, line, fn = where[0]
+    code = linecache.getline(path, line).strip()
+    return f"{os.path.basename(path)}:{line} in {fn}" + (f": {code}" if code else "")
+
+
+def busy_message(phase: str, what: str, seconds: float, frame) -> Optional[str]:
+    """The SCENA NOTE for engine work past the stall limit, or None (under a
+    debugger)."""
+    if _debugged(frame):
+        return None
+    waits = "the game starts" if phase == "top" else "the window moves again"
+    return (
+        f"SCENA NOTE: {what} has taken {seconds:.0f} s so far, for {_where(frame)}. "
+        f"This is the engine's work, not a loop: {waits} when it is done."
+    )
+
+
+def stall_message(phase: str, seconds: float, frame) -> Optional[str]:
+    """The SCENA ERROR for a stall, or None (under a debugger)."""
+    if _debugged(frame):
+        return None
+    at = _where(frame)
     if phase == "top":
         return (
             f"SCENA ERROR: the script has run for {seconds:.0f} s without reaching run(), "
@@ -128,14 +177,27 @@ def _poll(main: int) -> None:
     if phase is None or reported:
         return
     limit = TOP_LEVEL_STALL_S if phase == "top" else STALL_S
-    waited = time.perf_counter() - since
-    if waited < limit:
-        return
-    frame = sys._current_frames().get(main)
-    if frame is None or _state[0] != phase or _state[1] != since:
-        return
-    msg = stall_message(phase, waited, frame)
-    _state[2] = True
+    work = _busy[0] if _busy else None
+    if work is not None:
+        # Engine work (``busy``): its time is not the phase's; a note, once.
+        what, started, noted = work
+        waited = time.perf_counter() - started
+        if noted or waited < limit:
+            return
+        frame = sys._current_frames().get(main)
+        if frame is None or not _busy or _busy[0] is not work:
+            return
+        msg = busy_message(phase, what, waited, frame)
+        work[2] = True
+    else:
+        waited = time.perf_counter() - since
+        if waited < limit:
+            return
+        frame = sys._current_frames().get(main)
+        if frame is None or _state[0] != phase or _state[1] != since:
+            return
+        msg = stall_message(phase, waited, frame)
+        _state[2] = True
     if msg is not None:
         try:
             sys.stderr.write(msg + "\n")
