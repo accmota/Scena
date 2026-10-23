@@ -639,6 +639,15 @@ both ways, and a linked field read inside a frame batch is pulled. A change to
 the refusals belongs in `_ink_read_slow` **and** in the fast branch's
 conditions.
 
+**Engine probes do not take that path.** A `getattr(obj, "_private", default)`
+on an Entity that lacks the name runs `Entity.__getattr__` to the end, which
+builds a retired-name message only for `getattr` to swallow (~0.7 µs). Engine
+code that asks whether an object has a private field uses
+`state.probe_private(obj, name, default)` (`object.__getattribute__`):
+`_defining_part_names` (every `center` read of a Track) and `_oriented_frame`
+(cull, collision, looks) were ~50 misses a frame in an 18-track scene
+(showcase D9, 2026-10-23).
+
 **Writes create; reads must exist.** `ship.hp = 3` (copy) and
 `ship["hp"] @= lambda: …` (link) both materialize a missing ink field (default `0`).
 Reading `ship.hpt` when only `hp` exists raises `AttributeError` — typos between two

@@ -24,7 +24,7 @@ from .registry import (
 from .camera_response import CameraResponse, partial_camera_matrix
 from .validate import HINT_SCALE, clamp_magnitude, magnitude, fixed_magnitude, seconds
 from .closed import ClosedSurface
-from .state import Container
+from .state import Container, probe_private
 
 def _finite_number(value, what: str) -> float:
     """Float that is not NaN or ±inf. ``bool`` is not a number."""
@@ -1673,6 +1673,18 @@ class Canvas(ClosedSurface, Container):
         """
         self.background.set_fly(field)
         return self
+
+    def __await__(self):
+        # ``await canvas.fade_out(1)`` met Python's "Canvas can't be used in
+        # 'await' expression" (showcase B7). The cover is not a Handle by
+        # design (Effect Handles); say how to wait for it.
+        raise TypeError(
+            "await canvas…: this call returned the canvas, not a Handle. "
+            "canvas.fade_out / fade_in (the screen cover) and the camera verbs "
+            "without time= finish at once. Wait for a fade with "
+            "await wait(seconds) (its duration), or pass on_done=; give a camera "
+            "verb time= to get a Handle you can await."
+        )
 
     def fade_out(
         self,
@@ -3738,7 +3750,7 @@ class ScenaCanvas:
         # Defining parts, cold-safe): Circle and Line have neither
         # ``.width``/``.height`` nor a cold ``.angle``, so
         # they used to raise TypeError here.
-        oriented = getattr(target, '_oriented_frame', None)
+        oriented = probe_private(target, "_oriented_frame", None)
         if callable(oriented):
             try:
                 cx, cy, w, h, ang = oriented()

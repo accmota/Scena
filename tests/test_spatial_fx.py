@@ -128,6 +128,15 @@ class TestDomainModels(SpatialFxTestBase):
         self.assertAlmostEqual(aabb[1] + aabb[3], 100.0, places=3)
 
 
+
+def _model_parts(fx) -> set:
+    """The domain's Defining parts without the kind's knobs (``amount``,
+    ``speed`` …: Defining in every model, showcase B1)."""
+    from scena.spatial_fx import _fx_knob_names
+    knobs = set(_fx_knob_names(type(fx)))
+    assert knobs <= fx._defining_part_names, (knobs, fx._defining_part_names)
+    return fx._defining_part_names - knobs
+
 class TestLinking(SpatialFxTestBase):
     def test_center_link_tracks_source(self):
         ship = Circle(center=(100, 200), radius=10)
@@ -149,7 +158,7 @@ class TestLinking(SpatialFxTestBase):
         self.assertAlmostEqual(float(p.width), 20.0)
         self.assertAlmostEqual(float(p.length), 44.0)  # 2.2 × width
         self.assertEqual(
-            p._defining_part_names, {"center", "width", "length", "angle"}
+            _model_parts(p), {"center", "width", "length", "angle"}
         )
         self.assertIsInstance(p.width, float)
         self.assertIsInstance(p.length, float)
@@ -197,11 +206,11 @@ class TestLinking(SpatialFxTestBase):
 
     def test_jet_dual_model_defining_parts(self):
         j_pp = Jet(p1=(0, 0), p2=(100, 0), width=10)
-        self.assertEqual(j_pp._defining_part_names, {"p1", "p2", "width"})
+        self.assertEqual(_model_parts(j_pp), {"p1", "p2", "width"})
         self.assertIsInstance(j_pp.width, float)
         j_oal = Jet(origin=(0, 0), angle=30, length=50, width=8)
         self.assertEqual(
-            j_oal._defining_part_names, {"origin", "angle", "length", "width"}
+            _model_parts(j_oal), {"origin", "angle", "length", "width"}
         )
         self.assertIsInstance(j_oal.angle, float)
         self.assertIsInstance(j_oal.length, float)
@@ -209,10 +218,10 @@ class TestLinking(SpatialFxTestBase):
 
     def test_rain_dual_model_defining_parts(self):
         r_cc = Rain(p1=(0, 0), p2=(100, 80))
-        self.assertEqual(r_cc._defining_part_names, {"p1", "p2"})
+        self.assertEqual(_model_parts(r_cc), {"p1", "p2"})
         r_wh = Rain(center=(50, 50), width=40, height=30)
         self.assertEqual(
-            r_wh._defining_part_names, {"center", "width", "height"}
+            _model_parts(r_wh), {"center", "width", "height"}
         )
         self.assertIsInstance(r_wh.width, float)
         self.assertIsInstance(r_wh.height, float)

@@ -182,6 +182,20 @@ def is_sealed(obj: Any) -> bool:
     return bool(getattr(obj, "__dict__", {}).get(_SEALED))
 
 
+def no_fields_message(obj, key) -> str:
+    """``bloom["intensity"]`` on a post effect or a background: they hold
+    plain knobs, not fields a link or a tween reaches (Python's own answer
+    was "'Bloom' object is not subscriptable"; showcase B2)."""
+    who = type(obj).__name__
+    var = who[:1].lower() + who[1:]
+    key = key if isinstance(key, str) else repr(key)
+    return (
+        f"{who}[{key!r}]: a {who} has knobs you assign, not fields to link or "
+        f"tween. Write {var}.{key} = … ; to follow something every frame, "
+        f"assign it in update(dt)."
+    )
+
+
 class ClosedSurface:
     """Mixin: writes to unknown public names raise once constructed.
 

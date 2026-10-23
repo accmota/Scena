@@ -1827,6 +1827,35 @@ class TestOwnSizeReadIsAKnownLimit(unittest.TestCase):
             for s in (r, c, p):
                 s.destroy()
 
+    def test_built_in_fields_and_parts_get_the_limit_not_the_property(self):
+        # Showcase B5: a part (``center``) reading its own object got the
+        # generic "cannot depend on the value it defines", and a built-in
+        # field (``radius``) got "@property def radius", which recurses. Both
+        # name the limit and the way out that fits a built-in field.
+        from scena import distance
+        from scena.shapes import Circle, Triangle
+        from scena.track import Track
+        c = Circle(center=(0, 0), radius=3)
+        q = Circle(center=(50, 50), radius=3)
+        tri = Triangle(center=(0, 0))
+        trk = Track.star(center=(100, 100), radius=40, color="white")
+        try:
+            for owner, name, fn in (
+                (c, "center", lambda: (c.radius, 5)),
+                (tri, "center", lambda: (tri.angle, 0)),
+                (trk, "center", lambda: (trk.length, 0)),
+                (c, "radius", lambda: distance(c, q)),
+            ):
+                with self.subTest(kind=type(owner).__name__, field=name):
+                    msg = self._refused(owner, name, fn)
+                    self.assertIn("known limit", msg)
+                    self.assertIn(f"set {name} in update(dt)", msg)
+                    self.assertNotIn("@property", msg)
+                    self.assertNotIn("cannot depend on the value it defines", msg)
+        finally:
+            for s in (c, q, tri, trk):
+                s.destroy()
+
     def test_what_still_reads_fine(self):
         from scena.shapes import Rect
         other = Rect(center=(0, 0), width=6, height=4)

@@ -695,6 +695,18 @@ class TestTrackLinePreset(TrackTestCase):
             Track.line((0, 0), (100, 0))
         self.assertIn("p1=", str(cm.exception))
 
+    def test_whole_list_function_refuses_like_polygon(self):
+        # Showcase A4: Track(points=lambda: [...]) said "needs at least 2
+        # points". The list is fixed (as Polygon's, C6); each point links.
+        with self.assertRaises(TypeError) as cm:
+            Track(points=lambda: [(0, 0), (100, 50), (200, 0)])
+        self.assertIn("Link single points", str(cm.exception))
+        hub = self.track(Circle(center=(100, 50), radius=2))
+        t = self.track(Track(points=[(0, 0), lambda: hub.center, (200, 0)]))
+        hub.move_to(100, 90)
+        self.assertTrue(any(abs(float(y) - 90.0) < 1.0 for _, y in
+                            (t.at(k / 50) for k in range(51))))
+
     def test_negative_length_raises(self):
         with self.assertRaises(ValueError):
             Track.line(length=-10)

@@ -776,7 +776,9 @@ def _ink_link_forbidden_message(owner: "Entity", field: str) -> str:
     own = getattr(cls, "_link_refusals", None)
     if own and field in own:
         return own[field].format(cls=kind)
-    hint = _INK_LINK_FORBIDDEN_HINTS.get(field)
+    hint = (getattr(cls, "_link_property_hints", None) or {}).get(field)
+    if hint is None:
+        hint = _INK_LINK_FORBIDDEN_HINTS.get(field)
     if hint is None:
         hint = f"Set it with `{kind.lower()}.{field} = …`."
     drive = (
@@ -1078,6 +1080,41 @@ def _one_edit_apart(a: str, b: str) -> bool:
         if a == b[:i] + b[i + 1:]:
             return True
     return False
+
+
+def _ink_from_plain_value(obj, name: str) -> None:
+    """``obj["hp"]`` on a name the object holds as a plain value: make it the
+    field the bracket reaches.
+
+    A value written before the object was built (``self.hp = 3`` above
+    ``super().__init__()``, a kind's knob stored in ``__init__``) sits in the
+    instance dict, and every read finds it there: a bracket link made an ink
+    field of the same name that nothing read, and a tween raised an internal
+    error (showcase B1, 2026-10-23). A number or a string moves into ink, so
+    reads, ``=``, ``@=`` and ``tween`` share one field; anything else refuses.
+    """
+    d = obj.__dict__
+    if name not in d:
+        return
+    held = d[name]
+    who = type(obj).__name__
+    if type(held) in (int, float, str, bool):
+        try:
+            ink = object.__getattribute__(obj, "_ink")    # a slot on shapes
+        except AttributeError:
+            ink = None
+        if ink is None:
+            ink = {}
+            object.__setattr__(obj, "_ink", ink)
+        del d[name]
+        ink[name] = held
+        return
+    var = who[:1].lower() + who[1:]
+    raise AttributeError(
+        f"{var}['{name}']: {var}.{name} holds a {type(held).__name__}, not a "
+        f"field: @= and tween reach numbers and strings. Set it with "
+        f"{var}.{name} = … (in update(dt) to follow something every frame)."
+    )
 
 
 def _ink_exact_name_message(cls: type, name: str, known) -> Optional[str]:
@@ -1751,6 +1788,82 @@ def _geom_path_cache_set(obj, path, key) -> None:
     """
     object.__setattr__(obj, "_geom_path", path)
     object.__setattr__(obj, "_geom_path_key", key)
+
+
+# A turned path smaller than this on screen (device pixels, its shorter side)
+# draws fast in Skia; past it, a concave or stroked path takes the slow route.
+# GL A/B 2026-10-23 (canvas scale 1.25): shorter side 205 px fast, 242 px
+# ~100 µs a draw; 200 leaves room, and a needless bake costs ~4 µs.
+_BAKE_MIN_DEVICE_PX = 200.0
+
+
+def _draw_path(skia_canvas, path, paint, owner) -> None:
+    """``drawPath``, fast under a turned camera or pose (showcase D1 / D2).
+
+    Skia draws a concave or thickly stroked path under a matrix that does not
+    keep axes axis-aligned (a rotation that is not a multiple of 90°, a skew)
+    on a slow route every frame: a rotating ``Track.star`` cost ~4× a still
+    one, a rotating 12-point ``Polygon`` ~10× a ``RegularPolygon`` (convex
+    paths stay fast), and a camera rotation kept every track slow. Here the
+    CTM's linear part is applied to a copy of the path (cached on ``owner``
+    while the path and the matrix stay the same) and the copy is drawn under
+    the translation alone; a stroke's width is scaled by the matrix's scale.
+
+    Only past ``_BAKE_MIN_DEVICE_PX`` on screen: a smaller path draws fast in
+    Skia at any angle (found by size and angle sweeps in a GL window).
+    Plain paints only: a shader, path effect (dashes), mask or image filter
+    reads the CTM, so they draw as before; a stroke is baked only under a
+    similarity (rotation + uniform scale + flip), where a scaled width is the
+    same stroke. Perspective draws as before.
+    """
+    if type(skia_canvas) is not skia.Canvas:
+        # A recording proxy (CheapGlow's tape replays its calls under each
+        # band's matrix: a matrix read, or a setMatrix, would not replay).
+        skia_canvas.drawPath(path, paint)
+        return
+    m = skia_canvas.getTotalMatrix()
+    if m.rectStaysRect() or m.hasPerspective():
+        skia_canvas.drawPath(path, paint)
+        return
+    dev = m.mapRect(path.getBounds())
+    if dev.width() <= _BAKE_MIN_DEVICE_PX or dev.height() <= _BAKE_MIN_DEVICE_PX:
+        # Small on screen: Skia's route is fast at any angle, and the bake
+        # would cost ~4 µs a draw for nothing (A/B 2026-10-23: a turned star
+        # of radius 60 drew as fast as a still one; radius 80, ~5× slower).
+        skia_canvas.drawPath(path, paint)
+        return
+    if (paint.getShader() is not None or paint.getPathEffect() is not None
+            or paint.getMaskFilter() is not None or paint.getImageFilter() is not None):
+        skia_canvas.drawPath(path, paint)
+        return
+    a, b = m.getScaleX(), m.getSkewX()
+    c, d = m.getSkewY(), m.getScaleY()
+    stroke = paint.getStyle() != skia.Paint.kFill_Style
+    if stroke:
+        n1 = a * a + c * c
+        n2 = b * b + d * d
+        tol = 1e-6 * max(n1, n2)
+        if abs(n1 - n2) > tol or abs(a * b + c * d) > tol:
+            skia_canvas.drawPath(path, paint)
+            return
+    key = (a, b, c, d)
+    try:
+        cached = object.__getattribute__(owner, "_geom_baked")
+    except AttributeError:
+        cached = None
+    if cached is not None and cached[0] is path and cached[1] == key:
+        baked = cached[2]
+    else:
+        baked = skia.Path(path)
+        baked.transform(skia.Matrix.MakeAll(a, b, 0.0, c, d, 0.0, 0.0, 0.0, 1.0))
+        object.__setattr__(owner, "_geom_baked", (path, key, baked))
+    if stroke and paint.getStrokeWidth() > 0.0:
+        paint = skia.Paint(paint)
+        paint.setStrokeWidth(paint.getStrokeWidth() * math.sqrt(abs(a * d - b * c)))
+    skia_canvas.save()
+    skia_canvas.setMatrix(skia.Matrix.Translate(m.getTranslateX(), m.getTranslateY()))
+    skia_canvas.drawPath(baked, paint)
+    skia_canvas.restore()
 
 
 _USE_LAYER_DEFAULT = Unset("<default layer>")
@@ -3157,6 +3270,10 @@ class Entity(Container):
                 if route_map is None:
                     _install_setattr_route(type(self))
                     route_map = type(self)._setattr_route
+                _ink_from_plain_value(self, key)
+                exact = _ink_exact_name_message(type(self), key, route_map)
+                if exact is not None:
+                    raise AttributeError(exact) from None
                 _check_ink_near_miss(type(self), key, route_map)
         return FieldRef(owner=self, name=key)
 

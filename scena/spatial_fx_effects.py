@@ -43,6 +43,7 @@ from .spatial_fx import (
     PadModel,
     PointDomainFx,
     SpatialFx,
+    _init_knob,
     _assign_angle,
     _bare_num,
     _beam_obb_spec,
@@ -418,8 +419,8 @@ class Fire(PointDomainFx):
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
         _reject_positional_fx(self, args)
-        self.amount = float(amount)
-        self.speed = float(speed)
+        _init_knob(self, "amount", amount)
+        _init_knob(self, "speed", speed)
         self._seed = _frac_hash(id(self) % 10000, 0.51) * 6.28
         self._init_point_domain(center=center, radius=radius, soft_edge=soft_edge, **kwargs)
         from .style import FlameFill
@@ -524,8 +525,8 @@ class _FireSoft(Fire):
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
         _reject_positional_fx(self, args)
-        self.amount = float(amount)
-        self.speed = float(speed)
+        _init_knob(self, "amount", amount)
+        _init_knob(self, "speed", speed)
         self._seed = _frac_hash(id(self) % 10000, 0.62) * 6.28
         self._init_point_domain(center=center, radius=radius, soft_edge=soft_edge, **kwargs)
 
@@ -646,8 +647,8 @@ class _LookPlume(_DirectedFire):
         **kwargs,
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
-        self.rate = float(rate)
-        self.amount = float(amount)
+        _init_knob(self, "rate", rate)
+        _init_knob(self, "amount", amount)
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 0.31) * 1000.0
         self._bank = _PartBank(120, with_hot=True)
@@ -883,7 +884,7 @@ class _LookBlaze(_LookPlume):
         speed: float = 1.2,
         **kwargs,
     ):
-        self.speed = float(speed)
+        _init_knob(self, "speed", speed)
         self._plate_cache = None
         super().__init__(
             *args, center=center, width=width, rate=rate, length=length,
@@ -1024,8 +1025,8 @@ class _LookTongues(_DirectedFire):
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
         self.tongues = max(3, min(int(tongues), 9))
-        self.speed = float(speed)
-        self.amount = float(amount)
+        _init_knob(self, "speed", speed)
+        _init_knob(self, "amount", amount)
         self._phase = _frac_hash(id(self) % 10000, 0.17) * math.tau
         self._init_directed_domain(
             args, center, width, length, angle, soft_edge=soft_edge, **kwargs,
@@ -1165,8 +1166,8 @@ class _LookEmbers(_DirectedFire):
         **kwargs,
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
-        self.rate = float(rate)
-        self.amount = float(amount)
+        _init_knob(self, "rate", rate)
+        _init_knob(self, "amount", amount)
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 0.91) * 1000.0
         self._bank = _PartBank(70)
@@ -1343,8 +1344,8 @@ class Sparks(PointDomainFx):
         if style is not None and not (isinstance(style, str) and style.strip() == ""):
             raise TypeError("Sparks has no style")
         _reject_positional_fx(self, args)
-        self.rate = float(rate)
-        self.amount = float(amount)
+        _init_knob(self, "rate", rate)
+        _init_knob(self, "amount", amount)
         self._rgb = resolve_rgb(color, default=(1.0, 0.85, 0.4))
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 0.7) * 1000.0
@@ -1522,8 +1523,8 @@ class Sunburst(PointDomainFx):
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
         _reject_positional_fx(self, args)
-        self.amount = float(amount)
-        self.speed = float(speed)
+        _init_knob(self, "amount", amount)
+        _init_knob(self, "speed", speed)
         self._rgb = None if color is None else resolve_rgb(color)
         self._seed = _frac_hash(id(self) % 10000, 0.77) * 6.28
         self._init_point_domain(center=center, radius=radius, soft_edge=soft_edge, **kwargs)
@@ -1600,8 +1601,8 @@ class Starburst(PointDomainFx):
         kwargs.pop("style", None)
         _reject_positional_fx(self, args)
         self.points = 5 if int(points) >= 5 else 4
-        self.amount = float(amount)
-        self.speed = float(speed)
+        _init_knob(self, "amount", amount)
+        _init_knob(self, "speed", speed)
         self._rgb = resolve_rgb(color, default=(1.0, 0.95, 0.75))
         self._seed = _frac_hash(id(self) % 10000, 0.62) * 6.28
         self._init_point_domain(center=center, radius=radius, soft_edge=soft_edge, **kwargs)
@@ -1814,7 +1815,7 @@ class Rain(PadDomainFx):
             )
 
         SpatialFx._construct(self, **scene_kw)
-        self.amount = float(amount)
+        _init_knob(self, "amount", amount)
         self._rgb = resolve_rgb(color, default=(0.65, 0.75, 0.9))
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 9.1) * 1000.0
@@ -2027,7 +2028,7 @@ class Jet(BeamDomainFx):
                 "Jet: use p1=/p2= or origin=/angle=/length=, not both"
             )
         SpatialFx._construct(self, **scene_kw)
-        self.amount = float(amount)
+        _init_knob(self, "amount", amount)
         self._rgb = resolve_rgb(color, default=(1.0, 0.55, 0.15))
         self._spawn_acc = 0.0
         self._seed = _frac_hash(id(self) % 10000, 2.2) * 1000.0
@@ -2228,9 +2229,9 @@ class Orb(PointDomainFx):
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
         _reject_positional_fx(self, args)
-        self.amount = float(amount)
-        self.glow = float(glow)
-        self.phase = float(phase)
+        _init_knob(self, "amount", amount)
+        _init_knob(self, "glow", glow)
+        _init_knob(self, "phase", phase)
         self._rgb = resolve_rgb(color, default=self._DEFAULT_COLOR)
         self._init_point_domain(
             center=center, radius=radius, soft_edge=soft_edge, **kwargs,
@@ -2353,7 +2354,7 @@ class GlowSpot(PointDomainFx):
     ):
         soft_edge = kwargs.pop("soft_edge", self._soft_edge)
         _reject_positional_fx(self, args)
-        self.amount = float(amount)
+        _init_knob(self, "amount", amount)
         self._rgb = resolve_rgb(color, default=(1.0, 0.55, 0.85))
         self._init_point_domain(center=center, radius=radius, soft_edge=soft_edge, **kwargs)
 
@@ -2457,12 +2458,12 @@ class Warp(PointDomainFx):
         if style is not None and not (isinstance(style, str) and style.strip() == ""):
             raise TypeError("Warp has no style")
         _reject_positional_fx(self, args)
-        self.amount = float(amount)
-        self.speed = float(speed)
-        self.twist = float(twist)
-        self.core = float(core)
-        self.spin = float(spin)
-        self.glow = float(glow)
+        _init_knob(self, "amount", amount)
+        _init_knob(self, "speed", speed)
+        _init_knob(self, "twist", twist)
+        _init_knob(self, "core", core)
+        _init_knob(self, "spin", spin)
+        _init_knob(self, "glow", glow)
         self._rgb = resolve_rgb(color, default=_WARP_DEFAULT_COLOR)
         self._rgb2 = None if color2 is None else resolve_rgb(color2)
         self._init_point_domain(
@@ -2652,13 +2653,13 @@ class Portal(PointDomainFx):
         if style is not None and not (isinstance(style, str) and style.strip() == ""):
             raise TypeError("Portal has no style")
         _reject_positional_fx(self, args)
-        self.amount = float(amount)
-        self.speed = float(speed)
+        _init_knob(self, "amount", amount)
+        _init_knob(self, "speed", speed)
         self.thickness = thickness
         self.chaos = chaos
-        self.tilt = float(tilt)
+        _init_knob(self, "tilt", tilt)
         self.angle = float(angle)
-        self.glow = float(glow)
+        _init_knob(self, "glow", glow)
         self._rgb = resolve_rgb(color, default=_PORTAL_DEFAULT_COLOR)
         self._rgb2 = None if color2 is None else resolve_rgb(color2)
         self._init_point_domain(

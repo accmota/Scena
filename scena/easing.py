@@ -328,6 +328,18 @@ def lerp(a: Any, b: Any, t: Number) -> Any:
         return (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
 
     if isinstance(a, (tuple, list)):
+        if not isinstance(b, (tuple, list)) and len(a) == 2:
+            # A point written as a tuple on one side and a Vec2 / Point on
+            # the other: both are points (it said "sequences of the same
+            # length" for two 2D points; showcase B3).
+            pose_b = _pose_xy(b)
+            if pose_b is not None:
+                b = pose_b
+            else:
+                try:
+                    b = _xy_destination(b)
+                except (TypeError, ValueError, AttributeError):
+                    pass
         if not isinstance(b, (tuple, list)):
             raise TypeError(
                 f"lerp: {type(a).__name__} vs {type(b).__name__} — "

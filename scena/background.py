@@ -182,6 +182,10 @@ class BackgroundField(ClosedSurface):
     zoom_response: float = 0.0
     rotation_response: float = 0.0
 
+    def __getitem__(self, key):
+        from .closed import no_fields_message
+        raise TypeError(no_fields_message(self, key))
+
     def __init__(self):
         _auto_place_background(self)
 

@@ -61,6 +61,19 @@ class TestLerpSequences(unittest.TestCase):
 
 
 class TestLerpVec2ColorPoint(unittest.TestCase):
+    def test_tuple_with_a_vector_or_point_is_two_points(self):
+        # Showcase B3: lerp((0, 0), Vec2(10, 10), 0.5) said "both sides must
+        # be sequences of the same length" (both are 2D points). Every
+        # mix of the point spellings lerps, the tuple side keeping its kind.
+        p = Circle(center=(10, 20), radius=2).center
+        for a, b in (((0, 0), Vec2.temp(10, 20)), ([0, 0], Vec2.temp(10, 20)), ((0, 0), p)):
+            with self.subTest(a=type(a).__name__, b=type(b).__name__):
+                mid = lerp(a, b, 0.5)
+                self.assertIs(type(mid), type(a))
+                self.assertEqual([float(v) for v in mid], [5.0, 10.0])
+        with self.assertRaises(TypeError):
+            lerp((0, 0, 0), Vec2.temp(1, 1), 0.5)
+
     def test_vec2(self):
         a = Vec2.temp(0, 0)
         b = Vec2.temp(10, 20)

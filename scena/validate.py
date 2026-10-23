@@ -636,9 +636,11 @@ def check_numeric_params(owner: str, sig, args: tuple, kwargs: dict,
         if callable(value):
             if name in formula_knobs:
                 continue  # this class evaluates a live formula for the knob
+            var = str(owner)[:1].lower() + str(owner)[1:]
             raise TypeError(
                 f"{owner} {name}= expected a number, got a function "
-                f"(this knob takes a fixed number)"
+                f"(this knob takes a fixed number: to change it as the game "
+                f"runs, assign it, e.g. {var}.{name} = … in update(dt))"
             )
         raw = as_payload(value)
         if isinstance(raw, str):

@@ -52,6 +52,43 @@ left out.
 
 ### Fixed
 
+- A SpatialFx's number knobs (`amount`, `speed`, `rate`, `glow`, `phase`,
+  `twist`, `core`, `spin`, `tilt`) did not link: `luz["amount"] @= lambda: …`
+  on a GlowSpot (tutorial 23) was accepted and the glow never followed, and
+  `tween(warp["amount"], …)` raised an error about "the field itself". They
+  are fields now, like `radius`: `=`, `@=`, `tween` and a function at
+  creation (`Warp(amount=lambda: …)`) all reach what the effect draws.
+- A number or string written to an object before `super().__init__()`
+  (`self.hp = 3` first in `__init__`) could not be linked: `self["hp"] @= …`
+  made a second field the object never read. The bracket now reaches the
+  value the object reads.
+- Clearer errors: a formula that reads its own object (`t["center"] @=
+  lambda: … t.angle`, `p["radius"] @= lambda: distance(p, q)`) names the
+  limit and the way out (read one part, `distance(p.center, q.center)`, or
+  set it in `update(dt)`); it gave the generic circular-link message, or
+  suggested a `@property` that would recurse. `bloom["intensity"]` and
+  `Bloom(intensity=lambda: …)` say to assign it (in `update(dt)` to follow
+  something). `lerp((0, 0), Vec2(10, 10), 0.5)` works (it said the lengths
+  differ). `Fire(color=)` says Fire takes `style=`. A formula that reads
+  past a call (`Text(lambda: card()[0])`) works (it blamed a field `card[0]`).
+  `change_act` in a storyboard task before `run()` names the task and
+  `await wait(0)`. `Track(points=lambda: …)` says each point links, not the
+  list. `"score" in st` names `st.exists("score")`. A look's fill passed as
+  a colour names `.color`. `track["visible"] @=` says why it cannot link.
+  `await canvas.fade_out(1)` names `await wait(seconds)` and `on_done=`.
+  The freeze watchdog's message no longer says building many objects in one
+  step is fine (it is the usual cause): build them in pieces.
+- Faster drawing:
+  - Large shapes turned by their own angle or by the camera, at angles that
+    are not multiples of 90°: Tracks (stars, waves, zigzags), Polygons and
+    Concave boxes. A turned scene of 24 tracks and 6 polygons drew in
+    0.41 ms instead of 1.07 ms. The picture is the same.
+  - A Polygon whose angle follows a formula costs about a third less per
+    frame.
+  - A colour that changes every frame (`color=lambda: …`) costs about a
+    fifth less per shape.
+  - A Gradient-filled shape that changes size no longer rebuilds its paint
+    each frame.
 - `Track.eight(width=, height=)` drew a figure half as tall as `height=`
   (the default `Track()` / `move_along("eight")` was 90 × 20, not 90 × 40).
   It now spans `width` × `height`, as the docstring and the Guia say: every

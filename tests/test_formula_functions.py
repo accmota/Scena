@@ -98,6 +98,26 @@ class TestNamedFunction(FormulaFunctionTest):
         ST.morto = True
         self.assertEqual(sink.value, "fim")
 
+    def test_a_read_after_a_call_reads_its_result(self):
+        # Showcase B6: Text(lambda: card()[0]) was refused as "reads
+        # card[…0], which does not exist": the walk dropped the call and read
+        # the subscript as one of the function. The steps after a call read
+        # its result; the function's own reads are the sources.
+        def card():
+            return (f"vidas {ST.vidas}", 1)
+
+        def cards():
+            return {"top": ST.vidas * 2}
+
+        sink = Attribute("")
+        sink @= lambda: card()[0]
+        self.assertEqual(sink.value, "vidas 3")
+        ST.vidas = 7
+        self.assertEqual(sink.value, "vidas 7")
+        other = Attribute(0)
+        other @= lambda: cards()["top"]
+        self.assertEqual(other.value, 14)
+
     def test_local_assignment_source_is_recorded(self):
         a = Attribute(2.0)
 

@@ -1473,7 +1473,7 @@ def _proxy_aabb_for_shape(shape) -> Optional[Tuple[float, float, float, float]]:
         return _aabb_from_obb(cx, cy, rx, ry, ang)
 
     if isinstance(shape, _RectBody):        # Rect / Square / Concave: the box
-        oriented = getattr(shape, "_oriented_frame", None)
+        oriented = probe_private(shape, "_oriented_frame", None)
         if callable(oriented):
             cx, cy, w, h, ang_deg = oriented()
         else:
@@ -3342,7 +3342,7 @@ def _snapshot_shape_uncached(
         return _concave_prims(shape)
 
     if isinstance(shape, (Rect, Square)):
-        oriented = getattr(shape, "_oriented_frame", None)
+        oriented = probe_private(shape, "_oriented_frame", None)
         if callable(oriented):
             cx, cy, w, h, ang_deg = oriented()
         else:

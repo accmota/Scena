@@ -137,12 +137,17 @@ class TestGradientFit(unittest.TestCase):
         c = Circle(center=(0, 0), radius=40.0)
         c.fill = g
         p1 = c._to_skia_fill_paint()
+        fit = (c._tex_fill_hw, c._tex_fill_hh)
         c.radius = 40.2
         p2 = c._to_skia_fill_paint()
         self.assertIs(p1, p2)
+        self.assertEqual((c._tex_fill_hw, c._tex_fill_hh), fit)
         c.radius = 40.4
         p3 = c._to_skia_fill_paint()
-        self.assertIsNot(p1, p3)
+        # Re-fitted: a new bucket swaps the scaled shader on the kept paint
+        # (it rebuilt the paint until showcase D5).
+        self.assertNotEqual((c._tex_fill_hw, c._tex_fill_hh), fit)
+        self.assertIsNotNone(p3.getShader())
 
     def test_sweep_ignores_size(self):
         g = Gradient("rainbow", type="sweep")

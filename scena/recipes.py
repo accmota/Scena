@@ -580,7 +580,7 @@ def _outline_points(shape, n: int = 10) -> List[Tuple[float, float]]:
         ]
         rv = getattr(shape, "_rotation_value", None)
         rot_deg = float(rv()) if callable(rv) else float(getattr(shape, "_rotation", 0.0) or 0.0)
-        oriented = getattr(shape, "_oriented_frame", None)
+        oriented = probe_private(shape, "_oriented_frame", None)
         if callable(oriented):
             try:
                 rot_deg = float(oriented()[4])
@@ -5809,6 +5809,7 @@ class Aurora(Recipe):
 
 # Compiled material / shell visuals (single-pass) live in visuals.py
 from .visuals import Swell, Flame, Halo
+from .state import probe_private
 
 
 __all__ = [

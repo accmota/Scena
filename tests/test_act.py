@@ -1477,6 +1477,27 @@ class TestRestrictions(ActTestCase):
             change_act(Fase)
         self.assertIn("The game has not started", str(cm.exception))
 
+    def test_change_act_from_a_task_before_the_game_starts(self):
+        # Showcase B8: a storyboard started at the top of the file runs its
+        # first step at run_task (Law F2), so change_act there met "The game
+        # has not started" with no word about the task. It names the task
+        # and the two ways out.
+        from scena import run_task
+        seen = []
+
+        async def storyboard():
+            try:
+                change_act(Fase)
+            except RuntimeError as e:
+                seen.append(str(e))
+
+        h = run_task(storyboard)
+        self.assertEqual(len(seen), 1)
+        self.assertIn("ran in a task before the game started", seen[0])
+        self.assertIn("await wait(0)", seen[0])
+        self.assertIn("setup()", seen[0])
+        h.cancel()
+
     def test_change_act_after_plain_run(self):
         self.begin(None)
         with self.assertRaises(RuntimeError) as cm:

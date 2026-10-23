@@ -155,6 +155,32 @@ Scene walk: [Canvas Design.md](Canvas%20Design.md). Bench gate:
 `scripts/bench/perf_shape_draw.py --suite --no-sweep-quality` (plain `draw_ms`
 down; Laser / Neon / Ink / Electric* flat).
 
+**A path under a turned matrix (showcase D1 / D2, 2026-10-23).** Track, Polygon,
+RegularPolygon and Concave draw their cached local path through
+`entity._draw_path`, not `drawPath`. Skia draws a concave or stroked path whose
+shorter on-screen side passes ~200 px under a matrix that is not axis-aligned
+(a pose or camera turn that is not a multiple of 90°) on a slow route every frame
+(GL A/B: six 300-unit waves at 30° 0.78 ms against 0.15 flat; a rotating 12-point
+Polygon ~10× a RegularPolygon; a camera turn kept every large track slow). There
+the matrix's linear part is applied to a copy of the path, cached on the shape
+while the path and the matrix stay (`_geom_baked`), and the copy is drawn under
+the translation alone, a stroke's width scaled by the matrix's scale. It runs only
+past `_BAKE_MIN_DEVICE_PX` (smaller paths draw fast at any angle and the bake would
+add ~4 µs), only for plain paints (a shader, dash, mask or image filter reads the
+CTM), a stroke only under a similarity, and never on a recording proxy
+(CheapGlow's tape replays under each band's matrix). Measured: a turned scene of
+24 tracks and 6 polygons 1.07 → 0.41 ms draw; unturned draws pay the matrix probe
+(~0.25 µs). A shape spinning every frame bakes every frame (no win, no loss).
+Thick strokes spinning on small shapes stay Skia's cost (MSAA was weighed and
+parked: it costs static scenes and changes the antialiasing). Guard:
+`tests/test_rotated_path_draw.py` (pixels against `drawPath`, the cache, the
+exclusions).
+
+`Polygon.rotate_by` (a linked angle turns it every frame) writes its vertices in
+one inline pass, the in-batch branch of `Point._takein`, and skips the write gate
+for a vertex with no link and no linked field under no whole-object link (48 →
+32 µs a 12-point polygon with an `@=`). Guard: `tests/test_polygon_turn.py`.
+
 
 # Construction: copy vs link
 ============================

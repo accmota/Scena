@@ -21,6 +21,7 @@ from .filters import GlowFilter, DropShadow, HostGlow, Blur, glow_blur_radius
 from .style import _interned_setattr, is_stroke_type
 from .validate import expect_choice, magnitude, fixed_magnitude
 from .validate import formula_knobs as _formula_knobs_of
+from .state import probe_private
 
 
 HaloStyle = Literal["hollow", "fill", "soft", "line", "pulse"]
@@ -1089,8 +1090,8 @@ class CheapGlow(CompiledVisual):
         # Rect / Square / Ellipse: Defining frame (Square ``width``/``height``
         # are cold Derivates — reading them wakes the host). Shapes only:
         # Sprite's frame is scaled, not ``width``/``height``.
-        oriented = getattr(shape, "_oriented_frame", None)
-        if callable(oriented) and getattr(shape, "_defining_part_names", None) is not None:
+        oriented = probe_private(shape, "_oriented_frame", None)
+        if callable(oriented) and probe_private(shape, "_defining_part_names", None) is not None:
             try:
                 _cx, _cy, w, h, _ang = oriented()
                 w, h = abs(float(w)), abs(float(h))

@@ -1097,6 +1097,17 @@ def change_act(act, *args, **kwargs) -> None:
         )
     m = _manager
     if not m.sealed:
+        from .process import get_scheduler
+        if get_scheduler()._running is not None:
+            # Law F2: a task's first step runs where run_task is called, so a
+            # storyboard started at the top of the file reached change_act
+            # before run() (showcase B8).
+            raise RuntimeError(
+                f"change_act({act.__name__}) ran in a task before the game started: "
+                f"a task runs its first step where run_task is called, before "
+                f"run(). Wait first (await wait(0)) so it runs once the game is "
+                f"going, or start the task in the first act's setup()."
+            )
         raise RuntimeError(
             "The game has not started. Start the first act with run(Titulo)."
         )

@@ -1986,7 +1986,9 @@ class Script:
             f"This usually means `while True:` with no await. "
             f"Add `await wait(...)` / `await until(...)` / "
             f"`await move_to(..., time=)` inside the loop. "
-            f"Constructing many Sprite(...) objects in one go is allowed.",
+            f"A step that builds many objects (above all many linked shapes) "
+            f"can pass it too, sooner on a busy machine: build them in pieces, "
+            f"with `await wait(0)` between pieces.",
             RuntimeWarning,
             stacklevel=4,
         )

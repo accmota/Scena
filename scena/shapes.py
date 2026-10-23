@@ -17,6 +17,7 @@ from .style import PaintState, LookLike
 from .color import Color, ColorLike
 from .scenamath import Vec2, vec_from_angle
 from .state import (
+    probe_private,
     _notify_source_anchors,
     Attribute, Container, ContainerSlot, ScalarSlot, ScalarAnchor, FieldRef, FieldType,
     batch_update_attrs, batch_update_self, ephemeral_creation, LinkedAttributeError, DestroyedError,
@@ -44,7 +45,7 @@ from .entity import (
     _install_setattr_route, _install_timed_pose,
     _pose_rotation_set, _pose_rotation_add, _pose_rotation_publish, _pose_scale_set,
     _refuse_linked_pose, _gate_pose_anchor,
-    _bump_collision_epoch, _geom_path_cache_set, _placement_write,
+    _bump_collision_epoch, _draw_path, _geom_path_cache_set, _placement_write,
     _USE_LAYER_DEFAULT, _COPY_GROUPS, _STYLE_PAINT,
     _fire_on_destroy, _refuse_dead_verb, _refuse_if_destroyed,
     _parked, _stash_flag, _refuse_linked_channel,
@@ -2223,7 +2224,7 @@ class Shape(Graphic, PaintState):
         """
         if float(self._scale) == 0.0:
             return True
-        frame = getattr(self, "_oriented_frame", None)
+        frame = probe_private(self, "_oriented_frame", None)
         if not callable(frame):
             return False
         _cx, _cy, w, h, _ang = frame()
@@ -2346,7 +2347,7 @@ class Shape(Graphic, PaintState):
 
     def _mirror_scalar_parts(self, axis: str) -> List:
         """The Defining scalars / vector a mirror rewrites (gated before any write)."""
-        names = getattr(self, "_defining_part_names", ()) or ()
+        names = probe_private(self, "_defining_part_names", ()) or ()
         out = []
         if "angle" in names:
             out.append(self["angle"])
@@ -2381,7 +2382,7 @@ class Shape(Graphic, PaintState):
             _ensure_writable(pt, "flip", force=force, pivot=(cx, cy))
         for part in self._mirror_scalar_parts(axis):
             _ensure_writable(part, "flip", force=force)
-        names = getattr(self, "_defining_part_names", ()) or ()
+        names = probe_private(self, "_defining_part_names", ()) or ()
         turned = False
         if "angle" not in names:
             # A heading kept only as pose (Point, Polygon, a p1/p2 Line) mirrors
@@ -2415,7 +2416,7 @@ class Shape(Graphic, PaintState):
         Prefer ``_oriented_frame()`` (always derived from Defining parts) over
         a possibly-stale Derivate ``center`` cache. Falls back to ``self.center``.
         """
-        oriented = getattr(self, '_oriented_frame', None)
+        oriented = probe_private(self, "_oriented_frame", None)
         if callable(oriented):
             cx, cy, *_rest = oriented()
             return cx, cy
@@ -2426,7 +2427,7 @@ class Shape(Graphic, PaintState):
         has one). ``angle`` is a Derivate on some models (Rect spine, Ellipse
         foci, a p1/p2 Line); reading it would wake it (D3 in Testing Design).
         Engine readers use this, never ``.angle``."""
-        oriented = getattr(self, '_oriented_frame', None)
+        oriented = probe_private(self, "_oriented_frame", None)
         if callable(oriented):
             return float(oriented()[4])
         return _bare_num(self.angle)
@@ -3983,7 +3984,7 @@ _LINE_FREE_MODEL = {
 
 def _rotation_is_derived(shape, name: str = 'angle') -> bool:
     """True when the heading field is a Derivate of the model (heading from the placement points)."""
-    if name in (getattr(shape, '_defining_part_names', None) or ()):
+    if name in (probe_private(shape, "_defining_part_names", None) or ()):
         return False                     # a model input: the per-frame write path
     slot = shape._field_slots().get(name)
     return slot is not None and shape._field_is_derivate(name, slot)
@@ -4496,7 +4497,7 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
     def _rotation_value(self) -> float:
         """The heading from Defining inputs only (never wakes a Derivate ``angle``)."""
-        if 'angle' in (getattr(self, '_defining_part_names', None) or ()):
+        if 'angle' in (probe_private(self, "_defining_part_names", None) or ()):
             return _bare_num(self.angle)
         if self.model is LineModel.TANGENT_ANGLE:
             # The model's own heading, as ``angle`` reads it (SB4: 290 vs -70,
@@ -6970,11 +6971,11 @@ class Polygon(Shape):
 
         skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
         if skia_fill_paint:
-            skia_canvas.drawPath(path, skia_fill_paint)
+            _draw_path(skia_canvas, path, skia_fill_paint, self)
 
         skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
         if skia_line_paint:
-            skia_canvas.drawPath(path, skia_line_paint)
+            _draw_path(skia_canvas, path, skia_line_paint, self)
 
         skia_canvas.restore()
 
@@ -7054,11 +7055,36 @@ class Polygon(Shape):
         _gate_pose_anchor(self, "angle", "rotate_by", force)
         dθ_rad = _rad(dθ_deg)
         px, py = self._pivot_xy(about)
-        for vertex in self._vertices:      # every vertex first, then write (SC4)
+        verts = self._vertices
+        needs = self._requires_pull_invalidate()
+        # The gate walks each vertex's subtree once the polygon has any @=; a
+        # vertex with no link of its own and no linked field, under no
+        # whole-object link, has nothing to refuse (the gate would return).
+        whole = needs and (self._link is not None or self._formula_driven_ancestor() is not None)
+        for vertex in verts:               # every vertex first, then write (SC4)
+            vd = vertex.__dict__
+            if (needs and not whole and _GATE_RECORD is None
+                    and vd.get('_link') is None and not vd.get('_field_anchors')):
+                continue
             _ensure_writable(vertex, "rotate_by", force=force, pivot=(px, py))
-        for vertex in self._vertices:
-            x, y = get_xy(vertex, bare=True)
-            vertex._takein(_rotate_xy(x, y, px, py, dθ_rad))
+        # The batch's own vertex write (``Point._takein`` inside a batch),
+        # inline: a linked angle turns the polygon every frame, and the
+        # per-vertex call layers cost ~60 µs a 12-point polygon (showcase D2).
+        um = self._scena_system.update_manager if needs else None
+        c, s_ = math.cos(dθ_rad), math.sin(dθ_rad)
+        for vertex in verts:
+            d = vertex.__dict__
+            if d.get('_destroyed') or not vertex._in_batch_update:
+                x, y = get_xy(vertex, bare=True)
+                vertex._takein(_rotate_xy(x, y, px, py, dθ_rad))
+                continue
+            dx = d.get('x', 0.0) - px
+            dy = d.get('y', 0.0) - py
+            if vertex._takein_impl((px + dx * c - dy * s_, py + dx * s_ + dy * c)):
+                if needs and vertex._node_id is not None:
+                    um.mark_dirty(vertex)
+                if d.get('_field_anchors'):
+                    _notify_source_anchors(vertex)
         _pose_rotation_add(self, dθ_deg)
         return self
 
@@ -7646,10 +7672,10 @@ class _RadialPolygon(Polygon):
 
         skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
         if skia_fill_paint:
-            skia_canvas.drawPath(path, skia_fill_paint)
+            _draw_path(skia_canvas, path, skia_fill_paint, self)
         skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
         if skia_line_paint:
-            skia_canvas.drawPath(path, skia_line_paint)
+            _draw_path(skia_canvas, path, skia_line_paint, self)
         skia_canvas.restore()
 
     def _parts_written_by_drag(self) -> Tuple[Container, ...]:
@@ -8255,7 +8281,7 @@ class _RectFrame:
     def _wh_signed(self) -> Tuple[float, float]:
         """Signed Defining ``(width, height)``. On a Square ``length`` is Defining
         and ``width`` / ``height`` are Derivate mirrors — read ``length`` (D3)."""
-        defining = getattr(self, '_defining_part_names', None)
+        defining = probe_private(self, "_defining_part_names", None)
         if defining is not None and 'length' in defining and 'width' not in defining:
             s = _bare_num(self.length)
             return s, s
@@ -8440,7 +8466,7 @@ class _RectFrame:
                 return (cx, cy, abs(lx), abs(ly), ang)
             case RectModel.TOP_LEFT_WH:
                 ang = _bare_num(self.angle)
-                defining = getattr(self, '_defining_part_names', None)
+                defining = probe_private(self, "_defining_part_names", None)
                 if defining is not None and 'length' in defining and 'width' not in defining:
                     w = h = _bare_num(self.length)
                 else:
@@ -8455,7 +8481,7 @@ class _RectFrame:
                 cx, cy = get_xy(self.center, bare=True)
                 ang = _bare_num(self.angle)
                 # Square: length is Defining; width/height are Derivate mirrors.
-                defining = getattr(self, '_defining_part_names', None)
+                defining = probe_private(self, "_defining_part_names", None)
                 if defining is not None and 'length' in defining and 'width' not in defining:
                     L = abs(_bare_num(self.length))
                     return (cx, cy, L, L, ang)
@@ -9970,10 +9996,10 @@ class Concave(_RectBody):
             skia_canvas.rotate(ang)
         skia_fill_paint = self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
         if skia_fill_paint:
-            skia_canvas.drawPath(path, skia_fill_paint)
+            _draw_path(skia_canvas, path, skia_fill_paint, self)
         skia_line_paint = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
         if skia_line_paint:
-            skia_canvas.drawPath(path, skia_line_paint)
+            _draw_path(skia_canvas, path, skia_line_paint, self)
         skia_canvas.restore()
 
     def _local_path(self, w: float, h: float, layout) -> 'skia.Path':

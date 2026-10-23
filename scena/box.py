@@ -13,6 +13,7 @@ import weakref
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
 from .state import (
+    probe_private,
     Attribute,
     Container,
     ContainerSet,
@@ -176,7 +177,7 @@ def region_frame(obj) -> Tuple[float, float, float, float, float]:
         if pull is not None:
             pull(obj)
     name = frame_kind(obj)
-    oriented = getattr(obj, "_oriented_frame", None)
+    oriented = probe_private(obj, "_oriented_frame", None)
     if callable(oriented) and name in ("Rect", "Square", "Concave"):
         return oriented()
     if name == "Ellipse":

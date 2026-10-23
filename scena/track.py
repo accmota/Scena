@@ -36,6 +36,7 @@ from .curves import (
 from .entity import (
     _COPY_GROUPS,
     _USE_LAYER_DEFAULT,
+    _draw_path,
     _geom_path_cache_set,
     _pose_rotation_add,
     _pose_rotation_set,
@@ -61,6 +62,7 @@ from .shapes import (
     get_xy,
 )
 from .state import (
+    probe_private,
     Attribute,
     as_payload,
     Container,
@@ -546,6 +548,14 @@ class Track(Shape):
 
     # ``visible`` moves a Track between layers (Point-style): not a link target.
     _property_link_exclude = frozenset({"visible"})
+    # Why, in the "is a property" refusal (a Rect's visible links; showcase C).
+    _link_property_hints = {
+        "visible": (
+            "Showing a Track puts it on a draw layer and hiding it takes it off, "
+            "so a shape's visible links and a Track's does not. Set it with "
+            "`track.visible = True` / `False`."
+        ),
+    }
     # Computed fields come from the path, not from u / begin / end
     # (``Container._derived_field_message``).
     _derived_from = "path"
@@ -788,6 +798,14 @@ class Track(Shape):
             # FREE from points= / expanded vectors= (or a raw sequence as source)
             raw = points if points is not None else source
             need = "vectors=" if from_vectors else "points="
+            if callable(raw) and not isinstance(raw, type):
+                # As Polygon (C6): the point count is fixed; it said "needs at
+                # least 2 points" for a function (showcase A4).
+                raise TypeError(
+                    f"Track {need} takes a list — the point count is fixed. "
+                    f"Link single points: "
+                    f"Track(points=[(0, 0), lambda: ship.center, (200, 0)])."
+                )
             if not isinstance(raw, (list, tuple)) or len(raw) < 2:
                 raise ValueError(f"Track({need}) needs at least 2 points")
             self.model = TrackModel.FREE
@@ -837,7 +855,7 @@ class Track(Shape):
                         )
                         _init_scalar(self, "u", 0.0)
         finally:
-            if getattr(self, "_defining_part_names", None):
+            if probe_private(self, "_defining_part_names", None):
                 self._init_draw_window(begin, end)
             if floating is None and _anchored is None and not self._anchored:
                 # Floats by inference (no placement given): the first
@@ -945,7 +963,7 @@ class Track(Shape):
         sm = self._smooth
         cl = self._closed
         if self.model == TrackModel.CIRCLE:
-            r = _bare_num(self.radius) if "radius" in getattr(self, "_defining_part_names", {"radius"}) or hasattr(self, "radius") else 0.0
+            r = _bare_num(self.radius) if "radius" in probe_private(self, "_defining_part_names", {"radius"}) or hasattr(self, "radius") else 0.0
             try:
                 r = _bare_num(self.radius)
             except Exception:
@@ -1874,10 +1892,10 @@ class Track(Shape):
             self._to_skia_fill_paint() if fill_paint is _STYLE_PAINT else fill_paint
         )
         if skia_fill:
-            skia_canvas.drawPath(path, skia_fill)
+            _draw_path(skia_canvas, path, skia_fill, self)
         skia_line = self._to_skia_line_paint() if stroke_paint is _STYLE_PAINT else stroke_paint
         if skia_line:
-            skia_canvas.drawPath(path, skia_line)
+            _draw_path(skia_canvas, path, skia_line, self)
         skia_canvas.restore()
 
     def _hit_test_xy(self, x: float, y: float) -> bool:

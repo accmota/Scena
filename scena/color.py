@@ -1325,14 +1325,25 @@ class Color(ClosedSurface):
 ColorLike = Union[Color, str, Tuple[float, ...], List[float]]
 
 
+def _not_a_color_message(color) -> str:
+    """The refusal for a value that is not a colour. A shape's ``.fill`` under
+    Shield / Swell / Flame / Bolt is the look's procedural fill, not a colour:
+    ``bubbles_at(p, color=p.fill)`` raised a bare "got ProceduralFill"
+    (showcase C); the shape's colour is ``p.color``."""
+    kind = type(color).__name__
+    msg = f"color expected Color, name, or RGB tuple, got {kind}"
+    if kind == "ProceduralFill":
+        msg += (" (a look's fill, not a colour: read the shape's colour with "
+                ".color, e.g. color=ship.color)")
+    return msg
+
+
 def _sequence_channels(color, *, min_len: int) -> Tuple[float, ...]:
     """Read at least ``min_len`` numeric channels from a sequence, or raise."""
     try:
         n = len(color)
     except TypeError:
-        raise TypeError(
-            f"color expected Color, name, or RGB tuple, got {type(color).__name__}"
-        ) from None
+        raise TypeError(_not_a_color_message(color)) from None
     if n < min_len:
         raise TypeError(
             f"color expected a sequence of at least {min_len} numbers, got {n}"
@@ -1409,9 +1420,7 @@ def resolve_rgba(
     try:
         n = len(color)
     except TypeError:
-        raise TypeError(
-            f"color expected Color, name, or RGB tuple, got {type(color).__name__}"
-        ) from None
+        raise TypeError(_not_a_color_message(color)) from None
     if n >= 4:
         ch = _sequence_channels(color, min_len=4)
         return (

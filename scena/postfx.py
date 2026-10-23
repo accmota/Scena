@@ -68,6 +68,10 @@ class PostEffect(ClosedSurface):
     def __init__(self):
         _auto_place_post(self)
 
+    def __getitem__(self, key):
+        from .closed import no_fields_message
+        raise TypeError(no_fields_message(self, key))
+
     def __init_subclass__(cls, **kwargs):
         if "__init__" in cls.__dict__:
             from .place import wrap_init_autoplace

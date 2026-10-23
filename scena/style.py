@@ -318,6 +318,8 @@ class PaintState:
         # ``(value, fill, line)`` / ``(value, paint)`` the last plain write
         # left, see ``_same_plain_paint``. Unset until the first such write.
         '_color_memo', '_fill_memo', '_line_memo',
+        # The outline tone set_color last derived: ((r, g, b, a), tone).
+        '_tone_memo',
     )
 
     _default_instance = None
@@ -485,20 +487,41 @@ class PaintState:
 
     def _invalidate_line_paint(self) -> None:
         """Drop both line-paint slots (filtered and filter-free)."""
-        self._is_line_paint_dirty = True
-        self._cached_line_paint = None
-        self._cached_line_fx = None
-        self._cached_line_bare = None
+        # Private cache fields: no ``Entity.__setattr__`` hop (a colour formula
+        # writes these every frame; showcase D4).
+        _object_setattr(self, "_is_line_paint_dirty", True)
+        _object_setattr(self, "_cached_line_paint", None)
+        _object_setattr(self, "_cached_line_fx", None)
+        _object_setattr(self, "_cached_line_bare", None)
 
     def _invalidate_fill_paint(self) -> None:
         """Drop both fill-paint slots and the procedural paint shell."""
-        self._is_fill_paint_dirty = True
-        self._cached_fill_paint = None
-        self._cached_fill_fx = None
-        self._cached_fill_bare = None
-        self._cached_proc_paint = None
-        self._cached_proc_bare = None
-        self._cached_proc_fx = None
+        _object_setattr(self, "_is_fill_paint_dirty", True)
+        _object_setattr(self, "_cached_fill_paint", None)
+        _object_setattr(self, "_cached_fill_fx", None)
+        _object_setattr(self, "_cached_fill_bare", None)
+        _object_setattr(self, "_cached_proc_paint", None)
+        _object_setattr(self, "_cached_proc_bare", None)
+        _object_setattr(self, "_cached_proc_fx", None)
+
+    def _recolor_cached_paints(self, old, new, bare: str, filtered: str) -> bool:
+        """A plain colour replacing a plain colour: the built paints differ in
+        their colour only (a paint built from a Color carries no shader), so
+        set it on them in place (``True``) instead of dropping them for a
+        rebuild at draw (two Paint builds a frame for a colour formula;
+        showcase D4). ``False``: not two colours, or nothing built yet."""
+        if old.__class__ is not Color or new.__class__ is not Color:
+            return False
+        a = getattr(self, bare, None)
+        b = getattr(self, filtered, None)
+        if a is None and b is None:
+            return False
+        c4 = skia.Color4f(new._r, new._g, new._b, new._a)
+        if a is not None:
+            a.setColor4f(c4)
+        if b is not None and b is not a:
+            b.setColor4f(c4)
+        return True
 
     def look_like(self, other: 'PaintState') -> 'PaintState':
         """Copy full appearance (channels + visual + stamps) without re-running apply."""
@@ -641,7 +664,12 @@ class PaintState:
             c = c.with_alpha(float(alpha))
         self.fill = c
         if contrast_stroke:
-            line = c.contrast_tone(intensity=0.2)
+            memo = getattr(self, "_tone_memo", None)
+            if memo is not None and memo[0] == (c._r, c._g, c._b, c._a):
+                line = memo[1]
+            else:
+                line = c.contrast_tone(intensity=0.2)
+                _object_setattr(self, "_tone_memo", ((c._r, c._g, c._b, c._a), line))
             if alpha is not None:
                 try:
                     line = line.with_alpha(float(alpha))
@@ -960,11 +988,13 @@ class PaintState:
                                        and last == value))
                         and getattr(self, "_look_identity", None) is None):
                     return      # the same plain colour again (_same_plain_paint)
+        old = self._line
         self._line = paint = _coerce_channel_paint(value)
         c = value.__class__
         if c is str or c is Color:
             _object_setattr(self, "_line_memo", (value, paint))
-        self._invalidate_line_paint()
+        if not self._recolor_cached_paints(old, paint, "_cached_line_bare", "_cached_line_paint"):
+            self._invalidate_line_paint()
         if self._patch_look_identity(line=self._line):
             self._look_channel_written("line")
 
@@ -989,11 +1019,13 @@ class PaintState:
                                        and last == value))
                         and getattr(self, "_look_identity", None) is None):
                     return      # the same plain colour again (_same_plain_paint)
+        old = self._fill
         self._fill = paint = _coerce_channel_paint(value)
         c = value.__class__
         if c is str or c is Color:
             _object_setattr(self, "_fill_memo", (value, paint))
-        self._invalidate_fill_paint()
+        if not self._recolor_cached_paints(old, paint, "_cached_fill_bare", "_cached_fill_paint"):
+            self._invalidate_fill_paint()
         if self._patch_look_identity(fill=self._fill):
             self._look_channel_written("fill")
 
@@ -1533,6 +1565,18 @@ class PaintState:
             hw, hh = _local_half_extents(self)
             qhw, qhh = _quantize_extent(hw), _quantize_extent(hh)
             if self._tex_fill_hw != qhw or self._tex_fill_hh != qhh:
+                bare = self._cached_fill_bare
+                fill = self._fill
+                if (bare is not None and fill.__class__ is Gradient
+                        and self._fill_filter is None and self._cached_fill_fx is None):
+                    # A size change re-fits the gradient only: the paint stays,
+                    # its shader is swapped (a Paint rebuilt each frame for a
+                    # growing shape; showcase D5).
+                    shader, qw, qh = self._gradient_shader(fill)
+                    bare.setShader(shader)
+                    _object_setattr(self, "_tex_fill_hw", qw)
+                    _object_setattr(self, "_tex_fill_hh", qh)
+                    return bare
                 self._cached_fill_paint = None
                 self._cached_fill_bare = None
                 self._cached_fill_fx = None
@@ -2739,8 +2783,8 @@ def _local_half_extents(shape) -> Tuple[float, float]:
         except Exception:
             pass
     # Shapes only (lazy Derivate hosts): Sprite's frame is scaled, not width/height.
-    oriented = getattr(shape, "_oriented_frame", None)
-    if callable(oriented) and getattr(shape, "_defining_part_names", None) is not None:
+    oriented = probe_private(shape, "_oriented_frame", None)
+    if callable(oriented) and probe_private(shape, "_defining_part_names", None) is not None:
         try:
             _cx, _cy, w, h, _ang = oriented()
             w, h = abs(float(w)), abs(float(h))

@@ -355,6 +355,20 @@ class State:
             # ``__setattr__`` and the property hop (pays for the check above).
             cell._assign_value(value)
 
+    def __contains__(self, key) -> bool:
+        # ``"score" in st`` fell back to ``st[0]`` ("field name must be a str,
+        # got int"; showcase F). One spelling: ``st.exists("score")``.
+        raise TypeError(
+            f"{key!r} in {self._name}: write {self._name}.exists({key!r}) to ask "
+            f"whether a field was made ({self._name}.keys() lists them)."
+        )
+
+    def __iter__(self):
+        raise TypeError(
+            f"for … in {self._name}: write for name in {self._name}.keys() to go "
+            f"through the field names."
+        )
+
     def __getitem__(self, key: str) -> 'FieldRef':
         """Link handle. Does not create a cell — ``@=`` does, reads must exist."""
         if not isinstance(key, str):
@@ -828,17 +842,38 @@ def _cycle_label(node) -> str:
     return f"{field} of {label}"
 
 def _own_size_read_message(owner, source) -> Optional[str]:
-    """AC14 (a known limitation, 2026-10-10): a custom field of an object that
-    reads the object's own size fields or derived points (``r["d"] @= lambda:
-    r.width``, ``r.top_left``, a Polygon's ``center``). Those are computed from
-    the whole object, the new field included, so the link would read itself.
-    ``None`` for a real cycle (two of the object's formulas reading each other)."""
+    """AC14 (a known limitation, 2026-10-10): a field of an object whose
+    formula reads the object itself or its computed parts (``r["d"] @= lambda:
+    r.width``, ``r.top_left``, a Polygon's ``center``; ``t["center"] @=
+    lambda: … t.angle``; ``p["radius"] @= lambda: distance(p, q)``). Those
+    are worked out from the whole object, the linked field included, so the
+    link would read itself. ``None`` for a real cycle (two of the object's
+    formulas reading each other).
+
+    A custom (ink) field gets the class-property idiom; a built-in field (a
+    slot, or a part such as ``center``) cannot be a property of the author's
+    class, so it gets "read what the value comes from" (showcase B5: the
+    part case had the generic message, and the built-in case suggested
+    ``@property def radius``, which recurses)."""
     from .entity import entity_label
-    if not isinstance(owner, ScalarAnchor) or isinstance(source, ScalarAnchor):
+    if isinstance(source, ScalarAnchor):
         return None
     if getattr(source, "_link", None) is not None:
         return None
-    parent = getattr(owner, "_scalar_parent", None)
+    if isinstance(owner, ScalarAnchor):
+        parent = getattr(owner, "_scalar_parent", None)
+        name = getattr(owner, "_scalar_name", "field")
+    elif isinstance(owner, Container):
+        # A part (a shape's ``center`` Point) of a whole object.
+        try:
+            parent = owner._ownership_root()
+        except Exception:
+            return None
+        if parent is owner or not getattr(parent, "_scena_is_entity", False):
+            return None
+        name = str(getattr(owner, "name", None) or "field").rsplit(".", 1)[-1]
+    else:
+        return None
     if parent is None:
         return None
     try:
@@ -847,15 +882,26 @@ def _own_size_read_message(owner, source) -> Optional[str]:
         return None
     if not same:
         return None
-    name = getattr(owner, "_scalar_name", "field")
     what = entity_label(parent)
+    ink = getattr(parent, "_ink", None)
+    custom = (isinstance(owner, ScalarAnchor) and isinstance(ink, dict) and name in ink
+              and name not in parent._field_slots())
+    if custom:
+        return (
+            f"{name} of {what} cannot read that object's own size or computed points "
+            f"(width, radius, corners, a polygon's center, ...): those are worked out "
+            f"from the whole object, and {name} is part of it. This is a known limit. "
+            f"Use a property in the class instead (@property def {name}(self): "
+            f"return self.width * 2), or set {name} in update(dt). Its own custom "
+            f"fields and other objects can be read in a formula."
+        )
     return (
-        f"{name} of {what} cannot read that object's own size or computed points "
-        f"(width, radius, corners, a polygon's center, ...): those are worked out "
-        f"from the whole object, and {name} is part of it. This is a known limit. "
-        f"Use a property in the class instead (@property def {name}(self): "
-        f"return self.width * 2), or set {name} in update(dt). Its own custom "
-        f"fields and other objects can be read in a formula."
+        f"{name} of {what} reads that same object (the object itself, or a value "
+        f"worked out from all of it, such as its angle, size or corners), and "
+        f"{name} is part of it: the formula would read its own result. This is a "
+        f"known limit. Read what that value comes from instead (another object, "
+        f"st, clock, or one part by name: distance(p.center, q.center), not "
+        f"distance(p, q)), or set {name} in update(dt)."
     )
 
 
@@ -1281,6 +1327,11 @@ class FormulaLink():
                         steps.insert(0, ('attr', curr.attr))
                         curr = curr.value
                     elif isinstance(curr, ast.Call):
+                        # What follows a call reads its result, not a field of
+                        # the function: ``card()[0]`` is not ``card[0]`` (it
+                        # was refused as "reads card[…0], which does not
+                        # exist"; showcase B6). The chain is the callee's.
+                        steps = []
                         curr = curr.func
                     elif isinstance(curr, ast.Subscript):
                         key = self._index_value(curr.slice)
@@ -1827,7 +1878,14 @@ class FieldRef:
         vec = _ink_held_vector(self.owner, self.name)
         if vec is not None:
             return vec.__dict__.get('_link') is not None   # the vector's link (6b)
-        return self.owner._field_is_linked(self.name)
+        try:
+            return self.owner._field_is_linked(self.name)
+        except AttributeError:
+            # A field the bracket deferred (ink made on the first write or
+            # link) is not linked. Raised here, the AttributeError sent Python
+            # to ``__getattr__``, whose "the field itself, not its value"
+            # answered a tween (showcase B1).
+            return False
 
     def unlink(self) -> None:
         vec = _ink_held_vector(self.owner, self.name)
@@ -3403,7 +3461,7 @@ class Container():
         in POINT_ANGLE_LENGTH and Derivate in POINT_POINT). Falls back to the
         slot's declared ``field_type``.
         """
-        defining = getattr(self, '_defining_part_names', None)
+        defining = probe_private(self, "_defining_part_names", None)
         if defining is not None:
             return name not in defining
         if slot is None:
@@ -3856,7 +3914,7 @@ class Container():
         (points, vectors) first, then numbers, each in declaration order.
         An input that shapes the outline only (``_OUTLINE_ONLY_INPUTS``: a
         Concave's ``rim``) feeds no computed field, so it is left out."""
-        defining = getattr(self, '_defining_part_names', None)
+        defining = probe_private(self, "_defining_part_names", None)
         if not defining:
             return []
         slots = self._field_slots()
@@ -3890,7 +3948,7 @@ class Container():
         if not signatures:
             return None
         slots = self._field_slots()
-        current = set(getattr(self, '_defining_part_names', None) or ())
+        current = set(probe_private(self, "_defining_part_names", None) or ())
         best, best_score = None, None
         for _sig_name, keys in signatures:
             if name not in keys or not all(k in slots for k in keys) \

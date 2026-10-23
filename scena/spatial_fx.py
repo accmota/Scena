@@ -314,12 +314,79 @@ def fx_placement_hints(name: str) -> dict:
     """Orientation for scalar / ``at=`` placement keywords (one hint for all)."""
     hint = _fx_placement(name)[1]
     hints = {key: hint for key in _SCALAR_PLACEMENT_KEYS}
+    if name == "Fire":
+        # The only SpatialFx kind without color= (the shared table's
+        # "color= is Shape/Text; use visual= on a Sprite" pointed away from
+        # it; showcase B4).
+        hints["color"] = (
+            "Fire has no color=: its colours come from style= (\"camp\", "
+            "\"soft\", \"plume\", \"tongues\", \"embers\", \"blaze\"). For a "
+            "tinted glow use GlowSpot(color=…) or Sunburst(color=…)"
+        )
     if name == "Rain":
         hints["angle"] = (
             "Rain has no angle: the pad is axis-aligned and drops fall "
             "straight down"
         )
     return hints
+
+
+# The float knobs a kind's constructor takes (``amount=``, ``speed=`` …) are
+# fields, like ``radius``: ``fx.amount = 2``, ``tween(fx["amount"], …)`` and
+# ``fx["amount"] @= lambda: …`` all reach what the effect draws. They were
+# plain attributes: a bracket link made an ink field the attribute shadowed
+# (silently dead, tutorial 23's ``luz["amount"] @=``) and a tween raised an
+# internal error (showcase B1, 2026-10-23). A framework kind whose
+# ``__init__`` takes one of these names gets a ``ScalarSlot`` for it
+# (``SpatialFx.__init_subclass__``); the constructor stores it with
+# ``_init_knob``. Whole-number and structural knobs (``points``, ``spokes``,
+# ``tongues``) and the properties with their own rules stay as they are.
+_FX_KNOBS = ("amount", "speed", "rate", "glow", "phase", "twist", "core", "spin", "tilt")
+
+
+def _install_knob_slots(cls: type) -> None:
+    """Give a framework kind a ``ScalarSlot`` for each float knob its
+    ``__init__`` takes and no base declares yet."""
+    import inspect
+    init = cls.__dict__.get("__init__")
+    if init is None:
+        return
+    try:
+        params = inspect.signature(inspect.unwrap(init)).parameters
+    except (TypeError, ValueError):
+        return
+    for name in _FX_KNOBS:
+        if name not in params:
+            continue
+        if any(isinstance(base.__dict__.get(name), ScalarSlot) for base in cls.__mro__):
+            continue
+        if any(name in base.__dict__ for base in cls.__mro__):
+            continue    # a property with its own rules
+        slot = ScalarSlot()
+        slot.__set_name__(cls, name)
+        setattr(cls, name, slot)
+
+
+def _fx_knob_names(cls: type) -> Tuple[str, ...]:
+    """The knob slots of a kind (cached on the class)."""
+    cached = cls.__dict__.get("_knob_names_cache")
+    if cached is None:
+        cached = tuple(
+            name for name in _FX_KNOBS
+            if any(isinstance(base.__dict__.get(name), ScalarSlot) for base in cls.__mro__)
+        )
+        cls._knob_names_cache = cached
+    return cached
+
+
+def _init_knob(fx: "SpatialFx", name: str, value) -> None:
+    """A float knob at construction: a number is stored as the field's value; a
+    function links once the effect is built (``_link_pending_knobs``)."""
+    if callable(value) and not isinstance(value, type):
+        # Until the link lands the slot reads its default.
+        fx.__dict__.setdefault("_pending_knob_links", []).append((name, value))
+        return
+    _init_scalar(fx, name, value)
 
 
 def _reject_positional_fx(fx: "SpatialFx", args: tuple) -> None:
@@ -377,6 +444,7 @@ class SpatialFx(Entity):
     def __init_subclass__(cls, **kwargs):
         if is_framework_module(cls.__module__):
             if "__init__" in cls.__dict__:
+                _install_knob_slots(cls)
                 _hide_positional_catchall(cls.__dict__["__init__"])
                 from .validate import guard_init_numbers
                 guard_init_numbers(cls)
@@ -393,6 +461,16 @@ class SpatialFx(Entity):
         soft_edge: float = 0.15,
     ):
         self._construct(layer=layer, group=group, soft_edge=soft_edge)
+
+    def _mark_defining_parts(self, *defining: str, catalog: Tuple[str, ...]) -> None:
+        """The domain's model parts plus the kind's knobs: a knob is an input
+        in every model (a name missing here reads as a Derivate)."""
+        knobs = _fx_knob_names(type(self))
+        super()._mark_defining_parts(*defining, *knobs, catalog=catalog)
+        pending = self.__dict__.pop("_pending_knob_links", None)
+        if pending:
+            for name, fn in pending:
+                self._link_field(name, fn)
 
     def _design_center(self) -> Tuple[float, float]:
         """Default placement: the center of the design (``canvas.width / height``).
