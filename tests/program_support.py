@@ -56,7 +56,7 @@ from system_support import FRAME, SystemWorld, reset_input_state, reset_world_se
 import glfw  # noqa: E402
 import scena  # noqa: E402
 import scena.orchestration as orch  # noqa: E402
-from scena import clock  # noqa: E402
+from scena import clock, stall  # noqa: E402
 from scena.input import _GLFW_NAMED_KEYS  # noqa: E402
 from scena.state import Attribute, get_scena_system  # noqa: E402
 
@@ -582,6 +582,10 @@ class ProgramRun:
         run = self
 
         def headless_run(first_act=None):
+            # The real run() ends the top-level stall phase: left at "top"
+            # (reported), the next program's init() could not begin it, and
+            # its own slow loading went unreported.
+            stall.top_level_end()
             caller = inspect.currentframe().f_back.f_globals
             fw._first_act = first_act
             fw.set_auto_callbacks(caller)
@@ -699,6 +703,7 @@ class ProgramRun:
                     fw.bootstrap(width=self._size_before[0], height=self._size_before[1])
         finally:
             had_world = self.world is not None
+            stall.top_level_end()           # a program that never reached run()
             for p in self._patches:
                 p.stop()
             self._patches.clear()

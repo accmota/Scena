@@ -87,6 +87,73 @@ class TestStallWatch(unittest.TestCase):
         self.assertIn("without reaching run()", msg)
         self.assertIn("jogo.py:4", msg)
 
+    def test_a_report_keeps_nothing_of_the_program_alive(self):
+        """The watch thread kept the main thread's frame it reported in its
+        locals until the next stall: the frame's globals (the whole program)
+        outlived the run. Under load, every game system test run hit the 8 s
+        top-level watch at a sound bake, and the next run counted the last
+        one's Box points as alive (oficina, ``registry.live 8 → 2``)."""
+        import gc
+        import weakref
+        stalls = {
+            "top level": "time.sleep(0.6)\nrun()",
+            "frame": "def update(dt):\n    time.sleep(0.6)\n\n\nrun()",
+        }
+        for phase, tail in stalls.items():
+            with self.subTest(phase=phase):
+                path = _program(
+                    "import time\nfrom scena import *\ninit(width=200, height=200)\n"
+                    "QUADRO = Box(center=(50, 50), width=40, height=20)\n" + tail + "\n")
+                err = io.StringIO()
+                with redirect_stderr(err):
+                    run = ProgramRun(path)
+                    run.start()
+                    try:
+                        if phase == "frame":
+                            run.step(1)
+                        box = weakref.ref(run.ns["QUADRO"])
+                    finally:
+                        run.close(strict=False)
+                self.assertIn("SCENA ERROR", err.getvalue())
+                gc.collect()
+                self.assertIsNone(box(), "a reported frame keeps the program alive")
+
+    def test_each_program_in_a_process_gets_its_top_level_report(self):
+        """ProgramRun's run() stand-in did not end the top-level phase as the
+        real run() does: after one program's report the watch stayed at
+        "top, reported", the next program's init() could not begin its own
+        phase, and its slow loading said nothing (test order: a top-level
+        stall test before another one failed it)."""
+        for n in range(2):
+            with self.subTest(program=n):
+                path = _program("""
+                    import time
+                    from scena import *
+                    init(width=200, height=200)
+                    time.sleep(0.6)
+                    run()
+                """)
+                err = io.StringIO()
+                with redirect_stderr(err):
+                    run = ProgramRun(path)
+                    run.start()
+                    run.close(strict=False)
+                self.assertIn("without reaching run()", err.getvalue())
+                self.assertIsNone(stall._state[0], "the watch is left in a phase")
+
+    def test_a_program_that_never_reaches_run_leaves_no_phase(self):
+        path = _program("""
+            from scena import *
+            init(width=200, height=200)
+            run()
+        """)
+        with redirect_stderr(io.StringIO()):
+            run = ProgramRun(path)
+            run.start()
+            stall._state[0] = "top"     # as if the program stopped before run()
+            run.close(strict=False)
+        self.assertIsNone(stall._state[0])
+
     def test_a_report_keeps_no_frame_of_the_main_thread(self):
         # WP20: the watch thread read the main thread's frame into a local of
         # its endless loop and kept it after the report: the whole stack, and
