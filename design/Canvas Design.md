@@ -947,7 +947,12 @@ maps them through the camera, and `_view_to_fb` puts the view point in the post
 image (the whole framebuffer, letterbox bands included, at `post_fx_scale`);
 they were read as design coords, so `set_origin("center")` and any pan, zoom or
 turn put the effect off its object (showcase A2, 2026-10-23;
-`tests/test_post_targets_camera.py`). A filtered shape's layer (a shared
+`tests/test_post_targets_camera.py`). A post's lengths are design units mapped
+the same way (`_length_to_fb`: zoom × view scale × pixel ratio × the post
+image's share of the framebuffer): `Lamp(radius=, range=)` were pixels of the
+post image, which shrinks with `post_fx_scale`, so a lamp changed size between
+screens and with the quality ladder; `Spotlight(range=)` ignored zoom and
+letterbox. The test holds a length to the distance between two mapped points. A filtered shape's layer (a shared
 ImageFilter's `saveLayer`, or the `shape_fx_scale` render target) lands with the
 group's blend: inside it the shapes paint over transparent, so the blend acts at
 the composite; it landed with srcOver and a blurred multiply / add / screen shape

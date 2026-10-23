@@ -777,6 +777,23 @@ def _view_to_fb(x: float, y: float, w: float, h: float) -> Tuple[float, float]:
     return (fx * (w / fb_w), fy * (h / fb_h))
 
 
+def _length_to_fb(v: float, w: float, h: float) -> float:
+    """A world length (design units) → pixels of the post image, as an object
+    of that size shows: camera zoom, view scale, pixel ratio and
+    ``post_fx_scale`` (``w`` / ``fb_width``). Lamp ``radius`` / ``range`` were
+    pixels of the post image, so a lamp changed size between screens and
+    whenever the quality ladder moved ``post_fx_scale`` (2026-10-23)."""
+    from .orchestration import ScenaFramework
+    fw = ScenaFramework.get_instance()
+    fb_w = float(getattr(fw, "fb_width", 0) or 0)
+    vs = float(getattr(fw, "view_scale", 0) or 0)
+    if fb_w <= 0 or vs <= 0:
+        W = float(fw.design_width) or 1.0
+        return float(v) * (w / W)
+    pr = float(getattr(fw, "pixel_ratio", 1.0) or 1.0)
+    return float(v) * fw.world_to_view_scale() * vs * pr * (w / fb_w)
+
+
 def _mouse_view_xy() -> Tuple[float, float]:
     """The mouse where the picture shows it; the middle of the picture while
     it reads (0, 0) (no pointer yet: the effect aims at the centre, as it
@@ -905,8 +922,9 @@ class Lamp(PostEffect):
     Estimates normals from scene luminance, then lights from a point. Distinct
     from :class:`Spotlight` (cone) and :class:`DistantLight` (parallel sun).
 
-    ``target=None`` follows the mouse. ``range`` hard-limits illumination
-    distance (FB pixels when set; default fraction of the shorter side).
+    ``target=None`` follows the mouse. ``radius`` / ``range`` are design
+    units, scaled as an object of that size shows (zoom included); left out,
+    a fraction of the picture's shorter side.
 
     Args:
         color: Light color (can pass 1 for stronger light).
@@ -950,8 +968,8 @@ class Lamp(PostEffect):
         sh = image.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp)
         lx, ly = _resolve_target_fb(self.target, w, h)
         short = float(min(w, h))
-        rad = float(self.radius) if self.radius is not None else short * 0.38
-        rng = float(self.range) if self.range is not None else short * 0.55
+        rad = _length_to_fb(self.radius, w, h) if self.radius is not None else short * 0.38
+        rng = _length_to_fb(self.range, w, h) if self.range is not None else short * 0.55
         _lamp_builder.setChild("image", sh)
         _lamp_builder.setUniform("resolution", [float(w), float(h)])
         _lamp_builder.setUniform("u_light", [float(lx), float(ly)])
@@ -1210,11 +1228,9 @@ class Spotlight(PostEffect):
         cos_inner = math.cos(half)
         cos_outer = math.cos(min(half + soft, math.pi * 0.49))
 
-        # Range: design units → FB scale (average of axes for roughly isotropic)
+        # Range: design units, as an object that long shows (zoom, letterbox).
         if self.range is not None:
-            sx = w / max(W, 1e-6)
-            sy = h / max(H, 1e-6)
-            rng = float(self.range) * 0.5 * (sx + sy)
+            rng = _length_to_fb(self.range, w, h)
         else:
             rng = float(min(w, h) * 0.55)
 

@@ -136,6 +136,12 @@ def _pulled_xy(point) -> Tuple[float, float]:
                     return get_xy(src, bare=False)
                 except Exception:
                     pass
+    if link is None:
+        # No link of its own: the slots' own read (an axis link, a whole-track
+        # formula above it) is exact, and keeps its plain-read cache. Dropping
+        # that cache here re-classified every x / y read: a Track built from
+        # Points (snapshots) cost ~3× one built from tuples (showcase D7).
+        return float(point.x), float(point.y)
     d = getattr(point, "__dict__", None)
     if d is not None:
         d.pop("_scalar_bare_ok", None)

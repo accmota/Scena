@@ -6,6 +6,7 @@ No Container / framework imports. Samples are plain Python floats.
 from __future__ import annotations
 
 import math
+from bisect import bisect_left, bisect_right
 from typing import List, Optional, Sequence, Tuple
 
 Point2 = Tuple[float, float]
@@ -403,19 +404,26 @@ def _host_span(
     out: List[Point2] = [start]
     t0 = u0 * total
     t1 = u1 * total
-    # Interior vertices whose arc-length is strictly inside (t0, t1).
-    for k in range(1, len(s)):
-        sk = s[k]
-        if sk <= t0 + 1e-12:
-            continue
-        if sk >= t1 - 1e-12:
-            break
-        if closed and k == n:
-            pt = (float(xs[0]), float(ys[0]))
-        else:
-            pt = (float(xs[k]), float(ys[k]))
+    # Interior vertices whose arc-length is strictly inside (t0, t1), found
+    # by bisection and copied in one pass: a growing ``end`` on a long track
+    # walked the whole table through a helper call a vertex (~100 µs a
+    # frame for 400 points; showcase D7).
+    lo = bisect_right(s, t0 + 1e-12, 1)
+    hi = bisect_left(s, t1 - 1e-12, lo)
+    wrap = closed and hi > n           # k == n is the closing vertex (xs[0])
+    px, py = start
+    eps = 1e-9
+    append = out.append
+    for x, y in zip(xs[lo:min(hi, n)], ys[lo:min(hi, n)]):
+        x = float(x)
+        y = float(y)
+        if abs(x - px) > eps or abs(y - py) > eps:
+            append((x, y))
+            px, py = x, y
+    if wrap:
+        pt = (float(xs[0]), float(ys[0]))
         if not _almost_same(out[-1], pt):
-            out.append(pt)
+            append(pt)
     if not _almost_same(out[-1], end):
         out.append(end)
     return out

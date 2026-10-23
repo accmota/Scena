@@ -87,6 +87,27 @@ class TestPostPointsFollowTheCamera(unittest.TestCase):
             finally:
                 canvas.reset_view()
 
+    def test_a_length_matches_two_mapped_points(self):
+        # Lamp radius / range and Spotlight range are design units (they
+        # were pixels of the post image, which shrinks with post_fx_scale).
+        # A length maps as the distance between two mapped points does,
+        # under any camera and at any post image size.
+        import math
+        for name, set_camera in CAMERAS.items():
+            with self.subTest(camera=name), system_world(draw=True) as w:
+                try:
+                    set_camera()
+                    frame(w)
+                    fw, fh = w.surface.width(), w.surface.height()
+                    for scale in (1.0, 0.5):
+                        pw, ph = fw * scale, fh * scale
+                        a = sk._resolve_target_fb((100.0, 100.0), pw, ph)
+                        b = sk._resolve_target_fb((160.0, 100.0), pw, ph)
+                        self.assertAlmostEqual(math.hypot(b[0] - a[0], b[1] - a[1]),
+                                               sk._length_to_fb(60.0, pw, ph), places=4)
+                finally:
+                    canvas.reset_view()
+
     def test_view_to_fb_counts_the_letterbox(self):
         # A 400×300 design in a 2000×1200 framebuffer (maximized, Retina 2×:
         # a 1000×600 window): view_scale 2, pillars of 100 window px. The

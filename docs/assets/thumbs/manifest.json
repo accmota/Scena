@@ -887,7 +887,7 @@
  "post-lamp": {
   "card": "thumbs/post-lamp.card.webp",
   "h": 300,
-  "hash": "356e6ea2720acd13",
+  "hash": "6fbbe33ffbf9ebe3",
   "scene": "post",
   "src": "thumbs/post-lamp.webp",
   "w": 480
@@ -964,7 +964,7 @@
  "post-spotlight": {
   "card": "thumbs/post-spotlight.card.webp",
   "h": 300,
-  "hash": "819cb3fa14637c94",
+  "hash": "21f5f7e376b70fcf",
   "scene": "post",
   "src": "thumbs/post-spotlight.webp",
   "w": 480

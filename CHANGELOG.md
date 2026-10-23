@@ -71,6 +71,13 @@ left out.
 
 ### Fixed
 
+- `Lamp(radius=, range=)` were pixels of the post-effect image, so a lamp
+  was a different size on each screen and changed size whenever the effect
+  quality moved (`post_fx_scale`). They are design units now, scaled like an
+  object of that size (zoom included), as `Spotlight(range=)` already was.
+  A lamp tuned in pixels on a 2× screen needs its numbers divided by about
+  2 (more at a low `post_fx_scale`). `Spotlight(range=)` now follows the
+  zoom and the window's letterbox too.
 - A SpatialFx's number knobs (`amount`, `speed`, `rate`, `glow`, `phase`,
   `twist`, `core`, `spin`, `tilt`) did not link: `luz["amount"] @= lambda: …`
   on a GlowSpot (tutorial 23) was accepted and the glow never followed, and

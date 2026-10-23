@@ -707,6 +707,27 @@ class TestTrackLinePreset(TrackTestCase):
         self.assertTrue(any(abs(float(y) - 90.0) < 1.0 for _, y in
                             (t.at(k / 50) for k in range(51))))
 
+    def test_unlinked_vertices_read_exactly_after_a_late_link_or_a_move(self):
+        # Showcase D7: _pulled_xy reads an unlinked vertex through its slots
+        # (keeping their plain-read cache). An axis linked later, a move of
+        # the track and a write to a vertex must all still be seen.
+        from scena import st
+        from scena.track import _pulled_xy
+        hubs = [self.track(Circle(center=(20 + i * 30, 150), radius=1)) for i in range(4)]
+        t = self.track(Track(points=[h.center for h in hubs]))
+        v = t._ctrl_points[2]
+        self.assertEqual(_pulled_xy(v), (80.0, 150.0))
+        st.k = 7.0
+        v["y"] @= lambda: 100 + st.k
+        self.assertEqual(_pulled_xy(v), (80.0, 107.0))
+        st.k = 9.0
+        self.assertEqual(_pulled_xy(v), (80.0, 109.0))
+        v["y"].unlink()
+        t.move_by(10, 0)
+        self.assertAlmostEqual(_pulled_xy(t._ctrl_points[0])[0], 30.0)
+        t._ctrl_points[3].move_to(500, 500)
+        self.assertEqual(_pulled_xy(t._ctrl_points[3]), (500.0, 500.0))
+
     def test_negative_length_raises(self):
         with self.assertRaises(ValueError):
             Track.line(length=-10)

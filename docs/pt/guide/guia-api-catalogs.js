@@ -463,8 +463,8 @@ const SPATIAL = [
       search: "lamp luz",
       params: [
         P("color", "(1.15, 1.05, 0.85)", "Pigmento", 1, "cor"),
-        P("radius", "38% do lado curto", "Tamanho da área bem iluminada, em pixels da tela (não unidades de design)", 0, "número"),
-        P("range", "55% do lado curto", "Distância, em pixels da tela, a partir da qual não chega luz", 0, "número"),
+        P("radius", "38% do lado curto", "Tamanho da área bem iluminada, em unidades de design (acompanha o zoom)", 0, "número"),
+        P("range", "55% do lado curto", "Distância, em unidades de design, a partir da qual não chega luz", 0, "número"),
         P("ambient", "0.16", "Luz ambiente", 0, "número"),
         P("specular", "0.6", "Brilho especular", 0, "número"),
         P("intensity", "1.15", "Força", 0, "número"),
