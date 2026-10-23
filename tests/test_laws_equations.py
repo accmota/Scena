@@ -25,7 +25,8 @@ contact rule (E15).
 ``dev``: the twins, the first scenario of each program, one swap per
 example; ``ci`` / ``deep``: every scenario and swap. SLOW + SPLIT. The
 examples' E3 and E15 checks are classes of at most ``RUNS_PER_JOB`` runs
-(``TestSpawnOrderExamples1``, …), one gate job each; below ``deep`` an
+(``TestSpawnOrderExamples1``, …) and the programs' of at most
+``PROGRAM_RUNS_PER_JOB`` (``TestSpawnOrderPrograms1``, …), one gate job each; below ``deep`` an
 English example whose Portuguese twin is here is left out (WP33).
 
     python -m unittest tests.test_laws_equations -v
@@ -45,7 +46,7 @@ import hypothesis_support  # noqa: E402
 from hypothesis_support import require_canaries  # noqa: E402
 from laws import equations as eq  # noqa: E402
 from laws.plants import col  # noqa: E402
-from program_support import ProgramRun, Scenario, load_spec  # noqa: E402
+from program_support import ProgramRun, Scenario, load_spec, program_path  # noqa: E402
 from test_prog_invariance import PROGRAMS  # noqa: E402
 from test_scripts_run import law_scripts, scripts  # noqa: E402
 
@@ -136,13 +137,28 @@ class TestSpreadRuns(unittest.TestCase):
 # ~25 s on a machine 3× slower; a job's pool gets ~2 cores' worth in a busy
 # gate. 48 runs × 25 s / 2 = 600 s, a third of the gate's 1 800 s per job.
 RUNS_PER_JOB = 48
+# A program run is in-process and serial (one engine per process): ~2 s in
+# the Mac's loaded gate (511 E3 runs in 1 010 s), ~5 s on a machine 2.5×
+# slower. 120 runs × 5 s = 600 s.
+PROGRAM_RUNS_PER_JOB = 120
+
+
+def _pack(sized, cap):
+    """``[(runs, unit), …]`` → ``[[unit, …], …]``: as few jobs as hold at most
+    ``cap`` runs each, the largest unit first into the lightest job. A unit's
+    runs stay in one job (a script's judge needs them all)."""
+    jobs = max(1, -(-sum(n for n, _u in sized) // cap))
+    load, plan = [0] * jobs, [[] for _ in range(jobs)]
+    for n, unit in sorted(sized, key=lambda s: (-s[0], s[1])):
+        k = load.index(min(load))
+        load[k] += n
+        plan[k].append(unit)
+    return [sorted(job) for job in plan if job]
 
 
 def _shard_plan(make_runs, paths, limit, cap=RUNS_PER_JOB):
-    """``[[path, …], …]``: the scripts in as few jobs as hold at most ``cap``
-    runs each, the largest script first into the lightest job (a script's runs
-    stay in one job: its judge needs them all). A script whose plan fails
-    counts one run: its job reports the error."""
+    """``[[path, …], …]``: the scripts packed by their runs (``_pack``). A
+    script whose plan fails counts one run: its job reports the error."""
     sized = []
     for path in paths:
         try:
@@ -151,13 +167,7 @@ def _shard_plan(make_runs, paths, limit, cap=RUNS_PER_JOB):
             n = 1
         if n:
             sized.append((n, path))
-    jobs = max(1, -(-sum(n for n, _p in sized) // cap))
-    load, plan = [0] * jobs, [[] for _ in range(jobs)]
-    for n, path in sorted(sized, key=lambda s: (-s[0], s[1])):
-        k = load.index(min(load))
-        load[k] += n
-        plan[k].append(path)
-    return [sorted(p) for p in plan if p]
+    return _pack(sized, cap)
 
 
 def _shard_classes(prefix, make_runs, doc):
@@ -172,6 +182,40 @@ def _shard_classes(prefix, make_runs, doc):
         name = f"{prefix}{k}"
         globals()[name] = type(name, (unittest.TestCase,), {
             "__doc__": doc, "__module__": __name__, "test_examples": test_examples})
+
+
+def _program_units(candidates, base_alone):
+    """``[(runs, (program, scenario)), …]``: each program × scenario of this
+    profile, with the runs its check makes (the base run, one per candidate;
+    ``base_alone``: the base runs with no candidate too)."""
+    limit = None if FULL else 2
+    out = []
+    for program in PROGRAMS:
+        ns = load_spec(program, "a")
+        with open(program_path(program), encoding="utf-8") as fh:
+            n = len(candidates(fh.read())[:limit])
+        runs = n + 1 if n or base_alone else 0
+        scenarios = list(ns["SCENARIOS"]) if FULL else list(ns["SCENARIOS"])[:1]
+        out += [(runs, (program, scenario)) for scenario in scenarios if runs]
+    return out
+
+
+def _program_classes(prefix, check, candidates, base_alone, doc):
+    """One TestCase per job of program × scenario units, at most
+    ``PROGRAM_RUNS_PER_JOB`` runs (``prefix1``, …); they run in order, in
+    the job's own process."""
+    limit = None if FULL else 2
+    for k, units in enumerate(_pack(_program_units(candidates, base_alone),
+                                    PROGRAM_RUNS_PER_JOB), 1):
+        def test_programs(self, units=units):
+            specs, out = {}, []
+            for program, scenario in units:
+                ns = specs.setdefault(program, load_spec(program, "a"))
+                out += check(program, ns, scenario, limit=limit)
+            self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+        name = f"{prefix}{k}"
+        globals()[name] = type(name, (unittest.TestCase,), {
+            "__doc__": doc, "__module__": __name__, "test_programs": test_programs})
 
 
 class TestShardPlan(unittest.TestCase):
@@ -203,21 +247,26 @@ class TestShardPlan(unittest.TestCase):
                 with self.subTest(law=make.__name__, script=os.path.basename(path)):
                     self.assertLessEqual(n, RUNS_PER_JOB)
 
+    def test_every_program_scenario_once_and_none_outgrows_a_job(self):
+        for candidates, alone in ((eq.swap_candidates, True), (eq.neutral_candidates, False)):
+            units = _program_units(candidates, alone)
+            plan = _pack(units, PROGRAM_RUNS_PER_JOB)
+            with self.subTest(law=candidates.__name__):
+                self.assertEqual(sorted(u for job in plan for u in job), sorted(u for _n, u in units))
+                self.assertLessEqual(max(n for n, _u in units), PROGRAM_RUNS_PER_JOB)
+                size = dict((u, n) for n, u in units)
+                self.assertTrue(all(sum(size[u] for u in job) <= PROGRAM_RUNS_PER_JOB
+                                    for job in plan))
+
 
 class TestSpawnOrder(unittest.TestCase):
     def test_shooter_twin(self):
         self.assertEqual(eq.e3_program(f"{TWINS}/shooter_order", WAIT, "wait"), [])
 
-    def test_programs(self):
-        out = []
-        for program in PROGRAMS:
-            ns = load_spec(program, "a")
-            for scenario in (list(ns["SCENARIOS"]) if FULL else list(ns["SCENARIOS"])[:1]):
-                out += eq.e3_program(program, ns, scenario, limit=None if FULL else 2)
-        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
 
-
+_program_classes("TestSpawnOrderPrograms", eq.e3_program, eq.swap_candidates, True,
+                 """E3 on the programs, one job of at most ``PROGRAM_RUNS_PER_JOB`` runs.""")
 _shard_classes("TestSpawnOrderExamples", eq.e3_script_runs,
                """E3 on the examples, one job of at most ``RUNS_PER_JOB`` runs.""")
 
@@ -230,16 +279,10 @@ class TestRuleNeutrality(unittest.TestCase):
             self.assertTrue(eq.neutral_candidates(fh.read()), "no neutral rule (vacuous)")
         self.assertEqual(eq.e15_program(f"{TWINS}/shield", WAIT, "wait"), [])
 
-    def test_programs(self):
-        out = []
-        for program in PROGRAMS:
-            ns = load_spec(program, "a")
-            for scenario in (list(ns["SCENARIOS"]) if FULL else list(ns["SCENARIOS"])[:1]):
-                out += eq.e15_program(program, ns, scenario, limit=None if FULL else 2)
-        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
 
-
+_program_classes("TestRuleNeutralityPrograms", eq.e15_program, eq.neutral_candidates, False,
+                 """E15 on the programs, one job of at most ``PROGRAM_RUNS_PER_JOB`` runs.""")
 _shard_classes("TestRuleNeutralityExamples", eq.e15_script_runs,
                """E15 on the examples, one job of at most ``RUNS_PER_JOB`` runs.""")
 
