@@ -306,8 +306,12 @@ class TestDraftAndCheck(unittest.TestCase):
                                        '<svg><text x="1">barra.x = 3</text></svg>', gn, gs),
                          ['"heroi"', "barra"])
         self.assertEqual(tp.names_left("<code>paddle</code> <text>paddle</text>", gn, gs), [])
+        # A file keeps its name (tutorial 22: audio/nota.wav is a real file).
+        self.assertEqual(tp.names_left("<code>audio/barra.wav</code>", gn, gs), [])
         out = tp.draft("99", self.pt, self.en, NAMES)
         self.assertNotIn("<code>barra</code>", out.read_text(encoding="utf-8"))
+        self.assertEqual(tp.rename_code("audio/barra.wav", gn, gs), "audio/paddle.wav",
+                         "the scanner alone would rename it: the draft guards file names")
 
     def test_the_glossary_and_the_page_agree(self):
         out = tp.draft("99", self.pt, self.en, NAMES)

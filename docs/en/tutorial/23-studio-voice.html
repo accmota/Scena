@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio II — Voice — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "23",
+  title: "Studio II · Voice",
+  steps: [
+    {
+      title: "The piano from 22",
+      body: `
+        <p>A new script, which starts with the piano from 22, without the equalizer. On the piano, you played and the sound came out. Now it is the other way around: <strong>the sound drives the screen</strong>. The piano will play your voice, a bar will show how loud you are speaking, and a star will dance with a light that grows with your voice.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Studio")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+run()
+`
+    },
+    {
+      title: "The microphone",
+      body: [
+        `
+        <p>The R key records two seconds of your voice and plays them back. A dot in the top right corner is the recording light, and the <code>Recorder</code> class takes care of everything to do with the microphone. Recording starts in one line:</p>
+        `,
+        {
+          snip: `self.take = self.mic.record(seconds=2, on_done=self.recorded)`
+        },
+        `
+        <p><code>record</code> starts recording and hands back the recording right away, kept in <code>self.take</code>. But it is still being made, and it can only be played once it is finished. That is what <code>on_done</code> is for: when the two seconds are up, Scena calls <code>recorded</code>, which plays what you said.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="A timeline: at 0 seconds, the R key starts the recording; it lasts until 2 seconds; at 2 seconds, Scena calls recorded, which plays the recording">
+            <line class="ray" x1="30" y1="70" x2="370" y2="70"/>
+            <rect class="bar" x="60" y="56" width="200" height="14"/>
+            <circle class="dot" cx="60" cy="70" r="4"/>
+            <circle class="hot" cx="260" cy="70" r="5"/>
+            <text x="160" y="48" text-anchor="middle">recording</text>
+            <text x="268" y="48">recorded: plays</text>
+            <text x="60" y="90" text-anchor="middle">R</text>
+            <text x="60" y="104" text-anchor="middle">0 s</text>
+            <text x="260" y="104" text-anchor="middle">2 s</text>
+          </svg>
+          <figcaption>R only starts the recording. The recording exists from the start, but it is ready two seconds later, and that is when <code>recorded</code> runs.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=600, title="Studio")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Recorder(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.record_voice()
+
+    def record_voice(self):
+        if not self.mic:
+            self.mic = Microphone()
+        if self.mic.recording:
+            return
+        self.take = self.mic.record(seconds=2, on_done=self.recorded)
+        self.color = "red"
+        notice.text = "Speak!"
+
+    def recorded(self):
+        play_sound(self.take)
+        self.color = "dim gray"
+        notice.text = "R records again"
+
+
+recorder = Recorder(center=(975, 575))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.mic = None",
+          text: "Until the first R, there is no microphone: <code>self.mic</code> starts as <code>None</code> (nothing)."
+        },
+        {
+          at: "self.mic = Microphone()",
+          text: "<code>Microphone()</code> opens the computer's microphone; nothing is picked up before this line. The recorder opens it on the first R, not at the start of the program: the program only listens when you ask. <code>if not self.mic</code> asks whether it has not been opened yet."
+        },
+        {
+          at: "if self.mic.recording:",
+          text: "<code>recording</code> is true while it records. An R in the middle of a recording does not start another one: the <code>return</code> leaves <code>record_voice</code> first."
+        },
+        {
+          at: "self.color = \"red\"",
+          text: "While it records, the light turns red and the notice says \"Speak!\". <code>recorded</code> turns the light off."
+        },
+        {
+          at: "play_sound(self.take)",
+          text: "<code>play_sound</code> plays the recording just as it would play a file."
+        }
+      ],
+      after: `
+        <p>Run it, press R and speak.</p>
+        <p>The first time, the system asks whether the program that runs your script (Terminal, VS Code…) may use the microphone. Say yes. If the question showed up in the middle of the recording and it came out silent, press R again. If you say no, the microphone stays silent, and Scena warns you in the console.</p>
+      `
+    },
+    {
+      title: "The keys sing",
+      body: `
+        <p>Instead of playing the recording once, the recorder keeps it, and the piano plays it from then on. Record "la", and the piano sings: your voice at the eight pitches, from A to K.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Studio")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound(recorder.sound, pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Recorder(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.sound = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.record_voice()
+
+    def record_voice(self):
+        if not self.mic:
+            self.mic = Microphone()
+        if self.mic.recording:
+            return
+        self.take = self.mic.record(seconds=2, on_done=self.recorded)
+        self.color = "red"
+        notice.text = "Speak!"
+
+    def recorded(self):
+        self.sound = self.take
+        self.color = "dim gray"
+        notice.text = "The keys play your voice. R records again"
+
+
+recorder = Recorder(center=(975, 575))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "play_sound(recorder.sound",
+          text: "The key plays the recorder's sound. <code>play_sound</code> takes a file name or a recorded sound, and <code>pitch=</code> works for both."
+        },
+        {
+          at: "self.sound = \"audio/nota.wav\"",
+          text: "<code>self.sound</code> is the sound the piano plays. Until the first recording, it is the usual piano note."
+        },
+        {
+          at: "self.sound = self.take",
+          text: "When the recording is ready, it becomes the piano's sound."
+        }
+      ],
+      after: `
+        <p>Run it, press R and say "la". Then run your fingers from A to K.</p>
+      `,
+      try: [
+        {
+          note: "Your voice with an effect. <code>bake</code> applies the effect once and returns a new sound, ready to play: the eight keys play your voice with an echo. One at a time, in place of the line <code>self.sound = self.take</code>: <code>Echo</code>, <code>Reverb</code> (a room), <code>Distortion</code>, <code>LowPass</code> (muffled) and <code>HighPass</code> (thin, like a radio).",
+          replaces: ['self.sound = self.take'],
+          code: `self.sound = self.take.bake(Echo(delay=0.25, decay=0.6))
+self.sound = self.take.bake(Reverb(size=1.2))
+self.sound = self.take.bake(Distortion())
+self.sound = self.take.bake(LowPass())
+self.sound = self.take.bake(HighPass())`
+        }
+      ]
+    },
+    {
+      title: "The meter",
+      body: [
+        `
+        <p>A bar in the top left shows how loud you are speaking right now. Its width is a formula:</p>
+        `,
+        {
+          snip: `bar["width"] @= lambda: 300 * st.voice`
+        },
+        `
+        <p>A formula, not a copy: <code>=</code> would do the math once, with <code>st.voice</code> still 0, and the bar would stand still. <code>@=</code> keeps the formula, and Scena redoes it every time <code>st.voice</code> changes (the rules are in Formulas, 09). What makes <code>st.voice</code> change is another formula, linked to the microphone.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=600, title="Studio")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+st.voice = 0
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound(recorder.sound, pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Recorder(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.sound = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.record_voice()
+
+    def record_voice(self):
+        if not self.mic:
+            self.mic = Microphone()
+            st["voice"] @= lambda: amp_db(self.mic.level)
+        if self.mic.recording:
+            return
+        self.take = self.mic.record(seconds=2, on_done=self.recorded)
+        self.color = "red"
+        notice.text = "Speak!"
+
+    def recorded(self):
+        self.sound = self.take
+        self.color = "dim gray"
+        notice.text = "The keys play your voice. R records again"
+
+
+recorder = Recorder(center=(975, 575))
+
+
+Rect(top_left=(20, 550), width=300, height=10, color="#262B55")
+bar = Rect(top_left=(20, 550), width=0, height=10, color="lime")
+bar["width"] @= lambda: 300 * st.voice
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.voice = 0",
+          text: "The voice in a field of <code>st</code>, which exists from the start and is 0 until the first R."
+        },
+        {
+          at: "st[\"voice\"] @= lambda: amp_db(self.mic.level)",
+          text: "When the first R opens the microphone, the field links to it. <code>level</code> says how loud the sound gets, from 0 to 1, but speech only reaches a few hundredths. <code>amp_db</code> turns the level into the scale of the ear: silence lands near 0, speech in the middle, a shout near 1."
+        },
+        {
+          at: "color=\"#262B55\"",
+          text: "The dark rectangle, with no name, is the meter's rail: it shows how far the bar can go."
+        }
+      ],
+      after: [
+        `
+        <p>Run it, press R and speak: the bar moves with your voice. These are two formulas in a row: the bar follows <code>st.voice</code>, and <code>st.voice</code> follows the microphone. No line copies anything.</p>
+        <p>It looks simpler to link the bar straight to the microphone, without the field in between:</p>
+        `,
+        {
+          snip: `bar["width"] @= lambda: 300 * amp_db(recorder.mic.level)`,
+          alt: true
+        },
+        `
+        <p>But a formula takes effect the moment it is linked, and at the start of the program there is no microphone yet: <code>recorder.mic</code> is <code>None</code>, and that line would raise an error. That is why the microphone's <code>@=</code> sits in <code>record_voice</code>, right after opening it, and the bar links to <code>st.voice</code>, which exists from the start. As a bonus, the voice gets a single name, for the bar and for whatever comes next.</p>
+        `
+      ],
+      try: [
+        {
+          note: "The copy, to see the difference. In place of the <code>@=</code>, the bar stays at 0 (the math was done once, at the start):",
+          replaces: ['bar["width"]'],
+          code: `bar.width = 300 * st.voice`
+        }
+      ],
+      dive: [
+        {
+          title: "What you can link",
+          body: `
+            <p>A formula is redone when something it reads changes. The microphone's level (<code>self.mic.level</code>) is one of these sources: Scena checks it once per frame, as it does with the clock. The keys and the mouse are sources too, and the boxes below swap the voice for them. The rules of <code>@=</code> are in Formulas (09).</p>
+            <p>In the Guide: <a href="../guide/index.html#reativo-liga">Link</a> · <a href="../guide/index.html#reativo-fontes">What can be linked</a>.</p>
+          `,
+          try: [
+            {
+              note: "Other sources, one at a time, in place of the bar's <code>@=</code>: the bar full while the space bar is held; the bar that follows the mouse. <code>300 if keyp(\"SPACE\") else 0</code> is an <code>if</code> on a single line: it is 300 if the space bar is held; otherwise, 0.",
+              replaces: ['bar["width"]'],
+              code: `bar["width"] @= lambda: 300 if keyp("SPACE") else 0`
+            },
+            {
+              replaces: ['bar["width"]'],
+              code: `bar["width"] @= lambda: mouse.x / 3`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "The dancing light",
+      body: `
+        <p>A star travels a figure-eight path above the keys, and a light goes with it, growing with your voice.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Studio")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+st.voice = 0
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound(recorder.sound, pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Recorder(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.sound = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.record_voice()
+
+    def record_voice(self):
+        if not self.mic:
+            self.mic = Microphone()
+            st["voice"] @= lambda: amp_db(self.mic.level)
+        if self.mic.recording:
+            return
+        self.take = self.mic.record(seconds=2, on_done=self.recorded)
+        self.color = "red"
+        notice.text = "Speak!"
+
+    def recorded(self):
+        self.sound = self.take
+        self.color = "dim gray"
+        notice.text = "The keys play your voice. R records again"
+
+
+recorder = Recorder(center=(975, 575))
+
+
+Rect(top_left=(20, 550), width=300, height=10, color="#262B55")
+bar = Rect(top_left=(20, 550), width=0, height=10, color="lime")
+bar["width"] @= lambda: 300 * st.voice
+
+
+track = Track.eight(width=760, height=140, center=(500, 470))
+star = Sprite("space/star_gold.png", size=32)
+star.move_along(track, time=8, loops="forever")
+light = GlowSpot(center=lambda: star.center, color="gold")
+light["radius"] @= lambda: 30 + 120 * st.voice
+light["amount"] @= lambda: 0.3 + st.voice
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Track.eight(",
+          text: "<code>Track</code> is an invisible path; <code>Track.eight</code> is shaped like a figure eight, 760 wide and 140 tall, above the keys. <kbd>Ctrl+Shift+7</kbd> shows the tracks in magenta."
+        },
+        {
+          at: "star.move_along(",
+          text: "<code>move_along</code> puts the star on the path: one full lap every 8 seconds, forever. It moves on its own, without a single line in <code>update</code>."
+        },
+        {
+          at: "center=lambda: star.center",
+          text: "<code>GlowSpot</code> (a spot of light) is a world effect. An effect does not travel a track: it follows the star, with its center linked to the star's by a formula."
+        },
+        {
+          at: "light[\"radius\"] @=",
+          text: "Its reach (<code>radius</code>) and its brightness (<code>amount</code>) link to <code>st.voice</code>, like the bar."
+        }
+      ],
+      after: `
+        <p>Run it and speak: the light grows and brightens; in silence, it stays small and faint. Everything that reacts to your voice goes through <code>st.voice</code>:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 170" role="img" aria-label="On the left, the microphone, with mic.level; an arrow marked @= leads to st.voice, in the middle; from st.voice, three arrows marked @= lead to bar.width, light.radius and light.amount, on the right">
+            <rect class="bar child" x="8" y="64" width="92" height="42" rx="4"/>
+            <text x="20" y="82">microphone</text>
+            <text x="20" y="97">mic.level</text>
+            <line class="ray" x1="100" y1="85" x2="160" y2="85"/>
+            <line class="ray" x1="160" y1="85" x2="153" y2="80"/>
+            <line class="ray" x1="160" y1="85" x2="153" y2="90"/>
+            <text x="120" y="76">@=</text>
+            <rect class="bar" x="160" y="68" width="70" height="34" rx="4"/>
+            <text x="174" y="89">st.voice</text>
+            <line class="ray" x1="230" y1="85" x2="290" y2="35"/>
+            <line class="ray" x1="290" y1="35" x2="286.5" y2="43.2"/>
+            <line class="ray" x1="290" y1="35" x2="281.3" y2="37"/>
+            <line class="ray" x1="230" y1="85" x2="290" y2="85"/>
+            <line class="ray" x1="290" y1="85" x2="283" y2="80"/>
+            <line class="ray" x1="290" y1="85" x2="283" y2="90"/>
+            <line class="ray" x1="230" y1="85" x2="290" y2="135"/>
+            <line class="ray" x1="290" y1="135" x2="281.3" y2="133"/>
+            <line class="ray" x1="290" y1="135" x2="286.5" y2="126.8"/>
+            <text x="240" y="50">@=</text>
+            <text x="250" y="80">@=</text>
+            <text x="240" y="130">@=</text>
+            <circle class="dot" cx="296" cy="35" r="3"/>
+            <circle class="dot" cx="296" cy="85" r="3"/>
+            <circle class="dot" cx="296" cy="135" r="3"/>
+            <text x="304" y="39">bar.width</text>
+            <text x="304" y="89">light.radius</text>
+            <text x="304" y="139">light.amount</text>
+          </svg>
+          <figcaption>Four formulas, no copies. <code>st.voice</code> is linked to the microphone's level; the bar and the light are linked to <code>st.voice</code>. When you speak, everything changes on its own.</figcaption>
+        </figure>
+      `,
+      try: [
+        {
+          note: "Other tracks, one at a time, in place of the <code>track</code> line: a circle, a five-pointed star, a path of your own (points joined by a curve, back to the start).",
+          replaces: ['track = Track'],
+          code: `track = Track.circle(radius=110, center=(500, 470))
+track = Track.star(points=5, radius=110, center=(500, 470))
+track = Track(points=[(120, 420), (360, 540), (640, 400), (880, 520)], closed=True)`
+        },
+        {
+          note: "The star grows with your voice too (at the end of the script):",
+          code: `star["scale"] @= lambda: 1 + st.voice`
+        }
+      ]
+    },
+    {
+      title: "Claps",
+      example: "studio_voice.py",
+      body: [
+        `
+        <p>Clap once: a sun bursts where the star is. A clap is the voice going past a limit, and what notices it is a <code>@when</code>:</p>
+        `,
+        {
+          snip: `@when(lambda: st.voice > 0.75)
+def clap():`
+        },
+        `
+        <p><code>@when</code> runs <code>clap</code> once, the instant the condition goes from false to true. While the sound stays loud, it does not run again; the next clap needs a moment of silence first.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="The value of st.voice over time, with a dashed line at 0.75; the voice goes past the line twice, and a dot marks each upward crossing: clap 1 and clap 2; between them, the voice drops, in silence">
+            <line class="guide" x1="50" y1="50" x2="370" y2="50"/>
+            <path class="ray" fill="none" d="M50 100 L100 100 C115 100 120 20 135 20 C150 20 155 100 170 100 L230 100 C245 100 250 20 265 20 C280 20 285 100 300 100 L370 100"/>
+            <circle class="hot" cx="120" cy="50" r="5"/>
+            <circle class="hot" cx="250" cy="50" r="5"/>
+            <text x="44" y="54" text-anchor="end">0.75</text>
+            <text x="44" y="104" text-anchor="end">0</text>
+            <text x="200" y="92" text-anchor="middle">silence</text>
+            <text x="120" y="122" text-anchor="middle">clap 1</text>
+            <text x="250" y="122" text-anchor="middle">clap 2</text>
+          </svg>
+          <figcaption>The voice over time. <code>@when</code> runs only at the dots, when the voice rises past 0.75, and not while it stays up there.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=600, title="Studio")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+st.voice = 0
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound(recorder.sound, pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+
+notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, color="silver")
+
+
+class Recorder(Circle, radius=10, color="dim gray"):
+    def setup(self):
+        self.mic = None
+        self.sound = "audio/nota.wav"
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            self.record_voice()
+
+    def record_voice(self):
+        if not self.mic:
+            self.mic = Microphone()
+            st["voice"] @= lambda: amp_db(self.mic.level)
+        if self.mic.recording:
+            return
+        self.take = self.mic.record(seconds=2, on_done=self.recorded)
+        self.color = "red"
+        notice.text = "Speak!"
+
+    def recorded(self):
+        self.sound = self.take
+        self.color = "dim gray"
+        notice.text = "The keys play your voice. R records again"
+
+
+recorder = Recorder(center=(975, 575))
+
+
+Rect(top_left=(20, 550), width=300, height=10, color="#262B55")
+bar = Rect(top_left=(20, 550), width=0, height=10, color="lime")
+bar["width"] @= lambda: 300 * st.voice
+
+
+track = Track.eight(width=760, height=140, center=(500, 470))
+star = Sprite("space/star_gold.png", size=32)
+star.move_along(track, time=8, loops="forever")
+light = GlowSpot(center=lambda: star.center, color="gold")
+light["radius"] @= lambda: 30 + 120 * st.voice
+light["amount"] @= lambda: 0.3 + st.voice
+
+
+@when(lambda: st.voice > 0.75)
+def clap():
+    sun = Sunburst(center=star.center, radius=100)
+    sun.after(0.8, sun.destroy)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "sun = Sunburst(center=star.center",
+          text: "<code>Sunburst</code> is another world effect. <code>center=star.center</code>, without <code>lambda</code>, is a copy: the sun stays where the star was, and the star moves on."
+        },
+        {
+          at: "sun.after(0.8, sun.destroy)",
+          text: "<code>after</code> calls <code>sun.destroy</code> 0.8 s later: the sun bursts and is gone."
+        }
+      ],
+      after: [
+        `
+        <p>Run it, press R once to open the microphone, and clap.</p>
+        <p>The 0.75 depends on your microphone and the room. Watch the meter: three quarters of the bar. If a clap does not set off the sun, lower it (0.65); if the sun bursts when you are only talking, raise it.</p>
+        <p>An <code>update</code> asking the same question would not do:</p>
+        `,
+        {
+          snip: `def update(dt):
+    if st.voice > 0.75:
+        clap()`,
+          alt: true
+        },
+        `
+        <p>It asks every frame, and a clap stays above the limit for several frames: you would get one sun per frame, a pile of them for every clap.</p>
+        `
+      ],
+      try: [
+        {
+          note: "Other bursts, one at a time, in place of the two <code>Sunburst</code> lines: an <code>Orb</code> (a sun with a corona); an impact, which goes away on its own (no <code>destroy</code>); the screen flashing.",
+          replaces: ['sun = Sunburst(', 'sun.after('],
+          code: `sun = Orb(center=star.center, radius=50)
+sun.after(0.8, sun.destroy)`
+        },
+        {
+          replaces: ['sun = Sunburst(', 'sun.after('],
+          code: `canvas.burst_at(star, radius=120)`
+        },
+        {
+          replaces: ['sun = Sunburst(', 'sun.after('],
+          code: `canvas.flash(0.2)`
+        }
+      ],
+      closing: `
+        <p>A S D F G H J K play the eight notes; so does a click on a key. R records two seconds of your voice (the first time, the system asks permission to use the microphone), and then the keys play the recording. The bar shows how loud you are speaking, the star dances in a figure eight with a light that grows with your voice, and a clap sets off a sun.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Microphone()</code> — opens the microphone; nothing is picked up before. The first time, the system asks permission.</li>
+          <li><code>record(seconds=2, on_done=…)</code> — records a sound, which only plays once the recording is over; <code>play_sound</code> plays the recording like a file, with <code>pitch=</code>.</li>
+          <li><code>amp_db(self.mic.level)</code> — how loud the sound is right now, on the scale of the ear, from 0 to 1.</li>
+          <li><code>@=</code> — a formula, not a copy; it is linked once its source exists, which is why <code>st.voice</code> only links to the microphone when it opens.</li>
+          <li><code>Track</code> and <code>move_along</code> — an invisible curve, and an object that travels it on its own, lap after lap.</li>
+          <li><code>@when</code> on the level — once per clap, when the sound goes past the limit.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#som-mic">Microphone</a> · <a href="../guide/index.html#som-audio">audio and amp_db</a> · <a href="../guide/index.html#som-fx">Sound effects</a> · <a href="../guide/index.html#reativo-fontes">What can be linked</a> · <a href="../guide/index.html#desenhar-track">Track</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a>.</p>
+        <p><strong>Also try:</strong> hearing your voice live, with an effect: <code>play_sound(recorder.mic)</code> and <code>recorder.mic.effects.add(Echo())</code> (with headphones; without them, the sound comes out of the speaker and back into the microphone).</p>
+        <p><strong>Next:</strong> back to the ships, with chapters: the fleet flies into formation, dives and comes back.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Record different sounds on different keys.</li>
+          <li>Can you make the star change color when you speak loudly?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

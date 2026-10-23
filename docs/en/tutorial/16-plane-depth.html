@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plane II — Depth — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "16",
+  title: "Plane II · Depth",
+  steps: [
+    {
+      title: "The game from Plane",
+      body: `
+        <p>A new script that starts with the plane game already done: the pillars, the score, the crash and SPACE to restart. Here it gains depth: mountains and clouds that pass behind it, some faster than others. And music.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+st.flying = True
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+notice = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        if st.flying:
+            goal = 0
+            if keyp("UP"):
+                goal = 30
+            if keyp("DOWN"):
+                goal = -30
+            self.rotate_to(chase(self.angle, goal, rate=4))
+            arrow = vec_from_angle(self.angle, length=220)
+            self.move_by(0, arrow.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.fall()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pillar")
+    def crashed(self, pillar):
+        if st.flying:
+            self.fall()
+
+    def fall(self):
+        st.flying = False
+        self.play("falling")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        notice.text = "press SPACE"
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    if st.flying:
+        new_pair()
+
+
+def restart():
+    group["pillar"].destroy()
+    group["door"].destroy()
+    st.score = 0
+    st.flying = True
+    notice.text = ""
+    plane.center = (120, 200)
+    plane.rotate_to(0)
+    plane.play("flying")
+
+
+def update(dt):
+    if st.flying:
+        group["pillar"].move_by(-120 * dt, 0)
+        group["door"].move_by(-120 * dt, 0)
+    elif keyp("SPACE"):
+        restart()
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "Far and near",
+      body: [
+        `
+        <p>Look out of a car window: the tree by the road flies past, the hill far away barely moves, and the moon seems to come along with you. The farther away, the slower. Drawing the scenery in strips that move at different speeds gives that feeling on the screen, and it is called <em>parallax</em>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 415 210" role="img" aria-label="Four strips, from the farthest, at the top, to the nearest, at the bottom: clouds, hills, bushes and pillars; each one has an arrow pointing left, shorter for what is far and longer for what is near">
+            <text x="10" y="28">far</text>
+            <text x="10" y="190">near</text>
+            <line class="guide" x1="30" y1="40" x2="30" y2="170"/>
+            <rect class="bar child" x="50" y="34" width="60" height="14" rx="7"/>
+            <rect class="bar" x="50" y="70" width="40" height="22" rx="3"/>
+            <rect class="bar" x="95" y="78" width="30" height="14" rx="3"/>
+            <rect class="dot" x="50" y="118" width="70" height="10" rx="5"/>
+            <rect class="bar" x="70" y="146" width="16" height="40" rx="3"/>
+            <line class="ray" x1="330" y1="41" x2="312" y2="41"/>
+            <line class="ray" x1="312" y1="41" x2="319" y2="36"/>
+            <line class="ray" x1="312" y1="41" x2="319" y2="46"/>
+            <text x="338" y="45">clouds 12</text>
+            <line class="ray" x1="330" y1="84" x2="276" y2="84"/>
+            <line class="ray" x1="276" y1="84" x2="283" y2="79"/>
+            <line class="ray" x1="276" y1="84" x2="283" y2="89"/>
+            <text x="338" y="88">hills 36</text>
+            <line class="ray" x1="330" y1="123" x2="204" y2="123"/>
+            <line class="ray" x1="204" y1="123" x2="211" y2="118"/>
+            <line class="ray" x1="204" y1="123" x2="211" y2="128"/>
+            <text x="338" y="127">bushes 84</text>
+            <line class="ray" x1="330" y1="166" x2="150" y2="166"/>
+            <line class="ray" x1="150" y1="166" x2="157" y2="161"/>
+            <line class="ray" x1="150" y1="166" x2="157" y2="171"/>
+            <text x="338" y="170">pillars 120</text>
+          </svg>
+          <figcaption>The farther away, the slower. The arrows show how far each strip moves left in one second.</figcaption>
+        </figure>
+        <p>Each strip goes on a layer of its own:</p>
+        `,
+        {
+          snip: `hills = canvas.layers.create("hills", scroll=(-36, 0), below="default")`
+        },
+        `
+        <p>A <em>layer</em> is a named drawing plane, like a sheet of transparent paper. <code>scroll=(-36, 0)</code> makes the layer move on its own, 36 per second to the left, with everything on it. <code>below="default"</code> puts it behind the layer where the game happens: the pillars and the plane pass in front.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+clouds = canvas.layers.create("clouds", scroll=(-12, 0), below="default")
+hills = canvas.layers.create("hills", scroll=(-36, 0), below="default")
+bushes = canvas.layers.create("bushes", scroll=(-84, 0), below="default")
+Endless("clouds", "backgrounds/mountains/mountains2.png", height=360)
+Endless("hills", "backgrounds/mountains/mountains3.png", height=360)
+Endless("bushes", "backgrounds/mountains/mountains4.png", height=360)
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+st.flying = True
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+notice = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        if st.flying:
+            goal = 0
+            if keyp("UP"):
+                goal = 30
+            if keyp("DOWN"):
+                goal = -30
+            self.rotate_to(chase(self.angle, goal, rate=4))
+            arrow = vec_from_angle(self.angle, length=220)
+            self.move_by(0, arrow.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.fall()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pillar")
+    def crashed(self, pillar):
+        if st.flying:
+            self.fall()
+
+    def fall(self):
+        st.flying = False
+        self.play("falling")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        notice.text = "press SPACE"
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    if st.flying:
+        new_pair()
+
+
+def restart():
+    group["pillar"].destroy()
+    group["door"].destroy()
+    st.score = 0
+    st.flying = True
+    notice.text = ""
+    plane.center = (120, 200)
+    plane.rotate_to(0)
+    plane.play("flying")
+
+
+def update(dt):
+    if st.flying:
+        group["pillar"].move_by(-120 * dt, 0)
+        group["door"].move_by(-120 * dt, 0)
+    elif keyp("SPACE"):
+        restart()
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "clouds = canvas.layers.create(\"clouds\"",
+          text: "The strips are created from back to front. Between layers in the same place, the one created later is in front: the clouds, first, at the back; the bushes, last, nearest."
+        },
+        {
+          at: "Endless(\"hills\"",
+          text: "<code>Endless</code> fills the layer with the same image, one right after the other: however far the plane flies, there is always more landscape coming in from the right. Each image is the size of the screen and has a transparent background; <code>height=360</code> is its height."
+        }
+      ],
+      after: `
+        <p>Fly, and then crash.</p>
+        <details class="ask"><summary>What keeps moving after the crash?</summary><p>The mountains. The plane falls and the pillars stop, but each layer has its own <code>scroll</code> and moves on its own, knowing nothing about the flight.</p></details>
+      `,
+      dive: [
+        {
+          title: "Layers",
+          body: `
+            <p>Everything on the screen is on a layer, and layers decide what is in front. Three already exist: <code>default</code> (where everything is born), <code>top</code> (in front of the world) and <code>ui</code> (the HUD, fixed to the window). <code>canvas.layers.create</code> creates others, by name, and <code>below=</code> / <code>above=</code> say where they go. Between two layers on the same side, the order of creation decides: the one created later is in front. That is why the strips in this game are created from back to front, the farthest first.</p>
+            <p><code>scroll=</code> is a drift: the layer moves at that speed, with nothing in the game pushing it. Here the camera stays still and the scenery is what passes by.</p>
+            <p>In the Guide: <a href="../guide/index.html#mundo-camadas">Layers</a> · <a href="../guide/index.html#mundo-sem-fim">Endless world</a>.</p>
+          `
+        }
+      ],
+      try: [
+          {
+            note: "A different ground in place of the bushes: low grass, from the same folder. In place of the bushes' <code>Endless</code>:",
+            replaces: ['Endless("bushes"'],
+            code: `Endless("bushes", "backgrounds/mountains/grass.png", height=360)`
+          }
+        ]
+    },
+    {
+      title: "One speed",
+      body: `
+        <p>Each layer moves at its own number, and the pillars at theirs. But it is all the same flight: when the plane falls, everything should stop together. For that, the flight gets a single speed, <code>st.pace</code>, and each strip moves at a fraction of it:</p>
+        <div class="tbl"><table><thead><tr><th>Strip</th><th>Fraction of the flight</th><th>At 120 per second</th></tr></thead><tbody>
+          <tr><td>clouds</td><td><code>0.1</code></td><td>12</td></tr>
+          <tr><td>hills</td><td><code>0.3</code></td><td>36</td></tr>
+          <tr><td>bushes</td><td><code>0.7</code></td><td>84</td></tr>
+          <tr><td>pillars</td><td>all of it</td><td>120</td></tr>
+        </tbody></table></div>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+clouds = canvas.layers.create("clouds", scroll=(-12, 0), below="default")
+hills = canvas.layers.create("hills", scroll=(-36, 0), below="default")
+bushes = canvas.layers.create("bushes", scroll=(-84, 0), below="default")
+Endless("clouds", "backgrounds/mountains/mountains2.png", height=360)
+Endless("hills", "backgrounds/mountains/mountains3.png", height=360)
+Endless("bushes", "backgrounds/mountains/mountains4.png", height=360)
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+st.flying = True
+st.pace = 120
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+notice = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        if st.flying:
+            goal = 0
+            if keyp("UP"):
+                goal = 30
+            if keyp("DOWN"):
+                goal = -30
+            self.rotate_to(chase(self.angle, goal, rate=4))
+            arrow = vec_from_angle(self.angle, length=220)
+            self.move_by(0, arrow.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.fall()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pillar")
+    def crashed(self, pillar):
+        if st.flying:
+            self.fall()
+
+    def fall(self):
+        st.flying = False
+        self.play("falling")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        notice.text = "press SPACE"
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    if st.flying:
+        new_pair()
+
+
+def restart():
+    group["pillar"].destroy()
+    group["door"].destroy()
+    st.score = 0
+    st.flying = True
+    st.pace = 120
+    notice.text = ""
+    plane.center = (120, 200)
+    plane.rotate_to(0)
+    plane.play("flying")
+
+
+def update(dt):
+    if not st.flying:
+        st.pace = chase(st.pace, 0, rate=2)
+        if keyp("SPACE"):
+            restart()
+    group["pillar"].move_by(-st.pace * dt, 0)
+    group["door"].move_by(-st.pace * dt, 0)
+    clouds.scroll = (-st.pace * 0.1, 0)
+    hills.scroll = (-st.pace * 0.3, 0)
+    bushes.scroll = (-st.pace * 0.7, 0)
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.pace = chase(st.pace, 0, rate=2)",
+          text: "During the fall, the speed chases zero: the same <code>chase</code> as the plane's nose, now on a number. Pillars and layers slow down together and stop within a second or two."
+        },
+        {
+          at: "hills.scroll = (-st.pace * 0.3, 0)",
+          text: "The layer moves at 30% of the flight. The <code>scroll=</code> from its creation stays in place; from here on, <code>update</code> changes the value every frame."
+        }
+      ],
+      after: `
+        <p>Run it, fly and crash: now the scenery slows down together with the pillars. Restarting brings back the 120.</p>
+      `,
+      try: [
+          {
+            note: "Faster with every point: the flight speeds up by 4 per point. In the <code>Plane</code>'s <code>passed</code>, after <code>st.score += 1</code>:",
+            code: `st.pace += 4`
+          }
+        ]
+    },
+    {
+      title: "Fire on the way down",
+      body: `
+        <p>The broken plane falls with fire on its tail, and the fire goes with it all the way to the ground.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+clouds = canvas.layers.create("clouds", scroll=(-12, 0), below="default")
+hills = canvas.layers.create("hills", scroll=(-36, 0), below="default")
+bushes = canvas.layers.create("bushes", scroll=(-84, 0), below="default")
+Endless("clouds", "backgrounds/mountains/mountains2.png", height=360)
+Endless("hills", "backgrounds/mountains/mountains3.png", height=360)
+Endless("bushes", "backgrounds/mountains/mountains4.png", height=360)
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+st.flying = True
+st.pace = 120
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+notice = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        if st.flying:
+            goal = 0
+            if keyp("UP"):
+                goal = 30
+            if keyp("DOWN"):
+                goal = -30
+            self.rotate_to(chase(self.angle, goal, rate=4))
+            arrow = vec_from_angle(self.angle, length=220)
+            self.move_by(0, arrow.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.fall()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pillar")
+    def crashed(self, pillar):
+        if st.flying:
+            self.fall()
+
+    def fall(self):
+        st.flying = False
+        self.play("falling")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        self.move_to_front()
+        self.fire = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
+        notice.text = "press SPACE"
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    if st.flying:
+        new_pair()
+
+
+def restart():
+    group["pillar"].destroy()
+    group["door"].destroy()
+    st.score = 0
+    st.flying = True
+    st.pace = 120
+    notice.text = ""
+    plane.center = (120, 200)
+    plane.rotate_to(0)
+    plane.play("flying")
+    plane.fire.destroy()
+
+
+def update(dt):
+    if not st.flying:
+        st.pace = chase(st.pace, 0, rate=2)
+        if keyp("SPACE"):
+            restart()
+    group["pillar"].move_by(-st.pace * dt, 0)
+    group["door"].move_by(-st.pace * dt, 0)
+    clouds.scroll = (-st.pace * 0.1, 0)
+    hills.scroll = (-st.pace * 0.3, 0)
+    bushes.scroll = (-st.pace * 0.7, 0)
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.fire = Fire(",
+          text: "<code>Fire</code> is an effect that lives in the world; <code>style=\"tongues\"</code> gives small flames attached to a point. The point is the tail: <code>Vec2(-20, 8)</code> goes from the plane's center to it, and <code>.rotate(self.angle)</code> turns that path along with the plane. Since the center is a <code>lambda</code>, the fire stays on the tail all the way down."
+        },
+        {
+          at: "self.move_to_front()",
+          text: "The pillars were born after the plane, so they are drawn over it; the fire is born at the crash, after the pillars, and would be in front of them. <code>move_to_front</code> brings the plane in front of the pillars, and the fire, created right after, stays in front along with it."
+        },
+        {
+          at: "plane.fire.destroy()",
+          text: "The fire was kept in <code>self.fire</code>, and <code>restart</code> removes it."
+        }
+      ],
+      after: `
+        <p>Hit a pillar: the fire stays on the tail while the plane falls, and goes out when the game restarts.</p>
+      `,
+      try: [
+          {
+            note: "One at a time, in place of the <code>Fire</code> in <code>fall</code>: a bigger fire, or fire on the whole plane.",
+            replaces: ['self.fire = Fire('],
+            code: `self.fire = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=20, style="tongues")
+self.fire = Fire(center=lambda: self.center, width=14, style="plume")`
+          }
+        ]
+    },
+    {
+      title: "Music",
+      example: "plane_depth.py",
+      body: `
+        <p>Music for the flight, which gets quieter when the plane falls and comes back when the game restarts.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+clouds = canvas.layers.create("clouds", scroll=(-12, 0), below="default")
+hills = canvas.layers.create("hills", scroll=(-36, 0), below="default")
+bushes = canvas.layers.create("bushes", scroll=(-84, 0), below="default")
+Endless("clouds", "backgrounds/mountains/mountains2.png", height=360)
+Endless("hills", "backgrounds/mountains/mountains3.png", height=360)
+Endless("bushes", "backgrounds/mountains/mountains4.png", height=360)
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+st.flying = True
+st.pace = 120
+
+music = play_sound("audio/SuperHero_original_no_Intro.ogg", loops="forever", volume=0.5)
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+notice = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        if st.flying:
+            goal = 0
+            if keyp("UP"):
+                goal = 30
+            if keyp("DOWN"):
+                goal = -30
+            self.rotate_to(chase(self.angle, goal, rate=4))
+            arrow = vec_from_angle(self.angle, length=220)
+            self.move_by(0, arrow.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.fall()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pillar")
+    def crashed(self, pillar):
+        if st.flying:
+            self.fall()
+
+    def fall(self):
+        st.flying = False
+        self.play("falling")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        self.move_to_front()
+        self.fire = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
+        notice.text = "press SPACE"
+        music.fade_to(0.1, time=1)
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    if st.flying:
+        new_pair()
+
+
+def restart():
+    group["pillar"].destroy()
+    group["door"].destroy()
+    st.score = 0
+    st.flying = True
+    st.pace = 120
+    notice.text = ""
+    plane.center = (120, 200)
+    plane.rotate_to(0)
+    plane.play("flying")
+    plane.fire.destroy()
+    music.fade_to(0.5, time=1)
+
+
+def update(dt):
+    if not st.flying:
+        st.pace = chase(st.pace, 0, rate=2)
+        if keyp("SPACE"):
+            restart()
+    group["pillar"].move_by(-st.pace * dt, 0)
+    group["door"].move_by(-st.pace * dt, 0)
+    clouds.scroll = (-st.pace * 0.1, 0)
+    hills.scroll = (-st.pace * 0.3, 0)
+    bushes.scroll = (-st.pace * 0.7, 0)
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "music = play_sound(",
+          text: "With <code>loops=\"forever\"</code>, the music starts over on its own when it ends; <code>volume=0.5</code>, half, leaves room for the other sounds. <code>play_sound</code> returns a handle to the sound that is playing, kept in <code>music</code>."
+        },
+        {
+          at: "music.fade_to(0.1, time=1)",
+          text: "<code>fade_to</code> lowers the volume to 0.1 over one second, without cutting it off: during the fall, the music almost disappears."
+        },
+        {
+          at: "music.fade_to(0.5, time=1)",
+          text: "On restart, the music goes back to 0.5."
+        }
+      ],
+      after: `
+        <p>Run it with the sound on, fly and crash.</p>
+      `,
+      closing: `
+        <p>The up arrow raises the nose; the down arrow lowers it. Fly through the gap between the pillars: each pair is worth one point. The scenery passes in strips, the far ones slower. When you crash, the plane falls on fire, everything slows down and the music gets quieter; SPACE restarts.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>canvas.layers.create</code> — a named layer; <code>scroll=</code> makes it move on its own, and <code>below="default"</code> puts it behind the game.</li>
+          <li><code>Endless</code> — fills the layer with the same image, one after the other, without end; <code>height=</code> is the size of each one.</li>
+          <li>Parallax — what is far away moves slower: each layer moves at a fraction of the flight's speed.</li>
+          <li><code>.scroll</code> — the layer's speed can change at any moment; with <code>chase</code>, everything slows down together.</li>
+          <li><code>Fire</code> with <code>center=lambda: …</code> — an effect that follows an object.</li>
+          <li><code>loops="forever"</code> and <code>fade_to</code> — music that repeats, and a volume that changes gradually.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#mundo-camadas">Layers</a> · <a href="../guide/index.html#mundo-sem-fim">Endless world</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a> · <a href="../guide/index.html#som-play">play_sound</a>.</p>
+        <p><strong>Next:</strong> a landscape that does not repeat: random clouds and fields, trees and houses scattered along the way, and bushes in front of the plane.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add a layer very far away, almost still, and watch the depth grow.</li>
+          <li>Can you make the speed grow with the score, and the layers keep up?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

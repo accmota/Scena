@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plane — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "15",
+  title: "Plane",
+  steps: [
+    {
+      title: "The sky and the plane",
+      body: `
+        <p>A new game: a plane flies between pillars. It does not move forward; the world moves, and the plane only goes up and down. Each pair of pillars it gets through is worth a point, and one crash ends the flight. First, the sky and the plane.</p>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+plane = Sprite("plane/Fly1.png", height=40, center=(120, 200))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "init(width=640, height=360",
+          text: "The scenery images in this game are <em>pixel art</em>, 640 by 360 pixels. With a window of the same size, the image covers the whole screen, and the math stays simple."
+        },
+        {
+          at: "Wallpaper(",
+          text: "<code>Wallpaper</code> with an image file: the sky and the mountains far in the back, standing still."
+        }
+      ],
+      after: `
+        <p>Run it: the scenery and the plane, not moving yet.</p>
+      `
+    },
+    {
+      title: "The propeller spins",
+      body: `
+        <p>The plane has three drawings, each in its own file: <code>Fly1.png</code> and <code>Fly2.png</code> (flying, with the propeller in two positions) and <code>Dead.png</code> (the broken plane). Switching between the first two very fast makes the propeller spin.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="Three frames side by side, numbered 0, 1 and 2, each from one file; frames 0 and 1 make the flying clip, which repeats; frame 2 alone is the falling clip">
+            <text x="42" y="20">Fly1.png</text>
+            <text x="162" y="20">Fly2.png</text>
+            <text x="282" y="20">Dead.png</text>
+            <rect class="bar" x="20" y="30" width="100" height="62" rx="4"/>
+            <rect class="bar" x="140" y="30" width="100" height="62" rx="4"/>
+            <rect class="bar child" x="260" y="30" width="100" height="62" rx="4"/>
+            <text x="66" y="66">0</text>
+            <text x="186" y="66">1</text>
+            <text x="306" y="66">2</text>
+            <line class="guide" x1="20" y1="110" x2="240" y2="110"/>
+            <line class="ray" x1="240" y1="120" x2="20" y2="120"/>
+            <line class="ray" x1="20" y1="120" x2="28" y2="115"/>
+            <line class="ray" x1="20" y1="120" x2="28" y2="125"/>
+            <line class="guide" x1="260" y1="110" x2="360" y2="110"/>
+            <text x="34" y="142">"flying": 0, 1, 0, 1…</text>
+            <text x="268" y="142">"falling": 2</text>
+            <text x="80" y="170">play("flying") picks what plays</text>
+          </svg>
+          <figcaption>Each file is a frame, numbered in order. A clip is a named sequence of frames; <code>play</code> picks which one plays.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+
+plane = Sprite(sheet, height=40, center=(120, 200))
+plane.play("flying")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "sheet = Sheet(",
+          text: "<code>Sheet</code> gathers the three files into one sheet of frames, numbered in the order they appear: 0, 1 and 2."
+        },
+        {
+          at: "fps=12",
+          text: "A clip is a named sequence of frames. This one plays frames 0 and 1, twelve per second (<code>fps</code>, frames per second), and repeats."
+        },
+        {
+          at: "sheet.clip(\"falling\", [2])",
+          text: "A single frame, the broken plane. It is kept for the crash."
+        },
+        {
+          at: "plane.play(\"flying\")",
+          text: "<code>play</code> picks the clip that is playing."
+        }
+      ],
+      after: `
+        <p>Run it: the propeller spins.</p>
+      `
+    },
+    {
+      title: "The control stick",
+      body: `
+        <p>The plane gets behavior, so it becomes a class, <code>Plane</code>. The arrow keys raise and lower the nose, and it climbs or dives where it points. For that, an arrow in the direction of the nose, of which the plane uses only the height:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="An arrow of length 220 leaves the plane tilted 30 degrees; its upward part, the height, measures 110; the flat part is not used">
+            <line class="guide" x1="60" y1="150" x2="231.5" y2="150"/>
+            <line class="guide" x1="231.5" y1="150" x2="231.5" y2="51"/>
+            <line class="ray" x1="60" y1="150" x2="231.5" y2="51"/>
+            <polygon class="dot" points="231.5,51 220.3,51.7 225.3,60.3"/>
+            <path class="ray" fill="none" d="M 100 150 A 40 40 0 0 0 94.6 130"/>
+            <circle class="hot" cx="60" cy="150" r="6"/>
+            <text x="106" y="144">30°</text>
+            <text x="132" y="88" text-anchor="end">220</text>
+            <text x="240" y="104">arrow.y = 110</text>
+            <text x="146" y="170" text-anchor="middle">arrow.x: not used</text>
+          </svg>
+          <figcaption>The arrow has length 220 and the direction of the nose. At 30 degrees, its upward part measures 110: the plane climbs 110 per second. With the nose level, the upward part is zero, and it neither climbs nor dives.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        goal = 0
+        if keyp("UP"):
+            goal = 30
+        if keyp("DOWN"):
+            goal = -30
+        self.rotate_to(goal)
+        arrow = vec_from_angle(self.angle, length=220)
+        self.move_by(0, arrow.y * dt)
+        self.confine(canvas.game_view)
+
+
+plane = Plane(center=(120, 200))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "goal = 0",
+          text: "<code>goal</code> is the angle asked for: 30 degrees up, 30 down, or level (0) if nothing is held."
+        },
+        {
+          at: "self.rotate_to(goal)",
+          text: "<code>rotate_to</code> puts the nose at the angle asked for."
+        },
+        {
+          at: "vec_from_angle(self.angle, length=220)",
+          text: "<code>vec_from_angle</code> makes a vector from an angle, the arrow in the figure: the direction of the nose, with length 220."
+        },
+        {
+          at: "self.move_by(0, arrow.y * dt)",
+          text: "Of the arrow, the plane uses only the upward part, <code>arrow.y</code>. The x of <code>move_by</code> is 0: it never moves forward."
+        },
+        {
+          at: "self.confine(canvas.game_view)",
+          text: "<code>confine</code> keeps it inside the screen."
+        }
+      ],
+      after: `
+        <p>Fly around a bit with the arrow keys.</p>
+        <details class="ask"><summary>It works. What still looks wrong?</summary><p>The nose jumps from one position to the other, like a toy. A real plane takes time to turn.</p></details>
+      `
+    },
+    {
+      title: "Inertia",
+      body: [
+        `
+        <p>Instead of turning to the goal all at once, the angle will chase it:</p>
+        `,
+        {
+          snip: `self.rotate_to(chase(self.angle, goal, rate=4))`
+        },
+        `
+        <p><code>chase</code> returns, each frame, an angle a little closer to the goal: much closer when it is far, only a little when it is already near. With numbers: the plane flies level (0) and you press the up arrow (goal 30). With <code>rate=4</code>, in a quarter of a second the nose is already at 19 degrees; in half a second, at 26; and from there it creeps up to 30.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 190" role="img" aria-label="A graph of the angle over time: the angle asked for jumps from 0 to 30 at once; the real angle rises fast at first and slowly at the end, until it reaches the one asked for">
+            <line class="guide" x1="40" y1="150" x2="360" y2="150"/>
+            <line class="guide" x1="40" y1="20" x2="40" y2="150"/>
+            <line class="guide" x1="140" y1="150" x2="140" y2="45"/>
+            <line class="guide" x1="140" y1="45" x2="350" y2="45"/>
+            <line class="ray" x1="140" y1="150" x2="150" y2="115"/>
+            <line class="ray" x1="150" y1="115" x2="160" y2="92"/>
+            <line class="ray" x1="160" y1="92" x2="170" y2="77"/>
+            <line class="ray" x1="170" y1="77" x2="180" y2="66"/>
+            <line class="ray" x1="180" y1="66" x2="190" y2="59"/>
+            <line class="ray" x1="190" y1="59" x2="200" y2="55"/>
+            <line class="ray" x1="200" y1="55" x2="210" y2="51"/>
+            <line class="ray" x1="210" y1="51" x2="220" y2="49"/>
+            <line class="ray" x1="220" y1="49" x2="230" y2="48"/>
+            <line class="ray" x1="230" y1="48" x2="240" y2="47"/>
+            <line class="ray" x1="240" y1="47" x2="250" y2="46"/>
+            <line class="ray" x1="250" y1="46" x2="260" y2="46"/>
+            <line class="ray" x1="260" y1="46" x2="270" y2="46"/>
+            <line class="ray" x1="270" y1="46" x2="280" y2="45"/>
+            <line class="ray" x1="280" y1="45" x2="290" y2="45"/>
+            <line class="ray" x1="290" y1="45" x2="300" y2="45"/>
+            <line class="ray" x1="300" y1="45" x2="310" y2="45"/>
+            <line class="ray" x1="310" y1="45" x2="320" y2="45"/>
+            <line class="ray" x1="320" y1="45" x2="330" y2="45"/>
+            <line class="ray" x1="330" y1="45" x2="340" y2="45"/>
+            <line class="ray" x1="340" y1="45" x2="340" y2="45"/>
+            <circle class="dot" cx="165" cy="84" r="3"/>
+            <circle class="dot" cx="190" cy="59" r="3"/>
+            <text x="230" y="36">goal: 30</text>
+            <text x="196" y="96">0.25 s: 19</text>
+            <text x="198" y="70">0.5 s: 26</text>
+            <text x="96" y="168">press ↑</text>
+            <text x="300" y="168">time</text>
+            <text x="4" y="48">30</text>
+            <text x="10" y="154">0</text>
+          </svg>
+          <figcaption>The goal (dashed) jumps to 30 when the arrow is pressed. The real angle (solid line) chases it: it moves a lot when it is far and little when it is near.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        goal = 0
+        if keyp("UP"):
+            goal = 30
+        if keyp("DOWN"):
+            goal = -30
+        self.rotate_to(chase(self.angle, goal, rate=4))
+        arrow = vec_from_angle(self.angle, length=220)
+        self.move_by(0, arrow.y * dt)
+        self.confine(canvas.game_view)
+
+
+plane = Plane(center=(120, 200))
+
+
+run()
+`,
+      after: `
+        <p>Fly again: the nose takes time to turn, and letting go of the arrow takes the same path back, to 0. That delay is inertia: the plane seems to have weight.</p>
+      `,
+      try: [
+          {
+            note: "One at a time, in place of <code>rate=4</code>. With 2, a heavy plane that is slow to respond; with 10, a light, jumpy plane.",
+            replaces: ['self.rotate_to(chase(self.angle, goal'],
+            code: `self.rotate_to(chase(self.angle, goal, rate=2))
+self.rotate_to(chase(self.angle, goal, rate=10))`
+          }
+        ]
+    },
+    {
+      title: "A pair of pillars",
+      body: `
+        <p>Now the pillars. A pair is two blocks, one above the other, with a gap between them that the plane must fly through. They are born off the screen, on the right, and the world brings them in:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 446 215" role="img" aria-label="The 640 by 360 screen, with the plane on the left; just past the right edge, at x 680, one pillar above and another below, with a gap of 120 around the middle line">
+            <rect class="ray" fill="none" x="20" y="10" width="320" height="180"/>
+            <line class="guide" x1="20" y1="100" x2="380" y2="100"/>
+            <rect class="bar" x="352" y="10" width="16" height="60"/>
+            <rect class="bar" x="352" y="130" width="16" height="60"/>
+            <circle class="hot" cx="80" cy="90" r="6"/>
+            <text x="80" y="76" text-anchor="middle">plane</text>
+            <text x="26" y="94">mid</text>
+            <text x="376" y="104">gap of 120</text>
+            <text x="360" y="206" text-anchor="middle">x = 680</text>
+            <text x="180" y="206" text-anchor="middle">the screen</text>
+          </svg>
+          <figcaption>The two pillars are born at x = 680, just past the right edge. Each one sits 190 from the middle; at 260 tall, that leaves a gap of 120 between them.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        goal = 0
+        if keyp("UP"):
+            goal = 30
+        if keyp("DOWN"):
+            goal = -30
+        self.rotate_to(chase(self.angle, goal, rate=4))
+        arrow = vec_from_angle(self.angle, length=220)
+        self.move_by(0, arrow.y * dt)
+        self.confine(canvas.game_view)
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = 180
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+
+
+new_pair()
+
+
+def update(dt):
+    group["pillar"].move_by(-120 * dt, 0)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "pieces = Sheet(",
+          text: "The pillars come from the sheet of a parts pack, with its atlas, the file that says where each frame is. The frame <code>block_narrow.png</code> is a green block, tall and narrow; with <code>height=260</code>, a pillar."
+        },
+        {
+          at: "mid = 180",
+          text: "<code>mid</code> is the height of the middle of the gap. One pillar sits 190 above it, the other 190 below."
+        },
+        {
+          at: "group[\"pillar\"].move_by(-120 * dt, 0)",
+          text: "The world moves: the whole group goes left, 120 per second. The plane stays in place; it looks like it is flying."
+        }
+      ],
+      after: `
+        <p>Run it: a pair crosses the screen, and the plane passes right through it. There is no collision yet.</p>
+      `
+    },
+    {
+      title: "Endless pillars",
+      body: `
+        <p>One pair is not a game. Now a new pair comes every 2 seconds, each with its gap at a different height.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        goal = 0
+        if keyp("UP"):
+            goal = 30
+        if keyp("DOWN"):
+            goal = -30
+        self.rotate_to(chase(self.angle, goal, rate=4))
+        arrow = vec_from_angle(self.angle, length=220)
+        self.move_by(0, arrow.y * dt)
+        self.confine(canvas.game_view)
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+
+
+@every(2)
+def more_pillars():
+    new_pair()
+
+
+def update(dt):
+    group["pillar"].move_by(-120 * dt, 0)
+
+
+@leave_playfield("pillar")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "mid = uniform(110, 250)",
+          text: "<code>uniform</code> picks a random number between 110 and 250: the height of each pair's gap. The plane has to climb and dive, and inertia starts to matter."
+        },
+        {
+          at: "@every(2)",
+          text: "<code>@every</code> calls the function every 2 seconds. At 120 per second, one pair is 240 from the next."
+        },
+        {
+          at: "@leave_playfield(\"pillar\")",
+          text: "A pillar that has gone past the left edge never comes back, and this function destroys it when it leaves the play area."
+        }
+      ],
+      after: `
+        <p>Run it: the pillars never run out.</p>
+        <details class="ask"><summary>And without <code>@leave_playfield</code>?</summary><p>The old pillars would pile up off the screen, forever, one pair every 2 seconds. With <kbd>Ctrl+Shift+1</kbd>, the corner of the screen shows how many objects exist: with the function, the number goes up and down, but does not keep growing.</p></details>
+      `
+    },
+    {
+      title: "Points",
+      body: `
+        <p>Getting through a pair is worth a point. But what does <em>getting through</em> mean? The plane crossed the gap. For Scena to see that, a door: a narrow, invisible <code>Rect</code> in the gap, which moves with the pillars. Touching the door is a point.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        goal = 0
+        if keyp("UP"):
+            goal = 30
+        if keyp("DOWN"):
+            goal = -30
+        self.rotate_to(chase(self.angle, goal, rate=4))
+        arrow = vec_from_angle(self.angle, length=220)
+        self.move_by(0, arrow.y * dt)
+        self.confine(canvas.game_view)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    new_pair()
+
+
+def update(dt):
+    group["pillar"].move_by(-120 * dt, 0)
+    group["door"].move_by(-120 * dt, 0)
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "scoreboard[\"text\"] @=",
+          text: "The scoreboard: a <code>Text</code> linked to <code>st.score</code> with <code>@=</code>. When the number changes, the text changes."
+        },
+        {
+          at: "@collide_with(\"door\")",
+          text: "When the plane touches a door, <code>passed</code> destroys it, so it does not count twice, adds the point and plays a sound."
+        },
+        {
+          at: "door = Rect(center=(690, mid)",
+          text: "The door sits in the middle of the gap: narrow, as tall as the gap, in the <code>door</code> group."
+        },
+        {
+          at: "door.visible = False",
+          text: "<code>visible = False</code> hides the drawing, but the door stays in the game and keeps colliding."
+        }
+      ],
+      after: `
+        <p>Run it and get through a few gaps: the score goes up. With <kbd>Ctrl+Shift+7</kbd>, Scena draws the collision shapes, and the invisible door shows up in the gap.</p>
+      `
+    },
+    {
+      title: "The crash",
+      body: [
+        `
+        <p>Hitting a pillar, or the ground, ends the flight. <code>st.flying</code> keeps whether the plane is still flying, and <code>on_update</code> now has two blocks:</p>
+        `,
+        {
+          snip: `if st.flying:
+...
+elif self.center.y > 30:
+    self.rotate_to(chase(self.angle, -60, rate=3))
+    self.move_by(0, -160 * dt)`
+        },
+        `
+        <p><code>elif</code> (short for <em>else if</em>) is only checked when the <code>if</code> above was false. While the plane flies, the first block runs: the stick from before. Once it has fallen and is still above the ground, the second: the nose chases −60 degrees, pointing at the ground, and the plane goes down. On the ground, neither runs, and it stays there.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+st.flying = True
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        if st.flying:
+            goal = 0
+            if keyp("UP"):
+                goal = 30
+            if keyp("DOWN"):
+                goal = -30
+            self.rotate_to(chase(self.angle, goal, rate=4))
+            arrow = vec_from_angle(self.angle, length=220)
+            self.move_by(0, arrow.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.fall()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pillar")
+    def crashed(self, pillar):
+        if st.flying:
+            self.fall()
+
+    def fall(self):
+        st.flying = False
+        self.play("falling")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    if st.flying:
+        new_pair()
+
+
+def update(dt):
+    if st.flying:
+        group["pillar"].move_by(-120 * dt, 0)
+        group["door"].move_by(-120 * dt, 0)
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if self.center.y < 30:",
+          text: "Below 30 is the ground: the plane falls."
+        },
+        {
+          at: "@collide_with(\"pillar\")",
+          text: "The other crash, into a pillar. The <code>if st.flying</code> just below prevents a second crash while the plane falls against the pillar."
+        },
+        {
+          at: "def fall(self):",
+          text: "<code>fall</code> is a function of the class itself, which we call with <code>self.fall()</code>, from both places. It changes <code>st.flying</code>, switches the clip to <code>\"falling\"</code> (the broken plane), shakes the screen and plays the crash sound."
+        }
+      ],
+      after: `
+        <p>Run it and hit a pillar. The world stops too: <code>update</code> only moves the pillars, and <code>@every</code> only makes new pillars, while <code>st.flying</code> is true. After the crash, the arrow keys do nothing either.</p>
+      `
+    },
+    {
+      title: "Again",
+      example: "plane.py",
+      body: `
+        <p>After the crash, space restarts. A one-level game restarts with a short list: everything that changed during the flight goes back to how it was at the start.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=640, height=360, title="Plane")
+Wallpaper("backgrounds/mountains/mountains1.png")
+
+sheet = Sheet("plane/Fly1.png", "plane/Fly2.png", "plane/Dead.png")
+sheet.clip("flying", [0, 1], fps=12)
+sheet.clip("falling", [2])
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+st.score = 0
+st.flying = True
+
+scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
+scoreboard["text"] @= lambda: f"Score {st.score}"
+notice = Text(text="", center=(320, 200), font_size=24, color="navy")
+
+
+class Plane(Sprite, source=sheet, height=40):
+    def setup(self):
+        self.play("flying")
+
+    def on_update(self, dt):
+        if st.flying:
+            goal = 0
+            if keyp("UP"):
+                goal = 30
+            if keyp("DOWN"):
+                goal = -30
+            self.rotate_to(chase(self.angle, goal, rate=4))
+            arrow = vec_from_angle(self.angle, length=220)
+            self.move_by(0, arrow.y * dt)
+            self.confine(canvas.game_view)
+            if self.center.y < 30:
+                self.fall()
+        elif self.center.y > 30:
+            self.rotate_to(chase(self.angle, -60, rate=3))
+            self.move_by(0, -160 * dt)
+
+    @collide_with("door")
+    def passed(self, door):
+        door.destroy()
+        st.score += 1
+        play_sound("audio/fx2.wav")
+
+    @collide_with("pillar")
+    def crashed(self, pillar):
+        if st.flying:
+            self.fall()
+
+    def fall(self):
+        st.flying = False
+        self.play("falling")
+        canvas.shake(6)
+        play_sound("audio/explosion02.wav")
+        notice.text = "press SPACE"
+
+
+plane = Plane(center=(120, 200))
+
+
+def new_pair():
+    mid = uniform(110, 250)
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190), group="pillar")
+    Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190), group="pillar")
+    door = Rect(center=(690, mid), width=10, height=120, group="door")
+    door.visible = False
+
+
+@every(2)
+def more_pillars():
+    if st.flying:
+        new_pair()
+
+
+def restart():
+    group["pillar"].destroy()
+    group["door"].destroy()
+    st.score = 0
+    st.flying = True
+    notice.text = ""
+    plane.center = (120, 200)
+    plane.rotate_to(0)
+    plane.play("flying")
+
+
+def update(dt):
+    if st.flying:
+        group["pillar"].move_by(-120 * dt, 0)
+        group["door"].move_by(-120 * dt, 0)
+    elif keyp("SPACE"):
+        restart()
+
+
+@leave_playfield("pillar", "door")
+def gone(thing):
+    thing.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "notice = Text(",
+          text: "A notice in the middle of the screen, empty at the start. <code>fall</code> writes “press SPACE” in it."
+        },
+        {
+          at: "def restart():",
+          text: "The list: destroy the pillars and the doors, reset the score, fly again, clear the notice, and put the plane back in place, level, with the flying clip."
+        },
+        {
+          at: "group[\"pillar\"].destroy()",
+          text: "<code>destroy</code> on a group destroys all its members at once."
+        },
+        {
+          at: "elif keyp(\"SPACE\"):",
+          text: "With the plane down and space pressed, the game restarts."
+        }
+      ],
+      after: `
+        <p>Run it, crash and press space. The list grows with the game: each new thing the game creates needs a line in <code>restart</code>, or it is left over from the previous flight.</p>
+      `,
+      try: [
+          {
+            note: "Harder over time: the gap gets smaller with each point. In <code>new_pair</code>, in place of the two pillar lines (<code>max</code> keeps the gap from getting smaller than 80):",
+            replaces: ['Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 190)', 'Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 190)'],
+            code: `gap = max(40, 60 - st.score * 2)
+Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid + 130 + gap), group="pillar")
+Sprite(pieces, frame="block_narrow.png", height=260, center=(680, mid - 130 - gap), group="pillar")`
+          }
+        ],
+      closing: `
+        <p>The up arrow raises the nose; the down arrow lowers it. The plane climbs and dives where it points, with inertia. Fly through the gap between the pillars: each pair is worth a point. If it hits a pillar or the ground, the plane falls; space restarts.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Sheet</code> from files — each file is a frame, numbered in order.</li>
+          <li><code>clip</code> and <code>play</code> — a clip is a named sequence of frames; <code>play</code> picks which one plays.</li>
+          <li><code>chase</code> as inertia — the real angle chases the angle asked for.</li>
+          <li><code>group["pillar"].move_by</code> — the world moves and the plane stays.</li>
+          <li><code>visible = False</code> — hides the drawing; collision goes on (the scoring door).</li>
+          <li><code>st.flying</code> and <code>restart</code> — a state that several parts read, and the list that puts everything back as it was at the start.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#spr-files">Files</a> · <a href="../guide/index.html#spr-clip">Clips</a> · <a href="../guide/index.html#util-chase">chase</a> · <a href="../guide/index.html#desenhar-entity">Entity (visible)</a> · <a href="../guide/index.html#colisao-collide">Detect collisions</a>.</p>
+        <p><strong>Next:</strong> the same game gains depth: mountains and clouds that move at different speeds, and music.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Change the gap between the pillars and the speed until the game feels fair.</li>
+          <li>Can you make the gap get smaller every ten points?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -30,15 +30,15 @@ Portuguese one, name for name.
 | 12 Movimento | `movimento.py` | `movement.py` |
 | 13 Trilhas | `trilhas.py` | `tracks.py` |
 | 14 Órbitas | `orbitas.py` | `orbits.py` |
-| 15 Avião | `aviao.py` |  |
-| 16 Avião II · Profundidade | `aviao_profundidade.py` |  |
-| 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` |  |
+| 15 Avião | `aviao.py` | `plane.py` |
+| 16 Avião II · Profundidade | `aviao_profundidade.py` | `plane_depth.py` |
+| 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` | `plane_landscape.py` |
 | 18 Ninja | `ninja_1.py` |  |
 | 19 Ninja II · O mundo | `ninja_2_mundo.py` |  |
 | 20 Colisão | `colisao.py` |  |
 | 21 Ligue 4 | `ligue4.py` |  |
-| 22 Estúdio · Piano | `piano.py` |  |
-| 23 Estúdio II · Voz | `estudio_voz.py` |  |
+| 22 Estúdio · Piano | `piano.py` | `studio_piano.py` |
+| 23 Estúdio II · Voz | `estudio_voz.py` | `studio_voice.py` |
 | 24 Naves V · Capítulos e sequências | `naves_5_modos.py` | `ships_5_modes.py` |
 | 25 Naves VI · Atos | `naves_6_atos.py` | `ships_6_acts.py` |
 | 26 Ninja III · O nível | `ninja_3_nivel.py` |  |

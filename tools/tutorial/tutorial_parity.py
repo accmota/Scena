@@ -426,12 +426,21 @@ def _comments_and_docs(code: str) -> str:
     return "\n".join(out)
 
 
+def _is_file_name(text: str) -> bool:
+    """``audio/nota.wav`` or ``"plane/Fly*.png"`` alone in inline code."""
+    bare = text.replace('\\"', '"').strip().strip('"\'')
+    return re.fullmatch(r"[\w.*/-]+", bare) is not None and _PATH.search(bare) is not None \
+        and not _WORD.match(bare)
+
+
 def names_left(unit: str, gn: dict, gs: dict) -> list[str]:
     """Portuguese names of the glossary still in a unit's inline code or figure
     text (a draft miss): ``<code>tiros_inimigos</code>``."""
     found = set()
     for chunk in re.findall(r"<code>(.*?)</code>|<text\b[^>]*>(.*?)</text>", unit, re.S):
         piece = (chunk[0] or chunk[1]).replace('\\"', '"')
+        if _is_file_name(piece):
+            continue                          # a file name keeps its name
         piece = re.sub(r"&\w+;", " ", piece)
         for word in re.findall(r"[A-Za-zÀ-ÿ_]\w*", re.sub(r'"[^"]*"', " ", piece)):
             if gn.get(word, word) != word:
@@ -725,6 +734,8 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
     # A bare word may be a group tag (<code>tiros_inimigos</code>): strings too.
     def inline(m):
         tag, body = m.group(1), m.group(2)
+        if _is_file_name(body):
+            return m.group(0)                 # a file name (audio/nota.wav) stays
         if re.fullmatch(r"\w+", body) and body not in gn and body in gs:
             return f"<{tag}>{gs[body]}</{tag}>" if tag == "code" else m.group(0)
         if '\\"' in body:

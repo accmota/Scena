@@ -322,6 +322,9 @@ examples/orbits.py
 examples/osciloscopio.py
 examples/pegar_estrelas.py
 examples/piano.py
+examples/plane.py
+examples/plane_depth.py
+examples/plane_landscape.py
 examples/ponto_medio.py
 examples/primeiro_script.py
 examples/revoada.py
@@ -332,5 +335,7 @@ examples/ships_4_shield.py
 examples/ships_5_modes.py
 examples/ships_6_acts.py
 examples/starry_sky.py
+examples/studio_piano.py
+examples/studio_voice.py
 examples/tracks.py
 examples/trilhas.py

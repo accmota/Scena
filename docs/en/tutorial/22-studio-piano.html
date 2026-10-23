@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio — Piano — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "22",
+  title: "Studio · Piano",
+  steps: [
+    {
+      title: "The keys",
+      body: `
+        <p>A new script, and this time it is not a game: it is a <strong>piano</strong>. Until now sound dressed up the game, the laser, the explosion; now it is the subject. You press a key, and it plays.</p>
+        <p>We start with the eight keys, side by side:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="Four white keys side by side, with the letters A, S, D and F at the bottom; each key is 110 wide, there is a gap of 6 between them, and the centers sit at 94, 210, 326 and 442, 116 apart">
+            <rect class="bar" x="40" y="30" width="55" height="100"/>
+            <rect class="bar" x="98" y="30" width="55" height="100"/>
+            <rect class="bar" x="156" y="30" width="55" height="100"/>
+            <rect class="bar" x="214" y="30" width="55" height="100"/>
+            <text x="67.5" y="120" text-anchor="middle">A</text>
+            <text x="125.5" y="120" text-anchor="middle">S</text>
+            <text x="183.5" y="120" text-anchor="middle">D</text>
+            <text x="241.5" y="120" text-anchor="middle">F</text>
+            <text x="300" y="84">···</text>
+            <line class="ray" x1="40" y1="20" x2="95" y2="20"/>
+            <text x="67.5" y="14" text-anchor="middle">110</text>
+            <line class="ray" x1="154.5" y1="18" x2="154.5" y2="28"/>
+            <text x="154.5" y="14" text-anchor="middle">gap 6</text>
+            <text x="67.5" y="148" text-anchor="middle">94</text>
+            <text x="125.5" y="148" text-anchor="middle">210</text>
+            <text x="183.5" y="148" text-anchor="middle">326</text>
+            <text x="241.5" y="148" text-anchor="middle">442</text>
+            <line class="ray" x1="67.5" y1="158" x2="125.5" y2="158"/>
+            <text x="96.5" y="174" text-anchor="middle">+116</text>
+          </svg>
+          <figcaption>Each key is 110 wide, with a gap of 6 between them: from one center to the next, 116.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+
+for i in range(8):
+    Rect(center=(94 + i * 116, 190), width=110, height=300, color="#F2EFE6")
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+run()
+`,
+      notes: [
+        {
+          at: "LETTERS = [",
+          text: "The keys on the middle row of the computer keyboard, from A to K. Your hand stays still, one finger on each key, as on a real piano."
+        },
+        {
+          at: "center=(94 + i * 116, 190)",
+          text: "The math from the figure: <code>i</code> goes from 0 to 7, and the center moves 116 on each pass, starting at 94."
+        },
+        {
+          at: "center=(94 + i * 116, 70)",
+          text: "The letter sits at the bottom of the key, at the same x: it is the letter that will play this key."
+        }
+      ]
+    },
+    {
+      title: "The piano",
+      body: [
+        `
+        <p>Now the keys play. There is a single sound file, <code>"audio/nota.wav"</code>: one piano note, a C. All eight notes come out of it, played faster or slower:</p>
+        `,
+        {
+          snip: `play_sound("audio/nota.wav", pitch=self.note)`
+        },
+        `
+        <p><code>pitch=</code> changes how high the sound plays. With <code>pitch=1</code>, the note comes out as it was recorded; with <code>pitch=2</code>, it plays twice as fast and comes out an octave higher, the next C. The other notes of the scale fit between the two:</p>
+        <div class="tbl"><table><thead><tr><th>Letter</th><th>A</th><th>S</th><th>D</th><th>F</th><th>G</th><th>H</th><th>J</th><th>K</th></tr></thead><tbody>
+          <tr><td>Note</td><td>C</td><td>D</td><td>E</td><td>F</td><td>G</td><td>A</td><td>B</td><td>C</td></tr>
+          <tr><td><code>pitch</code></td><td>1</td><td>1.12</td><td>1.26</td><td>1.33</td><td>1.5</td><td>1.68</td><td>1.89</td><td>2</td></tr>
+        </tbody></table></div>
+        <p>Each key will have its own letter, its own note and the same behavior: play when its letter is pressed. Many alike things, each with its own behavior, call for a class.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def play_note(self):
+        play_sound("audio/nota.wav", pitch=self.note)
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+run()
+`,
+      notes: [
+        {
+          at: "class Key(Rect",
+          text: "<code>Key</code> is the mold. The class line holds what all eight share: the size, the color and the group <code>\"keys\"</code>."
+        },
+        {
+          at: "keyp.once(self.letter)",
+          text: "Each key asks about its own letter: was <em>this</em> key's letter pressed just now? <code>once</code> says yes only on the frame it is pressed, so holding the key down does not repeat the note."
+        },
+        {
+          at: "def play_note(self):",
+          text: "The sound lives in a method of its own, <code>play_note</code>, and not straight in <code>on_update</code>: the letter is just one way to ask for the note."
+        },
+        {
+          at: "key.letter = LETTERS[i]",
+          text: "After creating the key, the <code>for</code> stores two fields in it, <code>letter</code> and <code>note</code>: each of the eight keeps its own."
+        }
+      ],
+      after: `
+        <p>Run it and run your fingers from A to K: the scale climbs from C to the next C.</p>
+      `,
+      try: [
+        {
+          note: "Another scale: the pentatonic, five notes that repeat an octave higher. Any sequence of them sounds good, even pressed at random. In place of the <code>NOTES</code> line:",
+          replaces: ['NOTES ='],
+          code: `NOTES = [1, 1.12, 1.26, 1.5, 1.68, 2, 2.24, 2.52]`
+        },
+        {
+          note: "Another instrument: any sound works as a note. A bell, in place of the <code>play_sound</code>:",
+          replaces: ['play_sound("audio/nota.wav"'],
+          code: `play_sound("audio/impactBell_heavy_000.ogg", pitch=self.note)`
+        }
+      ]
+    },
+    {
+      title: "The keys light up",
+      body: `
+        <p>When it plays, the key turns gold, and goes dark again when the sound ends. The one that knows when the sound ends is <code>play_sound</code> itself.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def play_note(self):
+        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+run()
+`,
+      notes: [
+        {
+          at: "on_done=self.dim",
+          text: "<code>on_done</code> hands <code>play_sound</code> a function to call when the note finishes playing. <code>self.dim</code> goes without parentheses: it is the function, not a call right now."
+        },
+        {
+          at: "def dim(self):",
+          text: "<code>dim</code> puts back the color from before."
+        }
+      ],
+      after: `
+        <p>Run it and play A, then K.</p>
+        <details class="ask"><summary>Which of the two stays lit longer?</summary><p>The A key. Its note lasts a little over a second; the K note, half that. <code>pitch=2</code> plays the note twice as fast, so it ends sooner, and the key goes dark sooner. The light shows how long each note sounds.</p></details>
+      `,
+      try: [
+        {
+          note: "Another way to write it: the key lights up for a fixed time, without waiting for the sound. In place of the <code>play_sound</code> line:",
+          replaces: ['play_sound("audio/nota.wav"'],
+          code: `play_sound("audio/nota.wav", pitch=self.note)
+self.after(0.3, self.dim)`
+        }
+      ]
+    },
+    {
+      title: "The mouse too",
+      body: `
+        <p>A click on a key plays it too. Like the letter, the click belongs to each key, so it lives in the class.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_click(self):",
+          text: "<code>on_click</code> is a method with a fixed name: Scena calls it when <em>this</em> key is clicked. All it does is ask for <code>self.play_note()</code>, the same function the letter calls."
+        }
+      ],
+      after: `
+        <p>Run it and click the keys, on top of the letters too.</p>
+        <details class="ask"><summary>The letter sits on top of the key. Does clicking it play?</summary><p>It does. A <code>Text</code> with no click of its own lets the click pass through to what is under it, and under it is the key.</p></details>
+      `,
+      try: [
+        {
+          note: "Another way to write it: one click for the whole group, outside the class. The function receives the clicked key. It goes after the <code>for</code>, because <code>@click</code> looks at the group at the moment it is read, and the eight keys must already exist. In place of the class's <code>on_click</code>:",
+          code: `@click(group["keys"])
+def clicked(key):
+    key.play_note()`
+        }
+      ]
+    },
+    {
+      title: "The equalizer",
+      example: "studio_piano.py",
+      body: [
+        `
+        <p>So far the screen shows the key. Now it will show the sound itself, in a row of jumping bars, like on the panel of a stereo. The numbers come from one line:</p>
+        `,
+        {
+          snip: `bands = audio.spectrum(bins=12)`
+        },
+        `
+        <p><code>audio</code> is the sound of the whole game: everything playing right now, added up. <code>spectrum</code> splits that sound into bands, and <code>bins=12</code> asks for 12 of them, from the lows (the deep sounds) on the left to the highs (the thin ones) on the right. The answer is a list of 12 numbers from 0 to 1: how much sound there is in each band at this moment.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 150" role="img" aria-label="Twelve bars of different heights, side by side; the one on the left is band 0, the lows, and the one on the right is band 11, the highs">
+            <line class="guide" x1="30" y1="100" x2="370" y2="100"/>
+            <rect class="bar" x="34" y="56" width="20" height="44"/>
+            <rect class="bar" x="62" y="30" width="20" height="70"/>
+            <rect class="bar" x="90" y="44" width="20" height="56"/>
+            <rect class="bar" x="118" y="70" width="20" height="30"/>
+            <rect class="bar" x="146" y="60" width="20" height="40"/>
+            <rect class="bar" x="174" y="80" width="20" height="20"/>
+            <rect class="bar" x="202" y="74" width="20" height="26"/>
+            <rect class="bar" x="230" y="86" width="20" height="14"/>
+            <rect class="bar" x="258" y="90" width="20" height="10"/>
+            <rect class="bar" x="286" y="88" width="20" height="12"/>
+            <rect class="bar" x="314" y="94" width="20" height="6"/>
+            <rect class="bar" x="342" y="96" width="20" height="4"/>
+            <text x="44" y="116" text-anchor="middle">[0]</text>
+            <text x="352" y="116" text-anchor="middle">[11]</text>
+            <text x="44" y="136" text-anchor="middle">lows</text>
+            <text x="352" y="136" text-anchor="middle">highs</text>
+          </svg>
+          <figcaption>The list <code>bands</code> at one instant: one number per band, from lows to highs. Each bar in the script shows one of them.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=600, title="Piano")
+Wallpaper("dark navy")
+
+LETTERS = ["A", "S", "D", "F", "G", "H", "J", "K"]
+NOTES = [1, 1.12, 1.26, 1.33, 1.5, 1.68, 1.89, 2]
+
+
+class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
+    def on_update(self, dt):
+        if keyp.once(self.letter):
+            self.play_note()
+
+    def on_click(self):
+        self.play_note()
+
+    def play_note(self):
+        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        self.color = "gold"
+
+    def dim(self):
+        self.color = "#F2EFE6"
+
+
+for i in range(8):
+    key = Key(center=(94 + i * 116, 190))
+    key.letter = LETTERS[i]
+    key.note = NOTES[i]
+    Text(text=LETTERS[i], center=(94 + i * 116, 70), font_size=28, color="dim gray")
+
+bars = []
+for i in range(12):
+    bars.append(Rect(center=(82 + i * 76, 470), width=60, height=4, color="turquoise"))
+
+
+def update(dt):
+    bands = audio.spectrum(bins=12)
+    for i in range(12):
+        bars[i].height = 4 + 150 * amp_db(bands[i])
+
+
+run()
+`,
+      notes: [
+        {
+          at: "bars.append(Rect(",
+          text: "Twelve short rectangles, one per band, kept in the list <code>bars</code> so that <code>update</code> can find them."
+        },
+        {
+          at: "4 + 150 * amp_db(bands[i])",
+          text: "Every frame, each bar gets the height of its band: 4, plus up to 150. <code>amp_db</code> puts the number on the ear's scale; without it, a quiet sound would barely move the bar. The bar grows from its center, up and down."
+        }
+      ],
+      after: `
+        <p>Run it and play. A lights up the bars on the left; as you go up to K, the light moves to the right.</p>
+        <details class="ask"><summary>Why does a single note light up several bars?</summary><p>Because a piano sound is several sounds together: the deep tone of the note and other, thinner ones on top. Each one falls into its own band.</p></details>
+      `,
+      try: [
+        {
+          note: "A single bar, with the volume of all the sound: <code>audio.level</code>, from 0 to 1. The width is linked with <code>@=</code>, and the bar follows the sound. At the end of the program.",
+          code: `meter = Rect(center=(500, 575), width=10, height=12, color="gold")
+meter["width"] @= lambda: 10 + 900 * amp_db(audio.level)`
+        }
+      ],
+      closing: `
+        <p>The letters A S D F G H J K play the eight notes, from C to the next C; a click on a key plays it too. The key turns gold while its note sounds, and the bars above show the sound in bands, from lows to highs.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>pitch=</code> — how high the sound plays: 1 is the sound as recorded; 2 plays twice as fast, an octave higher.</li>
+          <li><code>key.note</code> — a field: each key keeps its own note.</li>
+          <li><code>keyp.once(self.letter)</code> — each key asks about its own letter, once per press.</li>
+          <li><code>on_done=</code> — the sound calls the function when it ends: the key goes dark.</li>
+          <li><code>on_click</code> — each key's click, a method of the class.</li>
+          <li><code>audio.spectrum</code> — the game's sound in bands, from lows to highs; <code>amp_db</code> puts it on the ear's scale.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#som-play">play_sound</a> · <a href="../guide/index.html#reativo-entity">Keeping values</a> · <a href="../guide/index.html#frame-teclado">Keyboard</a> · <a href="../guide/index.html#reagir-pointer">Click / drag</a> · <a href="../guide/index.html#som-audio">audio</a>.</p>
+        <p><strong>Next:</strong> the piano plays your voice, and a star dances with a light that grows when you speak.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add the black keys, with the notes between the white ones.</li>
+          <li>Can you make a button that plays a short tune by itself, note by note?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
