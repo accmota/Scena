@@ -35,6 +35,7 @@ examples/first_script.py
 examples/formula_machine.py
 examples/formulas.py
 examples/genesis.py
+examples/guardiao.py
 examples/hundred_lines.py
 examples/interacao.py
 examples/interaction.py
@@ -285,6 +286,10 @@ examples/media/space/laserGreen02.png
 examples/media/space/laserRed01.png
 examples/media/space/license.txt
 examples/media/space/meteorBrown_big3.png
+examples/media/space/pill_blue.png
+examples/media/space/pill_green.png
+examples/media/space/pill_red.png
+examples/media/space/pill_yellow.png
 examples/media/space/playerShip1_red.png
 examples/media/space/sfx_laser1.ogg
 examples/media/space/star_gold.png

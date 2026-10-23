@@ -14,6 +14,8 @@ Checked, in ``examples/**``, ``tests/loads/*.py``, ``tests/games/*.py``,
   ``play_sound`` / ``Level`` (or listed in a ``Sheet([...])``), the path of
   ``sheet.strip(name, path)``, and ``source=`` / ``atlas=`` / ``font=``
   keywords (class keywords too);
+* a string constant with a media extension that is a value of a dict (a
+  table of files the script picks from at run time);
 * any constant containing ``media/``;
 * ``… / "examples" / "media" / …`` and ``os.path.join(…, "examples",
   "media", …)`` chains that end in a file name.
@@ -150,6 +152,14 @@ def literal_paths(src: str) -> Iterator[Tuple[int, str, str]]:
                 s = _const(kw.value)
                 if kw.arg in PATH_KEYWORDS and s is not None and _is_media(s):
                     yield from emit(kw.value, "engine", s)
+        # A table of files a script picks from at run time: the values of a
+        # dict (``PILULAS = {"duplo": "space/pill_blue.png", …}`` in
+        # guardiao.py). A frame name is a ``frame=`` keyword, never a value here.
+        if isinstance(node, ast.Dict):
+            for item in node.values:
+                s = _const(item)
+                if s is not None and _is_media(s):
+                    yield from emit(item, "engine", s)
         s = _const(node)
         if s is not None and "media/" in s and _is_media(s):
             yield from emit(node, "engine", s)
