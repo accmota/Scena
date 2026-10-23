@@ -157,6 +157,16 @@ class TestShard(unittest.TestCase):
             self.assertEqual(len({t.rsplit(".", 1)[0] for t in s}), 1)
         self.assertEqual([len(s) for s in shards], [2, rt.CHUNK, rt.CHUNK, rt.CHUNK, 1])
 
+    def test_a_heavy_class_gets_its_own_chunk(self):
+        # WP34: TestMethodJunk's tests are 40 examples each at ci; 40 of them
+        # in one job ran 1 130 s in a loaded gate.
+        heavy, size = next(iter(rt.CHUNKS.items()))
+        ids = ([f"tests.{heavy}.test_{i:02}" for i in range(size * 2 + 3)]
+               + [f"tests.{heavy}Other.test_{i:02}" for i in range(rt.CHUNK)])
+        self.assertEqual([len(s) for s in rt.shard(ids)], [size, size, 3, rt.CHUNK])
+        for cls in rt.CHUNKS:
+            self.assertIn(cls.split(".", 1)[0], rt.SPLIT, f"{cls}: its module is not SPLIT")
+
     def test_plan_splits_only_split_modules_in_split_tiers(self):
         mod = next(iter(rt.SPLIT))
         gate = rt.plan(rt.TIERS["gate"], [mod, "test_lerp"], list_ids=_fake_ids)

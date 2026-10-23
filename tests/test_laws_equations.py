@@ -24,7 +24,7 @@ contact rule (E15).
 
 ``dev``: the twins, the first scenario of each program, one swap per
 example; ``ci`` / ``deep``: every scenario and swap. SLOW + SPLIT. The
-examples' E3 and E15 checks are classes of at most ``RUNS_PER_JOB`` runs
+examples' E1, E3, E6 and E15 checks are classes of at most ``RUNS_PER_JOB`` runs
 (``TestSpawnOrderExamples1``, …) and the programs' of at most
 ``PROGRAM_RUNS_PER_JOB`` (``TestSpawnOrderPrograms1``, …), one gate job each; below ``deep`` an
 English example whose Portuguese twin is here is left out (WP33).
@@ -170,12 +170,14 @@ def _shard_plan(make_runs, paths, limit, cap=RUNS_PER_JOB):
     return _pack(sized, cap)
 
 
-def _shard_classes(prefix, make_runs, doc):
-    """One TestCase per job of ``_shard_plan`` (``prefix1``, ``prefix2``, …):
-    the runner gives each class of this SPLIT module its own job, so the
-    number of jobs follows the examples folder."""
+def _shard_classes(prefix, make_runs, doc, paths=None):
+    """One TestCase per job of ``_shard_plan`` over ``paths`` (default the
+    laws' examples): ``prefix1``, ``prefix2``, …; the runner gives each class
+    of this SPLIT module its own job, so the number of jobs follows the
+    examples folder."""
     limit = None if FULL else 1
-    for k, paths in enumerate(_shard_plan(make_runs, LAW_SCRIPTS, limit), 1):
+    paths = LAW_SCRIPTS if paths is None else paths
+    for k, paths in enumerate(_shard_plan(make_runs, paths, limit), 1):
         def test_examples(self, paths=paths):
             out = _spread_runs(make_runs, paths, limit)
             self.assertEqual(out, [], "\n".join(m[:800] for m in out))
@@ -241,7 +243,8 @@ class TestShardPlan(unittest.TestCase):
 
     def test_no_example_alone_outgrows_a_job(self):
         # A script's runs share one job; past the cap it needs its runs split.
-        for make in (eq.e3_script_runs, eq.e15_script_runs):
+        for make in (eq.e1_script_runs, eq.e3_script_runs, eq.e6_script_runs,
+                     eq.e15_script_runs):
             for path in LAW_SCRIPTS:
                 n = len(make(path, 600, limit=None)[0])
                 with self.subTest(law=make.__name__, script=os.path.basename(path)):
@@ -399,24 +402,18 @@ class TestPacing(unittest.TestCase):
         path = os.path.join(eq.ROOT_TESTS, "laws", "twins", "two_walls.py")
         self.assertEqual(eq.e1_script(path, 600), [])
 
-    def test_examples(self):
-        paths = [p for p in LAW_SCRIPTS if os.path.basename(p) not in E1_EXCLUDED
-                 and (FULL or os.path.basename(p) in E1_DEV)]
-        self.assertTrue(paths)
-
-        def one(path):
-            try:
-                return eq.e1_script(path, 600)
-            except Exception as e:  # noqa: BLE001
-                return [f"{os.path.basename(path)}: {type(e).__name__}: {str(e)[-300:]}"]
-
-        with ThreadPoolExecutor(max(2, min(8, (os.cpu_count() or 4) - 1))) as pool:
-            out = [m for msgs in pool.map(one, paths) for m in msgs]
-        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
-
     def test_excluded_examples_exist(self):
         names = {os.path.basename(p) for p in scripts()}
         self.assertEqual(sorted(set(E1_EXCLUDED) - names), [])
+
+    def test_some_example_is_paced(self):
+        self.assertTrue(E1_PATHS)
+
+
+E1_PATHS = [p for p in LAW_SCRIPTS if os.path.basename(p) not in E1_EXCLUDED
+            and (FULL or os.path.basename(p) in E1_DEV)]
+_shard_classes("TestPacingExamples", eq.e1_script_runs,
+               """E1 on the examples, one job of at most ``RUNS_PER_JOB`` runs.""", E1_PATHS)
 
 
 # -- E5 / E6 --------------------------------------------------------------------
@@ -439,17 +436,16 @@ class TestBoundOrClosure(unittest.TestCase):
         W = {"SCENARIOS": {"w": Scenario(steps=[("wait", 60)])}, "PROBES": {}}
         self.assertEqual(eq.e6_program(f"{TWINS}/closure_owner", W, "w"), [])
 
-    def test_programs_and_examples(self):
+    def test_programs(self):
         out = []
         ns = load_spec("galaga_acts", "a")
         for scenario in (list(ns["SCENARIOS"]) if FULL else list(ns["SCENARIOS"])[:2]):
             out += eq.e6_program("galaga_acts", ns, scenario)
-        for p in LAW_SCRIPTS:
-            with open(p, encoding="utf-8") as fh:
-                has = eq.bound_to_closure(fh.read())[1]
-            if has:
-                out += eq.e6_script(p, 600)
         self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+
+
+_shard_classes("TestBoundOrClosureExamples", eq.e6_script_runs,
+               """E6 on the examples, one job of at most ``RUNS_PER_JOB`` runs.""")
 
 
 # -- canaries -------------------------------------------------------------------

@@ -202,16 +202,32 @@ PACES = {"30": 1 / 30, "144": 1 / 144, "uneven": 0.028}
 def e1_script(path: str, frames: int, paces: Sequence[str] = ("30", "144", "uneven")
               ) -> List[str]:
     """E1 on a script: each pace's edge events match the 60 Hz run's."""
+    runs, judge = e1_script_runs(path, frames, paces=paces)
+    return judge([run() for run in runs])
+
+
+def e1_script_runs(path: str, frames: int, *, limit: Optional[int] = None,
+                   paces: Sequence[str] = ("30", "144", "uneven")):
+    """``e1_script`` as independent runs: ``(runs, judge)``, the 60 Hz run
+    then one per pace (``limit`` is unused: every pace, as ``e3_script_runs``'s
+    signature)."""
     import os
-    base = timed_edges(script_trace(path, frames))
-    out = []
-    for pace in paces:
-        twin = timed_edges(script_trace(path, frames, pace=pace))
-        tol = 1 / 60 + PACES[pace] + 1e-6
-        diff = compare_paced(base, twin, tol)
-        if diff:
-            out.append(f"E1 {os.path.basename(path)} at {pace}: " + "; ".join(diff))
-    return out
+
+    def base():
+        return timed_edges(script_trace(path, frames))
+
+    def paced(pace):
+        return timed_edges(script_trace(path, frames, pace=pace))
+
+    def judge(results):
+        out = []
+        for pace, twin in zip(paces, results[1:]):
+            diff = compare_paced(results[0], twin, 1 / 60 + PACES[pace] + 1e-6)
+            if diff:
+                out.append(f"E1 {os.path.basename(path)} at {pace}: " + "; ".join(diff))
+        return out
+
+    return [base] + [functools.partial(paced, pace) for pace in paces], judge
 
 
 # ---------------------------------------------------------------------------
@@ -419,16 +435,26 @@ def e6_projection(events) -> Dict[int, Counter]:
 
 
 def e6_script(path: str, frames: int) -> List[str]:
+    runs, judge = e6_script_runs(path, frames)
+    return judge([run() for run in runs])
+
+
+def e6_script_runs(path: str, frames: int, *, limit: Optional[int] = None):
+    """``e6_script`` as independent runs: ``(runs, judge)``, the script then
+    its closure twin; none when no callback is a bound method."""
     import os
     with open(path, encoding="utf-8") as fh:
         source = fh.read()
     twin_src, n = bound_to_closure(source)
     if not n:
-        return []
-    base = e6_projection(script_trace(path, frames))
-    twin = e6_projection(script_trace(path, frames, source=twin_src))
-    diff = compare(base, twin)
-    return [f"E6 {os.path.basename(path)} ({n} callbacks): " + "; ".join(diff)] if diff else []
+        return [], lambda results: []
+
+    def judge(results):
+        diff = compare(results[0], results[1])
+        return [f"E6 {os.path.basename(path)} ({n} callbacks): " + "; ".join(diff)] if diff else []
+
+    return [lambda: e6_projection(script_trace(path, frames)),
+            lambda: e6_projection(script_trace(path, frames, source=twin_src))], judge
 
 
 def e6_program(program: str, spec_ns: Dict, scenario: str) -> List[str]:

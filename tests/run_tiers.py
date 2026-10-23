@@ -119,9 +119,14 @@ SPLIT = frozenset({
     "test_laws_neutrality",     # one class per family
     "test_laws_families",       # one class per family
     "test_laws_equations",      # one class per equation
-    "test_laws_chaos_families",  # one class per family
+    "test_laws_chaos_families",  # one class per fixture, per game, per other family
 })
 CHUNK = 40  # max tests per shard of a SPLIT module
+# Classes whose tests are heavy: a smaller chunk. A gate job's work is a count
+# sized for a slow machine (Testing Design, WP33): a TestMethodJunk test is 40
+# examples at ci, each a fresh world and two heap censuses (~3.7 s a test alone
+# on the Mac); 40 of them ran 1 130 s in a loaded gate (WP34).
+CHUNKS = {"test_hyp_surface.TestMethodJunk": 20}
 
 
 @dataclass(frozen=True)
@@ -234,15 +239,17 @@ def normalize(arg: str) -> str:
 
 
 def shard(ids: Sequence[str], chunk: int = CHUNK) -> List[List[str]]:
-    """Group test ids by TestCase class; split classes larger than ``chunk``.
-    Every id lands in exactly one shard, in the original order."""
+    """Group test ids by TestCase class; split classes larger than ``chunk``
+    (``CHUNKS`` for a class with heavy tests). Every id lands in exactly one
+    shard, in the original order."""
     by_class: Dict[str, List[str]] = {}
     for tid in ids:
         by_class.setdefault(tid.rsplit(".", 1)[0], []).append(tid)
     out: List[List[str]] = []
-    for members in by_class.values():
-        for i in range(0, len(members), chunk):
-            out.append(members[i:i + chunk])
+    for cls, members in by_class.items():
+        size = CHUNKS.get(cls.removeprefix("tests."), chunk)
+        for i in range(0, len(members), size):
+            out.append(members[i:i + size])
     return out
 
 

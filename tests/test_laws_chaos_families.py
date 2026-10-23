@@ -12,7 +12,8 @@ verdict, refusals in ``tests/laws/chaos_refusals.py``.
 
 Runs per member scale with the profile (dev / ci / deep); the seed is
 ``SCENA_CHAOS_SEED`` (default 0; printed on a failure). SLOW + SPLIT
-(``run_tiers.py``): one gate job per family.
+(``run_tiers.py``): one gate job per fixture (``TestFixture_s0_basic``, …),
+per game (``TestGame_armada``, …) and per other family (WP34).
 
     python tests/run_tiers.py focused test_laws_chaos_families
 """
@@ -70,47 +71,104 @@ def _sweep(base, run_plan, plans, where, program):
     return out
 
 
-class TestFixtures(unittest.TestCase):
-    def test_the_laws_fixtures_keep_the_snapshot_rule(self):
-        out = []
-        for name, frames in FIXTURES:
-            program = f"tests/laws/fixtures/{name}"
-            plain = chaos.run(program, frames=frames, rewrite_it=False)
-            base = chaos.run(program, frames=frames, listing=True)
-            out += [f"{name}: idle rewrite {d}" for d in chaos.neutral_diff(plain.events, base.events)]
-            plans = chaos.draw(base.chaos.doors, SEED, n("fixture"))
-            out += _sweep(base, lambda p: chaos.run(program, frames=frames, plan=p, seed=SEED),
-                          plans, name, program)
-        self.assertEqual(out, [], "\n".join(out))
+# One class per fixture and per game: one gate job each (WP34). A family's job
+# held every member's runs in one process, one after another (fixtures 507 s,
+# games 663 s in the Mac's gate); a member is a fixed count of runs.
 
+def _fixture_findings(name, frames):
+    program = f"tests/laws/fixtures/{name}"
+    plain = chaos.run(program, frames=frames, rewrite_it=False)
+    base = chaos.run(program, frames=frames, listing=True)
+    out = [f"{name}: idle rewrite {d}" for d in chaos.neutral_diff(plain.events, base.events)]
+    plans = chaos.draw(base.chaos.doors, SEED, n("fixture"))
+    return out + _sweep(base, lambda p: chaos.run(program, frames=frames, plan=p, seed=SEED),
+                        plans, name, program)
+
+
+def _game_findings(game):
+    import game_harness as gh
+    out = []
+    for scenario in _first_or_all(gh.spec(game).scenarios):
+        where = f"{game}/{scenario}"
+        plain = chaos.run_family("game", game, scenario, rewrite_it=False)
+        base = chaos.run_family("game", game, scenario, listing=True)
+        out += [f"{where}: idle rewrite {d}" for d in chaos.neutral_diff(plain.events, base.events)]
+        if base.error is not None:
+            out.append(f"{where}: the idle run raised {base.error!r}")
+            continue
+        plans = chaos.draw(base.chaos.doors, SEED, n("game"))
+        out += _sweep(base, lambda p: chaos.run_family("game", game, scenario, plan=p,
+                                                       seed=SEED),
+                      plans, where, f"game:{game}/{scenario}")
+    return out
+
+
+def _member_class(name, doc, findings):
+    def test_keeps_the_snapshot_rule(self):
+        out = findings()
+        self.assertEqual(out, [], "\n".join(out))
+    globals()[name] = type(name, (unittest.TestCase,), {
+        "__doc__": doc, "__module__": __name__,
+        "test_keeps_the_snapshot_rule": test_keeps_the_snapshot_rule})
+
+
+for _name, _frames in FIXTURES:
+    _member_class(f"TestFixture_{_name}", f"The laws fixture {_name}.",
+                  lambda name=_name, frames=_frames: _fixture_findings(name, frames))
+
+
+def _games():
+    import game_harness as gh
+    return list(gh.GAMES)
+
+
+for _game in _games():
+    _member_class(f"TestGame_{_game}", f"The white-box game {_game}.",
+                  lambda game=_game: _game_findings(game))
+
+
+# S5: every door kind x every command, one S5 run each (ci: 19 kinds x 22
+# commands, ~0.6 s a run alone on the Mac). One job per group of commands; a
+# door's picks do not depend on the commands, so the groups are the sweep.
+COMMANDS_PER_JOB = 6
+S5_RUNS_PER_JOB = 150
+
+
+def _command_groups():
+    commands = list(chaos.COMMANDS)
+    return [commands[i:i + COMMANDS_PER_JOB] for i in range(0, len(commands), COMMANDS_PER_JOB)]
+
+
+def _s5_plans(base, commands):
+    return chaos.every_door(base.chaos.doors, commands, per_door=2 if DEEP else 1, seed=SEED)
+
+
+def _s5_class(k, commands):
     @unittest.skipUnless(FULL, "every door x every command: ci / deep")
-    def test_s5_every_door_times_every_command(self):
+    def test_s5_every_door_times_these_commands(self):
         base = chaos.run(chaos.S5, steps=chaos.S5_STEPS, listing=True)
-        plans = chaos.every_door(base.chaos.doors, list(chaos.COMMANDS),
-                                 per_door=2 if DEEP else 1, seed=SEED)
         out = _sweep(base, lambda p: chaos.run(chaos.S5, steps=chaos.S5_STEPS, plan=p, seed=SEED),
-                     plans, "s5_doors", chaos.S5)
+                     _s5_plans(base, commands), "s5_doors", chaos.S5)
         self.assertEqual(out, [], "\n".join(out))
+    name = f"TestEveryDoorEveryCommand{k}"
+    globals()[name] = type(name, (unittest.TestCase,), {
+        "__doc__": f"S5, every door kind x {', '.join(commands)}.", "__module__": __name__,
+        "test_s5_every_door_times_these_commands": test_s5_every_door_times_these_commands})
 
 
-class TestGames(unittest.TestCase):
-    def test_the_games_keep_the_snapshot_rule(self):
-        import game_harness as gh
-        out = []
-        for game in gh.GAMES:
-            for scenario in _first_or_all(gh.spec(game).scenarios):
-                where = f"{game}/{scenario}"
-                plain = chaos.run_family("game", game, scenario, rewrite_it=False)
-                base = chaos.run_family("game", game, scenario, listing=True)
-                out += [f"{where}: idle rewrite {d}" for d in chaos.neutral_diff(plain.events, base.events)]
-                if base.error is not None:
-                    out.append(f"{where}: the idle run raised {base.error!r}")
-                    continue
-                plans = chaos.draw(base.chaos.doors, SEED, n("game"))
-                out += _sweep(base, lambda p: chaos.run_family("game", game, scenario, plan=p,
-                                                               seed=SEED),
-                              plans, where, f"game:{game}/{scenario}")
-        self.assertEqual(out, [], "\n".join(out))
+for _k, _commands in enumerate(_command_groups(), 1):
+    _s5_class(_k, _commands)
+
+
+class TestS5Jobs(unittest.TestCase):
+    """The command groups are the whole sweep, each job within its count."""
+
+    def test_groups_cover_the_sweep_within_the_count(self):
+        base = chaos.run(chaos.S5, steps=chaos.S5_STEPS, listing=True)
+        groups = [_s5_plans(base, c) for c in _command_groups()]
+        whole = _s5_plans(base, list(chaos.COMMANDS))
+        self.assertEqual(sorted(p for g in groups for p in g), sorted(whole))
+        self.assertLessEqual(max(len(g) for g in groups), S5_RUNS_PER_JOB)
 
 
 class TestPrograms(unittest.TestCase):
