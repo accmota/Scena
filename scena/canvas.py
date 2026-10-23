@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from .shapes import Point, Rect, _xy_of
 from .scenamath import _as_xy
 from .style import *
+from .style import BlendMode, _SKIA_BLEND_MAP
 from .entity import _drawn
 from .registry import (
     Registry,
@@ -824,6 +825,30 @@ def _filter_batch_key(fx) -> Optional[tuple]:
     if fx is None:
         return None
     return getattr(fx, '_batch_key', None)
+
+
+def _filter_group_key(fx, obj) -> Optional[tuple]:
+    """The shared-filter group a shape draws in: its filter's key and its
+    blend. The group's layer composites with the blend (one per layer), so
+    shapes of two blends never share one (showcase A6)."""
+    key = _filter_batch_key(fx)
+    if key is None:
+        return None
+    return (key, getattr(obj, "_blend", None))
+
+
+def _layer_blend_paint(shapes) -> Optional[skia.Paint]:
+    """The composite paint of a filter layer: the group's blend, or ``None``
+    for normal. Inside the layer the shapes paint over transparent, where
+    every blend is plain coverage; the blend acts when the layer lands on the
+    picture. It landed with srcOver, so a blurred multiply / add / screen
+    shape painted as normal (showcase A6, 2026-10-23)."""
+    blend = getattr(shapes[0], "_blend", None) if shapes else None
+    if blend is None or blend is BlendMode.NORMAL:
+        return None
+    paint = skia.Paint()
+    paint.setBlendMode(_SKIA_BLEND_MAP[blend])
+    return paint
 
 
 def _aabb_intersects_view(aabb, vb: 'VisibleBounds') -> bool:
@@ -2802,9 +2827,17 @@ class ScenaCanvas:
                 # The view window and the layer checks once per layer, not per
                 # object: they cost more than the blit they could skip
                 # (review 2026-10-09 S9-10).
-                if vb is None:
-                    vb = self.visible_bounds
-                    vl, vbt, vr, vt = vb.left, vb.bottom, vb.right, vb.top
+                if layer._is_neutral_response:
+                    if vb is None:
+                        vb = self.visible_bounds
+                        nl, nb, nr, nt = vb.left, vb.bottom, vb.right, vb.top
+                    vl, vbt, vr, vt = nl, nb, nr, nt
+                else:
+                    # A scroll / parallax layer: the view window in the
+                    # layer's own coordinates (its partial matrix inverted,
+                    # as ``layer_view``). Never culled before (showcase A8).
+                    lb = self._cull_view_for(layer)
+                    vl, vbt, vr, vt = lb.left, lb.bottom, lb.right, lb.top
                 cull_box = _cull_box
                 append = objs.append
                 skipped = 0
@@ -2876,12 +2909,21 @@ class ScenaCanvas:
                 sk.restoreToCount(layer_saves)
 
     def _layer_never_culled(self, layer) -> bool:
-        """Debug zoom, a parallax layer (its own partial CTM) and the ``ui``
-        view pass are never culled (see ``_passes_cull``)."""
-        if self._debug_zoom_active or not layer._is_neutral_response:
+        """Debug zoom and the ``ui`` view pass are never culled (see
+        ``_passes_cull``). A parallax / scroll layer is culled against its
+        own view window (``_cull_view_for``)."""
+        if self._debug_zoom_active:
             return True
         from .registry import UI_LAYER
         return layer.name == UI_LAYER
+
+    def _cull_view_for(self, layer) -> VisibleBounds:
+        """The view window the cull tests ``layer``'s objects against: the
+        world window for a neutral layer, else the window in the layer's own
+        coordinates (its partial camera matrix and scroll, inverted)."""
+        if layer is None or layer._is_neutral_response:
+            return self.visible_bounds
+        return self._inverse_view_aabb(self._layer_partial_matrix(layer))
 
     def _passes_cull(self, obj, layer=None) -> bool:
         """One object: drawn this frame under ``cull_offscreen``? The draw
@@ -2901,7 +2943,7 @@ class ScenaCanvas:
                 return True
         elif self._debug_zoom_active:
             return True
-        return _cull_keeps(obj, self.visible_bounds)
+        return _cull_keeps(obj, self._cull_view_for(layer))
 
     def _draw_filtered_one(self, obj) -> None:
         """One object on the filtered route (ImageFilter glow / shadow on a saveLayer).
@@ -3077,13 +3119,13 @@ class ScenaCanvas:
         self._draw_tail_ghosts(segment)
         self._batch_by_key(
             segment,
-            key_fn=lambda o: _filter_batch_key(getattr(o, 'fill_filter', None)),
+            key_fn=lambda o: _filter_group_key(getattr(o, 'fill_filter', None), o),
             draw_batch=self._draw_fills_in_layer,
             draw_one=self._draw_fill_only,
         )
         self._batch_by_key(
             segment,
-            key_fn=lambda o: _filter_batch_key(getattr(o, 'line_filter', None)),
+            key_fn=lambda o: _filter_group_key(getattr(o, 'line_filter', None), o),
             draw_batch=self._draw_strokes_in_layer,
             draw_one=self._draw_stroke_only,
         )
@@ -3209,11 +3251,11 @@ class ScenaCanvas:
             minx - outset, miny - outset, maxx + outset, maxy + outset
         )
 
-    def _save_filter_layer(self, bounds: skia.Rect, image_filter) -> bool:
+    def _save_filter_layer(self, bounds: skia.Rect, image_filter, blend_paint=None) -> bool:
         """saveLayer only when an ImageFilter exists. Never for solid fills."""
         if image_filter is None:
             return False
-        paint = skia.Paint()
+        paint = skia.Paint() if blend_paint is None else skia.Paint(blend_paint)
         paint.setImageFilter(image_filter)
         self.skia_canvas.saveLayer(bounds, paint)
         return True
@@ -3326,9 +3368,10 @@ class ScenaCanvas:
         bounds = self._layer_bounds_for(shapes, shared_filter)
         scale = float(getattr(self, "shape_fx_scale", 1.0) or 1.0)
         image_filter = shared_filter._skia_filter
+        blend_paint = _layer_blend_paint(shapes)
 
         if scale >= 0.999:
-            if not self._save_filter_layer(bounds, image_filter):
+            if not self._save_filter_layer(bounds, image_filter, blend_paint):
                 for shp in shapes:
                     if fills:
                         self._draw_fill_only(shp)
@@ -3384,21 +3427,21 @@ class ScenaCanvas:
         sampling = skia.SamplingOptions(skia.FilterMode.kLinear)
         # Prefer src→dst blit of the content sub-rect (bucket-safe).
         try:
-            self.skia_canvas.drawImageRect(img, content, bounds, sampling)
+            self.skia_canvas.drawImageRect(img, content, bounds, sampling, blend_paint)
         except TypeError:
             # Older binding variant: single dst rect scales full image.
             if pool_w == hw and pool_h == hh:
-                self.skia_canvas.drawImageRect(img, bounds, sampling)
+                self.skia_canvas.drawImageRect(img, bounds, sampling, blend_paint)
             else:
                 # Subset then draw if available.
                 try:
                     sub = img.makeSubset(skia.IRect.MakeWH(hw, hh))
                     if sub is not None:
-                        self.skia_canvas.drawImageRect(sub, bounds, sampling)
+                        self.skia_canvas.drawImageRect(sub, bounds, sampling, blend_paint)
                     else:
-                        self.skia_canvas.drawImageRect(img, bounds, sampling)
+                        self.skia_canvas.drawImageRect(img, bounds, sampling, blend_paint)
                 except Exception:
-                    self.skia_canvas.drawImageRect(img, bounds, sampling)
+                    self.skia_canvas.drawImageRect(img, bounds, sampling, blend_paint)
 
     def _draw_group_content(self, shapes: List, *, fills: bool, strip_filters: bool) -> None:
         """Rasterize fill or stroke into the current filter layer.

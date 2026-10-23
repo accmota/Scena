@@ -1,0 +1,112 @@
+"""
+A post effect's ``target=`` / ``center=`` / ``origin=`` lands on the object
+where the picture shows it, whatever the camera does.
+
+Posts work on the finished picture; their points are world points (a
+position, an object, the mouse). They were read as design coords, so
+``canvas.set_origin("center"); GodRays(target=(0, 0))`` put the rays at the
+bottom-left corner, and a pan, zoom or turn moved them off their object
+(showcase A2, 2026-10-23).
+
+Bug class guarded: a world point used on the picture without the camera's
+map (``_sksl_effects._world_to_view``).
+
+Run:
+
+    python tests/run_tiers.py focused test_post_targets_camera
+"""
+from __future__ import annotations
+
+import os
+import sys
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+
+import numpy as np  # noqa: E402
+import skia  # noqa: E402
+
+from program_support import FRAME  # noqa: E402
+from system_support import boot, system_world  # noqa: E402
+
+from scena import Circle, canvas  # noqa: E402
+from scena import _sksl_effects as sk  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+boot()
+setUpModule, tearDownModule = module_sweep()
+
+CAMERAS = {
+    "identity": lambda: None,
+    "origin center": lambda: canvas.set_origin("center"),
+    "pan": lambda: canvas.pan_to(70, -30),
+    "zoom": lambda: canvas.zoom_to(2.0),
+    "turn": lambda: canvas.rotate_to(30),
+}
+
+
+def frame(w):
+    w.step(1, dt=FRAME)
+    img = w.surface.makeImageSnapshot()
+    info = skia.ImageInfo.Make(img.width(), img.height(),
+                               skia.kRGBA_8888_ColorType, skia.kUnpremul_AlphaType)
+    buf = bytearray(img.width() * img.height() * 4)
+    assert img.readPixels(info, buf, img.width() * 4, 0, 0)
+    return np.frombuffer(bytes(buf), np.uint8).reshape(img.height(), img.width(), 4)[:, :, :3]
+
+
+class TestPostPointsFollowTheCamera(unittest.TestCase):
+    def test_target_lands_on_the_object(self):
+        for name, set_camera in CAMERAS.items():
+            with self.subTest(camera=name), system_world(draw=True) as w:
+                try:
+                    set_camera()
+                    world = (20.0, 15.0) if name == "origin center" else (150.0, 110.0)
+                    dot = Circle(center=world, radius=7, color="white")
+                    a = frame(w)
+                    h, wd = a.shape[:2]
+                    for target in (world, dot):
+                        fx, fy = sk._resolve_target_fb(target, wd, h)
+                        px = a[int(round(fy)), int(round(fx))]
+                        self.assertGreater(int(px.sum()), 600, f"{name}: {target!r} → ({fx:.0f}, {fy:.0f}) is {px}")
+                    dot.destroy()
+                finally:
+                    canvas.reset_view()
+
+    def test_origin_center_puts_world_zero_where_the_view_middle_is(self):
+        with system_world(draw=True) as w:
+            try:
+                canvas.set_origin("center")
+                frame(w)
+                fw, fh = w.surface.width(), w.surface.height()
+                W, H = sk._design_size()
+                self.assertEqual(sk._resolve_target_fb((0, 0), fw, fh),
+                                 sk._view_to_fb(W / 2, H / 2, fw, fh))
+            finally:
+                canvas.reset_view()
+
+    def test_view_to_fb_counts_the_letterbox(self):
+        # A 400×300 design in a 2000×1200 framebuffer (maximized, Retina 2×:
+        # a 1000×600 window): view_scale 2, pillars of 100 window px. The
+        # post image may be smaller (post_fx_scale): the same place, scaled.
+        from scena.orchestration import ScenaFramework
+        fw = ScenaFramework.get_instance()
+        metrics = dict(fb_width=2000, fb_height=1200, view_scale=2.0, pixel_ratio=2.0,
+                       _letterbox_pad_x=100.0, _letterbox_pad_y=0.0)
+        saved = {k: getattr(fw, k) for k in metrics}
+        try:
+            for k, v in metrics.items():
+                setattr(fw, k, v)
+            W, H = sk._design_size()
+            self.assertEqual(sk._view_to_fb(W / 2, H / 2, 2000, 1200), (1000.0, 600.0))
+            self.assertEqual(sk._view_to_fb(0, H, 2000, 1200), (200.0, 0.0))
+            self.assertEqual(sk._view_to_fb(W, 0, 1000, 600), (900.0, 600.0))
+        finally:
+            for k, v in saved.items():
+                setattr(fw, k, v)
+
+
+if __name__ == "__main__":
+    unittest.main()

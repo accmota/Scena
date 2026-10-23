@@ -741,13 +741,53 @@ def draw_scanlines_multiply(canvas, w: float, h: float, amount: float = 1.0) -> 
     )
 
 
-def _mouse_fb_xy(fb_w: float, fb_h: float) -> Tuple[float, float]:
+def _world_to_view(x: float, y: float) -> Tuple[float, float]:
+    """A world point where the picture shows it (design-window coords, y-up):
+    through the camera and the debug zoom. A post works on the picture, so a
+    ``target=`` / ``center=`` / the mouse (all world points) must be mapped;
+    they were read as design coords, so ``set_origin("center")`` put
+    ``GodRays(target=(0, 0))`` in the corner and a pan / zoom / turn moved
+    the rays off their object (showcase A2, 2026-10-23)."""
+    from .orchestration import ScenaFramework
+    fw = ScenaFramework.get_instance()
+    if fw is None:
+        return x, y
+    return fw.world_to_view_coords(x, y)
+
+
+def _view_to_fb(x: float, y: float, w: float, h: float) -> Tuple[float, float]:
+    """A view point (design-window coords, y-up) → pixels of the post image
+    (``w`` × ``h``, y-down). The post image is the whole framebuffer, bands
+    included, possibly at ``post_fx_scale``: the design rectangle sits at the
+    letterbox pads, ``view_scale × pixel_ratio`` pixels a unit. It was
+    ``x / W * w``, right only when the design filled the framebuffer."""
+    from .orchestration import ScenaFramework
+    fw = ScenaFramework.get_instance()
+    W, H = float(fw.design_width), float(fw.design_height)
+    fb_w = float(getattr(fw, "fb_width", 0) or 0)
+    fb_h = float(getattr(fw, "fb_height", 0) or 0)
+    vs = float(getattr(fw, "view_scale", 0) or 0)
+    if fb_w <= 0 or fb_h <= 0 or vs <= 0:
+        return (x / W * w, (1.0 - y / H) * h)
+    pr = float(getattr(fw, "pixel_ratio", 1.0) or 1.0)
+    pad_x = float(getattr(fw, "_letterbox_pad_x", 0.0) or 0.0)
+    pad_y = float(getattr(fw, "_letterbox_pad_y", 0.0) or 0.0)
+    fx = (pad_x + x * vs) * pr
+    fy = (pad_y + (H - y) * vs) * pr
+    return (fx * (w / fb_w), fy * (h / fb_h))
+
+
+def _mouse_view_xy() -> Tuple[float, float]:
     import builtins
     mouse = getattr(builtins, "mouse", None)
     W, H = _design_size()
-    mx = float(getattr(mouse, "x", W * 0.5) or (W * 0.5))
-    my = float(getattr(mouse, "y", H * 0.5) or (H * 0.5))
-    return (mx / W * fb_w, (1.0 - my / H) * fb_h)
+    if mouse is None:
+        return W * 0.5, H * 0.5
+    return _world_to_view(float(mouse.x), float(mouse.y))
+
+
+def _mouse_fb_xy(fb_w: float, fb_h: float) -> Tuple[float, float]:
+    return _view_to_fb(*_mouse_view_xy(), fb_w, fb_h)
 
 
 def _resolve_target_fb(target, fb_w, fb_h) -> Tuple[float, float]:
@@ -758,9 +798,8 @@ def _resolve_target_fb(target, fb_w, fb_h) -> Tuple[float, float]:
     if target is None:
         return _mouse_fb_xy(fb_w, fb_h)
     from .shapes import _xy_of
-    W, H = _design_size()
-    x, y = _xy_of(target, required=True)
-    return (x / W * fb_w, (1.0 - y / H) * fb_h)
+    x, y = _world_to_view(*_xy_of(target, required=True))
+    return _view_to_fb(x, y, fb_w, fb_h)
 
 
 class Prism(PostEffect):
@@ -834,17 +873,14 @@ class Perspective(PostEffect):
     def _draw_shader(self, canvas, image, w, h, t, fw=None) -> None:
         sh = image.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp)
         if self.target is None:
-            import builtins
-            mouse = getattr(builtins, "mouse", None)
             W, H = _design_size()
-            mx = float(getattr(mouse, "x", W * 0.5) or (W * 0.5))
-            my = float(getattr(mouse, "y", H * 0.5) or (H * 0.5))
+            mx, my = _mouse_view_xy()
             pitch = max(-1.0, min(1.0, (mx / W - 0.5) * 2.0))
             yaw = max(-1.0, min(1.0, (my / H - 0.5) * 2.0))
         else:
             from .shapes import _xy_of
             W, H = _design_size()
-            tx, ty = _xy_of(self.target, required=True)
+            tx, ty = _world_to_view(*_xy_of(self.target, required=True))
             pitch = max(-1.0, min(1.0, (tx / W - 0.5) * 2.0))
             yaw = max(-1.0, min(1.0, (ty / H - 0.5) * 2.0))
         pitch = max(-1.0, min(1.0, pitch + 0.12 * math.sin(t * 0.7)))
@@ -1144,12 +1180,11 @@ class Spotlight(PostEffect):
     def _draw_shader(self, canvas, image, w, h, t, fw=None) -> None:
         W, H = _design_size()
         if self.origin is None:
-            ox, oy = W * 0.5, H * 0.95
+            ox, oy = W * 0.5, H * 0.95        # a place on the picture
         else:
             from .shapes import _xy_of
-            ox, oy = _xy_of(self.origin, required=True)
-        # Design y-up → FB y-down
-        origin_fb = (ox / W * w, (1.0 - oy / H) * h)
+            ox, oy = _world_to_view(*_xy_of(self.origin, required=True))
+        origin_fb = _view_to_fb(ox, oy, w, h)
 
         if self.target is None:
             aim_fb = _mouse_fb_xy(w, h)

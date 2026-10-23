@@ -615,6 +615,17 @@ The same cycles mean a Container dropped during play leaves the reactive graph
 only at a full collection; the leak detector therefore runs one `gc.collect()`
 (play objects only, ~1 ms) before it warns, and only then
 ([Reactive Design — Deferred trees](Reactive%20Design.md#deferred-trees-measured-boxes)).
+The graph registers parts (a polygon's vertices, a History's points), so the
+"graph rising while objects stay flat" signals compare the graph with the live
+roster (parts included, an O(1) `len`), not with the drawn-object count: a
+polygon given one more side each wave read as orphaned nodes (showcase A7,
+2026-10-23). A roster that jumps while nothing more is drawn is its own signal
+(`"roster"`: objects kept in a list, never destroyed); before it warns, one walk
+of the roster (~2 ms per 6000 items) counts the items whose object is on no
+layer, and growth that sits mostly in drawn objects' parts stays quiet
+(`leak_detector.LeakSampler.sample(off_screen=)`;
+`tests/test_leak_detector.py`, `TestPartsOfDrawnObjectsAreNotOrphans`,
+`TestDrawnPartsGrowInAGame`).
 
 ## Clocks
 

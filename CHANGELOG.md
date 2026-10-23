@@ -78,6 +78,22 @@ left out.
   `await canvas.fade_out(1)` names `await wait(seconds)` and `on_done=`.
   The freeze watchdog's message no longer says building many objects in one
   step is fine (it is the usual cause): build them in pieces.
+- A post effect's `target=` / `center=` / `origin=` (GodRays, Lamp, Vortex,
+  ZoomBlur, Perspective, Spotlight) and its follow-the-mouse default ignored
+  the camera: after `canvas.set_origin("center")`, `GodRays(target=(0, 0))`
+  shone from the bottom-left corner, and a pan, zoom or turn moved the
+  effect off its object. They now land where the picture shows the point,
+  in a window of any shape.
+- A shape with a `fill_filter` / `line_filter` (`Blur`, `Glow`, …) ignored
+  its `.blend`: a blurred `blend = "multiply"` painted as normal. It keeps
+  its blend now.
+- The leak warning "reactive graph rising while objects stay ~9" fired on
+  scenes whose objects grow parts (a polygon given one more side each wave,
+  a History filling slowly). Parts of drawn objects no longer count as
+  orphans; objects kept off screen in a list still warn.
+- With `canvas.cull_offscreen = True`, scrolling and parallax layers were
+  never culled (everything on them drew, in view or not). They are culled
+  against their own view window now.
 - Faster drawing:
   - Large shapes turned by their own angle or by the camera, at angles that
     are not multiples of 90°: Tracks (stars, waves, zigzags), Polygons and

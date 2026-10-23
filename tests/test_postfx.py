@@ -238,8 +238,11 @@ class TestPostFxStack(unittest.TestCase):
         hero = Circle(center=(200, 150), radius=10)
         self.assertEqual(_resolve_target_fb(hero, 800, 600), _resolve_target_fb((200, 150), 800, 600))
         hero.center = (400, 300)
-        self.assertEqual(_resolve_target_fb(hero, 800, 600), (400.0, 300.0))
-        self.assertEqual(_resolve_target_fb(Point(400, 300), 800, 600), (400.0, 300.0))
+        # Where (400, 300) lands depends on the framebuffer's letterbox
+        # (test_post_targets_camera); an object and a Point land there too.
+        at = _resolve_target_fb((400, 300), 800, 600)
+        self.assertEqual(_resolve_target_fb(hero, 800, 600), at)
+        self.assertEqual(_resolve_target_fb(Point(400, 300), 800, 600), at)
         with self.assertRaises(TypeError):
             _resolve_target_fb("hero", 800, 600)
         img = skia.Surface(8, 8).makeImageSnapshot()

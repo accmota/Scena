@@ -914,8 +914,9 @@ belongs in the look, not in the cache. Test: `tests/test_gpu_purge.py`
 builds the per-layer list from `visible` only — it does **not** call
 `_passes_cull` (whose first line would `return True`). `_cull_kept` still
 counts visibles; `_cull_skipped` stays 0. When the flag is True, the layer
-exemptions run once per layer (`_layer_never_culled`: debug zoom, parallax,
-`ui`) and `visible_bounds` once per draw; per object only `_cull_keeps(obj, vb)`
+exemptions run once per layer (`_layer_never_culled`: debug zoom, `ui`) and
+`visible_bounds` once per draw (a parallax / scroll layer: its own window,
+`_cull_view_for`, once per layer); per object only `_cull_keeps(obj, vb)`
 runs (AABB, pads, fail-open). `_passes_cull` is the same two steps for one
 object. Optional names are probed per class (`_probe`), so an actor's ink
 `__getattr__` miss (~0.5 µs each, five or six per object) is not paid. Before
@@ -928,14 +929,31 @@ blit); 1000 `Text` labels draw 2.5× faster with culling on.
 Test hooks: `_cull_kept` / `_cull_skipped` (reset each `draw()`, same spirit as
 `_layer_ctm_swaps`). Trade-off: false skip (popping glow) is the failure mode —
 keep the default off; large worlds opt in. Residual: huge halos just off-screen
-may pop; canvas Bloom of culled heroes will not bleed in. Per-layer parallax
-cull (invert partial CTM) is deferred. Tests: `tests/test_cull.py`. Visual:
-`scripts/smoke/world_view.py`.
+may pop; canvas Bloom of culled heroes will not bleed in. A parallax or scroll
+layer is culled against the view window in its own coordinates (the inverse of
+its partial matrix and scroll accum, the window `layer.view` reports); it was
+exempt, so a scrolling layer drew everything it ever held (showcase A8,
+2026-10-23: 300 Lines far off view). Tests: `tests/test_cull.py`
+(`TestParallaxAndScrollLayers`), `test_diff_draw.TestCullIsConservative` (cull
+on and off draw the same pixels, now on fixed / parallax / scroll layers under
+pan, zoom and a turn). Visual: `scripts/smoke/world_view.py`.
 
 When `canvas.effects` is active (or a custom `post_draw` is set), the scene
 is snapshotted to an offscreen GPU RT and composed through `PostFxStack`;
 the `top` layer may opt out (`set_post_fx`). An empty inactive stack is
-identity (scene draws to the window framebuffer). Shared shape ImageFilters
+identity (scene draws to the window framebuffer). A post's `target=` /
+`center=` / `origin=` and the mouse are world points: `_sksl_effects._world_to_view`
+maps them through the camera, and `_view_to_fb` puts the view point in the post
+image (the whole framebuffer, letterbox bands included, at `post_fx_scale`);
+they were read as design coords, so `set_origin("center")` and any pan, zoom or
+turn put the effect off its object (showcase A2, 2026-10-23;
+`tests/test_post_targets_camera.py`). A filtered shape's layer (a shared
+ImageFilter's `saveLayer`, or the `shape_fx_scale` render target) lands with the
+group's blend: inside it the shapes paint over transparent, so the blend acts at
+the composite; it landed with srcOver and a blurred multiply / add / screen shape
+painted as normal (showcase A6). The filter groups are keyed on the filter and
+the blend (`_filter_group_key`), one blend a layer (`tests/test_filter_blend.py`).
+Shared shape ImageFilters
 batch by `_batch_key` into one saveLayer / low-res RT. Large sparse same-key
 unions still pay a near-full-frame plate (cost tracks union AABB). Prefer
 clustered fleets and canvas Bloom for atmosphere. See [Effect System Design.md](Effect%20System%20Design.md).

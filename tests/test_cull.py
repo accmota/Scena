@@ -228,14 +228,47 @@ class TestSpatialFx(CullTestCase):
         self.assertTrue(far.visible)
 
 
-class TestParallaxExemption(CullTestCase):
-    def test_parallax_far_shape_kept(self):
+class TestParallaxAndScrollLayers(CullTestCase):
+    """A parallax / scroll layer is culled against its own view window (its
+    partial camera matrix and scroll accum, inverted, as ``layer.view``).
+    It was never culled (showcase A8: 300 Lines far off view on a scroll
+    layer all drew); it pinned "far shape kept" here until 2026-10-23."""
+
+    def test_far_shape_on_a_fixed_layer_is_culled(self):
         canvas.layers.create("bg", pan_response=0.0)
         eng = _engine()
         eng.cull_offscreen = True
         far = self.track(Circle(center=(50000, 50000), radius=10, layer="bg"))
         layer = eng.registry.layers["bg"]
-        self.assertTrue(eng._passes_cull(far, layer=layer))
+        self.assertFalse(eng._passes_cull(far, layer=layer))
+
+    def test_a_fixed_layer_keeps_what_it_shows_after_a_pan(self):
+        canvas.layers.create("hud_bg", pan_response=0.0)
+        eng = _engine()
+        eng.cull_offscreen = True
+        try:
+            canvas.pan_to(5000, 5000)       # the world moved; this layer did not
+            shown = self.track(Circle(center=(200, 150), radius=10, layer="hud_bg"))
+            world = self.track(Circle(center=(200, 150), radius=10))
+            self.assertTrue(eng._passes_cull(shown, layer=eng.registry.layers["hud_bg"]))
+            self.assertFalse(eng._passes_cull(world, layer=_default_layer()))
+        finally:
+            canvas.reset_view()
+
+    def test_cull_matches_layer_view(self):
+        canvas.layers.create("half", pan_response=0.5)
+        eng = _engine()
+        eng.cull_offscreen = True
+        try:
+            canvas.pan_to(600, 0)
+            layer = eng.registry.layers["half"]
+            view = layer.view
+            inside = self.track(Circle(center=(view.center.x, view.center.y), radius=5, layer="half"))
+            outside = self.track(Circle(center=(view.right + 500, view.center.y), radius=5, layer="half"))
+            self.assertTrue(eng._passes_cull(inside, layer=layer))
+            self.assertFalse(eng._passes_cull(outside, layer=layer))
+        finally:
+            canvas.reset_view()
 
     def test_neutral_far_still_skipped(self):
         eng = _engine()

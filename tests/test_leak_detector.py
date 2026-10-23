@@ -267,6 +267,101 @@ class TestGcChurnIsNotALeak(unittest.TestCase):
         self.assertEqual(err["where"], "leak-detector")
 
 
+class TestPartsOfDrawnObjectsAreNotOrphans(unittest.TestCase):
+    """Showcase A7 (2026-10-23): the graph registers parts (a polygon's
+    vertices, a History's points), the drawn-object count does not, so a
+    polygon given one more side each wave, or a History filling slowly, read
+    as "reactive graph rising while objects stay ~9". The graph signals
+    compare the graph with the live roster (parts included); a roster that
+    jumps while nothing more is drawn warns only when the growth sits off
+    screen (held Boxes), not in drawn parts."""
+
+    def window(self, drawn, graph, live):
+        return [(drawn(i), graph(i), live(i)) for i in range(HISTORY_LEN)]
+
+    def test_graph_and_roster_growing_together_is_not_orphans(self):
+        # Not "graph"; the roster's own climb is judged by where it sits
+        # (test_roster_hit_needs_growth_off_screen).
+        h = self.window(lambda i: 28, lambda i: 300 + 30 * i, lambda i: 200 + 28 * i)
+        self.assertNotEqual(leak_signal(h), "graph")
+        s = LeakSampler()
+        hits = [s.sample(*row[:2], live=row[2], off_screen=lambda: 0) for row in h]
+        self.assertEqual([x for x in hits if x is not None], [])
+
+    def test_graph_with_a_flat_roster_is_still_orphans(self):
+        h = self.window(lambda i: 28, lambda i: 300 + 30 * i, lambda i: 200)
+        self.assertEqual(leak_signal(h), "graph")
+
+    def test_a_jumping_roster_with_nothing_more_drawn_is_flagged(self):
+        h = self.window(lambda i: 9, lambda i: 100 + 80 * i, lambda i: 100 + 80 * i)
+        self.assertEqual(leak_signal(h), "roster")
+
+    def test_roster_hit_needs_growth_off_screen(self):
+        h = self.window(lambda i: 9, lambda i: 100 + 80 * i, lambda i: 100 + 80 * i)
+        for off, fires in ((10, False), (500, True)):
+            with self.subTest(off_screen=off):
+                s = LeakSampler()
+                hit = None
+                for row in h:
+                    hit = s.sample(*row[:2], live=row[2], off_screen=lambda o=off: o) or hit
+                self.assertEqual(hit is not None, fires)
+                if fires:
+                    self.assertEqual(hit[0], "roster")
+                    self.assertIn("off screen", hit[1])
+
+
+class TestDrawnPartsGrowInAGame(unittest.TestCase):
+    """The framework's own sampler on the two showcase scenes."""
+
+    def setUp(self):
+        from scena import init
+        from scena.orchestration import ScenaFramework
+        init(width=400, height=300)
+        self.fw = ScenaFramework.get_instance()
+        self.fw._leak_sampler.reset()
+        self.fw._leak_sampler.advance = lambda now=None: True
+        clear_author_error()
+
+    def tearDown(self):
+        del self.fw._leak_sampler.advance
+        self.fw._leak_sampler.reset()
+        clear_author_error()
+
+    def test_polygons_given_one_more_side_each_wave(self):
+        from scena import RegularPolygon
+        polys = []
+        try:
+            for wave in range(HISTORY_LEN + 3):
+                for p in polys:
+                    p.destroy()
+                polys = [RegularPolygon(n=3 + wave, center=(20 + 12 * i, 150), radius=5)
+                         for i in range(28)]
+                for p in polys:
+                    p.points
+                gc.collect()
+                self.fw._tick_leak_detector()
+            self.assertIsNone(last_author_error())
+        finally:
+            for p in polys:
+                p.destroy()
+
+    def test_a_history_filling_slowly(self):
+        from scena import Circle, History
+        trail = History(max_points=16, on_leave=lambda dot: dot.destroy())
+        made = []
+        try:
+            for beat in range(HISTORY_LEN + 3):
+                dot = Circle(center=(10 + beat * 5, 100), radius=2)
+                made.append(dot)
+                trail.add(dot)
+                self.fw._tick_leak_detector()
+            self.assertIsNone(last_author_error())
+        finally:
+            for d in made:
+                if not d._destroyed:
+                    d.destroy()
+
+
 class TestWarningChannel(unittest.TestCase):
     def setUp(self):
         clear_author_error()

@@ -268,14 +268,19 @@ class TestFastPath(ParallaxTestCase):
 
 
 class TestCullExemption(ParallaxTestCase):
-    def test_parallax_shape_not_culled_outside_global_bounds(self):
+    def test_parallax_shape_culled_by_its_own_window(self):
+        # A parallax layer is culled against its own view window (showcase
+        # A8, 2026-10-23); it was exempt, and this test pinned "not culled".
         canvas.layers.create("bg", pan_response=0.0)  # screen-locked
         eng = _engine()
         eng.cull_offscreen = True
-        # Far outside design space — neutral would cull; parallax must not.
-        far = self.track(Circle(center=(50000, 50000), radius=10, layer="bg"))
         layer = _registry().layers["bg"]
-        self.assertTrue(eng._passes_cull(far, layer=layer))
+        far = self.track(Circle(center=(50000, 50000), radius=10, layer="bg"))
+        self.assertFalse(eng._passes_cull(far, layer=layer))
+        eng.pan_to(50000, 50000)           # the world moved; the layer did not
+        eng._sync_camera()
+        near = self.track(Circle(center=(eng.width / 2, eng.height / 2), radius=10, layer="bg"))
+        self.assertTrue(eng._passes_cull(near, layer=layer))
 
     def test_neutral_still_culled(self):
         eng = _engine()

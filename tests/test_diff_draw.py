@@ -204,12 +204,22 @@ class TestCullIsConservative(unittest.TestCase):
                                       hst.sampled_from([None, "glow", "shadow", "neon"])),
                            min_size=1, max_size=8),
            pan=hst.tuples(hst.integers(-40, 40), hst.integers(-40, 40)),
-           zoom=hst.sampled_from([1.0, 1.5, 0.75]))
-    def test_frame_identical_with_cull(self, specs, pan, zoom):
+           zoom=hst.sampled_from([1.0, 1.5, 0.75]),
+           layer=hst.sampled_from([None, "fixed", "half", "scroll"]),
+           turn=hst.sampled_from([0.0, 0.0, 25.0]))
+    def test_frame_identical_with_cull(self, specs, pan, zoom, layer, turn):
+        # ``layer``: the shapes on a parallax / scroll layer, culled against
+        # that layer's own view window since showcase A8 (never culled before).
         with system_world(draw=True) as w:
+            if layer is not None and layer not in canvas.layers:
+                resp = {"fixed": dict(pan_response=0.0), "half": dict(pan_response=0.5),
+                        "scroll": dict(scroll=(-40, 25))}[layer]
+                canvas.layers.create(layer, **resp)
             objs = []
             for spec, ox, oy, look in specs:
                 o = w.track(build(spec))
+                if layer is not None:
+                    o.layer = layer
                 o.move_to(ox, oy)
                 with quiet():
                     if look == "glow":
@@ -221,6 +231,9 @@ class TestCullIsConservative(unittest.TestCase):
                 objs.append(o)
             canvas.pan_to((canvas.width / 2 + pan[0], canvas.height / 2 + pan[1]))
             canvas.zoom_to(zoom)
+            canvas.rotate_to(turn)
+            if layer == "scroll":
+                w.step(20)                  # the scroll accum moves the layer
             frames = []
             eng = w.fw._scena_draw
             saved = canvas.cull_offscreen, eng.batch_shared_filters

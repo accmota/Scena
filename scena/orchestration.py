@@ -2649,16 +2649,31 @@ class ScenaFramework:
         from .state import get_scena_system
         ss = get_scena_system()
 
-        def count() -> Tuple[int, int]:
+        def count() -> Tuple[int, int, int]:
             graph_nodes = len(ss.dependency_graph.nodes) if ss else 0
-            return self._count_registry_objects(), graph_nodes
+            draw = self._scena_draw
+            live = len(draw.registry.live) if draw is not None else 0
+            return self._count_registry_objects(), graph_nodes, live
 
-        def recount() -> Tuple[int, int]:
+        def recount() -> Tuple[int, int, int]:
             # Only before a new warning: a full collection is a few ms.
             gc.collect()
             return count()
 
-        hit = sampler.sample(*count(), recount=recount)
+        def off_screen() -> int:
+            from .state import probe_private
+            n = 0
+            for obj in list(self._scena_draw.registry.live.values()):
+                try:
+                    root = obj._ownership_root()
+                except Exception:
+                    root = obj
+                if probe_private(root, "_layer", None) is None:
+                    n += 1
+            return n
+
+        e, g, live = count()
+        hit = sampler.sample(e, g, recount=recount, live=live, off_screen=off_screen)
         if hit is None:
             return
         _kind, message = hit

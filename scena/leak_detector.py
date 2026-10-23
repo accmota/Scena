@@ -1,6 +1,13 @@
 """Periodic Container / registry-object leak detector (pure heuristic + sampler).
 
-Samples are ``(entities, graph_nodes)`` pairs, oldest → newest.
+Samples are ``(entities, graph_nodes)`` pairs, or ``(entities, graph_nodes,
+live)`` triples, oldest → newest. ``entities`` counts drawn objects (no
+parts): the missing-``destroy()`` signal reads it. ``live`` counts every live
+roster item, parts included (a polygon's vertices, a History's points): the
+graph signals compare the graph with it. The graph registers parts too, so
+against drawn objects alone a polygon that gains a vertex each wave, or a
+History filling slowly, read as orphaned nodes (showcase A7, 2026-10-23). A
+pair is judged with ``live = entities``.
 
 A leak is **unbounded growth that keeps stepping up**. Burst-then-plateau
 (spawners, first-touch ContainerSlot warmup, clicking Criar a few times)
@@ -77,18 +84,19 @@ def _large_object_steps(values: Sequence[int]) -> int:
 def leak_signal(history: Sequence[Tuple[int, int]]) -> Optional[str]:
     """Classify a rolling sample window.
 
-    Returns ``"objects"``, ``"graph"``, or ``None``. Pure — unit-testable with
-    synthetic histories and soak-churn / arena-spawn replays.
+    Returns ``"objects"``, ``"roster"``, ``"graph"``, or ``None``. Pure —
+    unit-testable with synthetic histories and soak-churn / arena-spawn replays.
     """
     if len(history) < HISTORY_LEN:
         return None
-    ents = [e for e, _ in history]
-    graphs = [g for _, g in history]
-    d_obj = ents[-1] - ents[0]
+    ents = [h[0] for h in history]
+    graphs = [h[1] for h in history]
+    lives = [h[2] if len(h) > 2 else h[0] for h in history]
     d_graph = graphs[-1] - graphs[0]
+    d_live = lives[-1] - lives[0]
 
-    # Orphaned Containers: graph keeps climbing while the registry does not.
-    if _sustained_climb(graphs, MIN_GRAPH_DELTA) and abs(d_obj) <= OBJECT_FLAT_SLACK:
+    # Orphaned Containers: graph keeps climbing while the roster does not.
+    if _sustained_climb(graphs, MIN_GRAPH_DELTA) and abs(d_live) <= OBJECT_FLAT_SLACK:
         return "graph"
 
     # Missing destroy() in a loop: objects keep jumping by a leak-sized
@@ -100,11 +108,20 @@ def leak_signal(history: Sequence[Tuple[int, int]]) -> Optional[str]:
     ):
         return "objects"
 
-    # Disproportionate graph growth vs objects (many orphan nodes per entity).
+    # Objects kept off screen (a list of Boxes or Points that only grows):
+    # the roster jumps by a leak-sized step while nothing more is drawn.
+    if (
+        len(history[-1]) > 2
+        and _sustained_climb(lives, MIN_OBJECT_DELTA)
+        and _large_object_steps(lives) >= MIN_CLIMB_STEPS
+    ):
+        return "roster"
+
+    # Disproportionate graph growth vs the roster (many orphan nodes per item).
     if (
         _sustained_climb(graphs, MIN_GRAPH_DELTA)
-        and d_obj >= 0
-        and d_graph / max(d_obj, 1) > MAX_NORMAL_NODES_PER_OBJECT
+        and d_live >= 0
+        and d_graph / max(d_live, 1) > MAX_NORMAL_NODES_PER_OBJECT
     ):
         return "graph"
 
@@ -112,11 +129,17 @@ def leak_signal(history: Sequence[Tuple[int, int]]) -> Optional[str]:
 
 
 def format_leak_message(kind: str, entities: int, graph_nodes: int,
-                        entities0: int, graph0: int) -> str:
+                        entities0: int, graph0: int,
+                        live: Optional[int] = None, live0: Optional[int] = None) -> str:
     if kind == "objects":
         return (
             f"objects rising ({entities0}→{entities}); "
             f"possible missing destroy()"
+        )
+    if kind == "roster":
+        return (
+            f"objects rising off screen ({live0}→{live} live, {entities} drawn); "
+            f"possible objects kept in a list without destroy()"
         )
     return (
         f"reactive graph rising ({graph0}→{graph_nodes}) while objects "
@@ -129,7 +152,7 @@ class LeakSampler:
 
     def __init__(self) -> None:
         self.enabled = True
-        self._history: Deque[Tuple[int, int]] = deque(maxlen=HISTORY_LEN)
+        self._history: Deque[Tuple[int, ...]] = deque(maxlen=HISTORY_LEN)
         self._frame = 0
         self._sample_at: Optional[float] = None
         self._active_kind: Optional[str] = None
@@ -164,12 +187,17 @@ class LeakSampler:
         self,
         entities: int,
         graph_nodes: int,
-        recount: Optional[Callable[[], Tuple[int, int]]] = None,
+        recount: Optional[Callable[[], Tuple[int, ...]]] = None,
+        live: Optional[int] = None,
+        off_screen: Optional[Callable[[], int]] = None,
     ) -> Optional[Tuple[str, str]]:
         """Record one sample. Returns ``(kind, message)`` only on a new hit.
 
         Repeats of the same kind while the trend continues are suppressed so a
         sliding window does not spam a new SCENA WARNING every sample.
+
+        ``off_screen`` (roster items whose object is on no layer) runs only
+        before a new ``"roster"`` hit (a walk of the whole roster).
 
         ``recount`` runs only when a new hit is about to fire: it collects
         cyclic garbage and returns fresh ``(entities, graph_nodes)``, which
@@ -180,18 +208,31 @@ class LeakSampler:
         ``update``) pile up there between collections and read as a climb;
         what one ``gc.collect()`` gives back is churn, not a leak.
         """
-        self._history.append((int(entities), int(graph_nodes)))
+        row = (int(entities), int(graph_nodes))
+        if live is not None:
+            row += (int(live),)
+        self._history.append(row)
         kind = leak_signal(list(self._history))
         if kind is not None and kind != self._active_kind and recount is not None:
-            e, g = recount()
-            self._history[-1] = (int(e), int(g))
+            self._history[-1] = tuple(int(v) for v in recount())
             kind = leak_signal(list(self._history))
+        if kind == "roster" and kind != self._active_kind and off_screen is not None:
+            # The roster grows with the parts of drawn objects too (a polygon
+            # given more sides each wave). Only a walk tells them apart, so it
+            # runs here, before a warning: when fewer roster items sit off
+            # screen than half the growth, most of it is drawn parts.
+            grew = self._history[-1][2] - self._history[0][2]
+            if off_screen() < grew / 2:
+                kind = None
         if kind is None:
             self._active_kind = None
             return None
         if kind == self._active_kind:
             return None
         self._active_kind = kind
-        e0, g0 = self._history[0]
-        e1, g1 = self._history[-1]
-        return kind, format_leak_message(kind, e1, g1, e0, g0)
+        first, last = self._history[0], self._history[-1]
+        e0, g0 = first[:2]
+        e1, g1 = last[:2]
+        l0 = first[2] if len(first) > 2 else e0
+        l1 = last[2] if len(last) > 2 else e1
+        return kind, format_leak_message(kind, e1, g1, e0, g0, l1, l0)
