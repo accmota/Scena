@@ -7,6 +7,7 @@ import sys
 import textwrap
 import types
 import unittest
+import warnings
 from unittest.mock import Mock, patch
 
 import miniaudio
@@ -55,6 +56,27 @@ class TestMicrophone(unittest.TestCase):
         self.assertEqual(capture_devices_open(), before + 1)
         mic.close()
         self.assertEqual(capture_devices_open(), before)
+
+    def test_available_says_whether_an_input_is_open(self):
+        # Showcase C (2026-10-23): a game had no way to know the mic is
+        # silent but the SCENA WARNING. ``available`` is read-only.
+        mic = Microphone(backends=[miniaudio.Backend.NULL])
+        try:
+            self.assertTrue(mic.available)
+            with self.assertRaises(AttributeError):
+                mic.available = False
+        finally:
+            mic.close()
+        self.assertFalse(mic.available)
+        with patch("miniaudio.CaptureDevice", side_effect=RuntimeError("no device")), \
+                warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            silent = Microphone()
+        try:
+            self.assertFalse(silent.available)
+            self.assertEqual(silent.level, 0.0)
+        finally:
+            silent.close()
 
     def test_close_idempotent(self):
         mic = Microphone(backends=[miniaudio.Backend.NULL])

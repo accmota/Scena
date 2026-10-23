@@ -362,7 +362,9 @@ a mixer reset) gets `update()`. `.level` stays a live read; the node only says
 ## Microphone
 
 `Microphone()` opens the OS default capture device. Nothing captures before
-that line. No device: one SCENA WARNING and a silent mic (`.level` stays 0;
+that line. `mic.available` (read-only) is `True` while a device is open, `False`
+when none opened or after `close()` (2026-10-23: a game had only the warning
+to tell). No device: one SCENA WARNING and a silent mic (`.level` stays 0;
 a timed `record` still finishes, filled with zeros). There is no input or
 output picker — Scena follows the system default.
 `play_sound(mic)` monitors via the same pluggable `FrameSource` seam as a

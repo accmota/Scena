@@ -298,7 +298,7 @@ run()
       `,
       try: [
         {
-          note: "O traço também tem estilo. <code>dash</code> (tracejado): <code>\"dash\"</code>, <code>\"dot\"</code> ou <code>\"dot-dash\"</code>. <code>line_cap</code> (ponta do traço): <code>\"round\"</code> (redonda, o normal), <code>\"square\"</code> ou <code>\"project\"</code>. No fim do programa.",
+          note: "O traço também tem estilo. <code>dash</code> (tracejado): <code>\"dash\"</code>, <code>\"dot\"</code> ou <code>\"dot-dash\"</code>. <code>line_cap</code> (ponta do traço): <code>\"round\"</code> (redonda, o normal), <code>\"butt\"</code> (reta, para no ponto final) ou <code>\"square\"</code> (reta, passa meia espessura). No fim do programa.",
           code: `traco = Line(p1=(400, 620), p2=(900, 620), color="white", line_width=8)
 traco.dash = "dot"
 traco.line_cap = "round"`

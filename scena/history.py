@@ -14,7 +14,7 @@ import skia
 
 from .curves import _phantom_open, catmull_rom_to_bezier
 from .easing import Ease, resolve_ease
-from .entity import Entity, _destroyed_access_message
+from .entity import _USE_LAYER_DEFAULT, Entity, _destroyed_access_message
 from .shapes import Point, Shape, _STYLE_PAINT, _xy_of
 from .state import Container, DestroyedError, as_payload, ephemeral_creation
 from .validate import expect_bool, expect_callable
@@ -517,8 +517,9 @@ class _Stroke(Shape):
         visual=None,
         line_width: Optional[float] = None,
         line_join: Optional[str] = None,
+        layer: Any = _USE_LAYER_DEFAULT,
     ):
-        super().__init__(color=color, visual=visual, line_width=line_width)
+        super().__init__(color=color, visual=visual, line_width=line_width, layer=layer)
         self.fill = None
         self.line_join = "round" if line_join is None else line_join
         self._xs: List[float] = []
@@ -679,6 +680,8 @@ class Contrail(History):
         line_join: Corners: ``"miter"`` · ``"bevel"`` · ``"round"``.
         smooth: 0 = polyline, 1 = smooth (default).
         on_leave: ``fn(point)`` called when a position falls out.
+        layer: Draw layer of the trail (default: the default world layer), so
+            it can sit behind its source (``layer="back"``).
     """
 
     def __init__(
@@ -694,6 +697,7 @@ class Contrail(History):
         line_join: Optional[str] = None,
         smooth=1,
         on_leave: Optional[Callable] = None,
+        layer: Any = _USE_LAYER_DEFAULT,
     ):
         self._fade = expect_bool(fade, "Contrail fade")
         if self._fade:
@@ -721,6 +725,7 @@ class Contrail(History):
             visual=visual,
             line_width=line_width,
             line_join=line_join,
+            layer=layer,
         )
         try:
             super().__init__(
@@ -775,6 +780,18 @@ class Contrail(History):
         self._flush_stroke()
 
     @property
+    def layer(self):
+        """The trail's draw layer (its name). Writable: ``trail.layer = "back"``
+        puts it behind what draws on the default layer (showcase C; it was
+        fixed to the default layer)."""
+        return self._stroke.layer
+
+    @layer.setter
+    def layer(self, value) -> None:
+        self._check_alive("layer")
+        self._stroke.layer = value
+
+    @property
     def color(self):
         """Trail color (any color form)."""
         return self._stroke.color
@@ -816,7 +833,7 @@ class Contrail(History):
 
     @property
     def line_cap(self) -> str:
-        """End style: ``"round"`` · ``"square"`` · ``"project"``."""
+        """End style: ``"round"`` · ``"butt"`` · ``"square"``."""
         return self._stroke.line_cap
 
     @line_cap.setter

@@ -299,7 +299,7 @@ run()
       `,
       try: [
         {
-          note: "The stroke has a style too. <code>dash</code>: <code>\"dash\"</code>, <code>\"dot\"</code> or <code>\"dot-dash\"</code>. <code>line_cap</code> (the shape of the stroke's ends): <code>\"round\"</code> (the default), <code>\"square\"</code> or <code>\"project\"</code>. At the end of the program.",
+          note: "The stroke has a style too. <code>dash</code>: <code>\"dash\"</code>, <code>\"dot\"</code> or <code>\"dot-dash\"</code>. <code>line_cap</code> (the shape of the stroke's ends): <code>\"round\"</code> (the default), <code>\"butt\"</code> (flat, stops at the end point) or <code>\"square\"</code> (flat, half the width past it). At the end of the program.",
           code: `stroke = Line(p1=(400, 620), p2=(900, 620), color="white", line_width=8)
 stroke.dash = "dot"
 stroke.line_cap = "round"`

@@ -54,7 +54,22 @@ def _warn_recolor_hidden(visual) -> None:
 class LineCapStyle(Enum):
     ROUND = "round"     
     SQUARE = "square"
-    PROJECT = "project"
+    BUTT = "butt"
+
+
+def _coerce_line_cap(value) -> "LineCapStyle":
+    """``line_cap`` from an author value: the SVG / Skia names. ``"project"``
+    (0.10.0) drew the flat end that stops at the end point, the reverse of
+    Processing's PROJECT (which extends past it): it raises with the names
+    that say what each end draws (Scena Design, "Compatibility")."""
+    raw = as_payload(value)
+    if isinstance(raw, str) and raw.strip().lower() == "project":
+        raise TypeError(
+            'line_cap "project" was renamed: write "butt" for the flat end that '
+            'stops at the end point (what "project" drew), or "square" for a '
+            'flat end that reaches half the line width past it.'
+        )
+    return coerce_enum(value, LineCapStyle, what="line_cap")
 
 class LineJoinStyle(Enum):
     MITER = "miter"     
@@ -90,7 +105,7 @@ class BackgroundFit(Enum):
 _SKIA_CAP_MAP = {
     LineCapStyle.ROUND: skia.Paint.Cap.kRound_Cap,
     LineCapStyle.SQUARE: skia.Paint.Cap.kSquare_Cap,
-    LineCapStyle.PROJECT: skia.Paint.Cap.kButt_Cap
+    LineCapStyle.BUTT: skia.Paint.Cap.kButt_Cap
 }
 
 _SKIA_JOIN_MAP = {
@@ -364,7 +379,7 @@ class PaintState:
         state._alinks = False
         state._line_width = fixed_magnitude(line_width, "line_width")
         state._dash = coerce_enum(dash, DashStyle, what="dash")
-        state._line_cap = coerce_enum(line_cap, LineCapStyle, what="line_cap")
+        state._line_cap = _coerce_line_cap(line_cap)
         state._line_join = coerce_enum(line_join, LineJoinStyle, what="line_join")
         state._blend = coerce_enum(blend, BlendMode, what="blend")
         state._line_filter = _coerce_filter(line_filter, what="line_filter")
@@ -945,12 +960,13 @@ class PaintState:
 
     @property
     def line_cap(self) -> str:
-        """Open-line ends: ``"round"`` · ``"square"`` · ``"project"``."""
+        """Open-line ends: ``"round"`` (default) · ``"butt"`` (flat, stops at the
+        end point) · ``"square"`` (flat, half the width past it)."""
         return self._line_cap.value
 
     @line_cap.setter
     def line_cap(self, value: Union[LineCapStyle, str]) -> None:
-        self._line_cap = coerce_enum(value, LineCapStyle, what="line_cap")
+        self._line_cap = _coerce_line_cap(value)
         self._invalidate_line_paint()
         if self._patch_look_identity(line_cap=self._line_cap):
             self._look_channel_written("line_cap")

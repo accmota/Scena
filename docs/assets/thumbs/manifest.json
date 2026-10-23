@@ -905,7 +905,7 @@
   "anim": "thumbs/post-perspective.anim.webp",
   "card": "thumbs/post-perspective.card.webp",
   "h": 300,
-  "hash": "24418b58e52b1e7a",
+  "hash": "e960ad27149f2685",
   "scene": "post",
   "src": "thumbs/post-perspective.webp",
   "w": 480
@@ -964,7 +964,7 @@
  "post-spotlight": {
   "card": "thumbs/post-spotlight.card.webp",
   "h": 300,
-  "hash": "73b47059fbdbfc44",
+  "hash": "819cb3fa14637c94",
   "scene": "post",
   "src": "thumbs/post-spotlight.webp",
   "w": 480
@@ -1066,7 +1066,7 @@
   "anim": "thumbs/spatial-fire.anim.webp",
   "card": "thumbs/spatial-fire.card.webp",
   "h": 300,
-  "hash": "320306cf55c4e85e",
+  "hash": "7bb2b70ef1844602",
   "scene": "spatial",
   "src": "thumbs/spatial-fire.webp",
   "w": 480
@@ -1076,7 +1076,7 @@
   "card": "thumbs/spatial-fire~style-blaze.card.webp",
   "code": "Fire(style=\"blaze\")",
   "h": 480,
-  "hash": "39d19ed33b0066ea",
+  "hash": "a10026eb622dc3ba",
   "order": 5,
   "param": "style",
   "parent": "spatial-fire",
@@ -1090,7 +1090,7 @@
   "card": "thumbs/spatial-fire~style-camp.card.webp",
   "code": "Fire(style=\"camp\")",
   "h": 300,
-  "hash": "c85bf7acd73e5e8d",
+  "hash": "18653ad3114e87f9",
   "order": 0,
   "param": "style",
   "parent": "spatial-fire",
@@ -1104,7 +1104,7 @@
   "card": "thumbs/spatial-fire~style-embers.card.webp",
   "code": "Fire(style=\"embers\")",
   "h": 480,
-  "hash": "ebc12751d9cccc35",
+  "hash": "df2142c9adc8ce11",
   "order": 4,
   "param": "style",
   "parent": "spatial-fire",
@@ -1117,22 +1117,22 @@
   "anim": "thumbs/spatial-fire~style-plume.anim.webp",
   "card": "thumbs/spatial-fire~style-plume.card.webp",
   "code": "Fire(style=\"plume\")",
-  "h": 480,
-  "hash": "94dcef438a86bebc",
+  "h": 300,
+  "hash": "a8f1597e6b72e431",
   "order": 2,
   "param": "style",
   "parent": "spatial-fire",
   "scene": "spatial",
   "src": "thumbs/spatial-fire~style-plume.webp",
   "value": "plume",
-  "w": 300
+  "w": 480
  },
  "spatial-fire~style-soft": {
   "anim": "thumbs/spatial-fire~style-soft.anim.webp",
   "card": "thumbs/spatial-fire~style-soft.card.webp",
   "code": "Fire(style=\"soft\")",
   "h": 300,
-  "hash": "cd1dd80d40fb68cb",
+  "hash": "369b5d7b785e657a",
   "order": 1,
   "param": "style",
   "parent": "spatial-fire",
@@ -1146,7 +1146,7 @@
   "card": "thumbs/spatial-fire~style-tongues.card.webp",
   "code": "Fire(style=\"tongues\")",
   "h": 480,
-  "hash": "4330de0496ca1c7e",
+  "hash": "3eed86624d1e509e",
   "order": 3,
   "param": "style",
   "parent": "spatial-fire",
@@ -1158,7 +1158,7 @@
  "spatial-glowspot": {
   "card": "thumbs/spatial-glowspot.card.webp",
   "h": 300,
-  "hash": "60702d48f62db319",
+  "hash": "6102ff86bdc71f7e",
   "scene": "spatial",
   "src": "thumbs/spatial-glowspot.webp",
   "w": 480
@@ -1167,7 +1167,7 @@
   "anim": "thumbs/spatial-jet.anim.webp",
   "card": "thumbs/spatial-jet.card.webp",
   "h": 480,
-  "hash": "1b9144bbd1005d81",
+  "hash": "9609faf4d64bb6a3",
   "scene": "spatial",
   "src": "thumbs/spatial-jet.webp",
   "w": 300
@@ -1175,7 +1175,7 @@
  "spatial-orb": {
   "card": "thumbs/spatial-orb.card.webp",
   "h": 300,
-  "hash": "4f5d13be7eeb8d3a",
+  "hash": "72b7a6996328b835",
   "scene": "spatial",
   "src": "thumbs/spatial-orb.webp",
   "w": 480
@@ -1184,7 +1184,7 @@
   "anim": "thumbs/spatial-portal.anim.webp",
   "card": "thumbs/spatial-portal.card.webp",
   "h": 300,
-  "hash": "48d624a4b08e8339",
+  "hash": "83be94ee3723c553",
   "scene": "spatial",
   "src": "thumbs/spatial-portal.webp",
   "w": 480
@@ -1193,7 +1193,7 @@
   "anim": "thumbs/spatial-rain.anim.webp",
   "card": "thumbs/spatial-rain.card.webp",
   "h": 300,
-  "hash": "f845fde2a4a3080f",
+  "hash": "212ff2227f55be15",
   "scene": "spatial",
   "src": "thumbs/spatial-rain.webp",
   "w": 480
@@ -1202,7 +1202,7 @@
   "anim": "thumbs/spatial-sparks.anim.webp",
   "card": "thumbs/spatial-sparks.card.webp",
   "h": 300,
-  "hash": "b236d0d597bfc74f",
+  "hash": "e5b9e7388b4a6ce9",
   "scene": "spatial",
   "src": "thumbs/spatial-sparks.webp",
   "w": 480
@@ -1211,7 +1211,7 @@
   "anim": "thumbs/spatial-starburst.anim.webp",
   "card": "thumbs/spatial-starburst.card.webp",
   "h": 300,
-  "hash": "6beb95e2404699af",
+  "hash": "50d120d7984354f8",
   "scene": "spatial",
   "src": "thumbs/spatial-starburst.webp",
   "w": 480
@@ -1220,7 +1220,7 @@
   "anim": "thumbs/spatial-sunburst.anim.webp",
   "card": "thumbs/spatial-sunburst.card.webp",
   "h": 300,
-  "hash": "aa692b7f33c5d233",
+  "hash": "84615c005029c4e2",
   "scene": "spatial",
   "src": "thumbs/spatial-sunburst.webp",
   "w": 480
@@ -1229,7 +1229,7 @@
   "anim": "thumbs/spatial-warp.anim.webp",
   "card": "thumbs/spatial-warp.card.webp",
   "h": 300,
-  "hash": "63ece950965a78cf",
+  "hash": "7ceeab782705b2f3",
   "scene": "spatial",
   "src": "thumbs/spatial-warp.webp",
   "w": 480
@@ -1518,7 +1518,7 @@
  "visual-neon": {
   "card": "thumbs/visual-neon.card.webp",
   "h": 300,
-  "hash": "39ca2527fa16127d",
+  "hash": "0d9bc605dac75b83",
   "scene": "shape",
   "src": "thumbs/visual-neon.webp",
   "w": 480

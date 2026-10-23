@@ -713,6 +713,7 @@ _CONTRAIL_MUTATORS = {
     "ease": lambda c: setattr(c, "ease", "ease_out"),
     "smooth": lambda c: setattr(c, "smooth", 0),
     "color": lambda c: setattr(c, "color", "blue"),
+    "layer": lambda c: setattr(c, "layer", "default"),
     "visual": lambda c: setattr(c, "visual", Laser("gold")),
     "line_width": lambda c: setattr(c, "line_width", 4),
     "line_join": lambda c: setattr(c, "line_join", "miter"),
@@ -727,6 +728,57 @@ _CONTRAIL_READ_ONLY = frozenset({
 def _frame(real_dt=0.1):
     clock.advance(real_dt)
     tick_processes()
+
+
+class TestContrailLayer(HistoryTestCase):
+    """``Contrail(layer=)`` (showcase C, 2026-10-23; parked in History
+    Design until a sample needed it): the trail's stroke draws on that
+    layer, so it can sit behind its source."""
+
+    def test_layer_keyword_and_property(self):
+        from scena import canvas
+        if "trail_back" not in canvas.layers:
+            canvas.layers.create("trail_back", below="default")
+        c = self.own(Contrail(max_points=4, color="cyan", layer="trail_back"))
+        self.assertEqual(c.layer, "trail_back")
+        self.assertEqual(c._stroke.layer, "trail_back")
+        c.layer = "default"
+        self.assertEqual(c._stroke.layer, "default")
+        plain = self.own(Contrail(max_points=4, color="cyan"))
+        self.assertEqual(plain.layer, "default")
+
+    def test_a_bad_layer_leaves_nothing_behind(self):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from hypothesis_support import new_in_roster, roster_mark
+        mark = roster_mark()
+        with self.assertRaises(ValueError):
+            Contrail(max_points=4, color="cyan", layer="no_such_layer")
+        self.assertEqual([o for o in new_in_roster(mark) if not getattr(o, "_destroyed", False)], [])
+
+    def test_draws_behind_its_source_on_a_back_layer(self):
+        import numpy as np
+        import skia
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from program_support import FRAME
+        from system_support import system_world
+        from scena import Circle, canvas
+        with system_world(draw=True) as w:
+            if "trail_back2" not in canvas.layers:
+                canvas.layers.create("trail_back2", below="default")
+            ship = Circle(center=(200, 150), radius=20, color="white")
+            trail = Contrail(max_points=8, color="red", line_width=14, layer="trail_back2")
+            for x in (120, 160, 200, 240, 280):
+                trail.snapshot((x, 150))
+            w.step(2, dt=FRAME)
+            img = w.surface.makeImageSnapshot()
+            info = skia.ImageInfo.Make(img.width(), img.height(),
+                                       skia.kRGBA_8888_ColorType, skia.kUnpremul_AlphaType)
+            buf = bytearray(img.width() * img.height() * 4)
+            assert img.readPixels(info, buf, img.width() * 4, 0, 0)
+            a = np.frombuffer(bytes(buf), np.uint8).reshape(img.height(), img.width(), 4)
+            self.assertGreater(int(a[150, 200, 1]), 200, "the ship is under its trail")
+            self.assertGreater(int(a[150, 130, 0]), 200, "the trail is not drawn")
+            trail.destroy()
 
 
 class TestContrailUseAfterDestroy(HistoryTestCase):

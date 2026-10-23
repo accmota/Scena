@@ -104,5 +104,37 @@ class TestShowcaseMessages(unittest.TestCase):
         self.assertIn("on_done=", msg)
 
 
+class TestLineCapNames(unittest.TestCase):
+    """0.10.0 Breaking: ``line_cap`` takes the SVG / Skia names. ``"project"``
+    drew Skia's butt cap (the flat end that stops at the end point), the
+    reverse of Processing's PROJECT; the builders asked for ``"butt"``
+    (showcase C). The old spelling raises with the fix, on every door."""
+
+    def test_the_three_ends(self):
+        import skia
+        from scena import Line
+        want = {"round": skia.Paint.Cap.kRound_Cap, "butt": skia.Paint.Cap.kButt_Cap,
+                "square": skia.Paint.Cap.kSquare_Cap}
+        with system_world(draw=False):
+            ln = Line(p1=(10, 10), p2=(90, 10), line_width=8)
+            for name, cap in want.items():
+                ln.line_cap = name
+                self.assertEqual(ln.line_cap, name)
+                self.assertEqual(ln._to_skia_line_paint().getStrokeCap(), cap)
+
+    def test_project_raises_with_the_fix(self):
+        from scena import Line
+        with system_world(draw=False):
+            for owner in (Line(p1=(0, 0), p2=(10, 0)), Track.line(p1=(0, 0), length=50, color="white")):
+                for spelling in ("project", "PROJECT", " project "):
+                    with self.subTest(kind=type(owner).__name__, spelling=spelling):
+                        msg = self.refusal(lambda: setattr(owner, "line_cap", spelling))
+                        self.assertIn('"butt"', msg)
+                        self.assertIn('"square"', msg)
+                        self.assertEqual(owner.line_cap, "round")
+
+    refusal = TestShowcaseMessages.refusal
+
+
 if __name__ == "__main__":
     unittest.main()

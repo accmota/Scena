@@ -14,6 +14,12 @@ left out.
 
 ### Breaking
 
+- `line_cap` takes `"round"`, `"butt"` and `"square"`, the SVG and Skia
+  names. `"project"` drew the flat end that stops at the end point (Skia's
+  butt), the reverse of Processing's PROJECT, which extends past it.
+  Before: `line.line_cap = "project"`. After: `line.line_cap = "butt"` (the
+  same picture). `"project"` raises `TypeError` naming `"butt"` and
+  `"square"`.
 - A pointer decorator (`@click`, `@hover`, `@hover_exit`, `@drag_to`,
   `@drag_over`, `@drop_by`) above a method in a class body raises
   `TypeError`, as `@collide` already did. There it made a rule for the whole
@@ -26,6 +32,10 @@ left out.
 
 ### Added
 
+- `Contrail(layer=)` and `contrail.layer`: the trail's layer, so it can
+  pass behind the ship that leaves it.
+- `mic.available`: `True` while a microphone is open, `False` when none
+  could be opened (the mic is silent) or after `close()`.
 - `obj["mira"] @= lambda: …` links a field that holds a `Vec2`, as
   `obj.mira @= lambda: …` does, and `obj["mira"].unlink()` /
   `obj["mira"].is_linked` speak for the vector: the bracket links a field on

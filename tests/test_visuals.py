@@ -3928,20 +3928,20 @@ class TestHostStrokeCaps(unittest.TestCase):
 
     def test_stroke_paint_cap_maps_and_resets_pool(self):
         look = Laser("red")
-        p = look._stroke_paint(color=(1, 0, 0, 1), width=2.0, cap="project")
+        p = look._stroke_paint(color=(1, 0, 0, 1), width=2.0, cap="butt")
         self.assertEqual(p.getStrokeCap(), skia.Paint.Cap.kButt_Cap)
         p2 = look._stroke_paint(color=(1, 0, 0, 1), width=2.0, cap="square")
         self.assertEqual(p2.getStrokeCap(), skia.Paint.Cap.kSquare_Cap)
         p3 = look._stroke_paint(color=(1, 0, 0, 1), width=2.0, cap="round")
         self.assertEqual(p3.getStrokeCap(), skia.Paint.Cap.kRound_Cap)
         # Reused slot must not keep the previous caller's cap.
-        look._stroke_paint(color=(1, 0, 0, 1), width=2.0, cap="project")
+        look._stroke_paint(color=(1, 0, 0, 1), width=2.0, cap="butt")
         p4 = look._stroke_paint(color=(1, 0, 0, 1), width=2.0)
         self.assertEqual(p4.getStrokeCap(), skia.Paint.Cap.kRound_Cap)
 
     def test_laser_and_neon_follow_host_cap(self):
         ln = Line(p1=(10, 10), p2=(80, 20))
-        ln.line_cap = "project"
+        ln.line_cap = "butt"
         laser = Laser("red")
         paints = []
         orig = Laser._stroke_paint
@@ -3957,7 +3957,7 @@ class TestHostStrokeCaps(unittest.TestCase):
         finally:
             Laser._stroke_paint = orig
         self.assertTrue(paints)
-        self.assertTrue(all(c == "project" for c in paints))
+        self.assertTrue(all(c == "butt" for c in paints))
 
         neon = Neon()
         paints.clear()
@@ -3973,12 +3973,12 @@ class TestHostStrokeCaps(unittest.TestCase):
         finally:
             Neon._stroke_paint = orig_n
         self.assertTrue(paints)
-        self.assertTrue(all(c == "project" for c in paints))
+        self.assertTrue(all(c == "butt" for c in paints))
 
     def test_gearshell_and_electric_stay_round(self):
         from scena.fx_quality import activate_quality
         ln = Line(p1=(10, 10), p2=(80, 20))
-        ln.line_cap = "project"
+        ln.line_cap = "butt"
         # Survival path uses Recipe._stroke_paint (high ElectricField is GlowRim).
         activate_quality("low")
         try:

@@ -245,4 +245,4 @@ picked = History(max_points=2, destroy_on_leave=False, on_leave=lambda card: car
 
 # Deferred
 
-- **Contrail `layer=` / `visible`.** The private stroke draws on the default layer and cannot sit behind its source or hide with it. Revisit when a sample needs that.
+- **Contrail `visible`.** The private stroke cannot hide with its source. Revisit when a sample needs that. (`layer=` landed 2026-10-23: the showcase builds needed trails behind their sources; `Contrail(layer=)` and `contrail.layer` pass to the private stroke, a bad name raises before anything registers; `test_history.TestContrailLayer`.)

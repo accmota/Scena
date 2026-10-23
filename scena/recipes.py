@@ -89,7 +89,7 @@ _STROKE_JOIN = {
 _STROKE_CAP = {
     "round": skia.Paint.Cap.kRound_Cap,
     "square": skia.Paint.Cap.kSquare_Cap,
-    "project": skia.Paint.Cap.kButt_Cap,
+    "butt": skia.Paint.Cap.kButt_Cap,
 }
 
 # Tint channel names for Recipe.tint_channel
@@ -679,7 +679,7 @@ def _host_stroke_knobs(shape) -> dict:
     """Cap (always) and join (stroke types only) from the host for recipe paints.
 
     Area shapes keep join=\"round\" so neon/rim corners stay soft. Cap defaults
-    to \"round\" on the host too — only \"project\" / \"square\" change tips.
+    to \"round\" on the host too — only \"butt\" / \"square\" change tips.
     """
     cap = getattr(shape, "line_cap", "round") or "round"
     if is_stroke_type(shape):

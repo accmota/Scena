@@ -778,12 +778,18 @@ def _view_to_fb(x: float, y: float, w: float, h: float) -> Tuple[float, float]:
 
 
 def _mouse_view_xy() -> Tuple[float, float]:
+    """The mouse where the picture shows it; the middle of the picture while
+    it reads (0, 0) (no pointer yet: the effect aims at the centre, as it
+    always did — a 0 axis read as "unset")."""
     import builtins
     mouse = getattr(builtins, "mouse", None)
     W, H = _design_size()
     if mouse is None:
         return W * 0.5, H * 0.5
-    return _world_to_view(float(mouse.x), float(mouse.y))
+    mx, my = float(getattr(mouse, "x", 0.0) or 0.0), float(getattr(mouse, "y", 0.0) or 0.0)
+    if mx == 0.0 and my == 0.0:
+        return W * 0.5, H * 0.5
+    return _world_to_view(mx, my)
 
 
 def _mouse_fb_xy(fb_w: float, fb_h: float) -> Tuple[float, float]:

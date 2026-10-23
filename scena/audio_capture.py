@@ -474,6 +474,15 @@ class Microphone(ClosedSurface):
         self._finish_take(take, natural=True)
 
     @property
+    def available(self) -> bool:
+        """True while an input device is open; ``False`` when none could be
+        opened (the mic is silent: its levels stay 0) or after ``close()``.
+        Read-only. Lets a game offer another control when there is no mic
+        (``if not mic.available: …``); before, only the SCENA WARNING told
+        (showcase C, 2026-10-23)."""
+        return not self._silent and not self._closed and self._device is not None
+
+    @property
     def recording(self) -> bool:
         """True between ``record()`` and ``stop()`` (or the take's ``seconds=`` limit)."""
         take = self._take
