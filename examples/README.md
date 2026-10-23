@@ -65,6 +65,27 @@ No tutorial ends in these; each docstring says what to try.
 | `revoada.py` | Flocking: 120 `Triangle` birds follow three rules (separate, align, gather) and flocks form with no leader. The heading is the colour, so a flock is one colour; the mouse is a falcon whose fright passes from bird to bird (white, thin); the sky lights up (`Bloom`) when the flock is in order. Click for a burst; S / A / J switch the rules. |
 | `app_rgb_arena.py` | Particles of light (`GlowSpot`) whose colour is a three-pole charge: red pulls green, green pulls blue, blue pulls red, each pushes the one before. A panel creates, deletes and recolours particles and tunes the forces; drag to move one, the wheel zooms. |
 
+## Showcases
+
+Visual pieces that show what Scena can draw: art pieces and demoscene-style
+shows, most of them looping forever. Unlike the rest of this folder, their
+names and comments are in English. Each docstring says what to try.
+
+| File | What it shows |
+| --- | --- |
+| `genesis.py` | The life of a star in six chapters (`Act`s): nebula, accretion disc (light windows streaming down spiral arms), ignition, supernova (`explosion_at`, `ZoomBlur`, `Chroma`), pulsar (camera rotation locked to the beams), remnant. SPACE next chapter; click drops matter. |
+| `tesla.py` | An electric garden at night in the rain: Tesla coils, cables where power runs as `begin`/`end` windows, lightning that strikes the tallest thing, a dawn. Drag the lightning rods to steer the strikes; click for a discharge; C for the control-room view (`Crt`). |
+| `rose_window.py` | An endless dive into a stained-glass rose window: rings grown by φ in a `History`, counter-rotating glass, two lights walking a {7/3} star. Four movements (Glass, Mirror with `Kaleidoscope`, Dawn, Eclipse with a `difference` moon); 1–4, SPACE holds the dive, click strikes a pane. |
+| `loom.py` | A Jacquard loom weaving a tapestry of light from punch cards written as strings at the top of the file. Click the card to punch or fill a hole; UP / DOWN speed; N next card. |
+| `old_school.py` | A tribute megademo in eight parts, each classic effect rebuilt from Scena parts (starfield, sine scroller, copper bars, twister, rotozoomer, plasma and tunnel, vector balls, CRT power-off), run by one async storyboard, with music. |
+| `pulse.py` | Music-driven visuals: shapes linked to `audio.spectrum()` bands, a beat detector on `@when`, three scenes. M switches to the microphone (VJ mode); 1–3 scenes. |
+| `one_line.py` | One line of light that draws itself and turns into a star, a spiral, an eight and a wave; everything else on screen is read from it (`at(u)`, riders, a turning echo, rings). |
+| `credits_roll.py` | End credits in which the engine thanks its parts: each feature performs under its own name (History, Concave, `@=`, the impacts, the camera, the looks…). |
+| `hundred_lines.py` | An intro in exactly 100 lines: nested hexagons, a spiral vortex, a tunnel; the music drives the strokes under the title. |
+| `demo100.py` | Rings of dancing triangles around a `Bolt` heart, in three parts (Open, Dance, Storm), written to be built up step by step. |
+| `polygon_ballet.py` | A floor of regular polygons in three movements: domino waves that change their sides and looks, rosettes, and their edges as string art. |
+| `string_theory.py` | Lines from simple rules: a times-table cardioid, moiré fans, Lissajous strings, harmonograph curves. Starts with a photosensitivity note (SPACE skips). |
+
 ```bash
 python examples/naves_1.py
 ```
