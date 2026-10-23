@@ -10,7 +10,7 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
-## Unreleased (0.9.1)
+## 0.9.1 — 2026-10-23
 
 ### Fixed
 
@@ -27,10 +27,11 @@ left out.
   everything the game had made at that moment, so objects you dropped or
   destroyed were never freed.
 - The sound effects `Reverb`, `Distortion`, `Echo`, `LowPass` and
-  `HighPass` run 15 to 600 times faster, with exactly the same sound. On a
-  slower computer, a live `Reverb` or `Distortion` on a sound could cost more
-  than real time, and `Sound.bake(Reverb())` at the top of a file could take
-  several seconds.
+  `HighPass` run about 10 to 800 times faster (`Reverb` about 150 times),
+  with exactly the same sound. `Reverb` and `Distortion` took about a
+  quarter of a second of computing per second of stereo sound on a fast
+  computer, more on a slower one: on the sound thread for a live effect, and
+  seconds for a `Sound.bake(Reverb())` of a long sound at the top of a file.
 - A slow `Sound.bake(...)` no longer gets the "SCENA ERROR: … A game needs no
   loop of its own" message, which blamed your line for the engine's work. Past
   the limit it prints one "SCENA NOTE: baking sino.wav (Reverb) has taken …",
