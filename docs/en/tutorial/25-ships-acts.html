@@ -1,0 +1,2946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ships VI — Acts — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "25",
+  title: "Ships VI · Acts",
+  steps: [
+    {
+      title: "The game from 24",
+      body: `
+        <p>A new script, starting from the ships game of the previous tutorial: the fleet that arrives in sequence, the dives, the boss. The game is a single screen, and when the ship dies, GAME OVER appears.</p>
+        <p>In this tutorial it gets <strong>acts</strong>: a title screen, the level, the game over, and the way from one to the next. We start with the code as it is.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+        enemy.hue = column / 8
+        enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+        enemy.mode = enemy.arriving
+
+
+@when(lambda: group["enemies"].count == 0)
+def boss_arrives():
+    Boss(center=(750, 1000))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      after: `
+        <p>Run it and let the fleet hit the ship three times.</p>
+        <details class="ask"><summary>How do you play again?</summary><p>You don't: GAME OVER stays on the screen, and the only way out is to close the program and open it again. Restarting by hand means undoing the game piece by piece: removing the fleet, the shots and the boss, resetting the score, putting a new ship in place. With acts, that list doesn't exist.</p></details>
+      `
+    },
+    {
+      title: "A level",
+      body: [
+        `
+        <p>First, the whole game becomes an act, without changing anything you see. An <strong>act</strong> (<code>Act</code>) is one part of the game: the title, the level, the game over. You write it as a class:</p>
+        `,
+        {
+          snip: `class Play(Act):
+    def setup(self):
+        ...
+run(Play)`
+        },
+        `
+        <p><code>setup</code> builds this part of the game: here, the score, the lives, the energy bar, the ship and the fleet. They are the same lines that were at the top of the file, now one step to the right.</p>
+        <p><code>run(Play)</code>, in place of <code>run()</code>, says where the game starts. Scena builds the act, by calling <code>setup</code>; nobody writes <code>Play()</code>.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        Hero(center=(500, 70))
+
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+    @when(lambda self: group["enemies"].count == 0)
+    def boss_arrives(self):
+        Boss(center=(750, 1000))
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "Hero(center=(500, 70))",
+          text: "The <code>ship</code> variable is gone. Nobody read it: the enemies find the ship through the <code>hero</code> group, with <code>nearest</code>."
+        },
+        {
+          at: "group[\"enemies\"].move_by(st.pace * dt, 0)",
+          text: "The <code>update</code> at the top, which swayed the fleet, became the level's <code>on_update</code>. An <code>update</code> at the top would run in any act, and the fleet belongs to the level."
+        },
+        {
+          at: "@when(lambda self: group[\"enemies\"].count == 0)",
+          text: "The boss's <code>@when</code> moved into the class too, with <code>lambda self:</code>. At the top, it would hold in every act: on a screen without a fleet, like a game over, the empty group would call the boss. Inside the level, the rule turns on when the level starts and leaves with it."
+        },
+        {
+          at: "@leave_playfield(",
+          text: "<code>@leave_playfield</code> stays at the top. It only removes shots and gifts; on a screen without them, it does nothing."
+        }
+      ],
+      after: `
+        <p>Run it: the game is the same, and nothing changed on the screen. What changed is who owns each thing.</p>
+        <p>What the top of the file creates stays for the whole game: the background, the stars, the screen effects, the sheets. That is the <strong>stage</strong>. What is born later, in the act's <code>setup</code> or by any code while the act runs (a shot, an explosion, the boss), belongs to the act. The classes stay at the top: a class only describes its objects, and a class itself doesn't appear on the screen.</p>
+      `
+    },
+    {
+      title: "Restart",
+      body: [
+        `
+        <p>Now the restart: R starts the level over. At the end of the level's <code>on_update</code>:</p>
+        `,
+        {
+          snip: `if keyp.once("R"):
+    change_act(Play)`
+        },
+        `
+        <p><code>change_act</code> ends the act that is running, and it leaves with everything it created: the ship, the fleet, the shots in the air, the explosions, the boss if it had already arrived, and the timers of all of them. Then a new <code>Play</code> act is built from scratch, by the same <code>setup</code>. Not one line of cleanup.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 410 190" role="img" aria-label="Time runs to the right. On top, the stage, from start to end. In the middle, st, also from start to end. Below, two Play acts, one after the other, each with its own ship, fleet, HUD and shots; between the two, the R key">
+            <rect class="guide" x="10" y="14" width="390" height="30" rx="4"/>
+            <text x="20" y="33">the stage: background, stars, sheets, classes</text>
+            <rect class="bar child" x="10" y="56" width="390" height="30" rx="4"/>
+            <text x="20" y="75">st: score, lives, energy</text>
+            <rect class="bar" x="10" y="104" width="180" height="48" rx="6"/>
+            <text x="22" y="124">Play</text>
+            <text x="22" y="142">ship, fleet, HUD, shots</text>
+            <rect class="bar" x="220" y="104" width="180" height="48" rx="6"/>
+            <text x="232" y="124">Play (new)</text>
+            <text x="232" y="142">ship, fleet, HUD, shots</text>
+            <line class="ray" x1="205" y1="96" x2="205" y2="160"/>
+            <circle class="hot" cx="205" cy="168" r="5"/>
+            <text x="199" y="186">R</text>
+          </svg>
+          <figcaption>The stage and <code>st</code> last through the whole game. Each act builds its own part, and that part leaves with it.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        Hero(center=(500, 70))
+
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+        if keyp.once("R"):
+            change_act(Play)
+
+    @when(lambda self: group["enemies"].count == 0)
+    def boss_arrives(self):
+        Boss(center=(750, 1000))
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "keyp.once(\"R\")",
+          text: "<code>keyp.once</code> is true once per press. With <code>keyp</code>, holding R down would restart the level every frame."
+        },
+        {
+          at: "change_act(Play)",
+          text: "The change comes last. After it, the old act is already gone, and nothing of it is left to touch."
+        }
+      ],
+      after: `
+        <p>Run it and press R in the middle of the game: the whole fleet comes back, from the top.</p>
+        <details class="ask"><summary>What about the score and the lives?</summary><p>They stay where they were. They live in <code>st</code>, and <code>st</code> lasts through the act change, like the stage. After the game over, R starts a level with zero lives: one hit and the counter shows <code>x -1</code>.</p></details>
+      `
+    },
+    {
+      title: "A new game",
+      body: [
+        `
+        <p>R needs to start a real game: score at zero, three lives. The data of a game that is starting goes into a function at the top:</p>
+        `,
+        {
+          snip: `def new_game():
+    st.score = 0
+    st.lives = 3
+    st.energy = 0
+    st.pace = 80`
+        },
+        `
+        <p>The top calls it once, right below, for the first game. R calls it before changing acts, and restarting becomes two lines: a new game, a new level.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+
+
+def new_game():
+    st.score = 0
+    st.lives = 3
+    st.energy = 0
+    st.pace = 80
+
+
+new_game()
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        Hero(center=(500, 70))
+
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+
+    @when(lambda self: group["enemies"].count == 0)
+    def boss_arrives(self):
+        Boss(center=(750, 1000))
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(Play)
+`,
+      after: `
+        <p>Lose all three lives and press R: now a real game starts, with three lives and the score at zero.</p>
+        <details class="ask"><summary>Why does the game data live in <code>st</code>?</summary><p>An act is born from scratch and receives nothing from whoever called it: <code>change_act(Play)</code> carries only the act. Everything that must pass from one act to the next goes in <code>st</code>, which the change never clears. That way the change is always the same, and your code decides whether the score goes back to zero, by calling <code>new_game()</code> or not.</p></details>
+      `
+    },
+    {
+      title: "Game over",
+      body: [
+        `
+        <p>The game over becomes an act, <code>GameOver</code>, with the score and an invitation to play again. The level hands over to it when the lives run out:</p>
+        `,
+        {
+          snip: `@when(lambda self: st.lives == 0)
+def lost(self):
+    self.after(2, lambda: change_act(GameOver))`
+        },
+        `
+        <p>When the lives reach zero, the level waits two seconds, time for the explosion and the fire on the wreck, and changes acts. This <code>after</code> belongs to the level: if R restarts first, it leaves along with the level and changes nothing.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+
+
+def new_game():
+    st.score = 0
+    st.lives = 3
+    st.energy = 0
+    st.pace = 80
+
+
+new_game()
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        Hero(center=(500, 70))
+
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+
+    @when(lambda self: group["enemies"].count == 0)
+    def boss_arrives(self):
+        Boss(center=(750, 1000))
+
+    @when(lambda self: st.lives == 0)
+    def lost(self):
+        self.after(2, lambda: change_act(GameOver))
+
+
+class GameOver(Act):
+    def setup(self):
+        Text(text="GAME OVER", center=(500, 480), font_size=56, color="tomato")
+        Text(text=f"Score {st.score}", center=(500, 400), font_size=24)
+        Text(text="press SPACE", center=(500, 330), font_size=18)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            new_game()
+            change_act(Play)
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "Text(text=\"GAME OVER\"",
+          text: "The GAME OVER <code>Text</code> left the ship's <code>was_hit</code>, which now only explodes, and moved to the act's <code>setup</code>, bigger and in red."
+        },
+        {
+          at: "keyp.once(\"SPACE\")",
+          text: "Space starts a new game: first the data, with <code>new_game()</code>, then the level."
+        }
+      ],
+      after: `
+        <p>Lose all three lives: two seconds later, the game over screen. Space plays again.</p>
+        <details class="ask"><summary>What if space called only <code>change_act(Play)</code>, without <code>new_game()</code>?</summary><p>The new level would start with zero lives, and the game would be stuck in it. <code>@when</code> runs when the condition <em>becomes</em> true: in a level that is born with <code>st.lives == 0</code>, that change never happens, and the game over never comes again.</p></details>
+      `
+    },
+    {
+      title: "Title",
+      body: `
+        <p>The game now starts with a title, with the game's name and a button to play. The game over goes back to it.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+
+
+def new_game():
+    st.score = 0
+    st.lives = 3
+    st.energy = 0
+    st.pace = 80
+
+
+new_game()
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+def start_round():
+    new_game()
+    change_act(Play)
+
+
+class TitleScreen(Act):
+    def setup(self):
+        Text(text="SHIPS", center=(500, 520), font_size=80)
+        SpriteButton("k-rolling-ball/button_blue.png", center=(500, 330), width=180,
+                     label="PLAY", label_inset=(0, 0, 0, 8), on_click=start_round)
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        Hero(center=(500, 70))
+
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+        if keyp.once("R"):
+            start_round()
+
+    @when(lambda self: group["enemies"].count == 0)
+    def boss_arrives(self):
+        Boss(center=(750, 1000))
+
+    @when(lambda self: st.lives == 0)
+    def lost(self):
+        self.after(2, lambda: change_act(GameOver))
+
+
+class GameOver(Act):
+    def setup(self):
+        Text(text="GAME OVER", center=(500, 480), font_size=56, color="tomato")
+        Text(text=f"Score {st.score}", center=(500, 400), font_size=24)
+        Text(text="press SPACE", center=(500, 330), font_size=18)
+        self.after(10, lambda: change_act(TitleScreen))
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(TitleScreen)
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(TitleScreen)
+`,
+      notes: [
+        {
+          at: "def start_round():",
+          text: "The two lines of a new game get a name. The button calls <code>start_round</code>, and so does R."
+        },
+        {
+          at: "SpriteButton(",
+          text: "<code>SpriteButton</code> is a button made from an image: it grows when the pointer passes over it and sinks on the click. <code>label</code> is the text written on it, and <code>on_click=start_round</code> is what the click does."
+        },
+        {
+          at: "self.after(10, lambda: change_act(TitleScreen))",
+          text: "If nobody presses anything, the game over goes back to the title by itself, in 10 seconds."
+        },
+        {
+          at: "run(TitleScreen)",
+          text: "The first act is now the title."
+        }
+      ],
+      after: `
+        <p>Run it: the title, the click on PLAY, the level, the end, and back to the title.</p>
+        <p>Notice what didn't change: the classes, the stage, <code>@leave_playfield</code>. Each act builds only its own part, and a new screen in the game is one more act.</p>
+      `
+    },
+    {
+      title: "High score",
+      body: `
+        <p>A high score: the best score since the program opened. It is the only piece of data that should survive a new game.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+
+
+def new_game():
+    st.score = 0
+    st.lives = 3
+    st.energy = 0
+    st.pace = 80
+
+
+st.high_score = 0
+new_game()
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+def start_round():
+    new_game()
+    change_act(Play)
+
+
+class TitleScreen(Act):
+    def setup(self):
+        Text(text="SHIPS", center=(500, 520), font_size=80)
+        Text(text=f"High score {st.high_score}", center=(500, 430), font_size=24)
+        SpriteButton("k-rolling-ball/button_blue.png", center=(500, 330), width=180,
+                     label="PLAY", label_inset=(0, 0, 0, 8), on_click=start_round)
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        Hero(center=(500, 70))
+
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+        if keyp.once("R"):
+            start_round()
+
+    @when(lambda self: group["enemies"].count == 0)
+    def boss_arrives(self):
+        Boss(center=(750, 1000))
+
+    @when(lambda self: st.lives == 0)
+    def lost(self):
+        self.after(2, lambda: change_act(GameOver))
+
+
+class GameOver(Act):
+    def setup(self):
+        st.high_score = max(st.high_score, st.score)
+        Text(text="GAME OVER", center=(500, 480), font_size=56, color="tomato")
+        Text(text=f"Score {st.score}   High score {st.high_score}", center=(500, 400), font_size=24)
+        Text(text="press SPACE", center=(500, 330), font_size=18)
+        self.after(10, lambda: change_act(TitleScreen))
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(TitleScreen)
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(TitleScreen)
+`,
+      notes: [
+        {
+          at: "st.high_score = 0",
+          text: "The high score lives in <code>st</code>, like the others, but <strong>outside</strong> <code>new_game()</code>: it starts at zero only once, when the program opens. <code>new_game()</code> resets the score and doesn't touch it."
+        },
+        {
+          at: "f\"High score {st.high_score}\"",
+          text: "The title shows the high score. The text isn't linked to anything, and doesn't need to be: the act is built again each time you come back, and the text is born with the current value."
+        },
+        {
+          at: "st.high_score = max(st.high_score, st.score)",
+          text: "<code>max</code> returns the larger of the two. If the game that just ended beat the high score, its score becomes the new high score."
+        }
+      ],
+      after: `
+        <p>Play twice: the title shows the better of the two games. Here is the rule of thumb for <code>st</code>:</p>
+        <div class="tbl"><table><thead><tr><th>The data</th><th>Where it lives</th><th>Here</th></tr></thead><tbody>
+          <tr><td>starts from zero every game</td><td>inside <code>new_game()</code></td><td>score, lives, energy</td></tr>
+          <tr><td>carries from one game to the next</td><td>at the top, outside <code>new_game()</code></td><td>high score</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>What if <code>st.high_score = 0</code> went inside <code>new_game()</code>?</summary><p>Each new game would reset the high score, and it would show only the score of the last game.</p></details>
+      `
+    },
+    {
+      title: "The level in order",
+      body: [
+        `
+        <p>The level is also a story: the fleet, then the boss, then victory. An act can have modes, like an enemy, and an <code>async</code> mode tells a sequence in order:</p>
+        `,
+        {
+          snip: `@on_mode
+async def battle(self):
+    ...
+    await until_empty("enemies")
+    await wait(1)
+    Boss(center=(750, 1000))
+    await until_empty("boss")
+    await wait(2)
+    st.won = True
+    change_act(GameOver)`
+        },
+        `
+        <p>Read from top to bottom, it is the whole level. <code>battle</code> starts by building the 24 enemies (the loop that was in <code>setup</code>) and waits: <code>until_empty</code> holds the sequence until the group is empty, however long that takes. Then one second of breathing room, the boss, and another wait, now for the <code>boss</code> group. When the boss falls, two seconds to watch the explosion, and the game over. The act change is the last line: the sequence, and the act, end there.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+
+
+def new_game():
+    st.score = 0
+    st.lives = 3
+    st.energy = 0
+    st.pace = 80
+    st.won = False
+
+
+st.high_score = 0
+new_game()
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Starburst(center=self.center, radius=110)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+def start_round():
+    new_game()
+    change_act(Play)
+
+
+class TitleScreen(Act):
+    def setup(self):
+        Text(text="SHIPS", center=(500, 520), font_size=80)
+        Text(text=f"High score {st.high_score}", center=(500, 430), font_size=24)
+        SpriteButton("k-rolling-ball/button_blue.png", center=(500, 330), width=180,
+                     label="PLAY", label_inset=(0, 0, 0, 8), on_click=start_round)
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        Hero(center=(500, 70))
+        self.mode = self.battle
+
+    @on_mode
+    async def battle(self):
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+        await until_empty("enemies")
+        await wait(1)
+        Boss(center=(750, 1000))
+        await until_empty("boss")
+        await wait(2)
+        st.won = True
+        change_act(GameOver)
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+        if keyp.once("R"):
+            start_round()
+
+    @when(lambda self: st.lives == 0)
+    def lost(self):
+        self.after(2, lambda: change_act(GameOver))
+
+
+class GameOver(Act):
+    def setup(self):
+        st.high_score = max(st.high_score, st.score)
+        if st.won:
+            Text(text="YOU WIN", center=(500, 480), font_size=56, color="gold")
+        else:
+            Text(text="GAME OVER", center=(500, 480), font_size=56, color="tomato")
+        Text(text=f"Score {st.score}   High score {st.high_score}", center=(500, 400), font_size=24)
+        Text(text="press SPACE", center=(500, 330), font_size=18)
+        self.after(10, lambda: change_act(TitleScreen))
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(TitleScreen)
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(TitleScreen)
+`,
+      notes: [
+        {
+          at: "st.won = False",
+          text: "A new piece of game data: <code>st.won</code> starts as false in every new game, and the battle turns it on when the boss falls."
+        },
+        {
+          at: "Starburst(center=self.center, radius=110)",
+          text: "<code>Starburst</code> keeps shining where the boss was. Nobody removes it: two seconds later the level changes acts, and it leaves with the level, like everything the level created."
+        },
+        {
+          at: "self.mode = self.battle",
+          text: "At the end of <code>setup</code>, the level enters the <code>battle</code> mode."
+        },
+        {
+          at: "if st.won:",
+          text: "The game over chooses what to write: YOU WIN, in gold, or GAME OVER."
+        }
+      ],
+      after: `
+        <p>Bring down the fleet and the boss: YOU WIN.</p>
+        <p>The <code>@when</code> that called the boss is gone. The sequence already says when the boss arrives, and also what comes next: a loose rule answers one question, a sequence tells the level in order.</p>
+      `,
+      try: [
+          {
+            note: "To reach the boss quickly while you test: in the fleet loop, in place of the last line. Each enemy is destroyed as soon as it is born, the group becomes empty, and the sequence moves on.",
+            replaces: ['enemy.mode = enemy.arriving'],
+            code: `enemy.destroy()`
+          },
+          {
+            note: "Other lights where the boss was, one at a time, in place of <code>Starburst</code>. In the Guide: <a href='../guide/index.html#desenhar-spatial'>SpatialFx</a>.",
+            replaces: ['Starburst(center=self.center'],
+            code: `Sunburst(center=self.center, radius=110)
+Orb(center=self.center, radius=60, color="gold")`
+          }
+        ],
+      dive: [
+        {
+          title: "Act and mode",
+          body: `
+            <p>Both are chapters, at different scales. A <strong>mode</strong> is a chapter in an object's life: an enemy's dive, the boss's arrival, the level's battle. An <strong>act</strong> is the part of the game the player is in: the title, the level, the end.</p>
+            <div class="tbl"><table><thead><tr><th></th><th>Mode</th><th>Act</th></tr></thead><tbody>
+              <tr><td>changes with</td><td><code>self.mode = …</code></td><td><code>change_act(…)</code></td></tr>
+              <tr><td>the same one again</td><td>does nothing</td><td>starts a new act, from scratch</td></tr>
+              <tr><td>when it ends</td><td>stops what it started: timers, moves</td><td>takes everything born in it: objects and timers</td></tr>
+            </tbody></table></div>
+            <p>In the Guide: <a href="../guide/index.html#atos-palco">the stage and the act</a> · <a href="../guide/index.html#atos-regras">act rules</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Pause",
+      example: "ships_6_acts.py",
+      body: `
+        <p>A game with so much going on needs a pause. The P key stops the game, and the same key makes it go on.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+
+
+def new_game():
+    st.score = 0
+    st.lives = 3
+    st.energy = 0
+    st.pace = 80
+    st.won = False
+
+
+st.high_score = 0
+new_game()
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Starburst(center=self.center, radius=110)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if clock.paused:
+            return
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+
+
+def start_round():
+    new_game()
+    change_act(Play)
+
+
+class TitleScreen(Act):
+    def setup(self):
+        Text(text="SHIPS", center=(500, 520), font_size=80)
+        Text(text=f"High score {st.high_score}", center=(500, 430), font_size=24)
+        SpriteButton("k-rolling-ball/button_blue.png", center=(500, 330), width=180,
+                     label="PLAY", label_inset=(0, 0, 0, 8), on_click=start_round)
+
+
+class Play(Act):
+    def setup(self):
+        scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+        scoreboard["text"] @= lambda: f"Score {st.score}"
+
+        Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+        lives = Text(text="", top_left=(920, 780), font_size=20)
+        lives["text"] @= lambda: f"x {st.lives}"
+
+        bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+        bar["width"] @= lambda: st.energy * 2
+
+        self.pause_sign = Text(text="PAUSED", center=(500, 420), font_size=56)
+        self.pause_sign.visible = False
+
+        Hero(center=(500, 70))
+        self.mode = self.battle
+
+    @on_mode
+    async def battle(self):
+        for row in range(3):
+            for column in range(8):
+                enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+                enemy.hue = column / 8
+                enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+                enemy.mode = enemy.arriving
+        await until_empty("enemies")
+        await wait(1)
+        Boss(center=(750, 1000))
+        await until_empty("boss")
+        await wait(2)
+        st.won = True
+        change_act(GameOver)
+
+    def on_update(self, dt):
+        group["enemies"].move_by(st.pace * dt, 0)
+
+        for enemy in group["enemies"]:
+            if enemy.center.x > 960:
+                st.pace = -80
+            if enemy.center.x < 40:
+                st.pace = 80
+
+        if keyp.once("P"):
+            clock.paused = not clock.paused
+            self.pause_sign.visible = clock.paused
+        if keyp.once("R"):
+            start_round()
+
+    @when(lambda self: st.lives == 0)
+    def lost(self):
+        self.after(2, lambda: change_act(GameOver))
+
+
+class GameOver(Act):
+    def setup(self):
+        st.high_score = max(st.high_score, st.score)
+        if st.won:
+            Text(text="YOU WIN", center=(500, 480), font_size=56, color="gold")
+        else:
+            Text(text="GAME OVER", center=(500, 480), font_size=56, color="tomato")
+        Text(text=f"Score {st.score}   High score {st.high_score}", center=(500, 400), font_size=24)
+        Text(text="press SPACE", center=(500, 330), font_size=18)
+        self.after(10, lambda: change_act(TitleScreen))
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(TitleScreen)
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run(TitleScreen)
+`,
+      notes: [
+        {
+          at: "clock.paused = not clock.paused",
+          text: "<code>clock</code> is the game's time, and <code>clock.paused</code> stops it when set to <code>True</code>. <code>not</code> flips the value: the same key pauses and resumes."
+        },
+        {
+          at: "self.pause_sign.visible = clock.paused",
+          text: "The sign appears with the pause and disappears with it. It was born hidden in the level's <code>setup</code>."
+        },
+        {
+          at: "if clock.paused:",
+          text: "During the pause, every <code>on_update</code> keeps being called, with <code>dt</code> equal to 0. Moving does nothing, but space would still create a shot. So the hero returns right at the start and doesn't read the keyboard."
+        }
+      ],
+      after: `
+        <p>Run it, wait for the fleet to dive and press P in the middle of an attack. Everything freezes: the enemies on their way, the shots in the air, the boss in the middle of its arrival. <code>every</code>, moves with <code>time=</code> and <code>await wait</code> run on the game's time, and time has stopped. Press P again: each one goes on from where it was.</p>
+        <details class="ask"><summary>Why does the P key still work while the game is stopped?</summary><p>Because the level's <code>on_update</code> keeps being called every frame; only time stopped. Slow motion, pausing for a set time and everything else the clock does are in Appendix B.</p></details>
+      `,
+      closing: `
+        <p>Click PLAY. The arrows move the ship, space shoots, P pauses and resumes, R restarts. The fleet arrives, dives and shoots; once the fleet is down, the boss arrives. Out of lives, the game goes to game over; with the boss defeated, to victory. Both show the score and the high score and go back to the title with space (or by themselves, in 10 seconds).</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Act</code> — one part of the game, written as a class; <code>setup</code> builds the part, <code>on_update</code> is its logic.</li>
+          <li><code>run(TitleScreen)</code> and <code>change_act</code> — the first act and the change: the act that leaves takes everything it created, and the new one is born from scratch.</li>
+          <li>The stage — what the top of the file creates (background, sheets, classes, rules like <code>@leave_playfield</code>) stays for the whole game.</li>
+          <li><code>st</code> and <code>new_game()</code> — <code>st</code> lasts across acts; a new game is a function that puts it back at the start. The high score stays outside it.</li>
+          <li><code>@when</code> in the act — a rule that turns on when the act starts and leaves with it.</li>
+          <li><code>SpriteButton</code> — a button made from an image.</li>
+          <li><code>until_empty</code> — in an <code>async</code> mode, waits for a group to become empty.</li>
+          <li><code>clock.paused</code> — stops the game's time: <code>dt</code> is 0, and timers, moves and waits stop together.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#atos-classe">Act</a> · <a href="../guide/index.html#atos-trocar">change_act</a> · <a href="../guide/index.html#atos-palco">the stage and the act</a> · <a href="../guide/index.html#atos-dados">game data</a> · <a href="../guide/index.html#atos-regras">act rules</a> · <a href="../guide/index.html#ui-sprite-button">SpriteButton</a> · <a href="../guide/index.html#mode-async">until_empty</a> · <a href="../guide/index.html#frame-clock">clock</a>.</p>
+        <p><strong>Next:</strong> another game. The ninja comes back, in a level bigger than the screen, drawn in an editor, with a camera that follows it.</p>
+      `,
+      explore: `
+        <ul>
+          <li>A second level after the boss, with another fleet and another background.</li>
+          <li>A pause menu with <code>Menu</code>: Continue, or back to the title.</li>
+          <li>Can you show a “Level 2” notice between one level and the next, in an act just for that?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

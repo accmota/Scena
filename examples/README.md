@@ -20,10 +20,10 @@ Portuguese one, name for name.
 | 02 Pegar estrelas | `pegar_estrelas.py` | `catch_stars.py` |
 | 03 Geometria | `ponto_medio.py` | `midpoint.py` |
 | 04 UI Widgets | `cadeia_de_bolas.py`, `desenho.py`, `letreiro.py` | `ball_chain.py`, `drawing.py`, `banner.py` |
-| 05 Naves | `naves_1.py` |  |
-| 06 Naves II · Classes | `bolhas.py`, `naves_2_classes.py` |  |
-| 07 Naves III · Atlas, explosão, vidas | `naves_3_vidas.py` |  |
-| 08 Naves IV · Escudo | `naves_4_escudo.py` |  |
+| 05 Naves | `naves_1.py` | `ships_1.py` |
+| 06 Naves II · Classes | `bolhas.py`, `naves_2_classes.py` | `bubbles.py`, `ships_2_classes.py` |
+| 07 Naves III · Atlas, explosão, vidas | `naves_3_vidas.py` | `ships_3_lives.py` |
+| 08 Naves IV · Escudo | `naves_4_escudo.py` | `ships_4_shield.py` |
 | 09 Fórmulas | `formulas.py` |  |
 | 10 Bolas | `bolas.py` |  |
 | 11 Interação | `interacao.py`, `ceu_estrelado.py` |  |
@@ -39,8 +39,8 @@ Portuguese one, name for name.
 | 21 Ligue 4 | `ligue4.py` |  |
 | 22 Estúdio · Piano | `piano.py` |  |
 | 23 Estúdio II · Voz | `estudio_voz.py` |  |
-| 24 Naves V · Capítulos e sequências | `naves_5_modos.py` |  |
-| 25 Naves VI · Atos | `naves_6_atos.py` |  |
+| 24 Naves V · Capítulos e sequências | `naves_5_modos.py` | `ships_5_modes.py` |
+| 25 Naves VI · Atos | `naves_6_atos.py` | `ships_6_acts.py` |
 | 26 Ninja III · O nível | `ninja_3_nivel.py` |  |
 | 27 Ninja IV · Perigos | `ninja_4_perigos.py` |  |
 | 28 Ninja V · Espada | `ninja_5_espada.py` |  |

@@ -1,0 +1,2053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ships V — Chapters and sequences — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "24",
+  title: "Ships V · Chapters and sequences",
+  steps: [
+    {
+      title: "The game from Ships IV",
+      body: `
+        <p>A new script, which starts from the game in Ships IV: the swaying fleet, the three lives and the shield that drops as a gift. Now the enemies get <strong>chapters</strong>: they stay in formation for a while, dive toward the ship and come back. Then the fleet starts arriving in <strong>sequence</strong>, one enemy after another, and when it is gone a boss shows up.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "A chapter",
+      body: [
+        `
+        <p>In a space shooter, an enemy does not always do the same thing. It stays in formation for a while, suddenly dives, and then goes back to its place. Each of these parts is a <strong>mode</strong> (<code>mode</code>): a chapter in the enemy's life.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 170" role="img" aria-label="Two chapters, formation and dive. The setup leads to formation; an upper arrow goes from formation to dive, with after and then; a lower arrow goes back from dive to formation, with move_to and then">
+            <line class="ray" x1="14" y1="85" x2="68" y2="85"/>
+            <line class="ray" x1="68" y1="85" x2="61" y2="80"/>
+            <line class="ray" x1="68" y1="85" x2="61" y2="90"/>
+            <text x="12" y="74">setup</text>
+            <rect class="bar" x="72" y="62" width="104" height="46" rx="10"/>
+            <text x="91" y="89">formation</text>
+            <rect class="bar child" x="250" y="62" width="104" height="46" rx="10"/>
+            <text x="288" y="89">dive</text>
+            <path class="guide" d="M 150 60 Q 213 14 276 60"/>
+            <line class="ray" x1="276" y1="60" x2="266" y2="57"/>
+            <line class="ray" x1="276" y1="60" x2="272" y2="50"/>
+            <text x="163" y="24">after(…, then=)</text>
+            <path class="guide" d="M 276 110 Q 213 156 150 110"/>
+            <line class="ray" x1="150" y1="110" x2="160" y2="113"/>
+            <line class="ray" x1="150" y1="110" x2="154" y2="120"/>
+            <text x="157" y="160">move_to(…, then=)</text>
+          </svg>
+          <figcaption>Two chapters. The formation waits for a while and moves on to the dive; the dive, when the trip is over, goes back to the formation.</figcaption>
+        </figure>
+        <p>In the <code>Enemy</code> class, each chapter is a function:</p>
+        `,
+        {
+          snip: `self.mode = self.formation
+...
+@on_mode
+def formation(self):
+    after(uniform(3, 12), then=self.dive)`
+        },
+        `
+        <p><code>self.mode = self.formation</code> puts the enemy in the formation chapter, and entering a mode runs the function once, just as <code>setup</code> runs once when the object is born. Notice: <code>self.formation</code>, with no parentheses. The mode is the function itself, not a call to it. The <code>@on_mode</code> on top is only a label: it tells whoever reads the code that the function is a chapter.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        self.move_to(self.center.x, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "after(uniform(3, 12), then=self.dive)",
+          text: "<code>after</code> with <code>then=</code> in place of the function: when the time is up, the enemy enters the <code>dive</code> mode. <code>uniform(3, 12)</code>, from <code>random</code>, picks any number between 3 and 12: each enemy waits its own time."
+        },
+        {
+          at: "self.move_to(self.center.x, 220, time=0.9",
+          text: "<code>move_to</code> with <code>time=0.9</code> takes the enemy down to height 220 in 0.9 s, little by little. <code>ease=\"ease_in_out\"</code> starts slowly, speeds up and brakes at the end."
+        },
+        {
+          at: "loops=2, yoyo=True, then=self.formation",
+          text: "Two loops as a yo-yo: there and back, along the same path. When they are done, <code>then=</code> leads back to the formation, and <code>formation</code> runs again, with a new random time."
+        }
+      ],
+      after: `
+        <p>Wait a few seconds: the enemies come down, one here, another there, and go back. For now, in a straight line.</p>
+        <p>The fleet keeps swaying during the dive, and even so the enemy returns exactly to its slot, wherever the fleet is now.</p>
+      `,
+      try: [
+          {
+            note: "More frequent dives, to see them better: in place of the formation's <code>after</code>.",
+            replaces: ['after(uniform(3, 12)'],
+            code: `after(uniform(1, 4), then=self.dive)`
+          }
+        ],
+      dive: [
+        {
+          title: "Modes",
+          body: `
+            <p>An object's current chapter is in <code>self.mode</code>: the mode's function, or <code>None</code> before the first one. Writing to it changes the chapter: the old one ends, and the new one begins. To ask which chapter an object is in, compare with <code>==</code>: <code>if enemy.mode == enemy.dive:</code> is true only while that enemy is diving.</p>
+            <p>In the Guide: <a href="../guide/index.html#mode-enter">mode</a> · <a href="../guide/index.html#agendar-fim">When it ends</a> · <a href="../guide/index.html#mover-pose">move_to</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Toward the ship",
+      body: [
+        `
+        <p>A real dive heads toward the ship. For that, the enemy has to find it:</p>
+        `,
+        {
+          snip: `hero = group["hero"].nearest(self)`
+        },
+        `
+        <p><code>nearest</code> returns the member of the <code>hero</code> group that is closest to this enemy. There is only one ship, so that is the one. To be in that group, the <code>Hero</code> class got <code>group="hero"</code> on its line.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "height=45, group=\"hero\"",
+          text: "The ship joins the <code>hero</code> group, where the enemies will look for it."
+        },
+        {
+          at: "goal = self.center.x",
+          text: "<code>goal</code> is the x the enemy dives to. It starts at the enemy's own x: the straight dive from before."
+        },
+        {
+          at: "if hero:",
+          text: "If there is a ship, the goal becomes its x. After game over, the ship has been destroyed, and <code>nearest</code> finds no one: it returns <code>None</code>, the <code>if</code> is skipped, and the enemy dives straight."
+        }
+      ],
+      after: `
+        <p>Stay still and watch: the enemies dive right on top of you.</p>
+        <details class="ask"><summary>The <code>ship</code> variable already reaches the ship. Why search the group?</summary><p>Because the group does not depend on any name: the enemy finds whoever is in the <code>hero</code> group, whatever the variable is called and wherever the ship was created. If the ship changes its name or its place in the file, the enemies do not even notice.</p></details>
+      `
+    },
+    {
+      title: "What the chapter starts",
+      body: [
+        `
+        <p>Now each enemy shoots on its own, and only while it is in formation. The <code>@every</code> at the end of the file, which picked a random shooter, is gone, and <code>choice</code> went with it. The shooting moves into the chapter:</p>
+        `,
+        {
+          snip: `def formation(self):
+    every(uniform(5, 12), self.shoot)
+    after(uniform(3, 12), then=self.dive)`
+        },
+        `
+        <p>An <code>every</code> or an <code>after</code> written inside a mode belongs to the mode: when the object leaves that chapter, they stop on their own. That is the chapter rule. When the enemy dives, the formation's <code>every</code> stops; when it comes back, <code>formation</code> runs again and starts a new <code>every</code>:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 120" role="img" aria-label="A timeline of one enemy: formation, dive, formation again. The shots from every fall only in the formation stretches; in the middle of the dive, a single shot, the one from after">
+            <rect class="bar" x="20" y="30" width="140" height="26" rx="4"/>
+            <rect class="bar child" x="160" y="30" width="80" height="26" rx="4"/>
+            <rect class="bar" x="240" y="30" width="140" height="26" rx="4"/>
+            <text x="90" y="47" text-anchor="middle">formation</text>
+            <text x="200" y="47" text-anchor="middle">dive</text>
+            <text x="310" y="47" text-anchor="middle">formation</text>
+            <line class="ray" x1="20" y1="76" x2="380" y2="76"/>
+            <circle class="dot" cx="60" cy="76" r="4"/>
+            <circle class="dot" cx="100" cy="76" r="4"/>
+            <circle class="dot" cx="140" cy="76" r="4"/>
+            <circle class="hot" cx="200" cy="76" r="5"/>
+            <circle class="dot" cx="290" cy="76" r="4"/>
+            <circle class="dot" cx="330" cy="76" r="4"/>
+            <circle class="dot" cx="370" cy="76" r="4"/>
+            <text x="100" y="100" text-anchor="middle">every</text>
+            <text x="200" y="100" text-anchor="middle">after(0.9)</text>
+            <text x="330" y="100" text-anchor="middle">new every</text>
+          </svg>
+          <figcaption>One enemy's shots. The formation's <code>every</code> stops when it dives; on the way back, another one starts. At the bottom of the dive, the shot from <code>after</code>.</figcaption>
+        </figure>
+        <p>Without this rule, each return would add one more timer, and an enemy that had dived five times would shoot five times as often. The rule also holds for movements with <code>time=</code>.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "after(0.9, self.shoot)",
+          text: "At the bottom of the dive (the way down takes 0.9 s), the enemy shoots. This <code>after</code> belongs to the dive chapter."
+        },
+        {
+          at: "def shoot(self):",
+          text: "<code>shoot</code> is a function of the class that both chapters call."
+        }
+      ],
+      after: `
+        <p>Run it. The shots now come from those in formation and from those diving, and a diving enemy is the most dangerous: it shoots from close up.</p>
+      `,
+      dive: [
+        {
+          title: "The chapter's or the object's",
+          body: `
+            <p>A timer has an owner. Written bare inside a mode (<code>after(…)</code>, <code>every(…)</code>, <code>move_to(…, time=)</code>), its owner is the chapter, and it stops when the mode changes. With the object in front (<code>self.after(…)</code>, <code>self.every(…)</code>), its owner is the object: it lives through mode changes and only stops when the object is destroyed. That is the case of the <code>self.after(0.5, self.destroy)</code> in <code>Explosion</code>, in this very script.</p>
+            <p>Outside the modes, in <code>setup</code> or in a <code>@collide_with</code>, there is no chapter. That is why the enemy's breathing, the <code>self.scale_to(…)</code> in <code>setup</code>, goes on during the dive: it belongs to the enemy.</p>
+            <p>In the Guide: <a href="../guide/index.html#mode-cancela">Scope and cancelling</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "The dive jet",
+      body: [
+        `
+        <p>A diving enemy should show its power: a jet lit on its back, which goes out when it returns to the formation. That is a look tied to a chapter. Lighting it is easy, at the start of <code>dive</code>. Putting it out needs a new hook:</p>
+        `,
+        {
+          snip: `@exit_mode(dive)
+def end_of_dive(self):
+    self.jet.active = False`
+        },
+        `
+        <p><code>@exit_mode</code>, on top of a function of the class, tells Scena to run it when the enemy leaves the dive, by any path. The jet is not a timer, and the chapter rule does not put it out: looks and your own fields need <code>@exit_mode</code>.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.jet = Jet(",
+          text: "The jet is a <code>Jet</code>, like the ship's thruster, made in <code>setup</code> and kept in <code>self.jet</code>. Right after, <code>active = False</code> parks it, switched off."
+        },
+        {
+          at: "angle=90, length=30",
+          text: "The enemies point down, so the jet comes out of their backs, pointing up: 90 degrees."
+        },
+        {
+          at: "self.jet.active = True",
+          text: "The dive lights the jet as soon as it starts."
+        },
+        {
+          at: "self.jet.destroy()",
+          text: "<code>@exit_mode</code> covers leaving the mode; <code>on_destroy</code> covers an enemy shot down in the middle of a dive, which takes the jet with it. Together they cover every path."
+        }
+      ],
+      after: `
+        <p>Run it and wait for a dive: the jet lights up on the way down and goes out on the way back. Then hit an enemy in the middle of a dive: the jet disappears with it.</p>
+      `,
+      try: [
+          {
+            note: "Another jet, longer and stronger, in place of the two <code>Jet</code> lines. In the Guide: <a href='../guide/index.html#desenhar-spatial'>SpatialFx</a>.",
+            replaces: ['self.jet = Jet(', 'angle=90, length=30'],
+            code: `self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                angle=90, length=55, width=14, amount=3, color="gold")`
+          }
+        ]
+    },
+    {
+      title: "Arriving in sequence",
+      body: [
+        `
+        <p>So far the fleet starts out ready, standing in place. In a space shooter it <em>arrives</em>: each enemy comes down from off screen to its slot, stops for a moment, gives a pop and only then joins the formation. It is a sequence: do this, wait, do that, wait, join the formation.</p>
+        <p>The mode says <em>where</em> the enemy is; a sequence says <em>what happens, in order</em>, while it is there. The arrival is a mode like that:</p>
+        `,
+        {
+          snip: `@on_mode
+async def arriving(self):
+    await wait(self.wait_time)
+    await self.move_by(0, -500, time=1.2, ease="ease_out")
+    await wait(0.3)`
+        },
+        `
+        <p><code>arriving</code> is written with <code>async def</code> instead of <code>def</code>. In a mode like that, <code>await</code> pauses the chapter until the thing after it finishes, and only then moves on to the next line. <code>wait</code> waits for some time; the <code>move_by</code> with <code>time=</code> is awaited in full, 500 units in 1.2 s, before the next line:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 135" role="img" aria-label="A timeline of one enemy's arrival, from left to right: the wait, the 1.2-second descent, a 0.3-second pause, the pop with a sound and, finally, the formation">
+            <line class="ray" x1="10" y1="92" x2="404" y2="92"/>
+            <line class="ray" x1="404" y1="92" x2="397" y2="87"/>
+            <line class="ray" x1="404" y1="92" x2="397" y2="97"/>
+            <rect class="guide" x="14" y="56" width="70" height="28" rx="4"/>
+            <rect class="bar" x="88" y="56" width="150" height="28" rx="4"/>
+            <rect class="bar child" x="242" y="56" width="40" height="28" rx="4"/>
+            <circle class="hot" cx="294" cy="70" r="6"/>
+            <text x="32" y="48">wait</text>
+            <text x="127" y="48">down 1.2 s</text>
+            <text x="246" y="48">0.3 s</text>
+            <text x="286" y="48">pop</text>
+            <text x="312" y="74">formation</text>
+            <text x="14" y="110">await wait</text>
+            <text x="100" y="110">await self.move_by</text>
+            <text x="222" y="126">await wait</text>
+          </svg>
+          <figcaption>One enemy's arrival. Each <code>await</code> waits for its part to finish; the next line only runs after that.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+        enemy.hue = column / 8
+        enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+        enemy.mode = enemy.arriving
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.pop(scale=1.3)",
+          text: "The pop: <code>pop</code> puffs the enemy up for a moment, and <code>scale=1.3</code> is how far it grows. The next line moves on to the formation: the sequence is over."
+        },
+        {
+          at: "1220 - row * 70",
+          text: "The enemies are born 500 units above their slot, off screen: 1220 instead of 720."
+        },
+        {
+          at: "enemy.wait_time = (2 - row) * 0.6 + column * 0.08",
+          text: "Each one gets its own wait: the bottom row (row 2) arrives first and, within each row, from left to right. The order belongs to the whole fleet, so it stays in the loop, like the color."
+        },
+        {
+          at: "enemy.mode = enemy.arriving",
+          text: "It is the loop that puts the enemy in <code>arriving</code>, after giving it its wait. <code>setup</code> no longer picks the mode."
+        }
+      ],
+      after: [
+        `
+        <p>Run it: the fleet arrives from above, one enemy after another, row by row. The code of <code>arriving</code> reads from top to bottom, in the order things happen.</p>
+        <p>The <code>await</code> goes in front of every wait, and it is easy to forget:</p>
+        `,
+        {
+          snip: `    wait(0.3)`,
+          alt: true
+        },
+        `
+        <p>Without the <code>await</code>, the <code>wait</code> waits for nothing. Scena tells you with an error that names the line and the missing <code>await</code>.</p>
+        `
+      ],
+      try: [
+          {
+            note: "The same arrival without <code>async</code>, in place of the whole <code>arriving</code>. Each wait becomes an <code>after</code> with another function inside (for the movement, <code>on_done=</code>), and the end of the sequence needs a function just for itself, <code>arrived</code>. It works, but it reads from the inside out, and each extra wait pushes the code further to the right.",
+            replaces: ['async def arriving', 'await wait(self.wait_time)', 'await self.move_by(0, -500', 'await wait(0.3)', 'self.pop(scale=1.3)', 'play_sound("audio/impactGeneric_light_003.ogg")', 'self.mode = self.formation'],
+            code: `def arriving(self):
+    self.after(self.wait_time, lambda: self.move_by(0, -500, time=1.2, ease="ease_out",
+        on_done=lambda: self.after(0.3, self.arrived)))
+
+def arrived(self):
+    self.pop(scale=1.3)
+    play_sound("audio/impactGeneric_light_003.ogg")
+    self.mode = self.formation`
+          }
+        ],
+      dive: [
+        {
+          title: "Other waits",
+          body: `
+            <p><code>wait</code> waits for some time. An <code>async</code> mode can wait for other things: the end of any verb with <code>time=</code> (the arrival's <code>move_by</code>), a condition (<code>await until(lambda: st.lives == 0)</code>) or an empty group (<code>await until_empty("enemies")</code>).</p>
+            <p><code>wait</code> only works inside an <code>async</code> mode: in <code>update</code> or in a <code>@collide_with</code> it raises an error, and there the way to go is <code>after</code>. And leaving the mode, or being destroyed, cancels the rest of the sequence on its own: hit an enemy resting in its slot, before the pop, and the rest of <code>arriving</code> simply does not happen.</p>
+            <p>In the Guide: <a href="../guide/index.html#mode-async">async / wait</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "The boss arrives",
+      body: `
+        <p>When the fleet is gone, the boss arrives: a big disc, with its own health bar. Its arrival is another sequence, this time of picture and sound: a blinking warning with a deep sound, the boss coming down, the bar filling up, and the fight. There are two chapters, <code>arriving</code> and <code>fighting</code>, and the first leads into the second.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+        enemy.hue = column / 8
+        enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+        enemy.mode = enemy.arriving
+
+
+@when(lambda: group["enemies"].count == 0)
+def boss_arrives():
+    Boss(center=(750, 1000))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.bar[\"width\"] @= lambda: self.health * 20",
+          text: "Health starts at zero, and the bar's width is linked to it with <code>@=</code>, like the energy bar: with 20 health points, 400 units."
+        },
+        {
+          at: "notice.blink(2)",
+          text: "The warning blinks (<code>blink</code>) for 2 s, while the big laser plays an octave lower (<code>pitch=0.5</code>)."
+        },
+        {
+          at: "for turn in range(20):",
+          text: "The bar fills one point at a time: a <code>for</code> with a wait inside, twenty times one health point and a click. After the <code>for</code>, the fight."
+        },
+        {
+          at: "self.move_by(-500, 0, time=3",
+          text: "<code>fighting</code> is a plain mode that starts two things that last: the boss goes back and forth from one side to the other, as a yo-yo, forever…"
+        },
+        {
+          at: "every(1.0, self.volley)",
+          text: "…and fires three lasers every second. Both belong to the chapter."
+        },
+        {
+          at: "@when(lambda: group[\"enemies\"].count == 0)",
+          text: "<code>@when</code> runs the function once, when the condition becomes true: the <code>enemies</code> group is empty. The boss is born off screen, at the top."
+        }
+      ],
+      after: `
+        <p>Shoot down the fleet and wait for the boss. To get to it quickly, use the box below.</p>
+        <details class="ask"><summary>Why is the boss's arrival an <code>async</code> mode, and not a chain of <code>then=</code>?</summary><p>With <code>then=</code>, each wait would need a mode of its own: the warning, the descent, each point of the bar. With <code>async</code>, the whole arrival is one function, read from top to bottom.</p></details>
+        <details class="ask"><summary>What about your shots?</summary><p>They go right through the boss. Nothing says yet what happens when a shot hits it.</p></details>
+      `,
+      try: [
+          {
+            note: "To get to the boss quickly while you test: at the end of the file, before <code>run()</code>. Three seconds after the start, the whole fleet disappears.",
+            code: `after(3, group["enemies"].destroy)`
+          }
+        ]
+    },
+    {
+      title: "The boss falls",
+      example: "ships_5_modes.py",
+      body: [
+        `
+        <p>The boss gets its own <code>@collide_with("shots")</code>. The shot always disappears, but the boss only loses health in the fight chapter:</p>
+        `,
+        {
+          snip: `if self.mode != self.fighting:
+    return`
+        },
+        `
+        <p><code>!=</code> means "not equal". While it is coming down, or while the bar is still filling, the boss is not in the fight: the <code>return</code> leaves before any damage.</p>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+        self.jet = Jet(origin=lambda: (self.center.x, self.center.y + 20),
+                        angle=90, length=30, width=12, amount=2)
+        self.jet.active = False
+
+    @on_mode
+    async def arriving(self):
+        await wait(self.wait_time)
+        await self.move_by(0, -500, time=1.2, ease="ease_out")
+        await wait(0.3)
+        self.pop(scale=1.3)
+        play_sound("audio/impactGeneric_light_003.ogg")
+        self.mode = self.formation
+
+    @on_mode
+    def formation(self):
+        every(uniform(5, 12), self.shoot)
+        after(uniform(3, 12), then=self.dive)
+
+    @on_mode
+    def dive(self):
+        goal = self.center.x
+        hero = group["hero"].nearest(self)
+        if hero:
+            goal = hero.center.x
+        self.jet.active = True
+        self.move_to(goal, 220, time=0.9, ease="ease_in_out",
+                     loops=2, yoyo=True, then=self.formation)
+        after(0.9, self.shoot)
+
+    @exit_mode(dive)
+    def end_of_dive(self):
+        self.jet.active = False
+
+    def shoot(self):
+        EnemyShot(center=(self.center.x, self.center.y - 20))
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+    def on_destroy(self):
+        self.jet.destroy()
+
+
+class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
+    def setup(self):
+        self.health = 0
+        self.bar = Rect(top_left=(300, 775), width=0, height=10, color="tomato")
+        self.bar["width"] @= lambda: self.health * 20
+        self.mode = self.arriving
+
+    @on_mode
+    async def arriving(self):
+        notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
+        notice.blink(2)
+        play_sound("audio/laser-big.wav", pitch=0.5)
+        await wait(2)
+        notice.destroy()
+        await self.move_to(750, 600, time=2, ease="ease_out")
+        for turn in range(20):
+            self.health += 1
+            play_sound("audio/impactGeneric_light_003.ogg")
+            await wait(0.05)
+        self.mode = self.fighting
+
+    @on_mode
+    def fighting(self):
+        self.move_by(-500, 0, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        every(1.0, self.volley)
+
+    def volley(self):
+        for dx in [-40, 0, 40]:
+            EnemyShot(center=(self.center.x + dx, self.center.y - 50))
+        play_sound("audio/laser7.wav")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        shot.destroy()
+        if self.mode != self.fighting:
+            return
+        canvas.hit_at(info)
+        self.flash(0.08)
+        self.health -= 1
+        if self.health == 0:
+            self.mode = self.dying
+
+    @on_mode
+    async def dying(self):
+        for turn in range(5):
+            canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
+            play_sound("audio/explosion02.wav")
+            await wait(0.3)
+        canvas.shake(14)
+        Explosion(center=self.center)
+        st.score += 20
+        Text(text="VICTORY", center=(500, 400), font_size=48)
+        self.destroy()
+
+    def on_destroy(self):
+        self.bar.destroy()
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="hero"):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 1220 - row * 70))
+        enemy.hue = column / 8
+        enemy.wait_time = (2 - row) * 0.6 + column * 0.08
+        enemy.mode = enemy.arriving
+
+
+@when(lambda: group["enemies"].count == 0)
+def boss_arrives():
+    Boss(center=(750, 1000))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "canvas.hit_at(info)",
+          text: "Each hit bursts where it struck (<code>hit_at</code>), makes the boss flash (<code>flash</code>) and takes one point off the bar."
+        },
+        {
+          at: "self.mode = self.dying",
+          text: "With health at zero, the boss enters <code>dying</code>, one more <code>async</code> mode: the fall, in stages."
+        },
+        {
+          at: "for turn in range(5):",
+          text: "Five explosions around the center, each with a sound and a wait."
+        },
+        {
+          at: "self.center + (uniform(-50, 50), uniform(-30, 30))",
+          text: "<code>self.center + (dx, dy)</code> is the center shifted: a random place near it."
+        },
+        {
+          at: "canvas.shake(14)",
+          text: "Then the screen shakes (<code>shake</code>), the big explosion closes the show, the word VICTORY appears and the boss is destroyed."
+        }
+      ],
+      after: `
+        <p>Run it, wait for the bar to fill and shoot down the boss.</p>
+        <details class="ask"><summary>Who tells the boss to stop shooting while it explodes?</summary><p>No one. When it enters <code>dying</code>, the boss leaves <code>fighting</code>; the yo-yo and the volley belonged there, and they stop on their own. The chapter rule again.</p></details>
+      `,
+      try: [
+          {
+            note: "Other endings, one at a time, in place of the explosion inside the <code>for</code>. In the Guide: <a href='../guide/index.html#mundo-impactos'>Impacts</a>.",
+            replaces: ['canvas.explosion_at(self.center'],
+            code: `canvas.fireworks_at(self.center + (uniform(-50, 50), uniform(-30, 30)))
+canvas.debris_at(self.center + (uniform(-50, 50), uniform(-30, 30)), color="tomato")`
+          }
+        ],
+      closing: `
+        <p>The arrows move the ship. Space shoots. The fleet arrives from above, one enemy after another. In formation, each one shoots now and then; suddenly one dives toward you, with its jet lit, shoots from down low and goes back to its slot. The blue gifts give you the shield. Once the fleet is down, the boss arrives: wait for its bar to fill and hit it until the bar runs out.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>mode</code> — an object's chapter: a function of the class. <code>self.mode = self.dive</code> changes the chapter, and entering it runs the function once.</li>
+          <li><code>then=</code> — at the end of an <code>after</code> or of a movement with <code>time=</code>, enters a mode.</li>
+          <li><code>move_to</code> with <code>time=</code> — a trip, little by little; <code>loops=2, yoyo=True</code> goes there and back.</li>
+          <li><code>nearest</code> — the member of the group that is closest; <code>None</code> when there is no one.</li>
+          <li><code>every</code> and <code>after</code> in a mode — they belong to the chapter: they stop on their own when the object leaves it.</li>
+          <li><code>@exit_mode</code> — runs when leaving the mode; it is for the look, like the jet.</li>
+          <li><code>async</code>, <code>await</code> and <code>wait</code> — a mode that is a sequence: each <code>await</code> waits for its part, and the next line comes after.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#mode-enter">mode</a> · <a href="../guide/index.html#mode-cancela">Scope and cancelling</a> · <a href="../guide/index.html#mode-async">async / wait</a> · <a href="../guide/index.html#agendar-fim">When it ends</a> · <a href="../guide/index.html#mover-pose">move_to</a> · <a href="../guide/index.html#geo-helpers">nearest</a>.</p>
+        <p><strong>Next:</strong> the game gets acts. A title screen, game over, the high score, and starting again without writing cleanup code.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Invent another way to dive: in a zigzag, or two enemies at once.</li>
+          <li>Can you give the boss a second phase? At half health, it gets faster and shoots more.</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

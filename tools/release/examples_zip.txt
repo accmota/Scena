@@ -12,6 +12,7 @@ examples/banner.py
 examples/barras_girando.py
 examples/bolas.py
 examples/bolhas.py
+examples/bubbles.py
 examples/cadeia_de_bolas.py
 examples/catch_stars.py
 examples/ceu_estrelado.py
@@ -319,4 +320,10 @@ examples/piano.py
 examples/ponto_medio.py
 examples/primeiro_script.py
 examples/revoada.py
+examples/ships_1.py
+examples/ships_2_classes.py
+examples/ships_3_lives.py
+examples/ships_4_shield.py
+examples/ships_5_modes.py
+examples/ships_6_acts.py
 examples/trilhas.py

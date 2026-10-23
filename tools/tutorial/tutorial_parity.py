@@ -41,6 +41,7 @@ Commands (run from the repository root)::
     python tools/tutorial/tutorial_parity.py --mark U [U…] # U translated from the current pt (05 = whole page)
     python tools/tutorial/tutorial_parity.py --diff U      # pt change since U was translated
     python tools/tutorial/tutorial_parity.py --levels      # write the English level files from the Portuguese
+    python tools/tutorial/tutorial_parity.py --relink      # links to Portuguese pages that now have an English twin
 
 The English level files (``names_en.json`` "levels") are made, not written:
 the Portuguese file with its groups, item names and sheet names renamed by
@@ -424,6 +425,22 @@ def _comments_and_docs(code: str) -> str:
     return "\n".join(out)
 
 
+def names_left(unit: str, gn: dict, gs: dict) -> list[str]:
+    """Portuguese names of the glossary still in a unit's inline code or figure
+    text (a draft miss): ``<code>tiros_inimigos</code>``."""
+    found = set()
+    for chunk in re.findall(r"<code>(.*?)</code>|<text\b[^>]*>(.*?)</text>", unit, re.S):
+        piece = (chunk[0] or chunk[1]).replace('\\"', '"')
+        piece = re.sub(r"&\w+;", " ", piece)
+        for word in re.findall(r"[A-Za-zÀ-ÿ_]\w*", re.sub(r'"[^"]*"', " ", piece)):
+            if gn.get(word, word) != word:
+                found.add(word)
+        for word in re.findall(r'"([^"]+)"', piece):
+            if gs.get(word, word) != word:
+                found.add(f'"{word}"')
+    return sorted(found)
+
+
 def portuguese_left(unit: str) -> list[str]:
     """Portuguese words in a unit's prose, comments and docstrings (empty: clean)."""
     code = "\n".join(_comments_and_docs(c) for c in code_blocks(unit))
@@ -535,6 +552,10 @@ def check_page(key: str, pt_text: str, en_text: str, state: dict, names: dict,
     for a, b in zip(pex, eex):
         if a == b:
             errors.append(f"{key}: o exemplo em inglês tem nome em inglês (não {b}: examples/ guarda os dois)")
+    for href in re.findall(r"""href=["']\.\./\.\./pt/tutorial/((?:\d\di?|[A-Z])-[^"'#/]*\.html)""", en_text):
+        twin = pages(EN_DIR).get(page_key(href))
+        if twin is not None:
+            errors.append(f"{key}: o link para ../../pt/tutorial/{href} já tem página em inglês ({twin.name})")
     eu = dict(units(key, en_text))
     for name, ptext in units(key, pt_text):
         recorded = state.get(name)
@@ -543,7 +564,7 @@ def check_page(key: str, pt_text: str, en_text: str, state: dict, names: dict,
         if recorded != digest(ptext):
             errors.append(f"{name}: o pt mudou desde a tradução — traduza a mudança "
                           f"(tutorial_parity.py --diff {name}) e rode --mark {name}")
-        left = portuguese_left(eu.get(name, ""))
+        left = portuguese_left(eu.get(name, "")) + names_left(eu.get(name, ""), gn, gs)
         if left:
             errors.append(f"{name}: traduzida, mas ainda tem português: {', '.join(left[:8])}")
     return errors
@@ -643,6 +664,25 @@ def _rename_string(lit: str, fstring: bool, names: dict, strings: dict) -> str:
                        for p in parts) + close
 
 
+_CROSS = re.compile(r"""(href=["'])(?:\.\./\.\./pt/tutorial/)?((?:\d\di?|[A-Z])-[^"'#/]*\.html)""")
+
+
+def cross_links(text: str, names: dict, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR) -> str:
+    """Links to another tutorial page: its English twin when it exists, else
+    the Portuguese page (``../../pt/tutorial/…``)."""
+    en = pages(en_dir)
+    slugs = names.get("pages") or {}
+
+    def fix(m):
+        key = page_key(m.group(2))
+        if key in en:
+            return m.group(1) + en[key].name
+        if m.group(2) == slugs.get(key):          # an English link whose page is not there yet
+            return m.group(1) + "../../pt/tutorial/" + pages(pt_dir)[key].name
+        return m.group(1) + "../../pt/tutorial/" + m.group(2)
+    return _CROSS.sub(fix, text)
+
+
 def _escape(src: str) -> str:
     return src.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
@@ -681,12 +721,19 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
     text = re.sub(r"^(\s*(?:focus|replaces):\s*)(.*)$", anchors, text, flags=re.M)
     # Inline code in the prose names the same things as the code it explains.
     # Inside a double-quoted field (a note's text) its quotes are escaped: \"bolas\".
+    # A bare word may be a group tag (<code>tiros_inimigos</code>): strings too.
     def inline(m):
-        body = m.group(1)
+        tag, body = m.group(1), m.group(2)
+        if re.fullmatch(r"\w+", body) and body not in gn and body in gs:
+            return f"<{tag}>{gs[body]}</{tag}>" if tag == "code" else m.group(0)
         if '\\"' in body:
-            return "<code>" + ren(body.replace('\\"', '"')).replace('"', '\\"') + "</code>"
-        return f"<code>{ren(body)}</code>"
-    text = re.sub(r"<code>(.*?)</code>", inline, text, flags=re.S)
+            return f"<{tag}>" + ren(body.replace('\\"', '"')).replace('"', '\\"') + f"</{tag}>"
+        return f"<{tag}>{ren(body)}</{tag}>"
+    text = re.sub(r"<(code)>(.*?)</code>", inline, text, flags=re.S)
+    # Code drawn in a figure (<text …>st.velocidade = -80</text>).
+    text = re.sub(r"(<text\b[^>]*>)(.*?)(</text>)",
+                  lambda m: m.group(1) + ren(m.group(2)) + m.group(3), text, flags=re.S)
+    text = cross_links(text, names, pt_dir, en_dir)
     for pt_ex in re.findall(r'^\s*example:\s*"([^"]*)"', text, re.M):
         en_ex = (names.get("examples") or {}).get(pt_ex)
         if en_ex:
@@ -848,6 +895,15 @@ def main(argv: list[str]) -> int:
         return ready(argv[argv.index("--ready") + 1])
     if "--names" in argv:
         return names_cmd(argv[argv.index("--names") + 1])
+    if "--relink" in argv:
+        names = read_names()
+        for path in pages(EN_DIR).values():
+            text = path.read_text(encoding="utf-8")
+            new = cross_links(text, names)
+            if new != text:
+                path.write_text(new, encoding="utf-8")
+                print(f"{path.relative_to(REPO)}: links atualizados")
+        return 0
     if "--levels" in argv:
         for path in write_levels():
             print(f"{path.relative_to(REPO)}: escrita")

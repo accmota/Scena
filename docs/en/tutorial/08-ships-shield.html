@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ships IV — Shield — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "08",
+  title: "Ships IV · Shield",
+  steps: [
+    {
+      title: "The Ships III game",
+      body: `
+        <p>A new script that starts where the lives game left off: the sheet, the explosions, the sound and the three lives. In this tutorial the ship gets a <strong>shield</strong>, but not for free and not forever: it is a gift dropped by a destroyed enemy, and it wears down with every laser it stops.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    def on_destroy(self):
+        self.thruster.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`
+    },
+    {
+      title: "A falling gift",
+      body: [
+        `
+        <p>Sometimes a destroyed enemy drops a gift. In code, “sometimes” is a roll of the dice, in the enemy's <code>was_hit</code>:</p>
+        `,
+        {
+          snip: `if chance(0.2):
+    PowerUp(center=self.center)`
+        },
+        `
+        <p><code>chance(0.2)</code> answers true 20% of the time: roughly one enemy in five leaves a gift. The number goes from 0 (never) to 1 (always). When luck says yes, the gift appears where the enemy was.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "class PowerUp(",
+          text: "The gift is a frame from the sheet that falls 150 units per second, in the <code>powers</code> group."
+        },
+        {
+          at: "@collide_with(\"powers\")",
+          text: "The ship catches the gift with another <code>@collide_with</code>: the gift disappears, the ship does a <code>pop</code> (a quick jump in size) and a sound plays."
+        },
+        {
+          at: "\"enemy_shots\", \"powers\")",
+          text: "A gift nobody catches leaves through the bottom of the screen. With its group in this list, it is destroyed like the shots."
+        }
+      ],
+      after: `
+        <p>Shoot until a gift falls, and catch it.</p>
+        <details class="ask"><summary>What does the gift do?</summary><p>For now, it just disappears and makes a noise. There is no shield to turn on yet.</p></details>
+      `,
+      try: [
+          {
+            note: "More frequent gifts, for testing: in the enemy's <code>was_hit</code>, in place of the <code>0.2</code>. With <code>1</code>, every enemy leaves one.",
+            code: `if chance(0.5):
+    PowerUp(center=self.center)`
+          }
+        ]
+    },
+    {
+      title: "The shield",
+      body: [
+        `
+        <p>The shield is a bubble around the ship. It turns on when the ship catches the gift and lasts as long as there is energy.</p>
+        <p>That rule fits in one sentence: <em>the shield is on while there is energy</em>. With <code>@on_change</code>, it is written in one place only, inside <code>Hero</code>:</p>
+        `,
+        {
+          snip: `@on_change(lambda self: st.energy)
+def energy_changed(self):
+    self.shield.active = st.energy > 0`
+        },
+        `
+        <p>On top of a function, <code>@on_change</code> tells Scena: run this function every time this value changes, wherever the change comes from. The watched value goes between the parentheses as a question, in a <code>lambda</code> that reads it; Scena asks the question again and compares the answer with the previous one.</p>
+        <p>The function turns the shield on if the energy is above zero, and off if it is not. It does not even need an <code>if</code>: <code>st.energy &gt; 0</code> is already <code>True</code> or <code>False</code>, and the line stores that answer straight into the shield's <code>active</code>.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = Circle(center=lambda: self.center, radius=38, visual=Shield(style="plasma"))
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.energy = 0",
+          text: "The shield's energy, from 0 to 100, next to the lives. The game starts with it empty."
+        },
+        {
+          at: "self.shield = Circle(",
+          text: "The shield is another part of the ship, like the thruster: a <code>Circle</code> of radius 38 that covers the ship, with the <code>Shield</code> visual, a bubble of energy that moves on its own. <code>style=\"plasma\"</code> is the silvery bubble, clear enough for the ship to show inside. The center is a <code>lambda</code> that reads the ship's center: wherever the ship goes, the shield goes."
+        },
+        {
+          at: "self.shield.active = False",
+          text: "The ship starts without a shield. <code>active = False</code> <strong>parks</strong> the shield: it disappears and stops, without being destroyed. <code>active = True</code> brings it back, in the same place. This is how you turn on and off a part that comes and goes many times."
+        },
+        {
+          at: "st.energy = 100",
+          text: "Catching the gift only fills the energy. The rule just below is what turns the shield on."
+        },
+        {
+          at: "@on_change(lambda self: st.energy)",
+          text: "In a class, the rule holds for every ship the class creates, so the <code>lambda</code> receives <code>self</code>: this ship. Here the energy belongs to the game and <code>self</code> is not even used; even so, inside a class, the question always has this shape."
+        },
+        {
+          at: "self.shield.destroy()",
+          text: "<code>on_destroy</code> now destroys both parts of the ship."
+        }
+      ],
+      after: `
+        <p>Catch a gift: the shield appears around the ship. Nobody told it to turn on. The energy changed, and the rule did the rest: from now on, whatever changes the energy does not need to remember the shield.</p>
+        <details class="ask"><summary>Does the shield protect the ship?</summary><p>Not yet: lasers go right through it and take lives just the same. The circle only draws the bubble.</p></details>
+      `,
+      try: [
+          {
+            note: "Other <code>Shield</code> styles, one at a time, after <code>ship = Hero(…)</code> (the second line turns the shield on without waiting for the gift). Without <code>style</code>, the bubble is green (<code>\"bubble\"</code>); <code>\"ember\"</code> glows like embers. <code>\"nebula\"</code> and <code>\"frost\"</code> look great, but they cover the ship. In the Guide: <a href='../guide/index.html#aparencia-visual'>Visual</a>.",
+            code: `ship.shield.visual = Shield()
+st.energy = 100`
+          }
+        ]
+    },
+    {
+      title: "Energy runs down",
+      body: `
+        <p>Now the shield stops the lasers, and every laser it stops uses up energy. Blocking is something the shield does, and behavior of its own calls for a class.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot):
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "bar = Rect(",
+          text: "The energy bar, below the score: a <code>Rect</code> placed by its top-left corner (<code>top_left</code>), 200 units wide."
+        },
+        {
+          at: "bar[\"width\"] @=",
+          text: "The <code>width</code> linked to the energy: <code>st.energy * 2</code> gives 200 with full energy and 0 with none. Like the scoreboard, the bar keeps up on its own."
+        },
+        {
+          at: "class ShieldBubble(Circle",
+          text: "The same circle as before, now with a class of its own: the radius and the visual move to the class line."
+        },
+        {
+          at: "st.energy -= 20",
+          text: "A laser that touches the bubble disappears, and the energy drops by 20: five lasers and it is gone."
+        },
+        {
+          at: "self.shield = ShieldBubble(",
+          text: "In the ship's <code>setup</code>, <code>Circle(…)</code> becomes <code>ShieldBubble(…)</code>; only the center stays in the call."
+        }
+      ],
+      after: `
+        <p>Catch a gift and let the lasers hit the bubble. The bar shrinks with every hit. The laser hits the edge, before it reaches the ship: a circle's collision shape is the circle itself.</p>
+        <details class="ask"><summary>What happens on the fifth laser?</summary><p>The energy reaches zero, the <code>@on_change</code> rule turns the shield off, and the ship starts losing lives again. That took no new line: <code>blocked</code> only changes the energy.</p></details>
+      `,
+      try: [
+          {
+            note: "A stronger or weaker shield, in place of the <code>20</code>: with 10, it stops ten lasers.",
+            code: `st.energy -= 10`
+          }
+        ]
+    },
+    {
+      title: "Where it hit",
+      body: [
+        `
+        <p>The laser vanishes into the shield without a trace. It should burst where it hit, on the edge of the bubble, not at the center of the ship.</p>
+
+        <figure class="fig">
+          <svg viewBox="0 0 380 230" role="img" aria-label="A dashed circle around the ship is the shield; a laser comes down from above and touches the circle; the touching point is marked and called info.point; the center of the shield is further down">
+            <circle class="guide" cx="190" cy="150" r="62"/>
+            <rect class="bar" x="172" y="138" width="36" height="26" rx="6"/>
+            <circle class="dot" cx="190" cy="150" r="3"/>
+            <rect class="bar child" x="236" y="40" width="7" height="34" rx="3"/>
+            <line class="ray" x1="239.5" y1="76" x2="232" y2="104"/>
+            <circle class="hot" cx="232" cy="106" r="6"/>
+            <text x="244" y="112">info.point</text>
+            <text x="196" y="182">center</text>
+            <text x="252" y="58">the laser</text>
+            <text x="90" y="88">the shield</text>
+          </svg>
+          <figcaption>Where the laser touched the shield. Their centers do not tell you that; <code>info.point</code> does.</figcaption>
+        </figure>
+        `,
+        {
+          snip: `def blocked(self, shot, info):
+    canvas.zap_at(info, color="sky blue")`
+        },
+        `
+        <p>The collision function can take a third parameter, <code>info</code>, which Scena fills with what it knows about that touch. <code>info.point</code> is the point where the two touched, and <code>canvas.zap_at</code> takes the <code>info</code> itself: the zap bursts right there.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "canvas.zap_at(info",
+          text: "<code>zap_at</code> draws an electric zap: a bright core and jagged bolts, here in the color of the bubble. The kind of impact tells what happened, and a zap says “energy”, just right for a force field."
+        },
+        {
+          at: "pitch=1.6",
+          text: "The same hit sound as the ship's, higher (<code>pitch</code>): the blow landed on the shield, not on the ship."
+        }
+      ],
+      after: `
+        <p>Catch a gift and let the lasers hit. Each zap bursts on the edge of the bubble, at the exact point where the laser touched.</p>
+      `,
+      try: [
+          {
+            note: "Other impacts at the same point, one at a time, in place of the <code>zap_at</code>. <code>style</code> changes the zap: <code>\"fork\"</code> is bolts that split, <code>\"corona\"</code> a ring of bolts. In the Guide: <a href='../guide/index.html#mundo-impactos'>Impacts</a>.",
+            code: `canvas.zap_at(info, color="sky blue", style="fork")
+canvas.zap_at(info, color="sky blue", style="corona")
+canvas.hit_at(info, color="sky blue")`
+          },
+          {
+            note: "Sparks that linger for a moment: <code>Sparks</code> is an effect that lives at a place in the world, like the thruster. It does not go away by itself, so the spark's own <code>after</code> destroys it.",
+            code: `spark = Sparks(center=info.point, radius=14, color="sky blue")
+spark.after(0.3, spark.destroy)`
+          }
+        ]
+    },
+    {
+      title: "The shield runs out",
+      example: "ships_4_shield.py",
+      body: `
+        <p>When the energy runs out, the shield just quietly disappears. It should <em>break</em>: a burst around the ship and a sound, so the player knows they are exposed again.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+explosion = Sheet("explosions/exp4.png", cols=12)
+explosion.clip("explode", range(12), fps=24)
+
+st.score = 0
+st.lives = 3
+st.energy = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+Sprite(sheet, frame="playerLife1_red.png", height=24, center=(900, 768))
+lives = Text(text="", top_left=(920, 780), font_size=20)
+lives["text"] @= lambda: f"x {st.lives}"
+
+bar = Rect(top_left=(20, 745), width=200, height=8, color="sky blue")
+bar["width"] @= lambda: st.energy * 2
+
+
+class Explosion(Sprite, source=explosion, height=90):
+    def setup(self):
+        self.play("explode", loops=1)
+        play_sound("audio/explosion01.wav")
+        self.after(0.5, self.destroy)
+
+
+class Shot(Sprite, source=sheet, frame="laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source=sheet, frame="laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, source=sheet, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        Explosion(center=self.center)
+        if chance(0.2):
+            PowerUp(center=self.center)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class PowerUp(Sprite, source=sheet, frame="powerupBlue_shield.png", height=30, group="powers"):
+    def on_update(self, dt):
+        self.move_by(0, -150 * dt)
+
+
+class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
+    @collide_with("enemy_shots")
+    def blocked(self, shot, info):
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        shot.destroy()
+        st.energy -= 20
+
+
+class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+            play_sound("audio/laser4.wav")
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        if not ready("damage", 1.5):
+            return
+        st.lives -= 1
+        canvas.shake(8)
+        if st.lives > 0:
+            self.blink(1.5)
+            play_sound("audio/sfx-hit-2.wav")
+        else:
+            canvas.flash(0.4)
+            canvas.explosion_at(self, amount=1.2)
+            Fire(center=self.center, radius=30)
+            Text(text="GAME OVER", center=(500, 400), font_size=48)
+            play_sound("audio/gameover.wav")
+            self.destroy()
+
+    @collide_with("powers")
+    def caught(self, power):
+        power.destroy()
+        self.pop()
+        play_sound("audio/fx1.wav")
+        st.energy = 100
+
+    @on_change(lambda self: st.energy)
+    def energy_changed(self):
+        self.shield.active = st.energy > 0
+        if st.energy == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+
+    def on_destroy(self):
+        self.thruster.destroy()
+        self.shield.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["enemyBlack1.png", "enemyBlue3.png", "enemyGreen4.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(frame=FLEET[row], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots", "powers")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if st.energy == 0:",
+          text: "The right place already existed: <code>energy_changed</code> runs every time the energy changes. If the new energy is zero, the shield has just broken."
+        },
+        {
+          at: "canvas.burst_at(self, radius=70, rings=True)",
+          text: "A burst with <code>rings</code>, 70 units in radius, the size of the shield, and on the line below a bell sound."
+        }
+      ],
+      after: `
+        <p>Wear the shield all the way down: on the fifth laser, it bursts.</p>
+        <details class="ask"><summary>Why isn't the break in <code>blocked</code>, which is what uses up the energy?</summary><p>Because <code>blocked</code> is only one of the ways the energy can run out. Next to the rule that turns the shield off, the break happens whenever the energy reaches zero, wherever the change comes from: if something else ever drops the energy to zero, the shield breaks just the same.</p></details>
+      `,
+      try: [
+          {
+            note: "The bar changes color when the energy gets low. In <code>energy_changed</code>, after the <code>if</code>:",
+            code: `if st.energy <= 40:
+    bar.color = "orange"
+else:
+    bar.color = "sky blue"`
+          },
+          {
+            note: "The shield slowly recharges while it is on: 5 energy per second. <code>0 &lt; st.energy &lt; 100</code> asks both things at once: greater than 0 <em>and</em> less than 100. At the end of the file, before <code>run()</code>:",
+            code: `@every(1)
+def recharge():
+    if 0 < st.energy < 100:
+        st.energy += 5`
+          }
+        ],
+      closing: `
+        <p>The arrow keys move the ship. Space shoots. Sometimes an enemy drops a blue gift: catch it and the ship gets a shield. Every laser the shield stops uses up energy, and the bar in the corner shows how much is left. With no energy, the shield breaks, and the ship starts losing lives again.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>chance</code> — a roll of the dice: <code>chance(0.2)</code> is true 20% of the time.</li>
+          <li><code>active</code> — <code>False</code> parks a part (it disappears and stops, without being destroyed); <code>True</code> brings it back.</li>
+          <li><code>@on_change</code> — runs the function when the value changes; one rule in one place. In a class, the question comes in a <code>lambda</code> with <code>self</code>.</li>
+          <li><code>Shield</code> on a <code>Circle</code> — a bubble of energy that covers the ship; its collision shape is the circle itself.</li>
+          <li><code>info</code> — the third parameter of a collision; <code>info.point</code> is where the two touched.</li>
+          <li><code>canvas.zap_at</code> — an electric zap at a point, the impact of something hitting an energy field.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#reagir-on-change">@on_change</a> · <a href="../guide/index.html#desenhar-entity">Entity (active)</a> · <a href="../guide/index.html#util-chance">chance</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#colisao-info">CollisionInfo</a> · <a href="../guide/index.html#mundo-impactos">Impacts</a>.</p>
+        <p><strong>Next:</strong> a break from games to understand formulas once and for all: what links to what, <code>st.x</code> × <code>st["x"]</code>, <code>=</code> × <code>@=</code>, and the rules of the system (Formulas).</p>
+      `,
+      explore: `
+        <ul>
+          <li>Invent other gifts: one that gives back a life, another that makes the shots faster for a few seconds.</li>
+          <li>Can you make a triple shot that lasts ten seconds and then goes back to normal?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -281,6 +281,29 @@ class TestDraftAndCheck(unittest.TestCase):
         self.assertTrue(any("o pt mudou" in e for e in errs), errs)
         self.assertTrue(any("width" in e or "120" in e for e in errs), "the code drift is reported too")
 
+    def test_links_to_other_pages_go_to_english_when_it_exists(self):
+        names = {"pages": {"99": "99-sample.html", "98": "98-other.html"}}
+        (self.pt / "98-outra.html").write_text(SAMPLE.replace('n: "99"', 'n: "98"'), encoding="utf-8")
+        text = '<a href="98-outra.html">x</a> <a href=\'A-depuracao.html\'>y</a>'
+        self.assertEqual(tp.cross_links(text, names, self.pt, self.en),
+                         '<a href="../../pt/tutorial/98-outra.html">x</a> '
+                         "<a href='../../pt/tutorial/A-depuracao.html'>y</a>")
+        self.en.mkdir(parents=True)
+        (self.en / "98-other.html").write_text("", encoding="utf-8")
+        self.assertEqual(tp.cross_links('<a href="../../pt/tutorial/98-outra.html">', names, self.pt, self.en),
+                         '<a href="98-other.html">')
+
+    def test_a_portuguese_name_left_in_inline_code_or_a_figure_is_caught(self):
+        # A draft miss (tutorial 05, 2026-10-22): <code>tiros_inimigos</code> as a
+        # bare group word, and st.velocidade drawn in an SVG <text>.
+        gn, gs = {"barra": "paddle"}, {"heroi": "hero"}
+        self.assertEqual(tp.names_left('<p>The <code>barra</code> and <code>group[\\"heroi\\"]</code>.</p>'
+                                       '<svg><text x="1">barra.x = 3</text></svg>', gn, gs),
+                         ['"heroi"', "barra"])
+        self.assertEqual(tp.names_left("<code>paddle</code> <text>paddle</text>", gn, gs), [])
+        out = tp.draft("99", self.pt, self.en, NAMES)
+        self.assertNotIn("<code>barra</code>", out.read_text(encoding="utf-8"))
+
     def test_the_glossary_and_the_page_agree(self):
         out = tp.draft("99", self.pt, self.en, NAMES)
         out.write_text(out.read_text(encoding="utf-8").replace("paddle", "bar"), encoding="utf-8")

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Groups — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlude",
+  title: "Groups",
+  steps: [
+    {
+      title: "A living set",
+      body: `
+        <p>An interlude is a pause to take a close look at an idea the game just used. In Ships, one line moved the whole fleet: <code>group["enemies"].move_by(…)</code>. Here, with rising bubbles, we see what else a group can do.</p>
+        <p>First, just counting: a text in the corner says how many bubbles there are.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Groups")
+Wallpaper("#0b1a2a")
+
+counter = Text("", top_left=(20, 680))
+
+
+@every(0.4)
+def release_bubble():
+    Circle(center=(uniform(50, 950), -30), radius=uniform(8, 40), color="sky blue", group="bubbles")
+
+
+@leave_playfield("bubbles")
+def vanished(bubble):
+    bubble.destroy()
+
+
+def update(dt):
+    group["bubbles"].move_by(0, 120 * dt)
+    counter.text = f"{group['bubbles'].count} bubbles"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group=\"bubbles\")",
+          text: "<code>group=\"bubbles\"</code> puts each new bubble in the <code>\"bubbles\"</code> group. Nobody creates the group first: the name is enough."
+        },
+        {
+          at: "group[\"bubbles\"].move_by(0, 120 * dt)",
+          text: "An order written on the group applies to each member: every bubble rises 120 units per second."
+        },
+        {
+          at: ".count} bubbles",
+          text: "<code>count</code> is how many bubbles there are right now. A group cannot go into a formula with <code>@=</code>, so the text is rebuilt here, in <code>update</code>, every frame."
+        }
+      ],
+      after: `
+        <p>Run it and watch the number for a few seconds.</p>
+        <details class="ask"><summary>Why does it stop growing?</summary><p>Bubbles are born at the bottom, one every 0.4 s, and are destroyed when they leave through the top. Soon they come in and go out at the same pace, and the number hovers around one value.</p></details>
+        <p><code>group["bubbles"]</code> is always the bubbles that exist <em>right now</em>: a new bubble joins as soon as it is born, and a destroyed one leaves. It is a list that keeps itself up to date.</p>
+      `
+    },
+    {
+      title: "Do it to all of them",
+      body: `
+        <p>The Space key pops every bubble at once.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Groups")
+Wallpaper("#0b1a2a")
+
+counter = Text("", top_left=(20, 680))
+
+
+@every(0.4)
+def release_bubble():
+    Circle(center=(uniform(50, 950), -30), radius=uniform(8, 40), color="sky blue", group="bubbles")
+
+
+@leave_playfield("bubbles")
+def vanished(bubble):
+    bubble.destroy()
+
+
+def update(dt):
+    group["bubbles"].move_by(0, 120 * dt)
+    counter.text = f"{group['bubbles'].count} bubbles"
+    if keyp.once("SPACE"):
+        group["bubbles"].destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "keyp.once(\"SPACE\")",
+          text: "<code>keyp.once</code> is true only on the frame the key is pressed: one pop per press, not one every frame while the key is held."
+        },
+        {
+          at: "group[\"bubbles\"].destroy()",
+          text: "<code>destroy</code> on the group destroys every bubble that exists right now. The ones born afterward fill the group again."
+        }
+      ],
+      after: [
+        `
+        <p><code>destroy</code> is the same idea as <code>move_by</code>: an order written on the group applies to each member. It works with a field too; this line would paint them all white:</p>
+        `,
+        {
+          snip: `group["bubbles"].color = "white"`,
+          alt: true
+        },
+        `
+        <p>The line on the group works when everyone gets the same order. When each member needs something different, like each bubble rising at its own speed, a <code>for</code> handles them one by one: the box below shows how.</p>
+        `
+      ],
+      try: [
+        {
+          note: "The same rise with a <code>for</code>, and the smaller a bubble is, the faster it goes. In place of the group's <code>move_by</code> line:",
+          replaces: ['group["bubbles"].move_by('],
+          code: `for bubble in group["bubbles"]:
+    bubble.move_by(0, 4000 / bubble.radius * dt)`
+        }
+      ]
+    },
+    {
+      title: "Empty",
+      body: `
+        <p>After Space, the text shows “0 bubbles”. “No bubbles” reads better. For that, <code>update</code> asks the group whether it is empty.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Groups")
+Wallpaper("#0b1a2a")
+
+counter = Text("", top_left=(20, 680))
+
+
+@every(0.4)
+def release_bubble():
+    Circle(center=(uniform(50, 950), -30), radius=uniform(8, 40), color="sky blue", group="bubbles")
+
+
+@leave_playfield("bubbles")
+def vanished(bubble):
+    bubble.destroy()
+
+
+def update(dt):
+    group["bubbles"].move_by(0, 120 * dt)
+    if group["bubbles"].empty:
+        counter.text = "No bubbles"
+    else:
+        counter.text = f"{group['bubbles'].count} bubbles"
+    if keyp.once("SPACE"):
+        group["bubbles"].destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if group[\"bubbles\"].empty:",
+          text: "<code>empty</code> is <code>True</code> when the group has no one in it: the same question as <code>count == 0</code>, written the way you would say it. Like <code>count</code>, it takes no parentheses: it is an answer, not an action."
+        }
+      ],
+      after: `
+        <p>Run it, press Space and read the text before the next bubble is born.</p>
+      `,
+      try: [
+        {
+          note: "<code>first</code> and <code>last</code> are the oldest and the newest bubble in the group. In an empty group they do not exist, and asking for one is an error: that is why the <code>if</code> asks first. Inside <code>update</code>, at the end: the newest one turns white.",
+          code: `if not group["bubbles"].empty:
+    group["bubbles"].last.color = "white"`
+        }
+      ]
+    },
+    {
+      title: "The nearest one",
+      body: `
+        <p>Now the bubble nearest the mouse glows. The group can tell you which one it is.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Groups")
+Wallpaper("#0b1a2a")
+
+counter = Text("", top_left=(20, 680))
+
+
+@every(0.4)
+def release_bubble():
+    Circle(center=(uniform(50, 950), -30), radius=uniform(8, 40), color="sky blue", group="bubbles")
+
+
+@leave_playfield("bubbles")
+def vanished(bubble):
+    bubble.destroy()
+
+
+def update(dt):
+    group["bubbles"].move_by(0, 120 * dt)
+    if group["bubbles"].empty:
+        counter.text = "No bubbles"
+    else:
+        counter.text = f"{group['bubbles'].count} bubbles"
+    if keyp.once("SPACE"):
+        group["bubbles"].destroy()
+    group["bubbles"].glow = False
+    near = group["bubbles"].nearest(mouse)
+    if near:
+        near.glow = True
+
+
+run()
+`,
+      notes: [
+        {
+          at: "nearest(mouse)",
+          text: "<code>nearest</code> returns the bubble closest to the mouse's point."
+        },
+        {
+          at: "if near:",
+          text: "In an empty group there is no nearest bubble, and <code>nearest</code> returns <code>None</code> (nothing). The <code>if</code> keeps it from lighting up a bubble that does not exist."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse among the bubbles.</p>
+        <details class="ask"><summary>Why does <code>update</code> turn off every glow before lighting one?</summary><p>The nearest bubble changes every frame. Without the <code>glow = False</code> on the group, every bubble that was ever the nearest would keep glowing, and soon they would all glow.</p></details>
+      `
+    },
+    {
+      title: "Only the big ones",
+      body: [
+        `
+        <p>The big bubbles turn gold. For that, the group picks just some of them, with a question:</p>
+        `,
+        {
+          snip: `group["bubbles"].filter(lambda bubble: bubble.radius > 30).color = "gold"`
+        },
+        `
+        <p><code>filter</code> takes a question and returns only the members for which the answer is yes. The question is a <code>lambda</code>, now with something new: a name before the colon. <code>filter</code> hands the bubbles to the question one at a time, and <code>bubble</code> is the name each one gets inside it, like the parameter of a <code>def</code>. The answer is yes if that bubble's radius is over 30.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="A row of six bubbles of different sizes; the three with a radius over 30 are highlighted, and filter returns only them">
+            <circle class="dot" cx="40" cy="56" r="11"/>
+            <circle class="hot" cx="100" cy="56" r="31"/>
+            <circle class="dot" cx="166" cy="56" r="16"/>
+            <circle class="hot" cx="232" cy="56" r="34"/>
+            <circle class="dot" cx="296" cy="56" r="8"/>
+            <circle class="hot" cx="354" cy="56" r="29"/>
+            <text x="40" y="120" text-anchor="middle">12</text>
+            <text x="100" y="120" text-anchor="middle">34</text>
+            <text x="166" y="120" text-anchor="middle">18</text>
+            <text x="232" y="120" text-anchor="middle">38</text>
+            <text x="296" y="120" text-anchor="middle">9</text>
+            <text x="354" y="120" text-anchor="middle">32</text>
+          </svg>
+          <figcaption>The numbers are the radii. The question says yes to the three with a radius over 30, and <code>filter</code> returns a group with only them.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Groups")
+Wallpaper("#0b1a2a")
+
+counter = Text("", top_left=(20, 680))
+
+
+@every(0.4)
+def release_bubble():
+    Circle(center=(uniform(50, 950), -30), radius=uniform(8, 40), color="sky blue", group="bubbles")
+
+
+@leave_playfield("bubbles")
+def vanished(bubble):
+    bubble.destroy()
+
+
+def update(dt):
+    group["bubbles"].move_by(0, 120 * dt)
+    if group["bubbles"].empty:
+        counter.text = "No bubbles"
+    else:
+        counter.text = f"{group['bubbles'].count} bubbles"
+    if keyp.once("SPACE"):
+        group["bubbles"].destroy()
+    group["bubbles"].glow = False
+    near = group["bubbles"].nearest(mouse)
+    if near:
+        near.glow = True
+    group["bubbles"].filter(lambda bubble: bubble.radius > 30).color = "gold"
+
+
+run()
+`,
+      notes: [
+        {
+          at: ".color = \"gold\"",
+          text: "What <code>filter</code> returns is a group too, and it takes the same orders: <code>.color = \"gold\"</code> paints only the chosen ones."
+        }
+      ],
+      after: `
+        <p>Run it: the small ones stay blue, and the big ones turn gold.</p>
+      `
+    },
+    {
+      title: "How many, and any",
+      body: `
+        <p>The same kind of question works for other things: counting how many bubbles are big, and finding out whether any has come near the top.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Groups")
+Wallpaper("#0b1a2a")
+
+counter = Text("", top_left=(20, 680))
+big_ones = Text("", top_left=(20, 650))
+alert = Text("A bubble reached the top!", top_right=(980, 680), color="gold")
+
+
+@every(0.4)
+def release_bubble():
+    Circle(center=(uniform(50, 950), -30), radius=uniform(8, 40), color="sky blue", group="bubbles")
+
+
+@leave_playfield("bubbles")
+def vanished(bubble):
+    bubble.destroy()
+
+
+def update(dt):
+    group["bubbles"].move_by(0, 120 * dt)
+    if group["bubbles"].empty:
+        counter.text = "No bubbles"
+    else:
+        counter.text = f"{group['bubbles'].count} bubbles"
+    if keyp.once("SPACE"):
+        group["bubbles"].destroy()
+    group["bubbles"].glow = False
+    near = group["bubbles"].nearest(mouse)
+    if near:
+        near.glow = True
+    group["bubbles"].filter(lambda bubble: bubble.radius > 30).color = "gold"
+    n = group["bubbles"].count_where(lambda bubble: bubble.radius > 30)
+    big_ones.text = f"{n} big ones"
+    alert.visible = group["bubbles"].any(lambda bubble: bubble.center.y > 600)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "count_where(",
+          text: "<code>count_where</code> counts the members for which the answer is yes: how many big bubbles there are right now."
+        },
+        {
+          at: "alert.visible =",
+          text: "<code>any</code> answers <code>True</code> if at least one bubble has risen above 600. <code>visible</code> gets the answer every frame: the alert appears and disappears on its own."
+        }
+      ],
+      after: `
+        <p>Run it and wait for a bubble to reach the top: the alert lights up in the corner and goes out when none is up there.</p>
+        <p>A group answers four questions with a <code>lambda</code>. The fourth, <code>all</code>, is not in the script, but it reads the same way:</p>
+        <div class="tbl"><table><thead><tr><th>With <code>lambda bubble: bubble.radius &gt; 30</code></th><th>Answers</th></tr></thead><tbody>
+          <tr><td><code>filter</code></td><td>a group with only the big ones</td></tr>
+          <tr><td><code>count_where</code></td><td>how many are big</td></tr>
+          <tr><td><code>any</code></td><td><code>True</code> if any one is big</td></tr>
+          <tr><td><code>all</code></td><td><code>True</code> only if all of them are big</td></tr>
+        </tbody></table></div>
+        <p>In the Guide: <a href="../guide/index.html#mundo-grupos">Groups</a>.</p>
+      `,
+      closing: `
+        <p>Bubbles rise and are counted; the big ones turn gold, and the one nearest the mouse glows. Space pops them all. After this interlude, Ships II · Classes organizes the ships game into classes.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Show in a text how many gold bubbles there are right now (<code>count_where</code>).</li>
+          <li>Can you make a key pop only the small bubbles?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ships — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "05",
+  title: "Ships",
+  steps: [
+    {
+      title: "The ship",
+      body: `
+        <p>A new script: a space shooter. Your ship stays at the bottom, an enemy fleet at the top, and shots fly both ways. We start with just the ship and the arrow keys.</p>
+        <p>As in the old arcade games, the ship only moves sideways. The danger comes from above.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 215" role="img" aria-label="The 1000 by 800 window, with the point (0, 0) at the bottom left; the ship is in the middle of the width, near the bottom edge, and moves left and right">
+            <rect class="ray" fill="none" x="80" y="20" width="200" height="160"/>
+            <line class="guide" x1="180" y1="20" x2="180" y2="180"/>
+            <polygon class="hot" points="180,158 171,172 189,172"/>
+            <line class="ray" x1="160" y1="166" x2="132" y2="166"/>
+            <polygon class="dot" points="128,166 135,162 135,170"/>
+            <line class="ray" x1="200" y1="166" x2="228" y2="166"/>
+            <polygon class="dot" points="232,166 225,162 225,170"/>
+            <text x="186" y="152">(500, 70)</text>
+            <text x="80" y="198" text-anchor="middle">(0, 0)</text>
+            <text x="280" y="12" text-anchor="middle">(1000, 800)</text>
+          </svg>
+          <figcaption>The window is 1000 wide and 800 tall, with (0, 0) in the bottom-left corner. The ship starts in the middle of the width, 70 units above the floor.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def update(dt):",
+          text: "Scena calls <code>update</code> every frame, about 60 times a second. That is where you read the keyboard: <code>keyp(\"LEFT\")</code> is true while the left arrow is held down."
+        },
+        {
+          at: "-340 * dt",
+          text: "<code>dt</code> is the length of one frame, about 1/60 of a second. Moving <code>340 * dt</code> every frame, the ship travels 340 units per second, on a fast computer or a slow one. The minus sign means left."
+        }
+      ],
+      after: `
+        <p>Run it and keep holding one arrow key.</p>
+        <details class="ask"><summary>What happens to the ship?</summary><p>It leaves the window and disappears. Nothing in <code>update</code> says where to stop; that is the next step.</p></details>
+      `,
+      try: [
+        {
+          note: "One at a time, in place of the file.",
+          code: `ship = Sprite("plane/Fly1.png", height=45, center=(500, 70))
+ship = Sprite("space/ufoYellow.png", height=45, center=(500, 70))`
+        }
+      ]
+    },
+    {
+      title: "Limits",
+      body: `
+        <p>The ship leaves the window. We need a fence: a rectangle its center cannot leave.</p>
+        <p>The rectangle starts from the window itself. <code>canvas.game_view</code> is the rectangle of the game the window shows, and <code>inset(40)</code> returns a smaller copy, 40 units in from every edge:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 205" role="img" aria-label="The window and, inside it, a dashed rectangle 40 units smaller on every edge; the ship is stopped at the left edge of the dashed line">
+            <rect class="ray" fill="none" x="80" y="20" width="200" height="160"/>
+            <rect class="guide" x="88" y="28" width="184" height="144"/>
+            <polygon class="hot" points="88,158 79,172 97,172"/>
+            <text x="276" y="196" text-anchor="end">x goes from 40 to 960</text>
+            <text x="276" y="44" text-anchor="end">inset(40)</text>
+          </svg>
+          <figcaption>The dashed line is the fence. The ship's center stops on it, and the 40 units of margin keep the whole ship in view.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ship.confine(",
+          text: "<code>confine</code> looks at where the ship is right now: if its center has left the rectangle, the ship goes back to the rectangle's edge. It is not a rule that keeps holding on its own; it is a correction, made at each call. That is why the line goes in <code>update</code>, after <code>move_by</code>: first the ship moves, then the fence corrects it."
+        }
+      ],
+      after: `
+        <p>Hold an arrow key: now the ship stops at the edge.</p>
+      `,
+      try: [
+        {
+          note: "The same limit, in the <code>if</code>. In place of <code>confine</code>.",
+          code: `if keyp("LEFT") and ship.center.x > 40:
+    ship.move_by(-340 * dt, 0)
+if keyp("RIGHT") and ship.center.x < 960:
+    ship.move_by(340 * dt, 0)`
+        }
+      ]
+    },
+    {
+      title: "The sky",
+      body: `
+        <p>The game works, but the background is flat. This step does not change the game, only the sky.</p>
+        <p>The picture on the screen is made of layers, one on top of the other. At the very bottom is the background; above it, the stars; then, the game. Last come the <strong>screen effects</strong>, which draw no shape at all: they change the finished picture, like a photo filter.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 440 190" role="img" aria-label="Four stacked layers: the gradient at the bottom, the stars, the ship, and the screen effects on top">
+            <polygon class="bar" points="70,174 230,174 270,150 110,150"/>
+            <polygon class="guide" points="70,134 230,134 270,110 110,110"/>
+            <circle class="dot" cx="130" cy="126" r="2"/>
+            <circle class="dot" cx="175" cy="118" r="2"/>
+            <circle class="dot" cx="215" cy="128" r="2"/>
+            <circle class="dot" cx="240" cy="116" r="2"/>
+            <polygon class="guide" points="70,94 230,94 270,70 110,70"/>
+            <polygon class="hot" points="170,76 163,88 177,88"/>
+            <polygon class="bar child" points="70,54 230,54 270,30 110,30"/>
+            <text x="282" y="166">Wallpaper: the gradient</text>
+            <text x="282" y="126">Stars: the stars</text>
+            <text x="282" y="86">the game</text>
+            <text x="282" y="46">Grain, Bloom, Scanlines</text>
+          </svg>
+          <figcaption>The drawing order, from bottom to top. The effects come last, and that is why they reach everything: the sky and the ship.</figcaption>
+        </figure>
+        <p>In the code, each layer is one line at the top of the file.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Wallpaper(Gradient(",
+          text: "The background. <code>Gradient</code> goes from one color to another, and <code>angle=90</code> stands the blend upright: the first color at the bottom, the second at the top. Each <code>dark</code> darkens it a little more: <code>\"dark dark blue\"</code> is an almost black blue."
+        },
+        {
+          at: "Stars(",
+          text: "<code>Stars</code> scatters points of light across the sky. <code>scroll</code> is how far the field moves on its own, in units per second: <code>(0.0, -38.0)</code> goes down 38 per second, and the ship seems to fly forward. <code>pan_response=0.0</code> pins the field to the screen."
+        },
+        {
+          at: "Grain()",
+          text: "<code>Grain</code>: a faint speckle, like on an old film."
+        },
+        {
+          at: "Bloom()",
+          text: "<code>Bloom</code>: whatever is bright leaks light around it."
+        },
+        {
+          at: "Scanlines()",
+          text: "<code>Scanlines</code>: thin horizontal lines, like on an arcade screen."
+        }
+      ],
+      after: `
+        <p>Run it. The game is the same, only the sky changed. <code>Bloom</code> barely shows yet: it needs something bright to spread.</p>
+      `,
+      dive: [
+        {
+          title: "Backgrounds",
+          body: `
+            <p>The <strong>background</strong> is drawn first, behind everything the game creates. It has two layers. The <em>base</em> is always a single one: a color, a gradient, a ready-made sky or an image, with <code>Wallpaper</code> or <code>SkyGradient</code>. Creating another base replaces the previous one. On top of it come the <em>extras</em>, animated fields that Scena computes on its own and that never run out: <code>Stars</code>, <code>Stardust</code>, <code>Nebuladust</code>, <code>Borealis</code>, <code>Clouds</code>. Extras stack up in the order they are created, and each one appears as soon as it is created.</p>
+            <p>The extras take similar settings, such as the color, the amount and how far the field moves on its own; the examples below show some, and the Guide has them all. To change or remove an extra later, keep what the line returns: <code>clouds = Clouds()</code>, and later <code>clouds.remove()</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#mundo-background">Background</a>, with every background.</p>
+          `,
+          try: [
+            {
+              note: "Bases, one at a time, in place of <code>Wallpaper</code>. Each line shows the parameters most worth changing.",
+              code: `SkyGradient("night")  # a ready-made sky; others: "sunset", "dusk", "dawn", "ember", "space", "ice", "toxic"
+Wallpaper("images/bg2.png", fit="cover")  # an image; cover fills the whole window
+Wallpaper("navy")  # a color`
+            },
+            {
+              note: "Extras, together with <code>Stars</code> or in its place (delete its line to remove it):",
+              code: `Borealis(color="lime", height=0.5)  # an aurora hanging from the top; height is how far down it reaches
+Nebuladust("orchid", color2="cyan", alpha=0.5)  # a nebula in patches of color
+Clouds(amount=0.5, scroll=(-30, 0))  # clouds drifting to the left
+Stardust(amount=1.5)  # star dust, denser`
+            }
+          ]
+        },
+        {
+          title: "Screen effects",
+          body: `
+            <p>What sets a <strong>screen effect</strong> apart from the background is the order: the background is the first thing drawn, the effect is the last, after the game and the background. That is why <code>Bloom</code> can leak the ship's glow over the sky, and <code>Scanlines</code> lines everything, ship and stars together.</p>
+            <p>Each effect has a number that sets its strength: <code>Grain(amount=0.07)</code> is the speckle; <code>Bloom(intensity=0.6, sigma=10)</code>, where <code>intensity</code> is the light that leaks and <code>sigma</code> is how far it reaches; <code>Scanlines(amount=1.0)</code>. Each effect is one more pass over the picture: turn on the ones the game needs. To remove them all, <code>canvas.effects.clear()</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#mundo-post">Post</a>, with every effect.</p>
+          `,
+          try: [
+            {
+              note: "One at a time, together with the three or in place of one of them, with the parameters that change the look.",
+              code: `Bloom(intensity=1.0, sigma=14)  # more light leaking
+Grain(amount=0.15)  # a stronger speckle
+Scanlines(amount=0.5)  # lighter lines
+Pixelate(cell=6)  # big pixels, like an old game; cell is the size of each one
+Crt()  # a tube TV
+CosmicBloom("orchid", "cyan")  # nebula patches and sparkles, in two colors`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "The glow",
+      body: `
+        <p>The ship still blends into the sky. It is the main character, and soon it will be surrounded by enemies: it is worth making it stand out. One line is enough.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ship.glow = True",
+          text: "<code>glow</code> lights a halo around the image, in the ship's own color."
+        }
+      ],
+      after: `
+        <p>Run it and compare with the previous step. The halo leaks light over the sky: that is <code>Bloom</code> at work, now that it has something bright to spread.</p>
+        <p>The glow does not replace the image or change what the ship does. It <strong>adds</strong> to the look. Things like this are called <strong>add-ons</strong>, and each one has its own property: <code>glow</code>, <code>shadow</code>, <code>tail</code> (a trail). The box below shows all three.</p>
+      `,
+      try: [
+        {
+          note: "The glow, one at a time, in place of <code>True</code>: a color, instead of the ship's color, or <code>Glow</code> with numbers: <code>radius</code> is how far the halo reaches, <code>sigma</code> is how soft it is, <code>amount</code> is its strength.",
+          code: `ship.glow = "cyan"
+ship.glow = Glow("gold", radius=20)
+ship.glow = Glow(radius=8, sigma=3, amount=2)`
+        },
+        {
+          note: "Other add-ons, on the ship. <code>shadow</code> lifts it off the sky: <code>offset</code> is how far away the shadow falls and <code>sigma</code> how soft it is.",
+          code: `ship.shadow = True
+ship.shadow = Shadow(offset=14, sigma=8)`
+        },
+        {
+          note: "<code>tail</code> leaves ghost copies behind the ship when it moves, and fades when it stops: hold an arrow key to see it. <code>size</code> is the size of the copies and <code>amount</code> the strength. Without <code>angle</code>, the trail follows the movement.",
+          code: `ship.tail = True
+ship.tail = Tail("cyan", size=1.5, amount=1.5)`
+        }
+      ]
+    },
+    {
+      title: "Shooting",
+      body: [
+        `
+        <p>Now the ship shoots. Each shot is a new sprite, in the group <code>shots</code>, created at the ship's nose while the space bar is held down.</p>
+        <p>But space stays held for many frames in a row, and <code>update</code> runs on each of them. If every frame created a shot, 60 would come out per second: a solid line of lasers. We need a brake, and the brake is <code>ready</code>:</p>
+        `,
+        {
+          snip: `if keyp("SPACE") and ready("shot", 0.2):`
+        },
+        `
+        <p><code>ready("shot", 0.2)</code> says yes the first time. After that, it only says yes again once 0.2 s have passed since the last yes; in between, it says no. With space held down, one shot comes out every 0.2 s:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 112" role="img" aria-label="A one-second timeline with sixty marks, one per frame, and six shots, one every 0.2 second">
+            <line class="ray" x1="30" y1="70" x2="351" y2="70" style="stroke-width: 12; stroke-dasharray: 1 4.333"/>
+            <circle class="hot" cx="30" cy="46" r="5"/>
+            <circle class="hot" cx="94" cy="46" r="5"/>
+            <circle class="hot" cx="158" cy="46" r="5"/>
+            <circle class="hot" cx="222" cy="46" r="5"/>
+            <circle class="hot" cx="286" cy="46" r="5"/>
+            <circle class="hot" cx="350" cy="46" r="5"/>
+            <text x="62" y="30" text-anchor="middle">0.2 s</text>
+            <text x="360" y="50">shot</text>
+            <text x="360" y="74">frame</text>
+            <text x="30" y="96" text-anchor="middle">0 s</text>
+            <text x="350" y="96" text-anchor="middle">1 s</text>
+          </svg>
+          <figcaption>Each mark is a frame: <code>update</code> runs 60 times in one second. <code>ready</code> only lets one shot through every 0.2 s, five per second.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ready(\"shot\", 0.2)",
+          text: "<code>\"shot\"</code> is the name of this clock. A different name would be another clock, with its own interval."
+        },
+        {
+          at: "ship.center.y + 28",
+          text: "The laser starts 28 units above the ship's center, at the nose. The x is the ship's: the shot comes out wherever the ship is."
+        }
+      ],
+      after: `
+        <p>Hold space.</p>
+        <details class="ask"><summary>What do the lasers do?</summary><p>Nothing: they appear and hang still in the air. Nothing moves them yet.</p></details>
+      `,
+      try: [
+        {
+          note: "One at a time, in place of <code>space/laserBlue03.png</code>.",
+          code: `Sprite("space/laserGreen02.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+Sprite("space/laserRed01.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")`
+        }
+      ]
+    },
+    {
+      title: "The shots go up",
+      body: `
+        <p>The lasers need to go up. Since they are all in the group <code>shots</code>, one line moves the whole group.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"shots\"].move_by(0, 640 * dt)",
+          text: "The second number is y, positive upward. 640 units per second is almost twice the ship's speed: a shot has to be much faster than whoever fires it."
+        }
+      ],
+      after: `
+        <p>Hold space: the lasers cross the sky and leave through the top.</p>
+        <details class="ask"><summary>And once they are out of view?</summary><p>They stay in the game, rising above the window forever. Every laser fired is one more object the game carries.</p></details>
+      `,
+      try: [
+        {
+          note: "The same movement, shot by shot. In place of the group line.",
+          code: `for shot in group["shots"]:
+    shot.move_by(0, 640 * dt)`
+        }
+      ]
+    },
+    {
+      title: "Off the screen",
+      body: [
+        `
+        <p>The lasers that leave through the top stay in the game. You can see it: open the system panel with <kbd>Ctrl+Shift+1</kbd> and hold space. The objs count only goes up.</p>
+        <p>Scena tells you when something leaves the play area. One function is enough:</p>
+        `,
+        {
+          snip: `@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()`
+        },
+        `
+        <p><code>@leave_playfield</code>, above the function, tells Scena when to run it: when the center of something in the group <code>shots</code> leaves the play area. The function receives what left, and <code>shot.destroy()</code> deletes it.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 215" role="img" aria-label="The window and, around it, the dashed play area, a little bigger; one laser inside the window, another between the window and the edge of the play area, and a third one deleted beyond the play area">
+            <rect class="guide" x="70" y="30" width="220" height="170"/>
+            <rect class="ray" fill="none" x="90" y="50" width="180" height="140"/>
+            <rect class="bar" x="178" y="120" width="4" height="14"/>
+            <rect class="bar" x="178" y="34" width="4" height="12"/>
+            <circle class="hot" cx="180" cy="16" r="5"/>
+            <text x="192" y="20">destroy()</text>
+            <text x="296" y="36">play area</text>
+            <text x="264" y="66" text-anchor="end">window</text>
+          </svg>
+          <figcaption>The play area reaches a little beyond the window. The laser leaves the view when it passes the window, and is deleted when its center leaves the play area.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      after: `
+        <p>Hold space again, with the panel open: now the objs count rises a little and stops. With <kbd>Ctrl+Shift+8</kbd> the view zooms out, and you can see the lasers vanish beyond the edge. All the keys are in <a href="../../pt/tutorial/A-depuracao.html">Appendix A</a>.</p>
+      `,
+      try: [
+        {
+          note: "Another way to write it, in place of <code>@leave_playfield</code> and the group line: a <code>for</code> that moves each shot and deletes the ones past the top of the window, 800.",
+          code: `for shot in group["shots"]:
+    shot.move_by(0, 640 * dt)
+    if shot.center.y > 800:
+        shot.destroy()`
+        }
+      ]
+    },
+    {
+      title: "The fleet",
+      body: `
+        <p>Now the enemies: 24 ships, in three rows of eight, in the group <code>enemies</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 160" role="img" aria-label="A grid of three rows and eight columns; the columns start at x 185 and step 90; the rows start at y 720 and go down 70; the middle row has another color">
+            <circle class="dot" cx="110" cy="40" r="6"/>
+            <circle class="dot" cx="146" cy="40" r="6"/>
+            <circle class="dot" cx="182" cy="40" r="6"/>
+            <circle class="dot" cx="218" cy="40" r="6"/>
+            <circle class="dot" cx="254" cy="40" r="6"/>
+            <circle class="dot" cx="290" cy="40" r="6"/>
+            <circle class="dot" cx="326" cy="40" r="6"/>
+            <circle class="dot" cx="362" cy="40" r="6"/>
+            <circle class="bar child" cx="110" cy="76" r="6"/>
+            <circle class="bar child" cx="146" cy="76" r="6"/>
+            <circle class="bar child" cx="182" cy="76" r="6"/>
+            <circle class="bar child" cx="218" cy="76" r="6"/>
+            <circle class="bar child" cx="254" cy="76" r="6"/>
+            <circle class="bar child" cx="290" cy="76" r="6"/>
+            <circle class="bar child" cx="326" cy="76" r="6"/>
+            <circle class="bar child" cx="362" cy="76" r="6"/>
+            <circle class="dot" cx="110" cy="112" r="6"/>
+            <circle class="dot" cx="146" cy="112" r="6"/>
+            <circle class="dot" cx="182" cy="112" r="6"/>
+            <circle class="dot" cx="218" cy="112" r="6"/>
+            <circle class="dot" cx="254" cy="112" r="6"/>
+            <circle class="dot" cx="290" cy="112" r="6"/>
+            <circle class="dot" cx="326" cy="112" r="6"/>
+            <circle class="dot" cx="362" cy="112" r="6"/>
+            <text x="90" y="44" text-anchor="end">720</text>
+            <text x="90" y="80" text-anchor="end">650</text>
+            <text x="90" y="116" text-anchor="end">580</text>
+            <text x="110" y="146" text-anchor="middle">185</text>
+            <text x="146" y="146" text-anchor="middle">275</text>
+            <text x="362" y="146" text-anchor="middle">815</text>
+            <text x="128" y="22" text-anchor="middle">+90</text>
+            <text x="376" y="62">−70</text>
+          </svg>
+          <figcaption>The fleet is a grid. Each column sits 90 units to the right of the previous one; each row, 70 units below. The rows alternate between the two images.</figcaption>
+        </figure>
+        <p>To build the grid, two <code>for</code> loops, one inside the other.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "for row in range(3):",
+          text: "The outer <code>for</code> counts the rows: 0, 1, 2. For each one, the inner one counts the columns, from 0 to 7. That makes 3 × 8 = 24 rounds, and each round creates a ship."
+        },
+        {
+          at: "FLEET[row % 2],",
+          text: "<code>%</code> is the remainder of a division. <code>row % 2</code> gives 0, 1, 0 on the three rows and picks the image from the list <code>FLEET</code>: green, blue, green."
+        },
+        {
+          at: "center=(185 + column * 90, 720 - row * 70),",
+          text: "The math from the figure: x starts at 185 and steps 90 per column; y starts at 720, near the top, and goes down 70 per row."
+        }
+      ],
+      after: `
+        <p>Run it: the fleet appears and stands still.</p>
+      `,
+      try: [
+        {
+          note: "Other files, in place of the list.",
+          code: `FLEET = ["space/ufoYellow.png", "space/enemyGreen1.png"]`
+        }
+      ]
+    },
+    {
+      title: "Colors",
+      body: `
+        <p>The enemies are almost identical: two images, two colors. A second add-on changes that without any new file: <code>hue</code>.</p>
+        <p>The hue turns the colors of an image around the color circle, like a wheel: red becomes orange, then yellow, then green… It is measured in <em>turns</em>. With 0, the image stays as it is; with 0.5, half a turn; with 1, the full turn, and the original image again.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 220" role="img" aria-label="The hue circle with eight evenly spaced points, numbered 0 to 7 starting from the right, clockwise; each point is an eighth of a turn">
+            <circle class="guide" cx="190" cy="110" r="80"/>
+            <circle class="dot" cx="270.0" cy="110.0" r="5"/>
+            <circle class="dot" cx="246.6" cy="166.6" r="5"/>
+            <circle class="dot" cx="190.0" cy="190.0" r="5"/>
+            <circle class="dot" cx="133.4" cy="166.6" r="5"/>
+            <circle class="dot" cx="110.0" cy="110.0" r="5"/>
+            <circle class="dot" cx="133.4" cy="53.4" r="5"/>
+            <circle class="dot" cx="190.0" cy="30.0" r="5"/>
+            <circle class="dot" cx="246.6" cy="53.4" r="5"/>
+            <text x="288.0" y="114.0">column 0</text>
+            <text x="259.3" y="183.3">1</text>
+            <text x="190.0" y="212.0" text-anchor="middle">2</text>
+            <text x="120.7" y="183.3" text-anchor="end">3</text>
+            <text x="92.0" y="114.0" text-anchor="end">4</text>
+            <text x="120.7" y="44.7" text-anchor="end">5</text>
+            <text x="190.0" y="16.0" text-anchor="middle">6</text>
+            <text x="259.3" y="44.7">7</text>
+          </svg>
+          <figcaption>The hue circle, with the colors around it. Each column turns the image's color one eighth of a turn more than the previous one: <code>column / 8</code>.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "enemy.hue = column / 8",
+          text: "<code>column / 8</code> goes from 0 to 0.875: each ship turns one eighth of a turn more than the one on its left. The same image becomes a rainbow fleet."
+        }
+      ],
+      try: [
+        {
+          note: "Other ways to share out the wheel, in place of the <code>hue</code> line: only part of the wheel, or one color per row.",
+          code: `enemy.hue = column / 16
+enemy.hue = row / 3`
+        },
+        {
+          note: "<code>gray</code> takes the color away: 0 is the image as it is and 1 is all gray. On a ship, it suits a frozen or switched-off enemy.",
+          code: `enemy.gray = 0.5
+enemy.gray = True`
+        }
+      ]
+    },
+    {
+      title: "Breathing",
+      body: [
+        `
+        <p>A still fleet looks like a drawing. A light pulse brings it to life, without a single line in <code>update</code>: one line asks for the animation, and Scena plays it on its own, frame by frame.</p>
+        `,
+        {
+          snip: `enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)`
+        },
+        `
+        <p><code>scale_to</code> changes the sprite's size until it reaches a scale: 1 is the original size. The other numbers say how to get there:</p>
+        <div class="tbl"><table><thead><tr><th>In the line</th><th>What it does</th></tr></thead><tbody>
+          <tr><td><code>1.08</code></td><td>the size to reach, 8% bigger than the original</td></tr>
+          <tr><td><code>time=0.45</code></td><td>grows little by little, over 0.45 s, instead of jumping</td></tr>
+          <tr><td><code>yoyo=True</code></td><td>after growing, shrinks back to the original size</td></tr>
+          <tr><td><code>loops="forever"</code></td><td>repeats the way there and back, nonstop</td></tr>
+        </tbody></table></div>
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="A ship's size over time: it rises from 1 to 1.08 in 0.45 second, comes back down in another 0.45, and repeats">
+            <line class="guide" x1="40" y1="40" x2="370" y2="40"/>
+            <line class="guide" x1="40" y1="100" x2="370" y2="100"/>
+            <path class="ray" fill="none" d="M40 100 C80 100 80 40 120 40 C160 40 160 100 200 100 C240 100 240 40 280 40 C320 40 320 100 360 100"/>
+            <text x="34" y="44" text-anchor="end">1.08</text>
+            <text x="34" y="104" text-anchor="end">1</text>
+            <text x="80" y="28" text-anchor="middle">grows</text>
+            <text x="160" y="28" text-anchor="middle">shrinks</text>
+            <text x="40" y="124" text-anchor="middle">0</text>
+            <text x="120" y="124" text-anchor="middle">0.45 s</text>
+            <text x="200" y="124" text-anchor="middle">0.9 s</text>
+            <text x="280" y="124" text-anchor="middle">1.35 s</text>
+            <text x="360" y="124" text-anchor="middle">1.8 s</text>
+          </svg>
+          <figcaption>A ship's size over time. Each way takes 0.45 s, and <code>yoyo</code> brings it back; <code>loops</code> repeats the pair.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      after: `
+        <p>All 24 ships start together, and that is why the whole fleet breathes in the same rhythm.</p>
+      `,
+      try: [
+        {
+          note: "On the ship, after the <code>glow</code>: a bigger, slower pulse.",
+          code: `ship.scale_to(1.12, time=0.8, loops="forever", yoyo=True)`
+        }
+      ]
+    },
+    {
+      title: "The fleet moves",
+      body: `
+        <p>The fleet needs to move. It works like the shots: one line moves the whole group.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+    group["enemies"].move_by(80 * dt, 0)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"enemies\"].move_by(80 * dt, 0)",
+          text: "80 units per second to the right: slow, to give you time to aim."
+        }
+      ],
+      after: `
+        <p>Run it and wait a few seconds.</p>
+        <details class="ask"><summary>Where does the fleet go?</summary><p>To the right, nonstop. The ship at the end starts at x 815 and passes 960 in under two seconds; soon after, the whole fleet leaves through the edge and never comes back. Nothing told it to turn around.</p></details>
+      `
+    },
+    {
+      title: "Back and forth",
+      body: `
+        <p>The fleet needs to turn back when it reaches the edge. For that, the speed stops being a fixed number in <code>move_by</code> and is kept in <code>st.pace</code>. <code>st</code> is where the game keeps what changes, and the sign of the speed gives the side: 80 goes right, −80 goes left.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 130" role="img" aria-label="A row of ships between the lines 40 and 960; the last one has passed 960, and an arrow shows the fleet turning left">
+            <line class="guide" x1="40" y1="20" x2="40" y2="96"/>
+            <line class="guide" x1="360" y1="20" x2="360" y2="96"/>
+            <circle class="dot" cx="186" cy="50" r="6"/>
+            <circle class="dot" cx="216" cy="50" r="6"/>
+            <circle class="dot" cx="246" cy="50" r="6"/>
+            <circle class="dot" cx="276" cy="50" r="6"/>
+            <circle class="dot" cx="306" cy="50" r="6"/>
+            <circle class="dot" cx="336" cy="50" r="6"/>
+            <circle class="hot" cx="366" cy="50" r="6"/>
+            <line class="ray" x1="320" y1="78" x2="226" y2="78"/>
+            <polygon class="dot" points="218,78 227,73 227,83"/>
+            <text x="40" y="116" text-anchor="middle">40</text>
+            <text x="360" y="116" text-anchor="middle">960</text>
+            <text x="200" y="116" text-anchor="middle">st.pace = -80</text>
+          </svg>
+          <figcaption>When a ship passes 960, the whole fleet turns left: −80. At the edge at 40, the same to the right: 80.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pace = 80
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "move_by(st.pace * dt, 0)",
+          text: "The group moves at the stored speed. When it changes, the fleet switches direction on the next frame."
+        },
+        {
+          at: "for enemy in group[\"enemies\"]:",
+          text: "After moving, the <code>for</code> looks at each enemy, with the same limits as the ship. If any has passed 960, the fleet goes left; if any is short of 40, it goes right."
+        }
+      ],
+      after: [
+        `
+        <p>Run it: the fleet goes back and forth between the edges.</p>
+        <p>Flipping the sign looks shorter, a single line for both sides:</p>
+        `,
+        {
+          snip: `st.pace = -st.pace`,
+          alt: true
+        },
+        `
+        <p>But the flip does not know which way the fleet is already going. If one frame is shorter than the others (the computer hiccuped), the fleet moves back so little that the ship at the end is still beyond 960. The flip fires again, the fleet turns outward once more and gets stuck there, shaking. When you name the side, repeating does no harm: while anyone is beyond 960, the answer is always −80.</p>
+        `
+      ]
+    },
+    {
+      title: "Collision",
+      body: [
+        `
+        <p>The shots still pass through the fleet. What is missing is saying what happens when a shot touches an enemy:</p>
+        `,
+        {
+          snip: `@collide("shots", "enemies")
+def struck(shot, enemy):
+    shot.destroy()
+    enemy.destroy()`
+        },
+        `
+        <p><code>@collide</code> connects the two groups. At each touch, the function runs and receives both, in the order of the names: first the shot, then the enemy.</p>
+        <p>Both are destroyed. The shot has to go too: if it stayed, it would keep rising and take down the ship in the row behind. One shot, one enemy.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.pace = 80
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    shot.destroy()
+    enemy.destroy()
+
+
+run()
+`,
+      after: `
+        <p>Fire at the fleet: each laser takes down one ship and disappears along with it.</p>
+      `
+    },
+    {
+      title: "The hit",
+      body: `
+        <p>The enemy vanishes without warning. This step gives the hit a burst and a score.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    canvas.burst_at(enemy, radius=40)
+    shot.destroy()
+    enemy.destroy()
+    st.score += 1
+
+
+run()
+`,
+      notes: [
+        {
+          at: "scoreboard[\"text\"] @= lambda:",
+          text: "The scoreboard is a text linked to <code>st.score</code> with <code>@=</code>: when the number changes, the text changes on its own."
+        },
+        {
+          at: "canvas.burst_at(enemy, radius=40)",
+          text: "<code>burst_at</code> draws a small explosion at a point. With the sprite in place of the point, it starts at the sprite's center; <code>radius=40</code> is about the size of an enemy. The line comes before <code>destroy</code>, while the enemy is still there."
+        },
+        {
+          at: "st.score += 1",
+          text: "Each hit adds a point, and the scoreboard follows."
+        }
+      ],
+      after: `
+        <p>Shoot: each hit bursts and adds a point.</p>
+      `,
+      try: [
+        {
+          note: "The parameters of <code>burst_at</code>, one at a time, in its place. <code>radius</code> is the size of the burst, in units; <code>amount</code> is the strength, and the default is 1.2; <code>rings=True</code> adds circles that spread out.",
+          code: `canvas.burst_at(enemy, radius=70, amount=2)
+canvas.burst_at(enemy, radius=40, amount=0.6, rings=True)
+canvas.burst_at(enemy.center.x, enemy.center.y, radius=40)`
+        },
+        {
+          note: "Other screen effects at the same point, one at a time or combined: <code>hit_at</code> marks where the shot struck, <code>debris_at</code> throws out shards, <code>ripple_at</code> makes a wave that bends the picture, <code>canvas.flash</code> lights up the screen and <code>canvas.shake</code> shakes the camera. Every <code>*_at</code> takes the sprite or an <code>(x, y)</code>. In the Guide: <a href='../guide/index.html#mundo-impactos'>Impacts</a>.",
+          code: `canvas.hit_at(shot, color="cyan")
+canvas.debris_at(enemy, color="gray")
+canvas.ripple_at(enemy, amount=0.6)
+canvas.flash(0.3)
+canvas.shake(8)`
+        }
+      ]
+    },
+    {
+      title: "The fleet fires",
+      body: `
+        <p>So far only you shoot. Now the fleet fires back: every 0.4 s, a ship picked at random drops a red laser.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(enemy.center.x, enemy.center.y - 20), group="enemy_shots")
+    s.rotate_to(180)
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-340 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(340 * dt, 0)
+    ship.confine(canvas.game_view.inset(40))
+
+    if keyp("SPACE") and ready("shot", 0.2):
+        Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+    group["enemy_shots"].move_by(0, -400 * dt)
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    canvas.burst_at(enemy, radius=40)
+    shot.destroy()
+    enemy.destroy()
+    st.score += 1
+
+
+run()
+`,
+      notes: [
+        {
+          at: "@every(0.4)",
+          text: "<code>@every(0.4)</code> runs the function again and again, at a fixed interval: here, every 0.4 s."
+        },
+        {
+          at: "if group[\"enemies\"].count == 0:",
+          text: "A guard. <code>count</code> is how many enemies are left, and picking from an empty group is an error. With the fleet shot down, <code>return</code> leaves the function without firing."
+        },
+        {
+          at: "enemy = choice(group[\"enemies\"])",
+          text: "<code>choice</code> picks a random item from a list or a group: here, one ship of the fleet. It comes from Python, which is why <code>from random import choice</code> goes at the top."
+        },
+        {
+          at: "s.rotate_to(180)",
+          text: "The laser starts 20 units below the picked ship. <code>rotate_to(180)</code> turns the image half a turn, so it points down."
+        },
+        {
+          at: "move_by(0, -400 * dt)",
+          text: "Enemy lasers go down 400 units per second: negative y."
+        },
+        {
+          at: "@leave_playfield(\"shots\", \"enemy_shots\")",
+          text: "The event got a second group: the same function deletes both kinds of shot."
+        }
+      ],
+      after: `
+        <p>Run it and stay still under the fleet.</p>
+        <details class="ask"><summary>What happens when a red laser reaches the ship?</summary><p>Nothing: it passes through. Nothing asks yet whether a laser touched the ship.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of <code>0.4</code>: one shot every 1.2 s, a calmer fleet.",
+          code: `@every(1.2)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(enemy.center.x, enemy.center.y - 20), group="enemy_shots")
+    s.rotate_to(180)`
+        },
+        {
+          note: "At most three red lasers in the air at once: one more guard, before the one already there. <code>group[\"enemy_shots\"].count</code> counts the lasers that still exist; with three, the function leaves without firing. The fleet now fires in bursts instead of nonstop.",
+          replaces: ['if group["enemies"].count == 0:'],
+          code: `if group["enemy_shots"].count >= 3:
+    return
+if group["enemies"].count == 0:`
+        },
+        {
+          note: "Another way to write the guard: <code>empty</code> is <code>True</code> when the group has no one in it, the same as <code>count == 0</code>. What else a group can tell you is in the Groups interlude, right after this tutorial.",
+          replaces: ['if group["enemies"].count == 0:'],
+          code: `if group["enemies"].empty:`
+        }
+      ]
+    },
+    {
+      title: "The ship explodes",
+      example: "ships_1.py",
+      body: [
+        `
+        <p>The danger is still missing: an enemy laser has to take down the ship.</p>
+        `,
+        {
+          snip: `@collide("enemy_shots", ship)
+def hit(shot, ship):`
+        },
+        `
+        <p>Another <code>@collide</code>. On one side, the group <code>enemy_shots</code>; on the other, the variable <code>ship</code>, without quotes. A side can be a whole group or a single sprite.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(enemy.center.x, enemy.center.y - 20), group="enemy_shots")
+    s.rotate_to(180)
+
+def update(dt):
+    if ship:
+        if keyp("LEFT"):
+            ship.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            ship.move_by(340 * dt, 0)
+        ship.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+    group["enemy_shots"].move_by(0, -400 * dt)
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    canvas.burst_at(enemy, radius=40)
+    shot.destroy()
+    enemy.destroy()
+    st.score += 1
+
+
+@collide("enemy_shots", ship)
+def hit(shot, ship):
+    shot.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(ship, amount=1.2)
+    ship.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "canvas.flash(0.4)",
+          text: "<code>canvas.flash</code> lights up the whole screen for an instant; 0.4 is the strength, from 0 to 1."
+        },
+        {
+          at: "canvas.explosion_at(ship, amount=1.2)",
+          text: "<code>explosion_at</code> is the big, movie-style explosion: a fireball, rings, the picture bending and the camera shaking. <code>amount</code> is the strength; 1.2 is the default. The <code>burst_at</code> of a hit is the small burst."
+        },
+        {
+          at: "if ship:",
+          text: "After <code>destroy</code>, the variable <code>ship</code> is still in the script, but the ship has left the game, and telling a destroyed ship to move is an error. <code>if ship:</code> asks whether it is still in the game: in an <code>if</code>, a destroyed object counts as false. That is why the arrow keys, the fence and the shooting moved inside the <code>if</code>."
+        }
+      ],
+      after: `
+        <p>The shots and the fleet stayed outside the <code>if</code>: without you, the game goes on.</p>
+      `,
+      closing: `
+        <p>The arrow keys move the ship. Space shoots. The fleet breathes, goes back and forth and fires back. If a red laser hits the ship, it explodes, and the fleet carries on.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>confine</code> — corrects the position at each call, so it goes in <code>update</code>, after <code>move_by</code>; <code>inset</code> gives the margin.</li>
+          <li><code>ready</code> — the brake on the rate of fire: true if enough time has passed since the last time.</li>
+          <li><code>@leave_playfield</code> — deletes whatever left the play area, without a height <code>if</code> for each group.</li>
+          <li><code>scale_to</code> with <code>yoyo</code> and <code>loops</code> — an animation Scena plays on its own, with no line in <code>update</code>.</li>
+          <li><code>glow</code> and <code>hue</code> — add-ons: they add to the look without touching the visual; the hue turns an image's colors, measured in turns.</li>
+          <li><code>st.pace</code> names the side instead of flipping the sign: repeating the order does no harm.</li>
+          <li><code>canvas.burst_at</code> and <code>canvas.explosion_at</code> — bursts at a point; <code>canvas.flash</code> lights up the whole screen.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#mover-confine">confine</a> · <a href="../guide/index.html#agendar-ready">ready</a> · <a href="../guide/index.html#reagir-bounds">@leave_playfield</a> · <a href="../guide/index.html#pose-scale-to">scale_to</a> · <a href="../guide/index.html#mundo-impactos">Impacts</a> · <a href="../guide/index.html#mundo-background">Background</a> · <a href="../guide/index.html#mundo-post">Post</a> · <a href="../guide/index.html#aparencia-selos">Add-ons</a>.</p>
+        <p><strong>Next:</strong> before moving on, an interlude about what a group can do. Then the ships become classes — each one carries its own behavior.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Change the fleet: more rows, other enemies, another speed. Find the game that is just hard enough.</li>
+          <li>Make the ship fire two shots side by side.</li>
+          <li>Can you show a victory message when the whole fleet is down?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

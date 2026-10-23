@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ships II — Classes — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "06",
+  title: "Ships II · Classes",
+  steps: [
+    {
+      title: "Three bubbles",
+      part: "Script 1 · Classes and objects",
+      body: `
+        <p>This tutorial is about <strong>classes</strong> and <strong>objects</strong>: Python's way of giving each thing in the game its own behavior. There are two scripts. In the first, a small one, bubbles rise from the bottom of the sea and pop with a click; that is where the ideas show up, one per step. In the second, the Ships game is reorganized with them.</p>
+        <p>Start with three circles, the way you already know.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Bubbles")
+Wallpaper(Gradient("dark navy", "teal", angle=90))
+
+Circle(center=(300, 150), radius=30, visual=Halo("sky blue"))
+Circle(center=(500, 250), radius=30, visual=Halo("sky blue"))
+Circle(center=(700, 100), radius=30, visual=Halo("sky blue"))
+
+run()
+`,
+      notes: [
+        {
+          at: "Circle(center=(300, 150)",
+          text: "All three have the same radius and the same visual, <code>Halo</code>, a ring of light that looks like a bubble here. Only the center changes."
+        }
+      ],
+      after: `
+        <p>Run it: three bubbles standing still. You just made three objects.</p>
+        <p><code>Circle</code> is a Scena <strong>class</strong>: a <strong>mold</strong>. The class says what every circle has (a center, a radius, a look) and what every circle can do (show up, move, be clicked). Each <code>Circle(…)</code> uses the class to make a real circle, with its own values. That finished circle is an <strong>object</strong>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="On the left, a rectangle labeled class Circle, the mold, with center and radius written inside; dashed lines run from it to three circles on the right, at different heights, each with its center written below it">
+            <rect class="bar" x="14" y="58" width="128" height="84" rx="6"/>
+            <text x="78" y="86" text-anchor="middle">class Circle</text>
+            <text x="78" y="106" text-anchor="middle">(the mold)</text>
+            <text x="78" y="126" text-anchor="middle">center · radius</text>
+            <line class="guide" x1="142" y1="100" x2="212" y2="146"/>
+            <line class="guide" x1="142" y1="100" x2="282" y2="96"/>
+            <line class="guide" x1="142" y1="100" x2="352" y2="48"/>
+            <circle class="bar child" cx="230" cy="150" r="18"/>
+            <circle class="bar child" cx="300" cy="95" r="18"/>
+            <circle class="bar child" cx="370" cy="45" r="18"/>
+            <text x="230" y="184" text-anchor="middle">(300, 150)</text>
+            <text x="300" y="129" text-anchor="middle">(500, 250)</text>
+            <text x="362" y="79" text-anchor="middle">(700, 100)</text>
+          </svg>
+          <figcaption>One class, three objects. The <code>Circle</code> class says what every circle has; each <code>Circle(…)</code> makes an object with its own values (here, the center).</figcaption>
+        </figure>
+        <p>So every <code>Circle(…)</code>, every <code>Sprite(…)</code> and every <code>Text(…)</code> you have written so far made an object of a Scena class. Now notice the repetition: <code>radius=30, visual=Halo("sky blue")</code> is written three times, once per bubble.</p>
+      `
+    },
+    {
+      title: "A class of your own",
+      body: [
+        `
+        <p>Now the class is yours: <code>Bubble</code>, which holds what the three bubbles repeated. It all starts on this line:</p>
+        `,
+        {
+          snip: `class Bubble(Circle, radius=30, visual=Halo("sky blue")):`
+        },
+        `
+        <p>The word <code>class</code> does for a class what <code>def</code> does for a function: it gives a name and opens a block, with a colon and indentation. By custom, a class name starts with a capital letter, like <code>Circle</code> and <code>Sprite</code>; that way you can tell from afar that it is a class and not a variable.</p>
+        <p>The first name inside the parentheses, <code>Circle</code>, says where the class starts from: a bubble is a Scena circle and knows everything a circle knows. After the comma come the <strong>defaults</strong>, the parameters every bubble gets without you having to write them: radius 30 and the <code>Halo</code>.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Bubbles")
+Wallpaper(Gradient("dark navy", "teal", angle=90))
+
+
+class Bubble(Circle, radius=30, visual=Halo("sky blue")):
+    pass
+
+
+Bubble(center=(300, 150))
+Bubble(center=(500, 250))
+Bubble(center=(700, 100))
+
+run()
+`,
+      notes: [
+        {
+          at: "pass",
+          text: "Every Python block needs at least one line. This class has nothing to say yet beyond its first line, so the body is <code>pass</code>: a line that does nothing, it just holds the place."
+        },
+        {
+          at: "Bubble(center=(300, 150))",
+          text: "With the defaults in the class, making a bubble got short: you only say where it is born. Each <code>Bubble(…)</code> makes a new object from the class."
+        }
+      ],
+      after: `
+        <p>Run it: the same screen as the previous step, with half the text.</p>
+      `,
+      dive: [
+        {
+          title: "What goes on the class line",
+          body: `
+            <p>The class line takes Scena's own parameters, the same ones <code>Circle(…)</code> accepts: the size (<code>radius</code>), the <code>color</code> or the <code>visual</code>, the <code>group</code>. They are numbers, text, colors and tuples. The place (<code>center</code>) does not go there: each bubble is born in its own place, so that stays in the creation. If you put it on the class line, Scena stops with an error that says exactly that.</p>
+            <p>The default is only a starting point: what the creation passes wins over what the line says. <code>Bubble(center=(500, 250), radius=50)</code> is a bigger bubble, just that one.</p>
+            <p>And the defaults go <em>on the line</em>, not written inside the class. Scena would not read <code>radius = 30</code> on a line of the body; so it stops at the class definition and shows the right line, <code>class Bubble(Circle, radius=30)</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#desenhar-entity">Entity</a>, under “Subclassing Shape / Sprite / SpatialFx / Text”.</p>
+          `
+        }
+      ],
+      try: [
+          {
+            note: "A bigger bubble, just this one: in place of the second <code>Bubble(…)</code>.",
+            replaces: ['Bubble(center=(500, 250))'],
+            code: `Bubble(center=(500, 250), radius=50)`
+          },
+          {
+            note: "Other defaults, in place of the class line: all three bubbles change together.",
+            replaces: ['class Bubble('],
+            code: `class Bubble(Circle, radius=20, visual=Halo("pink")):`
+          }
+        ]
+    },
+    {
+      title: "Rising",
+      body: [
+        `
+        <p>Now the behavior. Every bubble rises; so rising belongs to the class, and it goes inside it, in place of the <code>pass</code>:</p>
+        `,
+        {
+          snip: `def on_update(self, dt):
+    self.move_by(0, 60 * dt)`
+        },
+        `
+        <p>It is a function written inside the class, indented. A function that lives in a class has a name of its own, <strong>method</strong>: a function that belongs to the class. This method has a name Scena knows, <code>on_update</code>. Scena calls the file's <code>update(dt)</code> once per frame, for the whole game; it calls <code>on_update</code> once per frame for <em>each</em> bubble. You never call it yourself.</p>
+        <p>If there is just one method for all three, how does it know which bubble to move? Through its first parameter. On each call, Scena hands it the bubble whose turn it is, and its name, <code>self</code>, means <strong>this one</strong>: this bubble. <code>self.move_by(0, 60 * dt)</code> is “this bubble rises 60 units per second”.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 170" role="img" aria-label="On the left, a box with on_update; three arrows run from it to three bubbles, and each arrow is labeled self; the same method is called three times per frame">
+            <rect class="bar" x="14" y="62" width="128" height="44" rx="6"/>
+            <text x="78" y="88" text-anchor="middle">on_update</text>
+            <line class="ray" x1="142" y1="84" x2="266" y2="34"/>
+            <line class="ray" x1="142" y1="84" x2="266" y2="84"/>
+            <line class="ray" x1="142" y1="84" x2="266" y2="134"/>
+            <circle class="bar child" cx="290" cy="34" r="18"/>
+            <circle class="bar child" cx="290" cy="84" r="18"/>
+            <circle class="bar child" cx="290" cy="134" r="18"/>
+            <text x="200" y="48" text-anchor="middle">self</text>
+            <text x="200" y="75" text-anchor="middle">self</text>
+            <text x="200" y="126" text-anchor="middle">self</text>
+            <text x="318" y="38">call 1</text>
+            <text x="318" y="88">call 2</text>
+            <text x="318" y="138">call 3</text>
+          </svg>
+          <figcaption>One method, three calls per frame. In each one, <code>self</code> is a different bubble.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Bubbles")
+Wallpaper(Gradient("dark navy", "teal", angle=90))
+
+
+class Bubble(Circle, radius=30, visual=Halo("sky blue")):
+    def on_update(self, dt):
+        self.move_by(0, 60 * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+
+Bubble(center=(300, 150))
+Bubble(center=(500, 250))
+Bubble(center=(700, 100))
+
+run()
+`,
+      notes: [
+        {
+          at: "if self.center.y > 760:",
+          text: "Each bubble looks at itself: has the height of <em>this</em> bubble gone past 760, a little above the top of the window?"
+        },
+        {
+          at: "self.move_by(0, -820)",
+          text: "Then it drops 820 units, below the screen, and starts rising again from there."
+        }
+      ],
+      after: `
+        <p>Run it: the three rise forever.</p>
+        <details class="ask"><summary>Why do they always rise in the same formation?</summary><p>Because the 60 is written in the class and holds for all of them: the three rise at the same speed.</p></details>
+      `
+    },
+    {
+      title: "Each one at its own speed",
+      body: [
+        `
+        <p>For each bubble to rise at its own pace, the speed cannot be in the class: it has to be in each bubble.</p>
+        `,
+        {
+          snip: `bubble.pace = uniform(40, 160)`
+        },
+        `
+        <p>This line stores a number <em>inside</em> this bubble, under the name <code>pace</code>; <code>uniform</code> picks a random number between 40 and 160. A value stored in an object is called a <strong>field</strong>. You already use fields: <code>st.score</code> is a field of <code>st</code>, and <code>center</code> is a field Scena gives every circle. This one is yours: you choose the name.</p>
+        <p>Outside the class, the bubble goes by the variable's name, <code>bubble</code>. Inside the method, the same bubble is called <code>self</code>, and the same field is <code>self.pace</code>. In <code>on_update</code>, it takes the place of the 60:</p>
+        `,
+        {
+          snip: `self.move_by(0, self.pace * dt)`
+        },
+        `
+        <figure class="fig">
+          <svg viewBox="0 0 400 210" role="img" aria-label="Three bubbles side by side, each with an upward arrow of a different length and, below it, its pace field: 52, 97 and 141">
+            <circle class="bar child" cx="70" cy="158" r="16"/>
+            <circle class="bar child" cx="200" cy="158" r="16"/>
+            <circle class="bar child" cx="330" cy="158" r="16"/>
+            <line class="ray" x1="70" y1="136" x2="70" y2="108"/>
+            <line class="ray" x1="64" y1="114" x2="70" y2="108"/>
+            <line class="ray" x1="76" y1="114" x2="70" y2="108"/>
+            <line class="ray" x1="200" y1="136" x2="200" y2="74"/>
+            <line class="ray" x1="194" y1="80" x2="200" y2="74"/>
+            <line class="ray" x1="206" y1="80" x2="200" y2="74"/>
+            <line class="ray" x1="330" y1="136" x2="330" y2="30"/>
+            <line class="ray" x1="324" y1="36" x2="330" y2="30"/>
+            <line class="ray" x1="336" y1="36" x2="330" y2="30"/>
+            <text x="70" y="196" text-anchor="middle">pace 52</text>
+            <text x="200" y="196" text-anchor="middle">pace 97</text>
+            <text x="330" y="196" text-anchor="middle">pace 141</text>
+          </svg>
+          <figcaption>The same class, three bubbles, three fields. There is only one <code>on_update</code>; each bubble's <code>self.pace</code> is its own.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Bubbles")
+Wallpaper(Gradient("dark navy", "teal", angle=90))
+
+
+class Bubble(Circle, radius=30, visual=Halo("sky blue")):
+    def on_update(self, dt):
+        self.move_by(0, self.pace * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+
+for column in range(9):
+    bubble = Bubble(center=(100 + column * 100, -50))
+    bubble.pace = uniform(40, 160)
+
+run()
+`,
+      notes: [
+        {
+          at: "for column in range(9):",
+          text: "With a class, nine bubbles are one <code>for</code>. Each pass makes a bubble 100 units to the right of the last one, just below the screen (y = −50), and picks its speed at random."
+        }
+      ],
+      after: `
+        <p>Run it: the bubbles come up from the bottom at different paces and spread out.</p>
+      `
+    },
+    {
+      title: "setup: the bubble gets ready",
+      body: `
+        <p>The previous step has a flaw: the loop gives the bubble its speed, from outside. If another part of the program makes a <code>Bubble(…)</code> and forgets the second line, <code>on_update</code> looks for <code>self.pace</code>, does not find it, and the program stops with an error. What every bubble needs to have when it is born should belong to the bubble itself.</p>
+        <p>That is what <code>setup</code> is for, another method with a name Scena knows. Scena calls it <strong>once</strong>, when the object is born, before the first <code>on_update</code>:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="A timeline from left to right: Bubble(…) asks; Scena builds the circle with place and radius; setup runs once; then on_update every frame, as a row of short bars">
+            <rect class="bar" x="4" y="40" width="80" height="44" rx="6"/>
+            <text x="44" y="66" text-anchor="middle">Bubble(…)</text>
+            <line class="ray" x1="84" y1="62" x2="100" y2="62"/>
+            <rect class="bar" x="100" y="40" width="112" height="44" rx="6"/>
+            <text x="156" y="58" text-anchor="middle">Scena builds</text>
+            <text x="156" y="74" text-anchor="middle">place · radius</text>
+            <line class="ray" x1="212" y1="62" x2="228" y2="62"/>
+            <rect class="bar child" x="228" y="40" width="58" height="44" rx="6"/>
+            <text x="257" y="66" text-anchor="middle">setup</text>
+            <text x="257" y="104" text-anchor="middle">once</text>
+            <line class="ray" x1="286" y1="62" x2="302" y2="62"/>
+            <rect class="bar child" x="304" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="320" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="336" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="352" y="48" width="8" height="28" rx="2"/>
+            <rect class="bar child" x="368" y="48" width="8" height="28" rx="2"/>
+            <text x="350" y="32" text-anchor="middle">on_update</text>
+            <text x="350" y="104" text-anchor="middle">every frame</text>
+          </svg>
+          <figcaption>The life of a bubble. <code>Bubble(…)</code> asks; Scena builds the circle; when it is ready, Scena calls <code>setup</code> once and, after that, <code>on_update</code> every frame.</figcaption>
+        </figure>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Bubbles")
+Wallpaper(Gradient("dark navy", "teal", angle=90))
+
+
+class Bubble(Circle, radius=30, visual=Halo("sky blue")):
+    def setup(self):
+        self.pace = self.radius * 4
+
+    def on_update(self, dt):
+        self.move_by(0, self.pace * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+
+for column in range(9):
+    Bubble(center=(100 + column * 100, -50), radius=uniform(15, 45))
+
+run()
+`,
+      notes: [
+        {
+          at: "def setup(self):",
+          text: "Scena calls <code>setup</code> when the bubble is already built, with the place, radius and visual the creation and the class line gave it. A field of your own, like the speed, is born here, not on the class line: that line holds only Scena's parameters."
+        },
+        {
+          at: "self.radius * 4",
+          text: "Since it is built, the bubble already knows its radius, <code>self.radius</code>, and the speed comes from it: a big bubble rises faster, as in real water."
+        },
+        {
+          at: "radius=uniform(15, 45)",
+          text: "Each bubble is born with a random radius given at creation, which wins over the default 30. The loop is back to one line."
+        }
+      ],
+      after: `
+        <p>Run it: bubbles of many sizes, the big ones overtaking the small ones.</p>
+      `,
+      dive: [
+        {
+          title: "Why not __init__",
+          body: `
+            <p>If you have read about Python classes elsewhere, you may have seen <code>def __init__(self):</code>, with two underscores on each side. <code>__init__</code> (short for <em>initialize</em>) is the name Python reserves for the function that builds the object, at the moment of <code>Bubble(…)</code>. It looks like the right place for the speed. In a Scena class, it is not.</p>
+            <p>Try it: change <code>def setup(self):</code> to <code>def __init__(self):</code> and run. The program stops at creation. The Scena circle already has its own <code>__init__</code>: that is what receives <code>center</code> and <code>radius</code>, puts the circle in the world and hands it to Scena to be drawn and updated. Your <code>__init__</code> took its place, and yours does not know what <code>center</code> is. The error message says so and already gives the way out: remove the <code>__init__</code> and write <code>def setup(self)</code>.</p>
+            <p>With <code>setup</code>, you do not touch the building: Scena builds the whole object and, when it is ready, calls your <code>setup</code>. Hence the rule: in a class of your own, never <code>__init__</code>; what the object does when it is born goes in <code>setup</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#reagir-callbacks-entity">Entity callbacks</a>.</p>
+          `
+        }
+      ],
+      try: [
+          {
+            note: "A bubble that breathes: in <code>setup</code>, after the speed. Each bubble starts its pulse when it is born.",
+            code: `self.scale_to(1.15, time=0.5, loops="forever", yoyo=True)`
+          }
+        ]
+    },
+    {
+      title: "Pop",
+      example: "bubbles.py",
+      body: `
+        <p>The script's last method: pop the bubble with a click.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Bubbles")
+Wallpaper(Gradient("dark navy", "teal", angle=90))
+
+
+class Bubble(Circle, radius=30, visual=Halo("sky blue")):
+    def setup(self):
+        self.pace = self.radius * 4
+
+    def on_update(self, dt):
+        self.move_by(0, self.pace * dt)
+        if self.center.y > 760:
+            self.move_by(0, -820)
+
+    def on_click(self):
+        canvas.bubbles_at(self, color="sky blue")
+        self.destroy()
+
+
+for column in range(9):
+    Bubble(center=(100 + column * 100, -50), radius=uniform(15, 45))
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_click(self):",
+          text: "<code>on_click</code> is one more name Scena knows. Written in the class, it holds for every bubble, and Scena calls it when someone clicks <em>one</em> of them, with <code>self</code> being the one clicked. It is <code>@click</code> seen from inside: there, the function sat outside and received the clicked shape; here, it belongs to the bubble."
+        },
+        {
+          at: "canvas.bubbles_at(",
+          text: "<code>bubbles_at</code> is an impact: a foam of tiny bubbles that rises from the point and fades on its own."
+        },
+        {
+          at: "self.destroy()",
+          text: "Takes this bubble out of the game. Scena stops calling its <code>on_update</code>; the others keep rising."
+        }
+      ],
+      try: [
+        {
+          note: "A new bubble is born at the bottom with every pop: in <code>on_click</code>, in place of the <code>destroy</code>. A class can be used anywhere, even inside itself.",
+          replaces: ['self.destroy()'],
+          code: `Bubble(center=(self.center.x, -50), radius=uniform(15, 45))
+self.destroy()`
+        },
+        {
+          note: "Other pops, one at a time, in place of the <code>bubbles_at</code>: the small explosion from Ships and a ripple that bends the water around it. In the Guide: <a href='../guide/index.html#mundo-impactos'>Impacts</a>.",
+          replaces: ['canvas.bubbles_at('],
+          code: `canvas.burst_at(self, radius=self.radius * 2)
+canvas.ripple_at(self, amount=0.3, radius=150)`
+        }
+      ],
+      closing: `
+        <p>Click a bubble to pop it. The others keep rising and coming back from the bottom.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Circle</code> — a class: a Scena mold. Each <code>Circle(…)</code> makes an object, with its own values.</li>
+          <li><code>class Bubble(Circle, …)</code> — a class of your own, starting from the Scena circle; the parameters on the line are the defaults, and the creation can change them.</li>
+          <li><code>self</code> — this one: the bubble Scena is calling right now.</li>
+          <li><code>self.pace</code> — a field: a value stored in each object, each with its own.</li>
+          <li><code>setup</code> and <code>on_update</code> — Scena calls them: the first once, when the object is ready (never <code>__init__</code>); the second every frame, for each object.</li>
+          <li><code>on_click</code> — Scena calls it when someone clicks this object.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#desenhar-entity">Entity</a> (and “Subclassing Shape / Sprite”) · <a href="../guide/index.html#reagir-callbacks-entity">Entity callbacks</a> · <a href="../guide/index.html#reagir-pointer">Click / drag</a> · <a href="../guide/index.html#mundo-impactos">Impacts</a>.</p>
+        <p><strong>Next script:</strong> the space shooter from tutorial 05, with a class for the shot, one for the enemy and one for the ship.</p>
+      `
+    },
+    {
+      title: "The game from 05",
+      part: "Script 2 · Ships in classes",
+      fresh: true,
+      body: `
+        <p>A new script, in a new file: the whole Ships game, the way it ended. This script barely changes the screen. It <strong>reorganizes the code</strong> with classes, and only in the last step does the ship get a new piece.</p>
+        <p>Run it to remember the game, then read the <code>update</code>.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(enemy.center.x, enemy.center.y - 20), group="enemy_shots")
+    s.rotate_to(180)
+
+def update(dt):
+    if ship:
+        if keyp("LEFT"):
+            ship.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            ship.move_by(340 * dt, 0)
+        ship.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")
+
+    group["shots"].move_by(0, 640 * dt)
+    group["enemy_shots"].move_by(0, -400 * dt)
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    canvas.burst_at(enemy, radius=40)
+    shot.destroy()
+    enemy.destroy()
+    st.score += 1
+
+
+@collide("enemy_shots", ship)
+def hit(shot, ship):
+    shot.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(ship, amount=1.2)
+    ship.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def update(dt):",
+          text: "The <code>update</code> reads the arrows, moves the ship, holds the fence, creates the shots, moves the shots on both sides, moves the fleet and turns the fleet at the edges. Everything that happens every frame, to everyone, lives in one function."
+        },
+        {
+          at: "if ship:",
+          text: "This check exists because <code>update</code> does not know whether the ship is still in the game: after the <code>destroy</code>, telling the ship to move would be an error."
+        }
+      ],
+      after: `
+        <p>In a bigger game, with lives, a shield and a boss, that function turns into a list nobody can read. The way out is the one from the bubbles: each kind of thing in the game gets a class and carries its own behavior. The shot knows how to rise, the enemy knows how to pulse and explode, the ship knows how to read the arrows.</p>
+      `
+    },
+    {
+      title: "The first class: Shot",
+      body: [
+        `
+        <p>The shot is the simplest: it is born and it rises. Right now, being born is in <code>update</code>, and so is rising, on the <code>group["shots"].move_by</code> line. A class brings the two together in one place:</p>
+        `,
+        {
+          snip: `class Shot(Sprite, source="space/laserBlue03.png", height=28, group="shots"):`
+        },
+        `
+        <p>It is <code>Bubble</code> again, now starting from a <code>Sprite</code>. After the comma come the defaults of every shot: the image (<code>source</code>), the height and the group, the same parameters <code>Sprite(…)</code> used to get. That is why making a shot got short. Before, in <code>update</code>:</p>
+        `,
+        {
+          snip: `Sprite("space/laserBlue03.png", height=28, center=(ship.center.x, ship.center.y + 28), group="shots")`,
+          alt: true
+        },
+        `
+        <p>Now, only where:</p>
+        `,
+        {
+          snip: `Shot(center=(ship.center.x, ship.center.y + 28))`
+        }
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+
+class Shot(Sprite, source="space/laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Sprite(
+            FLEET[row % 2],
+            height=40,
+            center=(185 + column * 90, 720 - row * 70),
+            group="enemies",
+        )
+        enemy.hue = column / 8
+        enemy.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    s = Sprite("space/laserRed01.png", height=28,
+           center=(enemy.center.x, enemy.center.y - 20), group="enemy_shots")
+    s.rotate_to(180)
+
+def update(dt):
+    if ship:
+        if keyp("LEFT"):
+            ship.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            ship.move_by(340 * dt, 0)
+        ship.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(ship.center.x, ship.center.y + 28))
+
+    group["enemy_shots"].move_by(0, -400 * dt)
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    canvas.burst_at(enemy, radius=40)
+    shot.destroy()
+    enemy.destroy()
+    st.score += 1
+
+
+@collide("enemy_shots", ship)
+def hit(shot, ship):
+    shot.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(ship, amount=1.2)
+    ship.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.move_by(0, 640 * dt)",
+          text: "Like the bubble, the shot rises in its <code>on_update</code>: “this shot rises 640 units per second”. With ten shots on screen, Scena calls it ten times per frame, each time with its own <code>self</code>."
+        }
+      ],
+      after: `
+        <p>Run it and hold space: the shots rise as before. The <code>group["shots"].move_by</code> line left <code>update</code>. Nothing changed on screen; what changed is who looks after the shot.</p>
+      `
+    },
+    {
+      title: "The fleet's shot and the enemy",
+      body: `
+        <p>Two more classes, the same way: the fleet's laser and the enemy.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+
+class Shot(Sprite, source="space/laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source="space/laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+ship = Sprite("space/playerShip1_red.png", height=45, center=(500, 70))
+ship.glow = True
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(FLEET[row % 2], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    if ship:
+        if keyp("LEFT"):
+            ship.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            ship.move_by(340 * dt, 0)
+        ship.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(ship.center.x, ship.center.y + 28))
+
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    canvas.burst_at(enemy, radius=40)
+    shot.destroy()
+    enemy.destroy()
+    st.score += 1
+
+
+@collide("enemy_shots", ship)
+def hit(shot, ship):
+    shot.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(ship, amount=1.2)
+    ship.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "class EnemyShot(",
+          text: "The fleet's laser drops 400 units per second in its <code>on_update</code>, and the group line leaves <code>update</code>."
+        },
+        {
+          at: "self.rotate_to(180)",
+          text: "The red laser needs a half turn right after it is created. In the class, that goes in <code>setup</code>, like the bubble's speed: once, when the shot is born."
+        },
+        {
+          at: "class Enemy(",
+          text: "The image is not on the class line, because it changes from one row of the fleet to the next. And there is no <code>on_update</code>: an enemy does not move on its own; the whole fleet moves."
+        },
+        {
+          at: "self.scale_to(1.08",
+          text: "The pulse goes into <code>setup</code>: every enemy starts breathing when it is born."
+        },
+        {
+          at: "enemy.hue = column / 8",
+          text: "The color stays in the loop. It depends on the column, and only the loop knows the column."
+        },
+        {
+          at: "EnemyShot(center=(enemy.center.x",
+          text: "<code>fleet_fires</code> is down to one line: the rest belongs to the class."
+        }
+      ],
+      after: `
+        <p>Run it: the game is the same. Notice what went into the classes and what stayed outside:</p>
+        <div class="tbl"><table><thead><tr><th>In the class: each one's own</th><th>Outside: the group's</th></tr></thead><tbody>
+          <tr><td>the laser dropping</td><td>which enemy fires</td></tr>
+          <tr><td>the laser turning around when born</td><td>each enemy's place in the grid</td></tr>
+          <tr><td>the enemy pulsing</td><td>the color per column</td></tr>
+        </tbody></table></div>
+        <p>That is the rule of this tutorial: what each object does by itself goes into its class; what depends on the whole group stays outside.</p>
+      `,
+      try: [
+          {
+            note: "A longer fleet laser, just this one: what the creation passes wins over the class line. In <code>fleet_fires</code>, in place of the <code>EnemyShot</code> line.",
+            code: `EnemyShot(center=(enemy.center.x, enemy.center.y - 20), height=44)`
+          }
+        ]
+    },
+    {
+      title: "The hero",
+      body: `
+        <p>The ship is left. Everything <code>update</code> did with it goes into the <code>Hero</code> class: the arrows, the fence and the shot, in <code>on_update</code>; the glow, in <code>setup</code>. Where it said <code>ship</code>, it now says <code>self</code>.</p>
+      `,
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+
+class Shot(Sprite, source="space/laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source="space/laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+
+class Hero(Sprite, source="space/playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(FLEET[row % 2], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+@collide("shots", "enemies")
+def struck(shot, enemy):
+    canvas.burst_at(enemy, radius=40)
+    shot.destroy()
+    enemy.destroy()
+    st.score += 1
+
+
+@collide("enemy_shots", ship)
+def hit(shot, ship):
+    shot.destroy()
+    canvas.flash(0.4)
+    canvas.explosion_at(ship, amount=1.2)
+    ship.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ship = Hero(center=(500, 70))",
+          text: "The ship is born from the class. The <code>ship</code> variable stays because the collision at the end of the file still uses it."
+        },
+        {
+          at: "def update(dt):",
+          text: "All that is left in <code>update</code> is the fleet: moving the group and turning at the edges. That belongs to no single enemy: the fleet turns when <em>any</em> of its ships touches the edge, and they all turn together."
+        }
+      ],
+      after: `
+        <p>Let a red laser hit the ship: it explodes and the game goes on, with no error.</p>
+        <details class="ask"><summary>The <code>if ship:</code> is gone. Why isn't it missed?</summary><p>It existed because, after the <code>destroy</code>, <code>update</code> kept running and told the ship to move. With the class, Scena only calls <code>on_update</code> for objects that are in the game: a destroyed ship stops getting the call, by itself. That is the most concrete reason to use classes: each one looks after itself, and whoever has left the game stops.</p></details>
+      `
+    },
+    {
+      title: "The collision lives in the class",
+      body: [
+        `
+        <p>The two collision functions are still loose at the end of the file. The reaction of whoever is hit can live in the class of whoever is hit:</p>
+        `,
+        {
+          snip: `@collide_with("shots")
+def was_hit(self, shot):`
+        },
+        `
+        <p><code>@collide_with</code>, on top of a function inside the class, tells Scena: when <em>this</em> object touches anyone in the group in parentheses, run this. The function receives <code>self</code> and the other one, here the shot. It replaces the loose function, which watched the pair from outside, two groups, whoever they were:</p>
+        `,
+        {
+          snip: `@collide("shots", "enemies")
+def struck(shot, enemy):`,
+          alt: true
+        },
+        `
+        <p>Both ways of writing it work. Choose the one that best says whose reaction it is: exploding belongs to the enemy, losing the ship belongs to the hero.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+
+class Shot(Sprite, source="space/laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source="space/laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        canvas.burst_at(self, radius=40)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class Hero(Sprite, source="space/playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(FLEET[row % 2], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "canvas.burst_at(self, radius=40)",
+          text: "The body of the old <code>struck</code>, with <code>self</code> in place of <code>enemy</code>."
+        },
+        {
+          at: "@collide_with(\"enemy_shots\")",
+          text: "In <code>Hero</code>, the same for the old <code>hit</code>: losing the ship is the ship's reaction."
+        }
+      ],
+      after: `
+        <p>Run it: the game is the same, and the two loose functions at the end of the file are gone.</p>
+      `
+    },
+    {
+      title: "The thruster",
+      example: "ships_2_classes.py",
+      body: [
+        `
+        <p>The code is organized. Now a new piece, which the class makes easy: a <strong>thruster</strong>, a jet of fire behind the ship that moves with it.</p>
+        <p><code>Jet</code> is an effect that lives in a place in the world, like an object, aimed by a point and an angle:</p>
+        `,
+        {
+          snip: `self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                     angle=270, length=40, width=16, amount=2)`
+        },
+        `
+        <div class="tbl"><table><thead><tr><th>On the line</th><th>What it does</th></tr></thead><tbody>
+          <tr><td><code>origin</code></td><td>the point the jet comes out of</td></tr>
+          <tr><td><code>angle=270</code></td><td>where it points: 0 is right, 90 is up, 270 is down</td></tr>
+          <tr><td><code>length=40</code>, <code>width=16</code></td><td>the size of the jet, in units</td></tr>
+          <tr><td><code>amount=2</code></td><td>the strength of the fire</td></tr>
+        </tbody></table></div>
+        <p>The origin is a <code>lambda</code>: <code>(self.center.x, self.center.y - 22)</code> is always the back of <em>this</em> ship, 22 units below its center. The ship moves and the jet goes along, without a single line in <code>on_update</code>.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=800, title="Ships")
+Wallpaper(Gradient("dark dark blue", "black", angle=90))
+Stars(pan_response=0.0, scroll=(0.0, -38.0))
+Grain()
+Bloom()
+Scanlines()
+
+st.score = 0
+st.pace = 80
+
+scoreboard = Text(text="", top_left=(20, 780), font_size=20)
+scoreboard["text"] @= lambda: f"Score {st.score}"
+
+
+class Shot(Sprite, source="space/laserBlue03.png", height=28, group="shots"):
+    def on_update(self, dt):
+        self.move_by(0, 640 * dt)
+
+
+class EnemyShot(Sprite, source="space/laserRed01.png", height=28, group="enemy_shots"):
+    def setup(self):
+        self.rotate_to(180)
+
+    def on_update(self, dt):
+        self.move_by(0, -400 * dt)
+
+
+class Enemy(Sprite, height=40, group="enemies"):
+    def setup(self):
+        self.scale_to(1.08, time=0.45, loops="forever", yoyo=True)
+
+    @collide_with("shots")
+    def was_hit(self, shot):
+        canvas.burst_at(self, radius=40)
+        shot.destroy()
+        self.destroy()
+        st.score += 1
+
+
+class Hero(Sprite, source="space/playerShip1_red.png", height=45):
+    def setup(self):
+        self.glow = True
+        self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                             angle=270, length=40, width=16, amount=2)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.move_by(-340 * dt, 0)
+        if keyp("RIGHT"):
+            self.move_by(340 * dt, 0)
+        self.confine(canvas.game_view.inset(40))
+
+        if keyp("SPACE") and ready("shot", 0.2):
+            Shot(center=(self.center.x, self.center.y + 28))
+
+    @collide_with("enemy_shots")
+    def was_hit(self, shot):
+        shot.destroy()
+        canvas.flash(0.4)
+        canvas.explosion_at(self, amount=1.2)
+        self.destroy()
+
+    def on_destroy(self):
+        self.thruster.destroy()
+
+
+ship = Hero(center=(500, 70))
+
+FLEET = ["space/enemyGreen1.png", "space/enemyBlue2.png"]
+for row in range(3):
+    for column in range(8):
+        enemy = Enemy(FLEET[row % 2], center=(185 + column * 90, 720 - row * 70))
+        enemy.hue = column / 8
+
+
+@every(0.4)
+def fleet_fires():
+    if group["enemies"].count == 0:
+        return
+    enemy = choice(group["enemies"])
+    EnemyShot(center=(enemy.center.x, enemy.center.y - 20))
+
+
+def update(dt):
+    group["enemies"].move_by(st.pace * dt, 0)
+
+    for enemy in group["enemies"]:
+        if enemy.center.x > 960:
+            st.pace = -80
+        if enemy.center.x < 40:
+            st.pace = 80
+
+
+@leave_playfield("shots", "enemy_shots")
+def gone(shot):
+    shot.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "self.thruster = Jet(",
+          text: "The jet is born in <code>setup</code> and is kept in <code>self.thruster</code>, a field of the ship: that is how the ship finds it later."
+        },
+        {
+          at: "def on_destroy(self):",
+          text: "The jet is an object in the game, not a piece of the ship's image: destroying the ship does not destroy it. <code>on_destroy</code> is called once, from inside <code>destroy</code>, and removes the thruster."
+        }
+      ],
+      after: `
+        <p>Run it and move sideways: the jet follows the ship.</p>
+        <details class="ask"><summary>And without <code>on_destroy</code>?</summary><p>The ship explodes, and the jet stays lit, alone, where the ship was.</p></details>
+      `,
+      try: [
+          {
+            note: "Another jet, in place of the one in <code>setup</code>: longer, wider, stronger and a different color.",
+            code: `self.thruster = Jet(origin=lambda: (self.center.x, self.center.y - 22),
+                     angle=270, length=60, width=22, amount=3, color="cyan")`
+          },
+          {
+            note: "A jet that shows the speed: strong when the ship moves, weak when it stops. In <code>Hero</code>'s <code>on_update</code>, after the arrows. <code>or</code>: either one is enough; <code>else</code>: what runs when the <code>if</code> does not hold.",
+            code: `if keyp("LEFT") or keyp("RIGHT"):
+    self.thruster.amount = 3
+else:
+    self.thruster.amount = 1`
+          },
+          {
+            note: "Other effects in the world, one at a time, in place of the <code>Jet</code>: <code>Fire</code> with <code>style=\"plume\"</code> is a flame that points toward <code>angle</code>; <code>Sparks</code> is a cloud of sparks around a point. In the Guide: <a href='../guide/index.html#desenhar-spatial'>SpatialFx</a>.",
+            code: `self.thruster = Fire(center=lambda: (self.center.x, self.center.y - 22),
+                      width=14, style="plume", angle=270)
+self.thruster = Sparks(center=lambda: (self.center.x, self.center.y - 22), radius=12)`
+          }
+        ],
+      closing: `
+        <p>Arrows move the ship. Space fires. The fleet breathes, sweeps back and forth and fires back. Now each thing looks after itself, and the ship carries a thruster.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>class Shot(Sprite, …)</code> — the class of a sprite: image, height and group on the class line; each creation only says where.</li>
+          <li><code>on_update</code> — only for objects in the game: a destroyed ship stops getting the call. That is why the <code>if ship:</code> is gone.</li>
+          <li><code>@collide_with</code> — the collision seen from inside the class: this object and the other one.</li>
+          <li><code>on_destroy</code> — called once by <code>destroy</code>; removes the object's parts.</li>
+          <li><code>Jet</code> — an effect that lives in a place in the world, aimed by a point and an angle.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#spr-class">Sprite class with defaults</a> · <a href="../guide/index.html#desenhar-entity">Entity</a> · <a href="../guide/index.html#col-method">@collide_with</a> · <a href="../guide/index.html#reagir-callbacks-entity">Entity callbacks</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a>.</p>
+        <p><strong>Next:</strong> the images move to a single sheet, the fleet explodes in frames, the game gets sound and the ship gets lives.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Make a new enemy class that zigzags down instead of staying in the fleet.</li>
+          <li>Can you make an enemy that takes two shots to go down? A field in the object keeps count of how many it has taken.</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
