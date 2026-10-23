@@ -29,6 +29,9 @@ Bug classes guarded:
   pressed while the pointer is pulled to the next target is a click
   elsewhere; a band select released after the pointer moved on selects
   nothing). Each tour ends with every value its timetable sets.
+* **A build-up step's input never reaches the step.** A step that needs
+  input to show its new part gets a short timetable; played without
+  drawing, each one changes what its step adds (``TestBuildupSteps``).
 * **A runner take stops after one run.** The corredor takes are several runs
   with SPACE between them; the record never goes down and grows past the
   first run.
@@ -47,6 +50,8 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 import pilots  # noqa: E402
 import takes as tk  # noqa: E402
+
+sys.path.insert(0, os.path.join(ROOT, "tools", "readme"))
 from test_record_game import _play  # noqa: E402
 
 
@@ -256,6 +261,52 @@ class TestWholeGames(unittest.TestCase):
                 r = _play(tid, 90, lambda ns, t: got.update(read(ns)))
                 self.assertTrue(r["done"])
                 self.assertEqual(got, want)
+
+
+class TestBuildupSteps(unittest.TestCase):
+    def _play(self, bid, n, read, every=None):
+        import random
+        import numpy as np
+        import buildup
+        import make_readme_media as mm
+        import record_game as rg
+        from program_support import ProgramRun  # type: ignore
+        b = tk.BUILDUPS[bid]
+        spec = buildup.step_spec(bid, n)
+        code = buildup.page_steps(b["page"], b.get("example"))[n - 1][2]
+        random.seed(n)
+        np.random.seed(n)
+        run = ProgramRun(b["program"], source=code, seed=n, draw=False)
+        seen = []
+        try:
+            run.start()
+            game, fly = mm.Pilot(run), rg.load_pilot(spec["pilot"])
+            for i in range(int(spec["seconds"] * 60)):
+                fly(game, i / 60, **spec["args"])
+                run.step(1)
+                if every and i % every == 0:
+                    seen.append(read(run.ns))
+            return seen or read(run.ns)
+        finally:
+            run.close(strict=False)
+
+    def test_inputs_reach_their_steps(self):
+        self.assertTrue(self._play("first_script", 13, lambda ns: ns["triangle"].color == "white"))
+        self.assertTrue(self._play("oscilloscope", 5, lambda ns: ns["st"].switched_on))
+        self.assertEqual(self._play("spinning_bars", 8,
+                                    lambda ns: (round(ns["st"].speed), round(ns["st"].spin_factor, 1))),
+                         (60, 2.0))
+        zooms = self._play("balls", 9, lambda ns: round(ns["canvas"].zoom, 2), every=30)
+        self.assertGreater(max(zooms), 1.4)
+        self.assertEqual(zooms[-1], 1.0, "zoomed in, then back out")
+
+    def test_space_halts_the_trip(self):
+        """Movement step 7: a click sends the ship, SPACE stops it short."""
+        path = self._play("movement", 7, lambda ns: (ns["ship"].center.x, ns["ship"].center.y),
+                          every=6)
+        halted = path[int(1.7 * 10) + 3]               # a moment after SPACE (1.7 s)
+        self.assertLess(halted[0], 815, "stopped before the target (820, 160)")
+        self.assertEqual(halted, path[int(2.5 * 10)], "and stays there until the next click")
 
 
 if __name__ == "__main__":

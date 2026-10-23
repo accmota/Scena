@@ -341,26 +341,40 @@ class TestBuildup(unittest.TestCase):
     def setUpClass(cls):
         import buildup
         cls.bu = buildup
-        cls.steps = {bid: buildup.page_steps(b["page"]) for bid, b in tk.BUILDUPS.items()}
+        cls.steps = {bid: buildup.page_steps(b["page"], b.get("example"))
+                     for bid, b in tk.BUILDUPS.items()}
 
     def test_steps_and_titles_come_from_the_page(self):
-        first = self.steps["primeiro_script"]
+        first = self.steps["first_script"]
         self.assertEqual([n for n, _, _ in first], list(range(1, len(first) + 1)))
         self.assertTrue(all(title for _, title, _ in first))
-        self.assertEqual(first[0][1], "A janela")
+        self.assertEqual(first[0][1], "The window")
         self.assertIn("run()", first[-1][2])
+        self.assertEqual(self.bu.step_word(tk.BUILDUPS["first_script"]["page"]), "Step")
+        self.assertEqual(self.bu.step_word("docs/pt/tutorial/01-primeiro-script.html"), "Passo")
+
+    def test_a_page_with_two_programs_splits(self):
+        """30-spins ends in the bars, then the oscilloscope: each build-up gets
+        its own steps, numbered from 1."""
+        bars, osc = self.steps["spinning_bars"], self.steps["oscilloscope"]
+        page = len(self.bu.page_steps(tk.BUILDUPS["oscilloscope"]["page"]))
+        self.assertEqual(len(bars) + len(osc), page)
+        self.assertIn("spin_factor", bars[-1][2])
+        self.assertEqual(osc[0][0], 1)
+        self.assertNotIn("spin_factor", osc[0][2])
+        self.assertIn("switched_on", osc[-1][2])
 
     def test_marks_what_a_step_adds_or_changes(self):
-        steps = self.steps["primeiro_script"]
-        before, after = steps[2][2], steps[3][2]          # 3 Três formas -> 4 Cor
+        steps = self.steps["first_script"]
+        before, after = steps[2][2], steps[3][2]          # 3 Three shapes -> 4 Color
         shown = __import__("record_game").program_code(after).splitlines()
         marked = [shown[k].strip() for k in self.bu.new_lines(before, after)]
-        self.assertEqual(marked, ['retangulo.color = "coral"', 'circulo.color = "#FF83FA"',
-                                  'triangulo.color = "gold"'])
+        self.assertEqual(marked, ['rectangle.color = "coral"', 'circle.color = "#FF83FA"',
+                                  'triangle.color = "gold"'])
         first = steps[0][2]
         self.assertEqual(len(self.bu.new_lines("", first)),
                          sum(1 for line in first.splitlines() if line.strip()))
-        same = self.steps["pegar_estrelas"]                # 7 Além da tela changes no code
+        same = self.steps["catch_stars"]                   # 7 Off the screen: no new code
         self.assertEqual(self.bu.new_lines(same[5][2], same[6][2]), [])
 
     def test_every_step_spec_is_a_step_with_a_pilot(self):

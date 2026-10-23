@@ -504,7 +504,10 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   gets a short timetable). One clip per step, joined by ffmpeg without
   re-encoding into `recordings/buildup/<id>.mp4`. An edited tutorial step
   is in the next build-up with no edit here; a step added or moved shifts
-  the numbers in `BUILDUPS`.
+  the numbers in `BUILDUPS`. Build-ups read the English pages
+  (`docs/en/tutorial/`, "Step N"; a Portuguese page says "Passo N"). A page
+  that ends in two programs (`30-spins`: the bars, then the oscilloscope)
+  gives each build-up its own steps (`example=`), numbered from 1.
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

@@ -223,43 +223,94 @@ TAKES = {
 
 
 # Build-up videos (``buildup.py``): a tutorial's steps one after another, each
-# step's code beside the step running. ``steps``: per step (from 1) a pilot,
-# its args and seconds; a step not listed plays 4 s with no input.
-_RIGHT = (("hold", 1.0, 3.0, "RIGHT"),)
+# step's code beside the step running, from the English pages. ``steps``: per
+# step (from 1) a pilot, its args and seconds; a step not listed plays 4 s
+# with no input. ``example``: on a page that ends in two programs, whose steps.
+_EN = "docs/en/tutorial/"
+_BAR = dict(paddle="bar", group="stars", fall=220, speed=380, half=56)
+_SWEEP = (("hold", 0.5, 1.5, "LEFT"), ("hold", 1.5, 3.3, "RIGHT"), ("hold", 3.3, 4.0, "LEFT"))
+_SWEEP_FIRE = _SWEEP + (("hold", 0.6, 4.2, "SPACE"),)
+_LONG_SWEEP_FIRE = (("hold", 0.4, 1.6, "LEFT"), ("hold", 1.6, 3.8, "RIGHT"),
+                    ("hold", 3.8, 5.4, "LEFT"), ("hold", 5.4, 6.4, "RIGHT"),
+                    ("hold", 0.5, 6.6, "SPACE"))
+_TRIPS = (("click", 1.0, (750, 220)), ("click", 2.6, (250, 500)), ("click", 4.2, (620, 560)))
+
+
+def _tour(seconds, *script):
+    return dict(pilot="tour", seconds=seconds, args=dict(script=script))
+
+
 BUILDUPS = {
-    "primeiro_script": dict(page="docs/pt/tutorial/01-primeiro-script.html",
-                            program="examples/primeiro_script.py", steps={
+    "first_script": dict(page=_EN + "01-first-script.html", program="examples/first_script.py",
+                         steps={
         1: dict(seconds=3.0), 2: dict(seconds=3.0),
         5: dict(seconds=4.5),                    # the looks animate
         7: dict(seconds=4.5),                    # the star moves by itself
-        8: dict(pilot="tour", seconds=5.0, args=dict(script=_RIGHT)),
-        9: dict(pilot="tour", seconds=5.0, args=dict(script=(
-            ("hold", 0.8, 1.4, "RIGHT"), ("hold", 1.4, 2.0, "UP"),
-            ("hold", 2.0, 2.6, "LEFT"), ("hold", 2.6, 3.2, "DOWN")))),
-        10: dict(pilot="tour", seconds=5.5, args=dict(script=(
-            ("click", 1.5, "@triangulo"), ("click", 2.7, "@triangulo"),
-            ("click", 3.9, "@triangulo")))),
-        11: dict(pilot="tour", seconds=6.0, args=dict(script=(
-            ("click", 1.4, "@retangulo"), ("click", 2.4, "@circulo"),
-            ("click", 3.4, "@triangulo"), ("click", 4.4, "@circulo")))),
-        12: dict(pilot="tour", seconds=6.0, args=dict(script=(
-            ("glide", 0.3, 1.0, (620, 610)), ("key", 1.1, "D"),
-            ("glide", 1.3, 1.9, (770, 530)), ("key", 2.0, "D"),
-            ("glide", 2.2, 2.8, (890, 620)), ("key", 2.9, "D"),
-            ("glide", 3.1, 3.7, (850, 330)), ("key", 3.8, "D")))),
-        13: dict(pilot="tour", seconds=5.0, args=dict(script=(
-            ("hold", 1.0, 2.4, "RIGHT"),))),     # past x = 800: the @when fires
+        8: _tour(5.0, ("hold", 1.0, 3.0, "RIGHT")),
+        9: _tour(5.0, ("hold", 0.8, 1.4, "RIGHT"), ("hold", 1.4, 2.0, "UP"),
+                 ("hold", 2.0, 2.6, "LEFT"), ("hold", 2.6, 3.2, "DOWN")),
+        10: _tour(5.5, ("click", 1.5, "@triangle"), ("click", 2.7, "@triangle"),
+                  ("click", 3.9, "@triangle")),
+        11: _tour(6.0, ("click", 1.4, "@rectangle"), ("click", 2.4, "@circle"),
+                  ("click", 3.4, "@triangle"), ("click", 4.4, "@circle")),
+        12: _tour(6.0, ("glide", 0.3, 1.0, (620, 610)), ("key", 1.1, "D"),
+                  ("glide", 1.3, 1.9, (770, 530)), ("key", 2.0, "D"),
+                  ("glide", 2.2, 2.8, (890, 620)), ("key", 2.9, "D"),
+                  ("glide", 3.1, 3.7, (850, 330)), ("key", 3.8, "D")),
+        13: _tour(5.0, ("hold", 1.0, 2.4, "RIGHT")),   # past x = 800: the @when fires
     }),
-    "pegar_estrelas": dict(page="docs/pt/tutorial/02-pegar-estrelas.html",
-                           program="examples/pegar_estrelas.py", steps={
-        1: dict(pilot="tour", seconds=4.5, args=dict(script=(
-            ("hold", 0.8, 1.8, "LEFT"), ("hold", 2.2, 3.6, "RIGHT")))),
+    "catch_stars": dict(page=_EN + "02-catch-stars.html", program="examples/catch_stars.py",
+                        steps={
+        1: _tour(4.5, ("hold", 0.8, 1.8, "LEFT"), ("hold", 2.2, 3.6, "RIGHT")),
         2: dict(seconds=4.5),                    # one star falls
         3: dict(seconds=4.5), 4: dict(seconds=5.0), 5: dict(seconds=5.0),
-        **{n: dict(pilot="catch_falling", seconds=secs,
-                   args=dict(_PEGAR, miss=miss, seed=n))
+        **{n: dict(pilot="catch_falling", seconds=secs, args=dict(_BAR, miss=miss, seed=n))
            for n, secs, miss in ((6, 7.0, 0.1), (7, 5.0, 0.1), (8, 5.0, 0.2),
                                  (9, 7.0, 0.3), (10, 8.0, 0.3))},
+    }),
+    "movement": dict(page=_EN + "12-movement.html", program="examples/movement.py", steps={
+        1: _tour(4.0, ("click", 1.0, (750, 220)), ("click", 2.5, (250, 500))),   # jumps there
+        **{n: _tour(5.5, *_TRIPS) for n in (2, 3, 4, 5, 6)},   # time, speed, ease, face, ring
+        7: _tour(6.0, ("click", 1.0, (820, 160)), ("key", 1.7, "SPACE"),         # halted
+                 ("click", 2.6, (200, 560)), ("click", 4.3, (850, 500))),
+        8: _tour(7.0, ("path", 0.8, 4.4, "orbit", (500, 350, 280, 180, 0.3)),
+                 ("rpress", 1.0, 4.2),           # the right button: follow the mouse
+                 ("click", 5.2, (300, 220))),
+    }),
+    "ships_1": dict(page=_EN + "05-ships.html", program="examples/ships_1.py", steps={
+        **{n: _tour(4.5, *_SWEEP) for n in (1, 2, 3, 4)},
+        **{n: _tour(4.5, *_SWEEP_FIRE) for n in (5, 6, 7)},
+        8: dict(seconds=4.0), 9: dict(seconds=4.0), 10: dict(seconds=4.0),
+        11: dict(seconds=5.0), 12: dict(seconds=5.0),          # the fleet moves
+        **{n: _tour(7.0, *_LONG_SWEEP_FIRE) for n in (13, 14, 15, 16)},
+    }),
+    "ninja_1_run": dict(page=_EN + "18-ninja.html", program="examples/ninja_1_run.py", steps={
+        1: dict(seconds=3.0), 2: dict(seconds=3.0),            # gravity: it falls away
+        3: dict(seconds=3.5),                                  # the floor holds
+        4: _tour(4.5, ("hold", 0.6, 2.4, "RIGHT"), ("hold", 2.8, 3.8, "LEFT")),
+        **{n: _tour(6.0, ("hold", 0.5, 4.0, "RIGHT"), ("key", 1.0, "UP"),
+                    ("key", 2.3, "UP"), ("hold", 4.3, 5.4, "LEFT"), ("key", 4.6, "UP"))
+           for n in (5, 6)},
+    }),
+    "balls": dict(page=_EN + "10-balls.html", program="examples/balls.py", steps={
+        1: dict(seconds=3.0),
+        **{n: dict(seconds=4.5) for n in (2, 3, 4, 5, 6, 7)},
+        8: dict(seconds=6.0),                                  # the stroke grows
+        9: _tour(6.0, ("glide", 0.3, 0.9, (500, 360)),
+                 *[("scroll", 1.0 + 0.2 * k, 1) for k in range(5)],
+                 *[("scroll", 3.2 + 0.2 * k, -1) for k in range(5)]),
+        10: dict(seconds=6.0),
+    }),
+    "spinning_bars": dict(page=_EN + "30-spins.html", example="spinning_bars.py",
+                          program="examples/spinning_bars.py", steps={
+        8: _tour(6.0, ("drag", "Speed", 26, 60, 1.0, 2.0), ("drag", "Spin", -1.5, 2.0, 2.6, 3.6),
+                 ("key", 4.4, "M")),
+    }),
+    "oscilloscope": dict(page=_EN + "30-spins.html", example="oscilloscope.py",
+                         program="examples/oscilloscope.py", steps={
+        5: _tour(4.5, ("click", 1.2, "@ball")),               # the click switches it on
+        6: _tour(7.0, ("click", 1.0, "@ball"), ("drag", "tx1", 6, 2, 2.0, 3.0),
+                 ("drag", "ty1", 6, -3, 3.5, 4.5), ("drag", "n", 4, 2, 5.0, 6.0)),
     }),
 }
 

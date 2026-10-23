@@ -1024,6 +1024,7 @@ def tour(game, t, *, script=(), end=30.0, glide=0.8):
                                            ("orbit" / "eight"; rate: turns/s)
       ("glide", start, stop, target)       the pointer moves there
       ("press", start, stop)               the button held (wherever it is)
+      ("rpress", start, stop)              the right button held
       ("carry", start, stop, target, (x, y))  grab a target, carry it there
       ("key", time, key) / ("hold", start, stop, key)
       ("scroll", time, dy)                 the wheel
@@ -1033,7 +1034,7 @@ def tour(game, t, *, script=(), end=30.0, glide=0.8):
     """
     m = memo(game)
     game.cursor = True
-    point, held_at, down, keys = None, None, False, []
+    point, held_at, down, rdown, keys = None, None, False, False, []
     for ev in script:
         kind = ev[0]
         if kind == "path" and ev[1] <= t <= ev[2]:
@@ -1070,6 +1071,8 @@ def tour(game, t, *, script=(), end=30.0, glide=0.8):
                 down = True
         elif kind == "press" and ev[1] <= t < ev[2]:
             down = True
+        elif kind == "rpress" and ev[1] <= t < ev[2]:
+            rdown = True
         elif kind == "key" and at(t, ev[1], 3):
             keys.append(ev[2])
         elif kind == "hold" and ev[1] <= t < ev[2]:
@@ -1090,6 +1093,11 @@ def tour(game, t, *, script=(), end=30.0, glide=0.8):
     elif not down and m.get("down"):
         game.release()
     m["down"] = down
+    if rdown and not m.get("rdown"):
+        game.run.press(*game._at, "right")
+    elif not rdown and m.get("rdown"):
+        game.run.release("right")
+    m["rdown"] = rdown
     game.hold(*keys)
     if t >= end:
         game.done = True
