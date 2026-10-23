@@ -56,6 +56,77 @@ POS_BUDGET = 0.5             # DU per event
 
 # -- E3 -------------------------------------------------------------------------
 
+def _spread_runs(make_runs, paths, limit, frames=600):
+    """Every run of every script on one pool, then each script judged: a
+    script with many twins no longer holds one slot for all of them (WP31:
+    ninja_5_espada's 37 E15 runs timed a gate job out on a slower machine).
+    An error in any run of a script is that script's one message."""
+    plans, tasks, out = [], [], []
+    for path in paths:
+        name = os.path.basename(path)
+        try:
+            runs, judge = make_runs(path, frames, limit=limit)
+        except Exception as e:  # noqa: BLE001
+            out.append(f"{name}: {type(e).__name__}: {str(e)[-300:]}")
+            continue
+        plans.append((name, judge, len(tasks), len(runs)))
+        tasks += runs
+    # The runs of the longest scripts first, so none of them starts last.
+    size = [0] * len(tasks)
+    for _name, _judge, start, n in plans:
+        size[start:start + n] = [n] * n
+    order = sorted(range(len(tasks)), key=lambda k: -size[k])
+
+    def go(k):
+        try:
+            return tasks[k](), None
+        except Exception as e:  # noqa: BLE001
+            return None, f"{type(e).__name__}: {str(e)[-300:]}"
+
+    results = [None] * len(tasks)
+    with ThreadPoolExecutor(max(2, min(8, (os.cpu_count() or 4) - 1))) as pool:
+        for k, res in zip(order, pool.map(go, order)):
+            results[k] = res
+    for name, judge, start, n in plans:
+        mine = results[start:start + n]
+        errors = [err for _got, err in mine if err]
+        if errors:
+            out.append(f"{name}: {errors[0]}")
+        else:
+            out += judge([got for got, _err in mine])
+    return out
+
+
+class TestSpreadRuns(unittest.TestCase):
+    """``_spread_runs`` hands each script's judge its own results, in its own
+    order, whatever order the pool ran them in; an error stays its script's."""
+
+    def test_each_judge_gets_its_runs_in_order(self):
+        def make(path, frames, limit=None):
+            n = {"a.py": 3, "b.py": 1, "c.py": 0, "d.py": 2}[path]
+            runs = [lambda path=path, i=i: (path, i) for i in range(n)]
+            return runs, lambda results, path=path: [f"{path}: {results}"]
+
+        out = _spread_runs(make, ["a.py", "b.py", "c.py", "d.py"], None)
+        self.assertEqual(out, ["a.py: [('a.py', 0), ('a.py', 1), ('a.py', 2)]",
+                               "b.py: [('b.py', 0)]", "c.py: []",
+                               "d.py: [('d.py', 0), ('d.py', 1)]"])
+
+    def test_an_error_is_its_scripts_message(self):
+        def make(path, frames, limit=None):
+            if path == "bad_plan.py":
+                raise OSError("no folder")
+
+            def boom():
+                raise ValueError("twin broke")
+            runs = [lambda: 1, boom] if path == "bad_run.py" else [lambda: 1]
+            return runs, lambda results: []
+
+        out = _spread_runs(make, ["ok.py", "bad_plan.py", "bad_run.py"], None)
+        self.assertEqual(out, ["bad_plan.py: OSError: no folder",
+                               "bad_run.py: ValueError: twin broke"])
+
+
 class TestSpawnOrder(unittest.TestCase):
     def test_shooter_twin(self):
         self.assertEqual(eq.e3_program(f"{TWINS}/shooter_order", WAIT, "wait"), [])
@@ -69,17 +140,7 @@ class TestSpawnOrder(unittest.TestCase):
         self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
     def test_examples(self):
-        paths = scripts()
-        limit = None if FULL else 1
-
-        def one(path):
-            try:
-                return eq.e3_script(path, 600, limit=limit)
-            except Exception as e:  # noqa: BLE001
-                return [f"{os.path.basename(path)}: {type(e).__name__}: {str(e)[-300:]}"]
-
-        with ThreadPoolExecutor(max(2, min(8, (os.cpu_count() or 4) - 1))) as pool:
-            out = [m for msgs in pool.map(one, paths) for m in msgs]
+        out = _spread_runs(eq.e3_script_runs, scripts(), None if FULL else 1)
         self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
 
@@ -100,17 +161,7 @@ class TestRuleNeutrality(unittest.TestCase):
         self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
     def test_examples(self):
-        paths = scripts()
-        limit = None if FULL else 1
-
-        def one(path):
-            try:
-                return eq.e15_script(path, 600, limit=limit)
-            except Exception as e:  # noqa: BLE001
-                return [f"{os.path.basename(path)}: {type(e).__name__}: {str(e)[-300:]}"]
-
-        with ThreadPoolExecutor(max(2, min(8, (os.cpu_count() or 4) - 1))) as pool:
-            out = [m for msgs in pool.map(one, paths) for m in msgs]
+        out = _spread_runs(eq.e15_script_runs, scripts(), None if FULL else 1)
         self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
 
