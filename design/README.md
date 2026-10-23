@@ -62,6 +62,7 @@ Folder map only — not a hop list. Open **only** if that folder is the task.
 | `tools/readme/` | `make_readme_media.py`: the clips `README.md` shows (`docs/assets/readme/`), recorded from the programs they show; `editor_ninja.py`, the level editor's clip program | Contributors |
 | `tools/video/` | `record_game.py`: gameplay videos with sound (60 fps, any size) for YouTube, rendered offline; `takes.py`, the shot list; `pilots.py`, pilots that play whole runs; `buildup.py`, a tutorial's steps one after another; output and review sheets in `recordings/` (git-ignored) | Contributors |
 | `tools/release/` | `make_examples_zip.py`: `scena-examples.zip` (the examples and only the media they use), zipped on a release from the list `examples_zip.txt` | Contributors |
+| `tools/media/` | `convert_music.py`: a folder of downloaded music to OGG Vorbis (~96 kbps, sample-exact) with plain file names, originals kept in `workbench/media_originals/`; needs `pip install soundfile` | Contributors |
 | `examples/` | Published beginner games; each tutorial ends in one of them | Authors |
 | `drafts/` | Private: game examples in development (a `media` link to `examples/media` lets them run). A game moves to `examples/` when it is ready | The maintainer |
 | `workbench/` | Private (below) | The maintainer |

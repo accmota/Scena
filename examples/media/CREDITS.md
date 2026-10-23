@@ -76,6 +76,47 @@ clouds-bank.png, clouds-low.png and vegetation_b.png modified for Scena.
 OGA-BY 3.0 is CC BY 3.0 without the clause against DRM: the same credit
 rules apply.
 
+### Music: CC-BY 3.0
+
+The tracks in `music/` were converted to OGG Vorbis and renamed; the credit
+says so.
+
+#### `music/battle_in_the_winter.ogg`
+
+```
+"Battle in the winter" by Johan Brodd
+https://opengameart.org/content/battle-in-the-winter
+Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Converted to OGG Vorbis.
+```
+
+#### `music/little_town_orchestral.ogg`
+
+```
+"The Adventure Begins" by Bart Kelsey
+https://opengameart.org/content/adventure-begins
+Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Converted to OGG Vorbis.
+```
+
+#### `music/space.ogg`
+
+```
+"Space (orchestral)" by lasercheese - https://soundcloud.com/laserost
+https://opengameart.org/content/space-orchestral
+Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Converted to OGG Vorbis.
+```
+
+#### `music/winds_of_stories.ogg`
+
+```
+"Winds Of Stories" by HorrorPen, after "The Field Of Dreams" by pauliuw
+https://opengameart.org/content/winds-of-stories
+Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Converted to OGG Vorbis.
+```
+
 ## Fonts: SIL OFL 1.1 and Apache 2.0
 
 The fonts in `fonts/` are free to use, embed and ship with any game,
@@ -124,7 +165,13 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `explosions/fireball/` | OpenGameArt | https://opengameart.org/content/fireball-effect-2 |
 | `ui/` | Kenney | https://www.kenney.nl ("UI Pack" 2.0, with its sounds in `ui/Sounds/`) |
 | `audio/Victory.mp3` | OpenGameArt | https://opengameart.org/content/victory |
-| `audio/SuperHero_original_no_Intro.ogg` | OpenGameArt | https://opengameart.org/content/adventure-theme |
+| `music/super_hero_original_no_intro.ogg` | Cleyton Kauffman | https://opengameart.org/content/adventure-theme |
+| `music/battle_theme_a.ogg`, `music/battle_theme_b.ogg`, `music/tyler_song3_normal.ogg`, `music/choir_chords_bass_master.ogg` | cynicmusic (cynicmusic.com, pixelsphere.org; would like to hear where his music is used) | links in `music/License.txt` |
+| `music/juhani_junkala_epic_boss_battle.ogg` | Juhani Junkala (SubspaceAudio) | https://opengameart.org/content/boss-battle-music |
+| `music/boss_main.ogg` | SketchyLogic | https://opengameart.org/content/nes-shooter-music-5-tracks-3-jingles |
+| `music/the_field_of_dreams.ogg` | pauliuw | https://opengameart.org/content/the-field-of-dreams |
+| `music/awesomeness.ogg` | mrpoly | https://opengameart.org/content/menu-music |
+| `music/vampires_piano.ogg` | TAD | https://opengameart.org/content/vampires-piano |
 | `audio/footstep_*`, `audio/impact*` | Kenney | https://www.kenney.nl ("Impact Sounds") |
 | `audio/explosion02.wav` | IdkMrGarcia | https://freesound.org/s/446625/ |
 | `audio/explosion04.wav` | Anomaex | https://freesound.org/s/490266/ |

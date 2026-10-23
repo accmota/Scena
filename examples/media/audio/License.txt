@@ -27,11 +27,6 @@ CC0 – https://opengameart.org/content/victory
 
 ---
 
-SuperHero_original_no_Intro.ogg
-CC0 — https://opengameart.org/content/adventure-theme
-
----
-
 footstep_carpet_002.ogg
 footstep_snow_001.ogg
 impactBell_heavy_000.ogg

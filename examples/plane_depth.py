@@ -37,7 +37,7 @@ st.score = 0
 st.flying = True
 st.pace = 120
 
-music = play_sound("audio/SuperHero_original_no_Intro.ogg", loops="forever", volume=0.5)
+music = play_sound("music/super_hero_original_no_intro.ogg", loops="forever", volume=0.5)
 
 scoreboard = Text(text="", top_left=(16, 346), font_size=18, color="navy")
 scoreboard["text"] @= lambda: f"Score {st.score}"

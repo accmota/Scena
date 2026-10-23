@@ -38,7 +38,6 @@ examples/letreiro.py
 examples/ligue4.py
 examples/media/CREDITS.md
 examples/media/audio/License.txt
-examples/media/audio/SuperHero_original_no_Intro.ogg
 examples/media/audio/Victory.mp3
 examples/media/audio/explosion01.wav
 examples/media/audio/explosion02.wav
@@ -153,6 +152,8 @@ examples/media/levels/ninja_perigos.json
 examples/media/levels/ninja_world.json
 examples/media/levels/race.json
 examples/media/levels/race_lightning.json
+examples/media/music/License.txt
+examples/media/music/super_hero_original_no_intro.ogg
 examples/media/ninja/Attack__000.png
 examples/media/ninja/Attack__001.png
 examples/media/ninja/Attack__002.png

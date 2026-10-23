@@ -1,0 +1,117 @@
+Music from OpenGameArt.org. Each track's license is listed below; full list
+and ready-to-copy credits: ../CREDITS.md.
+
+Every track was converted to OGG Vorbis (quality 2, about 96 kbps) and
+renamed for Scena by tools/media/convert_music.py (the OpenGameArt page of
+each track has the original file).
+
+  Creative Commons 0 — CC0
+  https://creativecommons.org/publicdomain/zero/1.0/
+  Copy, modify and distribute, even commercially, without asking and without
+  credit.
+
+  Creative Commons Attribution 3.0 — CC-BY 3.0
+  https://creativecommons.org/licenses/by/3.0/
+  Free to use and modify, even commercially, if you credit the author.
+
+---
+
+super_hero_original_no_intro.ogg
+"Adventure Theme" by Cleyton Kauffman
+https://opengameart.org/content/adventure-theme
+License: CC0. The author's notice: "Music by Cleyton Kauffman -
+https://soundcloud.com/cleytonkauffman"
+
+---
+
+battle_theme_a.ogg
+"Battle Theme A" by cynicmusic
+https://opengameart.org/content/battle-theme-a
+
+battle_theme_b.ogg
+"Battle Theme B for RPG" by cynicmusic
+https://opengameart.org/content/battle-theme-b-for-rpg
+
+tyler_song3_normal.ogg
+"Aquaria" by cynicmusic
+https://opengameart.org/content/aquaria
+
+choir_chords_bass_master.ogg
+"Epic Endgame Cinematic" by cynicmusic
+https://opengameart.org/content/epic-endgame-cinematic
+
+License: CC0. The author's notice: "cynicmusic.com pixelsphere.org". He
+asks to be told when his music is used ("I'd love to see your project").
+
+---
+
+juhani_junkala_epic_boss_battle.ogg
+"Boss Battle Music" by Juhani Junkala (SubspaceAudio); loops seamlessly
+https://opengameart.org/content/boss-battle-music
+License: CC0
+
+---
+
+boss_main.ogg
+From "NES Shooter Music (5 tracks, 3 jingles)" by SketchyLogic
+https://opengameart.org/content/nes-shooter-music-5-tracks-3-jingles
+License: CC0 ("Attribution is completely optional")
+
+---
+
+the_field_of_dreams.ogg
+"The Field Of Dreams" by pauliuw
+https://opengameart.org/content/the-field-of-dreams
+License: CC0
+
+---
+
+awesomeness.ogg
+"Menu Music" by mrpoly
+https://opengameart.org/content/menu-music
+License: CC0
+
+---
+
+vampires_piano.ogg
+"Vampire's Piano" by TAD
+https://opengameart.org/content/vampires-piano
+License: CC0
+
+---
+
+battle_in_the_winter.ogg
+"Battle in the winter" by Johan Brodd (jobromedia)
+https://opengameart.org/content/battle-in-the-winter
+License: CC-BY 3.0 — https://creativecommons.org/licenses/by/3.0/
+(also offered under OGA-BY 3.0 and GPL 3.0). The author's attribution:
+"Johan Brodd"
+
+---
+
+little_town_orchestral.ogg
+"The Adventure Begins" by Bart Kelsey (bart)
+https://opengameart.org/content/adventure-begins
+License: CC-BY 3.0 — https://creativecommons.org/licenses/by/3.0/
+(the author offers a choice: CC-BY 3.0, CC-BY-SA 3.0, GPL 2.0/3.0,
+LGPL 2.1/3.0; Scena uses it under CC-BY 3.0). He prefers to be credited as
+"Bart Kelsey".
+
+---
+
+space.ogg
+"Space (orchestral)" by lasercheese
+https://opengameart.org/content/space-orchestral
+License: CC-BY 3.0 — https://creativecommons.org/licenses/by/3.0/
+The author asks: "It would be nice with a hint to my soundcloud
+(https://soundcloud.com/laserost)"
+
+---
+
+winds_of_stories.ogg
+"Winds Of Stories" by HorrorPen, based on the melody of "The Field Of
+Dreams" by pauliuw (CC0)
+https://opengameart.org/content/winds-of-stories
+License: CC-BY 3.0 — https://creativecommons.org/licenses/by/3.0/
+The author: "I don't have any requirement on how I need to be
+attributed/cited, you can write whatever will suit :)"
