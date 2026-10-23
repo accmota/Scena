@@ -137,6 +137,9 @@ file does not exist.
   *held* / *on the frame it is pressed* (never "edge"), *channel* only for
   transients, *stage* (palco; always lowercase — capitalized "Stage" is the old
   package name, which `test_message_vocabulary` refuses), *a world with a floor*, *place* × *travel*.
+  Engine messages use the same words, since the Guide quotes them exactly:
+  `test_message_vocabulary` refuses "actor" and a field called "cell" in
+  `scena/` (sheet, grid and Endless cells are real cells).
   "Qual usar" says code runs as a *formula*, a *check* (pergunta) or an
   *event* (aviso); work that takes time is a *process* with an *owner*. A stamp
   is an *add-on* (section "Add-ons"). Jargon gets plain English: bake → *compute*

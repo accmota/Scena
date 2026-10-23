@@ -1042,7 +1042,7 @@ _FAMILY_KWARG_HINTS = {
         "graphic is placed by; turn it later with rotate_to / rotate_by)"
     ),
     "id": (
-        "Scena has no ids: keep the actor in a variable (player = …), or tag it "
+        "Scena has no ids: keep the object in a variable (player = …), or tag it "
         "with group=\"player\" and read group[\"player\"]"
     ),
 }

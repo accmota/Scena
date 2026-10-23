@@ -445,7 +445,7 @@ class TestFoundByTheMatrix(unittest.TestCase):
         for name, value in writes.items():
             with self.assertRaises(DestroyedError) as cm:
                 setattr(dead, name, value)
-            self.assertIn(f"Circle.{name} cannot change a destroyed actor",
+            self.assertIn(f"Circle.{name} cannot change a destroyed object",
                           str(cm.exception))
             self.assertNotIn("Circle.set", str(cm.exception))
 

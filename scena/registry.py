@@ -1787,8 +1787,8 @@ def _member_not_name(verb: str, item: str, where: str) -> str:
     """``"heroi" in group["wasp"]`` — a string is a tag, never a member."""
     use = f"ship in {where}" if verb == "in" else f"{where}.index(ship)"
     return (
-        f"{where} holds actors, not names: got {item!r}. Scena has no ids — "
-        f"pass the actor itself ({use}), or test a tag with ship.tagged({item!r})."
+        f"{where} holds objects, not names: got {item!r}. Scena has no ids — "
+        f"pass the object itself ({use}), or test a tag with ship.tagged({item!r})."
     )
 
 

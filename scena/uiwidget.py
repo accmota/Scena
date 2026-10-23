@@ -726,7 +726,7 @@ def _refuse_old_checked_spelling() -> None:
         text = linecache.getline(path, n).strip()
         raise TypeError(
             f"{os.path.basename(path)}:{n}: {text} — CheckBox.checked reads the "
-            f"bool now (True / False), as Slider.value does. The cell is "
+            f"bool now (True / False), as Slider.value does. The field is "
             f"box[\"checked\"]: write box[\"checked\"] @= … to link it, and "
             f"box.checked for the value."
         )
@@ -1238,9 +1238,9 @@ def _require_bound(cell, widget: str, example: str, *, takes_initial: bool = Tru
     call = f'{widget}(st["{example}"])'
     if cell is None:
         raise TypeError(
-            f"{widget}(None): to bind a cell, pass it with brackets: {call} "
+            f"{widget}(None): to bind a field, pass it with brackets: {call} "
             f"(st.{example} reads the value, here None). For a widget with "
-            f"no cell, leave the argument out."
+            f"no field, leave the argument out."
         )
     tail = (f" To set the starting value instead, write {widget}(initial={cell!r:.40})."
             if takes_initial and not hasattr(cell, "owner") else "")
@@ -1248,7 +1248,7 @@ def _require_bound(cell, widget: str, example: str, *, takes_initial: bool = Tru
         # ``Button("Contar")``: a text is the caption (persona probes R2-4).
         tail = (f" If {cell!r:.40} is the text shown on it, write "
                 f"{widget}(label={cell!r:.40}).") + tail
-    raise TypeError(f"{widget}(cell) binds a data cell: "
+    raise TypeError(f"{widget}(cell) binds a field: "
                     + unbound_value_hint(call, cell, example) + tail)
 
 
@@ -2370,7 +2370,7 @@ class TextInput(UIWidget):
         if isinstance(starting, bool):
             raise TypeError(
                 "TextInput cannot edit a True/False value. Use CheckBox for an "
-                "on/off cell."
+                "on/off field."
             )
         super().__init__(group=group, top_left=top_left)
         self._enabled = enabled
@@ -2424,7 +2424,7 @@ class TextInput(UIWidget):
         if not isinstance(value, str):
             raise TypeError(
                 f"TextInput.text takes a str, got {type(value).__name__} {value!r}. "
-                f"To set the value, write the cell (st.name = {value!r})."
+                f"To set the value, write the field (st.name = {value!r})."
             )
         self._text = str(value)   # a KeyName (on_key_down) is kept as a plain str
         n = len(value)
@@ -2542,7 +2542,7 @@ class TextInput(UIWidget):
         current = self.data.value
         try:
             if isinstance(current, bool):
-                raise ValueError("TextInput does not edit a True/False cell")
+                raise ValueError("TextInput does not edit a True/False field")
             if isinstance(current, int):
                 converted = int(raw)
             elif isinstance(current, float):

@@ -150,7 +150,7 @@ class TestDotReadIsTheValue(EngineCase):
         st.score = 0
         with self.assertRaises(AttributeError) as cm:
             st.scroe
-        self.assertIn("st has no cell 'scroe'", str(cm.exception))
+        self.assertIn("st has no field 'scroe'", str(cm.exception))
         self.assertIn("score", str(cm.exception))
 
     def test_bracket_is_the_cell(self):
@@ -189,7 +189,7 @@ class TestFormulasStillFindTheCell(EngineCase):
         c = self.track(Circle())
         with self.assertRaises(AttributeError) as cm:
             c["radius"] @= lambda: st.vidsa * 2
-        self.assertIn("has no cell 'vidsa'", str(cm.exception))
+        self.assertIn("has no field 'vidsa'", str(cm.exception))
 
 
 class TestInPlaceChanges(EngineCase):
@@ -339,7 +339,7 @@ class TestBindingSitesTakeTheCell(EngineCase):
         c = self.track(Circle())
         with self.assertRaises(TypeError) as cm:
             Slider(c["radius"])
-        self.assertIn("only a State cell binds here", str(cm.exception))
+        self.assertIn("only a st field binds here", str(cm.exception))
 
     def test_text_shows_a_cell_live_and_refuses_a_number(self):
         st = State(name="st")
@@ -406,7 +406,7 @@ class TestHeldVec2IsNotTheCell(EngineCase):
             call()
         msg = str(cm.exception)
         self.assertIn(bracket, msg)
-        self.assertIn("holds now, not the cell", msg)
+        self.assertIn("holds now, not the field", msg)
 
     def test_every_door_refuses_the_held_vec2(self):
         st = self.st

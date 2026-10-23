@@ -444,7 +444,7 @@ class Text(Graphic, PaintState):
                 # snapshot where the author meant the live cell.
                 raise TypeError(
                     f"Text({text!r}) takes a string: Text(\"{text}\") or "
-                    f"Text(str(n)). To show a st cell live, pass it with "
+                    f"Text(str(n)). To show a st field live, pass it with "
                     f"brackets: Text(st[\"score\"]) (st.score reads the value "
                     f"since 0.8.0), or a formula: Text(lambda: f\"Score {{st.score}}\")."
                 )

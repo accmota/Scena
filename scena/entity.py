@@ -538,7 +538,7 @@ def _class_hook_refusal(cls, name: str, raw, is_act: bool, who: str) -> Optional
                 f"a helper of your own needs another name."
             )
         return (
-            f"{who}.update{sig}: an actor's per-frame hook is "
+            f"{who}.update{sig}: an object's per-frame hook is "
             f"on_update(self, dt). update is reserved: it is the engine's own "
             f"recalculation of the object's linked fields. Rename it on_update "
             f"(a helper of your own needs another name)."
@@ -598,7 +598,7 @@ def _top_level_hook_message(who: str, name: str, is_act: bool) -> str:
             how = 'read the key in on_update(self, dt) with keyp.once("SPACE")'
         else:
             how = ("read the mouse in on_update(self, dt) (mouse.press(), mouse.x), "
-                   "or give the actor that is clicked an on_click(self)")
+                   "or give the object that is clicked an on_click(self)")
         return (
             f"{who}.{name} would never be called: the top-of-file input functions "
             f"do not run on an act. Instead, {how}."
@@ -607,16 +607,16 @@ def _top_level_hook_message(who: str, name: str, is_act: bool) -> str:
         how = 'read the key in on_update(self, dt) with keyp.once("SPACE")'
     elif name in ("on_mouse_click", "on_mouse_down", "on_mouse_up",
                   "on_mouse_double_click"):
-        how = "an actor's click hook is on_click(self)"
+        how = "an object's click hook is on_click(self)"
     elif name == "on_mouse_move":
-        how = "an actor's pointer hooks are on_hover(self) / on_hover_exit(self)"
+        how = "an object's pointer hooks are on_hover(self) / on_hover_exit(self)"
     elif name == "on_mouse_drag":
-        how = "make the actor draggable = True"
+        how = "make the object draggable = True"
     else:
         how = "read the mouse in on_update(self, dt)"
     return (
         f"{who}.{name} would never be called: it is a top-of-file function name, "
-        f"and the engine does not call it on an actor. Instead, {how}."
+        f"and the engine does not call it on an object. Instead, {how}."
     )
 
 
@@ -2438,12 +2438,12 @@ def _refuse_if_destroyed(obj, action: str) -> None:
         field = _dead_part_field(obj)
         shown = f"{field}.{shown}" if shown.endswith("()") else field
         base = (f"{type(host).__name__}.{shown} cannot change a destroyed "
-                f"actor")
+                f"object")
         if site:
             base = f"{base} ({site})"
         base = f"{base}. Guard the call: if {_dead_host_name(host, field, line)}:"
         raise DestroyedError(_destroyed_access_message(obj, base))
-    guard = "if actor:"
+    guard = "if obj:"
     if line:
         found = re.search(
             rf"([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*{re.escape(action)}\b",
@@ -2463,7 +2463,7 @@ def _refuse_if_destroyed(obj, action: str) -> None:
                 f"after change_act() runs on the act that is gone. Write "
                 f"change_act(...) last, or return right after it.")
         raise DestroyedError(_destroyed_access_message(obj, base))
-    base = f"{type(obj).__name__}.{shown} cannot change a destroyed actor"
+    base = f"{type(obj).__name__}.{shown} cannot change a destroyed object"
     if site:
         base = f"{base} ({site})"
     base = f"{base}. Guard the call: {guard}"
@@ -2612,7 +2612,7 @@ def _dead_host_name(host, field: str, line: str) -> str:
             linecache.getline(site[0], site[1]))
         if made:
             return made.group(1)
-    return "actor"
+    return "obj"
 
 
 def _ink_callable_message(owner, field: str, value) -> str:
@@ -4282,7 +4282,7 @@ class Graphic(Entity, ABC):
                    and not isinstance(value, bool) else "")
             raise TypeError(
                 f"{self.name}.vel expected a 2D velocity, got "
-                f"{type(value).__name__} {value!r}. vel is every actor's velocity "
+                f"{type(value).__name__} {value!r}. vel is every object's velocity "
                 f"(vx, vy), the one resolve(..., bounce=) reads and writes; Scena "
                 f"never moves an object by it (move it with move_by(vel.x * dt, "
                 f"vel.y * dt)). Write vel = (vx, vy) or vel = Vec2(vx, vy).{own}"
@@ -4791,7 +4791,7 @@ class Graphic(Entity, ABC):
         Python's NotImplementedError (GX9 in Testing Design)."""
         kind = type(self).__name__
         raise TypeError(
-            f"{kind} << …: a {kind} does not take in another actor. Make a copy "
+            f"{kind} << …: a {kind} does not take in another object. Make a copy "
             f"with other.clone(), or place this one: {self.name}.center = other.center"
         )
 
@@ -4920,7 +4920,7 @@ class Graphic(Entity, ABC):
         if xy is None:
             raise TypeError(
                 f"{kind}.clone(center=) expected a point — (x, y), a Point, a "
-                f"Vec2 or an actor — got {type(center).__name__} {center!r:.60}.")
+                f"Vec2 or an object — got {type(center).__name__} {center!r:.60}.")
         return xy
 
     def _clone_recipe(self, *, center=None, frame=None, **kwargs) -> "Graphic":

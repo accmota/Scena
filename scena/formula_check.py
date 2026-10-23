@@ -922,6 +922,6 @@ def _warn_container_read(fn, state: str, cell: str, kind: str) -> None:
         f"formula {_label(fn)} reads inside {name} (a {kind}). A change made in "
         f"place ({inplace}) does not reach it, "
         f"so it keeps showing the old value. Write the whole value ({whole}; "
-        f"{also} also tells it), or keep each number in a cell of its own "
+        f"{also} also tells it), or keep each number in a field of its own "
         f"({state}.gemas).",
     )

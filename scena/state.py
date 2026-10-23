@@ -320,7 +320,7 @@ class State:
             shown = ", ".join(names[:8]) + (", …" if len(names) > 8 else "")
             near = f" {who} has: {shown}. If {key!r} was renamed, use its new name."
         return (
-            f"{who} has no cell {key!r}. Create it first: {who}.{key} = 0 "
+            f"{who} has no field {key!r}. Create it first: {who}.{key} = 0 "
             f"(any starting value), then read {who}.{key} or link {who}['{key}'] @= …."
             f"{near}"
         )
@@ -1629,7 +1629,7 @@ _FIELD_DERIVATE = FieldType.Derivate
 _LINK_RHS_ERROR = (
     "@= needs a linkable object, a field (obj['radius'], st['score']), or a "
     "callable — use '=' for a plain value (st.score reads the value; the "
-    "cell is st['score'])"
+    "field is st['score'])"
 )
 
 
@@ -1693,10 +1693,10 @@ def moved_cell_message(value, door: str, *, link: bool = False,
     said = door.format(f"{owner}.{field}", lhs=lhs)
     cell = door.format(f'{owner}["{field}"]', lhs=lhs)
     fn = door.format(f"lambda: {owner}.{field}{test if predicate else ''}", lhs=lhs)
-    why = ("a link takes the cell or a function, never a plain value" if link
+    why = ("a link takes the field or a function, never a plain value" if link
            else "so this would take a value that never changes")
     return (f"{said}: {owner}.{field} reads {reads} since 0.9.0 (it was the "
-            f"cell), {why}. Pass the cell with brackets: {cell}, or a "
+            f"field), {why}. Pass the field with brackets: {cell}, or a "
             f"function: {fn}.")
 
 def _follows_cell_hint(cell) -> str:
@@ -3483,9 +3483,9 @@ class Container():
                 bracket = f'{owner}["{key}"]' if owner else who
                 raise TypeError(
                     f'{who}["{name}"] @= … would link one axis of the '
-                    f"{type(self).__name__} that {who} holds now, not the cell: "
+                    f"{type(self).__name__} that {who} holds now, not the field: "
                     f"the next {who} = … would leave the link behind, and "
-                    f"nothing linked to {who} would see it. Link the cell to "
+                    f"nothing linked to {who} would see it. Link the field to "
                     f"the whole vector: {bracket} @= lambda: Vec2(x, y)."
                 )
         source = _normalize_link_rhs(source)
@@ -5089,9 +5089,9 @@ def refuse_held_payload(obj, call: str) -> None:
     bracket = f'{owner}["{key}"]' if owner else who
     raise TypeError(
         f"{call.format(cell=who)} takes the {type(obj).__name__} that {who} "
-        f"holds now, not the cell: the next {who} = … would leave it behind. "
-        f"Pass the cell with brackets: {call.format(cell=bracket)}. {who} reads "
-        f"the value (since 0.8.0); {bracket} is the cell."
+        f"holds now, not the field: the next {who} = … would leave it behind. "
+        f"Pass the field with brackets: {call.format(cell=bracket)}. {who} reads "
+        f"the value (since 0.8.0); {bracket} is the field."
     )
 
 
@@ -5758,7 +5758,7 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         who = self._name
         kind = type(raw).__name__
         return (
-            f"{who}.{name} = ... would land on the cell, not on the {kind} it "
+            f"{who}.{name} = ... would land on the field, not on the {kind} it "
             f"holds. Write into the value: {who}.value.{name} = ..."
         )
 
@@ -5816,12 +5816,12 @@ def unbound_value_hint(call: str, value, example: str = "volume") -> str:
     ``Slider(st["volume"])``; ``example`` is that cell's name.
     """
     if isinstance(value, FieldRef):
-        return (f"got the field {value!r}: only a State cell binds here "
+        return (f"got the field {value!r}: only a st field binds here "
                 f"({call}). For an object's field, link instead: "
                 f"lambda: obj.field.")
-    return (f"got {type(value).__name__} {value!r:.40}. Pass the cell with "
+    return (f"got {type(value).__name__} {value!r:.40}. Pass the field with "
             f"brackets: {call}. st.{example} reads the value (since 0.8.0); "
-            f"st[\"{example}\"] is the cell.")
+            f"st[\"{example}\"] is the field.")
 
 
 _VALUE_TYPES = (float, int, str, bool, tuple, type(None))

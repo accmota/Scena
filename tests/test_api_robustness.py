@@ -831,7 +831,7 @@ class TestFormulaSourcesWithoutFile(unittest.TestCase):
             env={**os.environ, "PYTHONPATH": ROOT, "PYTHONDONTWRITEBYTECODE": "1",
                  "PYTHONIOENCODING": "utf-8"},
         )
-        self.assertIn("has no cell 'robust_nope'", out.stdout)
+        self.assertIn("has no field 'robust_nope'", out.stdout)
 
 
 class TestPhase3SilentPaths(unittest.TestCase):

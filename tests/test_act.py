@@ -2174,7 +2174,7 @@ class TestMessagesNameTheAct(ActTestCase):
     def test_a_write_to_an_act_after_its_change_act_names_the_change(self):
         """CD5 (chaos doors): ``change_act`` inside an act's own ``setup``
         ends that act at once; a write to ``self`` after it is refused with a
-        fix about the act change, not "Guard the call: if actor:"."""
+        fix about the act change, not "Guard the call: if obj:"."""
         from scena.state import DestroyedError
 
         class Fim5(Act):
@@ -2192,7 +2192,7 @@ class TestMessagesNameTheAct(ActTestCase):
         self.assertIn("Fase5.pontos cannot change", msg)    # the field (VB15)
         self.assertIn("change_act", msg)
         self.assertIn("return right after", msg)
-        self.assertNotIn("if actor:", msg)
+        self.assertNotIn("Guard the call", msg)
 
     def test_the_watchdog_names_the_act(self):
         import scena.process as proc

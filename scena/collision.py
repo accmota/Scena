@@ -4625,7 +4625,7 @@ def _is_query_actor(atom) -> bool:
 
 def _query_group_type_error(value) -> TypeError:
     return TypeError(
-        "group= must be a tag string, group['tag'], an actor, ANYTHING, "
+        "group= must be a tag string, group['tag'], an object, ANYTHING, "
         f"or a list of those; got {type(value).__name__} {value!r}. "
         'Write group="enemies" or group=["enemies", "rocks"].'
     )
@@ -5876,7 +5876,7 @@ class CollisionSystem:
         warnings.warn(
             f"@collide object target {target!r} is destroyed (is_alive=False). "
             f"Object registrations keep the old Python instance — after "
-            f"destroy/recreate they never see the new actor. Prefer group "
+            f"destroy/recreate they never see the new object. Prefer group "
             f"tags: @collide(\"player\", \"star\").",
             stacklevel=3,
         )
@@ -12645,15 +12645,15 @@ def _check_pair_sides(call: str, example: str, *sides) -> None:
             if _is_main_hitbox(atom):
                 verb = call[:-2] if call.endswith("()") else call
                 raise TypeError(
-                    f"{verb}(): name the actor, not its main hitbox — {verb}(hero, …), "
-                    "not hero.hitbox. The actor itself answers with its main "
+                    f"{verb}(): name the object, not its main hitbox — {verb}(hero, …), "
+                    "not hero.hitbox. The object itself answers with its main "
                     "hitbox; an extra hitbox is named by the group it claims."
                 )
             if not _is_pair_side_atom(atom):
                 simple = atom is None or isinstance(atom, (int, float, complex))
                 shown = f" {atom!r}" if simple else ""
                 raise TypeError(
-                    f"{call} side must be an actor, a group tag string, "
+                    f"{call} side must be an object, a group tag string, "
                     f"group['tag'], ANYTHING, or a list of those; got "
                     f"{type(atom).__name__}{shown}. Write {example}."
                 )

@@ -1400,7 +1400,7 @@
           <tr><td>“transmita mensagem” / “quando receber”</td><td>Chame a função. Ou conte: <code>st.ondas += 1</code> com <code>@on_change(st["ondas"])</code>, que compara uma vez por frame (duas escritas que voltam ao valor antigo no mesmo frame não disparam)</td></tr>
           <tr><td>“crie clone de mim”</td><td><code>obj.clone()</code>; veja o que a cópia leva na tabela de <code>clone</code></td></tr>
           <tr><td><code>x += vel * dt</code></td><td>Funciona: <code>obj.move_by(obj.vel.x * dt, obj.vel.y * dt)</code> no <code>update</code> (ou <code>on_update</code>). O Scena não move ninguém sozinho pela <code>vel</code>; ela é a velocidade que <code>bounce=</code> lê e reescreve</td></tr>
-          <tr><td><code>self.vel = 200</code> (a rapidez, um número)</td><td><code>vel</code> é a velocidade 2D de todo ator (<code>self.vel = (200, 0)</code>), a que <code>resolve(…, bounce=)</code> usa; quem move é você, com <code>move_by(vel.x * dt, vel.y * dt)</code>. Um número seu precisa de outro nome: <code>self.rapidez = 200</code></td></tr>
+          <tr><td><code>self.vel = 200</code> (a rapidez, um número)</td><td><code>vel</code> é a velocidade 2D de todo objeto (<code>self.vel = (200, 0)</code>), a que <code>resolve(…, bounce=)</code> usa; quem move é você, com <code>move_by(vel.x * dt, vel.y * dt)</code>. Um número seu precisa de outro nome: <code>self.rapidez = 200</code></td></tr>
           <tr><td><code>cooldown -= dt</code> … <code>if cooldown &lt;= 0: cooldown = 0.6</code></td><td>Funciona, mas joga fora o que passou de zero, e o ritmo muda com a taxa de quadros. <code>@every(0.6)</code> ou <code>ready("tiro", 0.6)</code> guardam o resto</td></tr>
         </tbody>
       </table>

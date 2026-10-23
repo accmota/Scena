@@ -1220,7 +1220,7 @@ def nearest(
     if getattr(type(items), "_scena_point_value", False):
         # A Point / Vec2 / mouse iterates as its (x, y): not a list of items.
         raise TypeError(
-            f"items must be a list (or group) of actors or points, got one "
+            f"items must be a list (or group) of objects or points, got one "
             f"{type(items).__name__}. Write nearest(origin, [a, b, ...])."
         )
     try:

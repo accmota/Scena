@@ -26,13 +26,16 @@ citizen", "scene registry", "scene scope", "scene layer", … → "registry" /
 "script scope" / "world layer"). ``TestDocsDoNotUseSceneForAct`` keeps the
 2026-10-06 one (``Scene`` / ``change_scene`` / "scene change" → ``Act`` /
 ``change_act`` / "act change"). ``TestGuiaDoesNotSayCena`` keeps "cena" out
-of the Guia ("ato" is the word).
+of the Guia ("ato" is the word). ``TestMessagesUseGuiaWords`` keeps "actor"
+and "cell" (for a field) out of engine messages: the Guia says "object" and
+"field".
 
     python -m unittest tests.test_message_vocabulary -v
 """
 from __future__ import annotations
 
 import ast
+import functools
 import json
 import os
 import re
@@ -231,6 +234,99 @@ class TestGuiaDoesNotSayCena(unittest.TestCase):
         names = {r["name"] for r in json.loads(self._read("symbols.json"))["symbols"]}
         self.assertIn("Act", names)
         self.assertIn("change_act", names)
+
+
+# ---------------------------------------------------------------------------
+# The Guia's words: "object", never "actor"; "field", never "cell"
+# ---------------------------------------------------------------------------
+#
+# Bug class: an engine message says "actor" for a game object or "cell" for a
+# value Scena tracks (``st["hp"]``, an Attribute). The Guia's vocabulary
+# (design/README.md, "Vocabulary") says *object* and *field*, and the Guia
+# quotes engine messages exactly, so the old word leaks into both Guides
+# (found 2026-10-22: "st has no cell 'nope'", "To show a st cell live",
+# "The actor is still valid").
+#
+# "actor" has no other meaning, so every string literal under scena/ that is
+# not a docstring is scanned (a message is often built in a variable or a
+# module constant, out of reach of ``_message_literals``). "cell" is a real
+# cell of a sprite sheet, a grid or an Endless tiling: ``_CELL_FILES`` are
+# exempt, and ``{cell}`` placeholders, the widgets' ``cell`` parameter
+# (``Slider(cell)``) and Sheet's ``cell=`` are spellings, not the word.
+
+_ACTOR = re.compile(r"\bactors?\b", re.I)
+_CELL = re.compile(r"\bcells?\b", re.I)
+_CELL_SPELLING = re.compile(r"\{cell\}|\(cell\)|\bcell=")
+_CELL_FILES = {
+    "sprite.py",        # sheet cells (cols= / rows= / cell=)
+    "atlas.py",         # sheet cells (the hitbox mask of one cell)
+    "level_format.py",  # a sheet item's cell= / cols / rows
+    "box.py",           # grid cells (grid.cell(col, row))
+    "endless.py",       # axis='xy' tiles one image per cell
+}
+
+
+def _non_doc_literals(tree: ast.AST):
+    docs = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = node.body
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                docs.add(id(body[0].value))
+    for sub in _strings(tree):
+        if id(sub) not in docs:
+            yield sub
+
+
+@functools.lru_cache(maxsize=1)
+def _parsed_sources():
+    out = []
+    for path in iter_files(SCENA, ".py", recursive=True):
+        with open(path, encoding="utf-8") as fh:
+            out.append((os.path.relpath(path, ROOT), ast.parse(fh.read(), filename=path)))
+    return tuple(out)
+
+
+def _actor_hits():
+    return sorted(f"{rel}:{lit.lineno}: {lit.value.strip()[:100]!r}"
+                  for rel, tree in _parsed_sources()
+                  for lit in _non_doc_literals(tree) if _ACTOR.search(lit.value))
+
+
+def _cell_hits():
+    return sorted(f"{rel}:{lit.lineno}: {lit.value.strip()[:100]!r}"
+                  for rel, tree in _parsed_sources()
+                  if os.path.basename(rel) not in _CELL_FILES
+                  for lit in _message_literals(tree)
+                  if _CELL.search(_CELL_SPELLING.sub("", lit.value)))
+
+
+class TestMessagesUseGuiaWords(unittest.TestCase):
+    """Engine messages say "object" and "field", as the Guia does."""
+
+    def test_no_actor(self):
+        bad = _actor_hits()
+        self.assertEqual(bad, [], "\n" + "\n".join(bad))
+
+    def test_no_cell_for_a_field(self):
+        bad = _cell_hits()
+        self.assertEqual(bad, [], "\n" + "\n".join(bad))
+
+    def test_the_scans_see_the_old_words(self):
+        # Guard the guard: the 2026-10-22 messages, as they were, are caught.
+        tree = ast.parse(
+            "def f(key, source):\n"
+            "    how = \"an actor's click hook is on_click(self)\"\n"
+            "    raise KeyError(f\"st has no cell {key!r}\")\n"
+            "    warn(f\"Sprite file not found: {source!r}. The actor is still valid.\")\n")
+        self.assertEqual({s.lineno for s in _non_doc_literals(tree) if _ACTOR.search(s.value)},
+                         {2, 4})
+        self.assertEqual({s.lineno for s in _message_literals(tree) if _CELL.search(s.value)},
+                         {3})
+        for spelling in ("tween({cell}, …)", "Slider(cell) binds a field:",
+                         "Sheet(cell=(16, 16))"):
+            self.assertFalse(_CELL.search(_CELL_SPELLING.sub("", spelling)), spelling)
+        self.assertTrue(all(os.path.exists(os.path.join(SCENA, f)) for f in _CELL_FILES))
 
 
 # ---------------------------------------------------------------------------

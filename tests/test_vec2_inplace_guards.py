@@ -366,7 +366,7 @@ class TestADeadPartNamesItsOwner(unittest.TestCase):
                 err = ns["err"]
                 self.assertIsInstance(err, DestroyedError)
                 text = str(err)
-                self.assertTrue(text.startswith(f"{field} cannot change a destroyed actor"),
+                self.assertTrue(text.startswith(f"{field} cannot change a destroyed object"),
                                 text)
                 found = re.search(r"Guard the call: if ([A-Za-z_][A-Za-z0-9_.]*):", text)
                 self.assertIsNotNone(found, text)

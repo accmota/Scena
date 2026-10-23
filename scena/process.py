@@ -191,9 +191,9 @@ SCOPE_MODE = "mode"
 # Why a handle was cancelled (``Handle._cancel_reason``): named in the warning
 # a task or an async mode gets when what it awaits is cancelled under it.
 _R_OWNER_GONE = "its owner was destroyed"
-_R_DEAD_AT_START = "it was scheduled on an actor that was already destroyed"
-_R_TARGET_GONE = "the actor it moves was destroyed"
-_R_UNTIL_GONE = "the actor its condition reads was destroyed"
+_R_DEAD_AT_START = "it was scheduled on an object that was already destroyed"
+_R_TARGET_GONE = "the object it moves was destroyed"
+_R_UNTIL_GONE = "the object its condition reads was destroyed"
 _R_UNTIL_RAISED = "its condition raised"
 _R_PREEMPTED = "another move or tween took the same property"
 _R_NAME = "a new job took its name="
@@ -499,7 +499,7 @@ def _claim_decorator_role(func: Callable, role: str) -> None:
         if name in _ACTOR_HOOK_METHOD_NAMES:
             raise TypeError(
                 f"{_ROLE_LABELS[role]} cannot decorate {name!r} — that name "
-                f"is already a discovered actor hook. Use a second method or "
+                f"is already a hook the engine calls on the object. Use a second method or "
                 f"a shared helper."
             )
 
@@ -1894,7 +1894,7 @@ class Script:
                 at = f" at {os.path.basename(code.co_filename)}, line {tb.tb_lineno}"
             tb = tb.tb_next
         fix = ("If that is expected, wrap the `await` in `try: ... except Cancelled: ...`; "
-               "to end the work together with an actor, start it on that actor "
+               "to end the work together with an object, start it on that object "
                "(box.run_task(...)) or check `if box:` before using it.")
         if self.kind == "mode":
             mode = getattr(self.owner, "mode", None)
@@ -1979,7 +1979,7 @@ class Script:
             f"This usually means `while True:` with no await. "
             f"Add `await wait(...)` / `await until(...)` / "
             f"`await move_to(..., time=)` inside the loop. "
-            f"Constructing many Sprite(...) actors in one go is allowed.",
+            f"Constructing many Sprite(...) objects in one go is allowed.",
             RuntimeWarning,
             stacklevel=4,
         )
@@ -3615,7 +3615,7 @@ def _require_then_owner(then, owner, *, call_name: str) -> None:
         return
     if owner is None:
         raise TypeError(
-            f"{call_name} then= needs an owner (call it on the actor, "
+            f"{call_name} then= needs an owner (call it on the object, "
             f"or from a mode body). Script-level {call_name}(..., then=) is not allowed."
         )
 
@@ -4036,9 +4036,9 @@ def _start_until(pred, *, await_hint: str, site, what: str = "until()") -> Handl
         if moved is not None:
             raise TypeError(moved)
         raise TypeError(
-            f"until() expected a function or a reactive cell, got "
+            f"until() expected a function or a field, got "
             f"{'None' if pred is None else type(pred).__name__}. "
-            f"Wrap it: until(lambda: cond), or pass a st cell with brackets: "
+            f"Wrap it: until(lambda: cond), or pass a st field with brackets: "
             f"until(st[\"done\"]) (st.done reads the value since 0.8.0); "
             f"for group emptiness use until_empty(group) instead."
         )
@@ -4807,7 +4807,7 @@ def _tween_target(
         raise TypeError(
             'tween() needs a bracket handle (obj["field"], st["t"]) or a pose '
             f'Container, got a plain {type(target).__name__}. st.t reads the '
-            'value (since 0.8.0); st["t"] is the cell.'
+            'value (since 0.8.0); st["t"] is the field.'
         )
     if is_pose:
         refuse_held_payload(target, "tween({cell}, …)")
@@ -4819,7 +4819,7 @@ def _tween_target(
         # variable (RA B6m: the fix said ``Circle['color'] @= …``).
         owner = "shape"
         kind = type(target.owner).__name__
-        hint = (f"tween a color cell and link to it: st.c = {owner}.{target.name}; "
+        hint = (f"tween a color field and link to it: st.c = {owner}.{target.name}; "
                 f"tween(st['c'], Color('blue'), time=…); {owner}['{target.name}'] @= "
                 f"lambda: st.c" if target.name not in _FLAG_LINKS else
                 f"set it with {owner}.{target.name} = …, or link it: "

@@ -770,7 +770,7 @@ def _load_sprite_image(source: str) -> Tuple[skia.Image, bool, str]:
         except Exception as e:
             warnings.warn(
                 f"Sprite failed to decode {source!r} ({e}). Using a placeholder. "
-                "The actor is still valid.",
+                "The object is still valid.",
                 RuntimeWarning,
                 skip_file_prefixes=_WARN_SKIP,
             )
@@ -780,7 +780,7 @@ def _load_sprite_image(source: str) -> Tuple[skia.Image, bool, str]:
         _MISSING_WARNED.add(source)
         warnings.warn(
             f"Sprite file not found: {source!r}. Using a placeholder. "
-            "The actor is still valid (layer / groups / process still work).",
+            "The object is still valid (layer / groups / process still work).",
             RuntimeWarning,
             skip_file_prefixes=_WARN_SKIP,
         )
@@ -2636,7 +2636,7 @@ def _raster_svg(
             "parse",
             markup,
             f"Svg failed to parse markup ({e}). Using a placeholder. "
-            "The actor is still valid.",
+            "The object is still valid.",
         )
         return _make_placeholder("svg"), False
 
@@ -2702,7 +2702,7 @@ def _warn_unknown_frame(sheet: Sheet, key: str) -> None:
     _MISSING_WARNED.add(warn_key)
     warnings.warn(
         f"{sheet._unknown_frame_message(key)} Using a placeholder. "
-        "The actor is still valid.",
+        "The object is still valid.",
         RuntimeWarning,
         skip_file_prefixes=_WARN_SKIP,
     )
@@ -6802,7 +6802,7 @@ def _svg_resolve_source(
                 "missing",
                 source,
                 f"Svg file not found: {source!r}. Using a placeholder. "
-                "The actor is still valid "
+                "The object is still valid "
                 "(layer / groups / process still work).",
             )
             return _make_placeholder("svg"), False, None
@@ -6814,7 +6814,7 @@ def _svg_resolve_source(
                 "read",
                 source,
                 f"Svg failed to read {source!r} ({e}). Using a placeholder. "
-                "The actor is still valid.",
+                "The object is still valid.",
             )
             return _make_placeholder("svg"), False, None
         if not _svg_looks_like_markup(text):
@@ -6822,7 +6822,7 @@ def _svg_resolve_source(
                 "parse",
                 source,
                 f"Svg expected SVG markup in {source!r} (no '<' found). "
-                "Using a placeholder. The actor is still valid.",
+                "Using a placeholder. The object is still valid.",
             )
             return _make_placeholder("svg"), False, None
     img, ok = _raster_svg(text, dest_longer=dest_longer)

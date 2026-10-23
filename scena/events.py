@@ -123,7 +123,7 @@ def _validate_condition(condition: Condition, kind: EventKind) -> None:
                 # ``st.pos = Vec2(…)`` stores a new one, so this never fires.
                 raise TypeError(
                     f"{label}(Vec2) watches a free Vec2 value, which nothing "
-                    "replaces in place. To watch a st cell, pass it with "
+                    "replaces in place. To watch a st field, pass it with "
                     f"brackets: {label}(st[\"pos\"]) (st.pos reads the value "
                     f"since 0.8.0). For a shape's vector: {label}(lambda: line.vec)."
                 )
@@ -147,7 +147,7 @@ def _validate_condition(condition: Condition, kind: EventKind) -> None:
         f"(st[\"{cell}\"], obj[\"field\"]), or a Point/Vec2 — got a bare "
         f"{type(condition).__name__} ({condition!r:.40}). Comparisons and "
         f"attribute reads inside {label}(...) run once, at decoration "
-        f"time; wrap them in a lambda: {label}(lambda: ...). A st cell is "
+        f"time; wrap them in a lambda: {label}(lambda: ...). A st field is "
         f"watched with brackets: {label}(st[\"{cell}\"]) (st.{cell} reads the "
         f"value since 0.8.0)."
     )
@@ -649,7 +649,7 @@ def when(condition: Condition):
                 raise TypeError(
                     "@when on a method needs a callable condition "
                     "(lambda self: ...). Use module-level @when(st[\"alive\"]) "
-                    "for a st cell."
+                    "for a st field."
                 )
             from .validate import check_handler_arity
             check_handler_arity(func, ("self",), what="@when")
@@ -706,7 +706,7 @@ def on_change(target: Condition):
                 raise TypeError(
                     "@on_change on a method needs a callable target "
                     "(lambda self: ...). Use module-level @on_change(st[\"wave\"]) "
-                    "for a st cell."
+                    "for a st field."
                 )
             from .validate import check_handler_arity
             check_handler_arity(func, ("self", "value"), what="@on_change")
