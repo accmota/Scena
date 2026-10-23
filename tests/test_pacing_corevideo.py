@@ -94,7 +94,11 @@ class TestLiveCoreVideo(unittest.TestCase):
                 presents.append(time.perf_counter())
             period = pacer.vblank_period()
             steps = [round((b - a) / period) for a, b in zip(presents[2:], presents[3:])]
-            self.assertEqual(set(steps), {1})
+            # Locked to the link: never two presents in one vblank, and most one
+            # apart. A loaded machine may miss a vblank (a step of 2, the next
+            # one waited for): the quick tier saw it once (WP36).
+            self.assertNotIn(0, steps, steps)
+            self.assertEqual(sorted(steps)[len(steps) // 2], 1, steps)
         finally:
             pacer.stop()
 
