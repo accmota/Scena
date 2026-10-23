@@ -8,7 +8,7 @@ these enforce: every step is a program (the runs are
 ``examples/``.
 
 This module is fast (no program runs) and stays in the quick tier. Running
-every step and box is ~440 s of CPU: ``test_tutorial_steps`` is ``SLOW`` and
+every step and box is ~840 s of CPU in both languages: ``test_tutorial_steps`` is ``SLOW`` and
 sharded by page in the gate (Testing Design, "Test tiers"). The quick tier
 still runs each tutorial's last step, as its ``examples/`` file
 (``test_scripts_run``, 30 frames), and this module ties the two.

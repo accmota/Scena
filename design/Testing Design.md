@@ -1543,7 +1543,9 @@ Rules:
   is named by one capital letter, its fragments run like steps, and it has no
   `examples/` file and no recap — `test_tutorials.is_appendix`), so gate and deep
   run every step as ~30 jobs (each under ~45 s;
-  all of them ~45 s wall / ~320 s CPU on 8 workers with the runner's bytecode cache,
+  all of them ~45 s wall / ~320 s CPU on 8 workers with the runner's bytecode cache
+  (Portuguese only; with the English pages, 2026-10-22: ~216 s wall / ~840 s CPU in one
+  process pool, still one job per page in the gate),
   ~64 s / ~500 s without; 2026-10-10). Quick still runs each tutorial's last
   step, as its `examples/` file (`test_scripts_run`, 30 frames), and `test_tutorials`
   holds the file equal to the step. Guard: `test_run_tiers` (one gate job per page,

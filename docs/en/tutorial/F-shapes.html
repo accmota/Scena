@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shapes — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Appendix",
+  n: "F",
+  title: "Shapes",
+  steps: [
+    {
+      title: "Five ways to make a circle",
+      part: "Circle",
+      body: `
+        <p>This appendix shows Scena's shapes and the ways to put each one on the screen. Each section is a program that draws the variants of one shape side by side, each with its name underneath. Run it, change the numbers, and run it again.</p>
+        <p>A shape can be given in several ways: by its center and size, by a corner, by two points. Each way is a <strong>construction model</strong>. The drawing may come out the same, but the shape keeps different things, and that shows when you drag it or link it to another one.</p>
+        <p>First, five models of the <code>Circle</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Circle")
+Wallpaper("dark navy")
+
+normal = Circle(center=(100, 420), radius=70, color="coral")
+Text("center, radius", center=(100, 310), font_size=15)
+by_edge = Circle(center=(290, 420), perimeter_point=(340, 470), color="gold")
+Text("center, perimeter_point", center=(290, 310), font_size=15)
+diameter = Circle(p1=(430, 420), p2=(570, 420), color="turquoise")
+Text("p1, p2", center=(500, 310), font_size=15)
+wedge = Circle(center=(710, 420), radius=70, angle=180, spread=300, color="orchid")
+Text("angle, spread", center=(710, 310), font_size=15)
+segment = Circle(center=(900, 420), radius=70, angle=90, spread=240, use_center=False, color="sky blue")
+Text("use_center=False", center=(900, 310), font_size=15)
+
+run()
+`,
+      after: `
+        <p>Run it. From left to right:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>radius</code></td><td>Center and radius: the usual way.</td></tr>
+            <tr><td><code>center</code>, <code>perimeter_point</code></td><td>The center and a point on the edge (the perimeter): the radius is the distance to that point.</td></tr>
+            <tr><td><code>p1</code>, <code>p2</code></td><td>The two ends of a diameter, the line that crosses the circle through the middle.</td></tr>
+            <tr><td><code>angle</code>, <code>spread</code></td><td>A wedge, like a slice of pizza. <code>angle</code> is where it points (0 is to the right, 180 to the left); <code>spread</code> is how wide it opens, in degrees: 300 is almost all of it, with a 60-degree mouth missing.</td></tr>
+            <tr><td><code>use_center=False</code></td><td>The wedge becomes a <em>segment</em>: cut off by one straight line, instead of two lines to the center. With <code>angle=90</code> and <code>spread=240</code>, it is a circle with its bottom cut off.</td></tr>
+          </tbody>
+        </table></div>
+      `,
+      try: [
+        {
+          note: "The wedge pointing up, with a different spread. In place of the <code>wedge</code> line.",
+          replaces: ['wedge = Circle('],
+          code: `wedge = Circle(center=(710, 420), radius=70, angle=90, spread=90, color="orchid")`
+        }
+      ]
+    },
+    {
+      title: "What each model keeps",
+      body: `
+        <p>To see what each model keeps, every circle gets handles: a small draggable dot on each point it keeps.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Circle")
+Wallpaper("dark navy")
+
+normal = Circle(center=(100, 420), radius=70, color="coral")
+Text("center, radius", center=(100, 310), font_size=15)
+by_edge = Circle(center=(290, 420), perimeter_point=(340, 470), color="gold")
+Text("center, perimeter_point", center=(290, 310), font_size=15)
+diameter = Circle(p1=(430, 420), p2=(570, 420), color="turquoise")
+Text("p1, p2", center=(500, 310), font_size=15)
+wedge = Circle(center=(710, 420), radius=70, angle=180, spread=300, color="orchid")
+Text("angle, spread", center=(710, 310), font_size=15)
+segment = Circle(center=(900, 420), radius=70, angle=90, spread=240, use_center=False, color="sky blue")
+Text("use_center=False", center=(900, 310), font_size=15)
+
+for shape in [normal, by_edge, diameter, wedge, segment]:
+    shape.show_handles()
+
+run()
+`,
+      notes: [
+        {
+          at: "shape.show_handles()",
+          text: "<code>show_handles()</code> turns on a shape's handles. The <code>for</code> goes through the list of all five."
+        }
+      ],
+      after: `
+        <p>Drag the handles and compare the first three:</p>
+        <div class="tbl"><table><thead><tr><th>Model</th><th>The handles</th></tr></thead><tbody>
+          <tr><td><code>center</code>, <code>radius</code></td><td>Only the center: the radius is a number, with no handle. Dragging moves the whole circle.</td></tr>
+          <tr><td><code>center</code>, <code>perimeter_point</code></td><td>The center and the edge point: dragging the edge changes the size.</td></tr>
+          <tr><td><code>p1</code>, <code>p2</code></td><td>The ends of the diameter: the center stays halfway between them.</td></tr>
+        </tbody></table></div>
+      `,
+      dive: [
+        {
+          title: "Clicks and collisions on a wedge",
+          body: `
+            <p>The wedge is not just a drawing: clicks and collisions follow the painted part (the pizza slice or the segment). With <code>spread=360</code>, it is the whole disc again.</p>
+            <p><code>box=</code> is one more way to place a circle: inside a region, sized to fit it. The last section of this appendix shows it.</p>
+            <p>In the Guide: <a href="../guide/index.html#circle">Circle</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Rectangles",
+      fresh: true,
+      part: "Rect",
+      body: `
+        <p>The <code>Rect</code> (rectangle) has more models: four on top and four below. The small white dots mark the points you gave.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Rect")
+Wallpaper("dark navy")
+
+Rect(center=(120, 480), width=160, height=90, color="coral")
+Text("center, width, height", center=(120, 380), font_size=15)
+Rect(top_left=(250, 525), width=160, height=90, color="gold")
+Point(250, 525, color="white")
+Text("top_left, width, height", center=(330, 380), font_size=15)
+Rect(p1=(470, 435), p2=(590, 525), color="turquoise")
+Point(470, 435, color="white")
+Point(590, 525, color="white")
+Text("p1, p2", center=(530, 380), font_size=15)
+Rect(p1=(690, 480), p2=(890, 480), height=40, anchor="cap", color="orchid")
+Point(690, 480, color="white")
+Point(890, 480, color="white")
+Text('p1, p2, height, anchor="cap"', center=(790, 380), font_size=15)
+
+Rect(center=(120, 200), width=160, height=90, angle=30, color="sky blue")
+Text("angle=30", center=(120, 90), font_size=15)
+Rect(center=(330, 200), width=160, height=90, corner_radius=25, color="coral")
+Text("corner_radius=25", center=(330, 90), font_size=15)
+Rect(p1=(470, 155), vec=(120, 90), color="gold")
+Point(470, 155, color="white")
+Text("p1, vec", center=(530, 90), font_size=15)
+Rect(p1=(710, 200), p2=(870, 200), height=40, anchor="square", color="turquoise")
+Point(710, 200, color="white")
+Point(870, 200, color="white")
+Text('anchor="square"', center=(790, 90), font_size=15)
+
+run()
+`,
+      after: `
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>width</code>, <code>height</code></td><td>Center, width and height: the usual way.</td></tr>
+            <tr><td><code>top_left</code>, <code>width</code>, <code>height</code></td><td>The top-left corner: the rectangle grows from there to the right and down. Good for lining things up by their edge.</td></tr>
+            <tr><td><code>p1</code>, <code>p2</code></td><td>Two opposite corners, exactly where you put them. The width and height come from them.</td></tr>
+            <tr><td><code>p1</code>, <code>p2</code>, <code>height</code>, <code>anchor="cap"</code></td><td>A bar lying from one point to the other, this thick. <code>anchor</code> says where the points sit: with <code>"cap"</code>, in the middle of the short ends.</td></tr>
+            <tr><td><code>angle</code></td><td>Turns the rectangle around the point it was placed by: the center, or the <code>top_left</code> corner. With <code>p1</code>, <code>p2</code>, the corners stay pinned, and the rectangle tilts and changes size (interlude <a href="14i-turn-and-grow.html">Turn and grow</a>).</td></tr>
+            <tr><td><code>corner_radius</code></td><td>Rounds the corners.</td></tr>
+            <tr><td><code>p1</code>, <code>vec</code></td><td>A corner and the size, as an arrow (a vector): <code>(width, height)</code>.</td></tr>
+            <tr><td><code>anchor="square"</code></td><td>Each point sits at the center of a square at the end: the bar reaches half its thickness past the points on each side.</td></tr>
+          </tbody>
+        </table></div>
+      `,
+      try: [
+        {
+          note: "The other two <code>anchor</code> values: <code>\"side_left\"</code> and <code>\"side_right\"</code> put the points on one of the long sides, and the bar sits to the left or to the right of the path from <code>p1</code> to <code>p2</code>. In place of the bottom bar.",
+          replaces: ["Rect(p1=(710, 200)"],
+          code: `Rect(p1=(710, 200), p2=(870, 200), height=40, anchor="side_left", color="turquoise")`
+        }
+      ],
+      dive: [
+        {
+          title: "The points of a rectangle",
+          body: `
+            <p>Every rectangle has names for its points, whatever its model: the corners (<code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>), the middles of the sides (<code>top_center</code>, <code>left_center</code>…) and the <code>center</code>. They are there for linking something else to it: <code>Text("Score", top_left=lambda: panel.top_left)</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#shape-rect">Rect</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Squares",
+      fresh: true,
+      part: "Square",
+      body: `
+        <p>A <code>Square</code> is a rectangle with equal sides. Its size is a single number, <code>length</code> (the length of a side), and that is the field you write to change the size later: <code>square.length</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Square")
+Wallpaper("dark navy")
+
+Square(center=(130, 380), length=120, color="coral")
+Text("center, length", center=(130, 270), font_size=15)
+Square(top_left=(260, 440), length=120, color="gold")
+Point(260, 440, color="white")
+Text("top_left, length", center=(320, 270), font_size=15)
+Square(center=(530, 380), length=120, angle=20, color="turquoise")
+Text("angle=20", center=(530, 270), font_size=15)
+Square(center=(730, 380), length=120, corner_radius=30, color="orchid")
+Text("corner_radius=30", center=(730, 270), font_size=15)
+
+run()
+`,
+      after: `
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>length</code></td><td>Center and side.</td></tr>
+            <tr><td><code>top_left</code>, <code>length</code></td><td>The top-left corner and the side.</td></tr>
+            <tr><td><code>angle</code></td><td>Turns it around the point given (the center or the corner), as with <code>Rect</code>.</td></tr>
+            <tr><td><code>corner_radius</code></td><td>Rounds the corners, as with <code>Rect</code>.</td></tr>
+          </tbody>
+        </table></div>
+      `
+    },
+    {
+      title: "Lines",
+      fresh: true,
+      part: "Line",
+      body: `
+        <p>A <code>Line</code> is a segment: a straight stroke between two ends, <code>p1</code> and <code>p2</code>. It has only a stroke, no fill: <code>color</code> paints the stroke and <code>line_width</code> is its thickness. On top, five ways to give a line on its own; below, lines made from another shape.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Line")
+Wallpaper("dark navy")
+
+Line(p1=(40, 450), p2=(180, 560), color="coral", line_width=4)
+Text("p1, p2", center=(110, 400), font_size=15)
+Line(center=(310, 500), length=160, angle=30, color="gold", line_width=4)
+Text("center, length, angle", center=(310, 400), font_size=15)
+Line(p1=(460, 450), angle=60, length=130, color="turquoise", line_width=4)
+Point(460, 450, color="white")
+Text("p1, angle, length", center=(500, 400), font_size=15)
+Line(p1=(610, 450), vec=Vec2(140, 100), color="orchid", line_width=4)
+Point(610, 450, color="white")
+Text("p1, vec", center=(680, 400), font_size=15)
+Line(p1=(800, 450), dx=140, dy=100, color="sky blue", line_width=4)
+Point(800, 450, color="white")
+Text("p1, dx, dy", center=(870, 400), font_size=15)
+
+base = Line(p1=(40, 150), p2=(300, 230), color="white", line_width=2)
+Line(dist=50, parallel_to=base, color="gold", line_width=4)
+Line(p1=base.center, perpendicular_to=base, length=90, color="coral", line_width=4)
+Text("parallel_to · perpendicular_to", center=(170, 70), font_size=15)
+
+wheel = Circle(center=(640, 190), radius=60, color="sky blue")
+Line(circle=wheel, at_angle=45, length=180, color="gold", line_width=4)
+Line(circle=wheel, from_point=(900, 110), side="left", color="coral", line_width=4)
+Point(900, 110, color="white")
+Text("circle, at_angle · circle, from_point", center=(700, 70), font_size=15)
+
+run()
+`,
+      notes: [
+        {
+          at: "base = Line(",
+          text: "The white <code>base</code> is an ordinary line. The next two lines are made from it."
+        },
+        {
+          at: "wheel = Circle(",
+          text: "The next two lines are <strong>tangents</strong> to the <code>wheel</code>: lines that just touch the circle."
+        }
+      ],
+      after: `
+        <p>The five on top:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>p1</code>, <code>p2</code></td><td>The two ends.</td></tr>
+            <tr><td><code>center</code>, <code>length</code>, <code>angle</code></td><td>The middle, the length and the direction.</td></tr>
+            <tr><td><code>p1</code>, <code>angle</code>, <code>length</code></td><td>One end, and from there a direction and a length.</td></tr>
+            <tr><td><code>p1</code>, <code>vec</code></td><td>One end and an arrow (a <code>Vec2</code>, Appendix D) to the other.</td></tr>
+            <tr><td><code>p1</code>, <code>dx</code>, <code>dy</code></td><td>The same, with the two numbers given separately.</td></tr>
+          </tbody>
+        </table></div>
+        <p>The ones below, made from the <code>base</code> and the <code>wheel</code>:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>parallel_to</code>, <code>dist</code></td><td>A parallel line, the gold one, <code>dist</code> (distance) away from the other line. Positive is to the left of someone walking from <code>p1</code> to <code>p2</code>.</td></tr>
+            <tr><td><code>p1</code>, <code>perpendicular_to</code>, <code>length</code></td><td>A perpendicular, at a right angle to the other line: the orange one, which starts at the middle of the base.</td></tr>
+            <tr><td><code>circle</code>, <code>at_angle</code>, <code>length</code></td><td>A tangent through the point on the edge at that angle (here, 45 degrees).</td></tr>
+            <tr><td><code>circle</code>, <code>from_point</code>, <code>side</code></td><td>A tangent that starts at a point outside (the small white dot) and runs until it touches the circle; <code>side</code> picks which of the two possible ones.</td></tr>
+          </tbody>
+        </table></div>
+      `,
+      try: [
+        {
+          note: "The stroke has a style too. <code>dash</code>: <code>\"dash\"</code>, <code>\"dot\"</code> or <code>\"dot-dash\"</code>. <code>line_cap</code> (the shape of the stroke's ends): <code>\"round\"</code> (the default), <code>\"square\"</code> or <code>\"project\"</code>. At the end of the program.",
+          code: `stroke = Line(p1=(400, 620), p2=(900, 620), color="white", line_width=8)
+stroke.dash = "dot"
+stroke.line_cap = "round"`
+        },
+        {
+          note: "A laser look on the stroke (an area visual, like <code>Neon</code>, vanishes on a line). At the end of the program.",
+          code: `Line(p1=(400, 660), p2=(900, 660), visual=Laser("lime"), line_width=4)`
+        }
+      ]
+    },
+    {
+      title: "Ellipses",
+      fresh: true,
+      part: "Ellipse",
+      body: `
+        <p>An <code>Ellipse</code> is a stretched circle: an oval. Every ellipse has two special points inside it, the <strong>foci</strong>, and one of the models draws it from them.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 190" role="img" aria-label="An ellipse with two foci on its middle axis; from a point on the edge two lines leave, d1 to one focus and d2 to the other; below, a ruler as long as the width, the major axis">
+            <ellipse class="ray" fill="none" cx="200" cy="85" rx="150" ry="65"/>
+            <line class="ray" x1="65" y1="85" x2="275" y2="29"/>
+            <line class="ray" x1="335" y1="85" x2="275" y2="29"/>
+            <circle class="dot" cx="65" cy="85" r="4"/>
+            <circle class="dot" cx="335" cy="85" r="4"/>
+            <circle class="hot" cx="275" cy="29" r="5"/>
+            <text x="165" y="78" text-anchor="middle">d1</text>
+            <text x="298" y="76" text-anchor="middle">d2</text>
+            <text x="80" y="104" text-anchor="middle">fp1</text>
+            <text x="320" y="104" text-anchor="middle">fp2</text>
+            <line class="guide" x1="50" y1="165" x2="350" y2="165"/>
+            <line class="ray" x1="50" y1="159" x2="50" y2="171"/>
+            <line class="ray" x1="350" y1="159" x2="350" y2="171"/>
+            <text x="200" y="184" text-anchor="middle">major_axis</text>
+          </svg>
+          <figcaption>From any point on the edge, d1 + d2 always gives the same number: the major axis, the width of the ellipse.</figcaption>
+        </figure>
+        <p>With <code>fp1</code>, <code>fp2</code> (focus 1, focus 2) and <code>major_axis</code>, you give the foci and that number. The farther apart the foci, the flatter the ellipse.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Ellipse")
+Wallpaper("dark navy")
+
+Ellipse(center=(130, 420), width=200, height=100, color="coral")
+Text("center, width, height", center=(130, 310), font_size=15)
+Ellipse(center=(370, 420), width=200, height=100, angle=30, color="gold")
+Text("angle=30", center=(370, 310), font_size=15)
+Ellipse(fp1=(550, 420), fp2=(650, 420), major_axis=200, color="turquoise")
+Point(550, 420, color="white")
+Point(650, 420, color="white")
+Text("fp1, fp2, major_axis", center=(600, 310), font_size=15)
+block = Rect(center=(850, 420), width=200, height=120, color="orchid")
+block.draggable = True
+Ellipse(from_rect=block, padding=10, color="sky blue")
+Text("from_rect, padding", center=(850, 310), font_size=15)
+
+run()
+`,
+      notes: [
+        {
+          at: "Ellipse(fp1=(550, 420)",
+          text: "The foci are 100 apart, and the major axis is 200. The small white dots mark the foci."
+        },
+        {
+          at: "Ellipse(from_rect=block, padding=10",
+          text: "<code>from_rect=block</code> puts the ellipse inside the <code>Rect</code> and links it to it; <code>padding=10</code> leaves a gap of 10 on each side."
+        }
+      ],
+      after: `
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>width</code>, <code>height</code></td><td>Center, full width and full height.</td></tr>
+            <tr><td><code>angle</code></td><td>Turns the ellipse.</td></tr>
+            <tr><td><code>fp1</code>, <code>fp2</code>, <code>major_axis</code></td><td>The two foci and the major axis.</td></tr>
+            <tr><td><code>from_rect</code>, <code>padding</code></td><td>Inside a <code>Rect</code>, linked to it, with a gap.</td></tr>
+          </tbody>
+        </table></div>
+        <p>The purple box is draggable: drag it, and the ellipse goes along.</p>
+      `,
+      try: [
+        {
+          note: "The foci closer together: the ellipse almost becomes a circle. In place of the ellipse with foci (the dots stay where they were).",
+          replaces: ['Ellipse(fp1='],
+          code: `Ellipse(fp1=(590, 420), fp2=(610, 420), major_axis=200, color="turquoise")`
+        }
+      ]
+    },
+    {
+      title: "Polygons",
+      fresh: true,
+      part: "Polygon",
+      body: `
+        <p>A <code>Polygon</code> joins a list of points, <code>points</code>, in order, and closes the last one back to the first. With four points, a quadrilateral; with seven, an arrow; with three, any triangle you like.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Polygon")
+Wallpaper("dark navy")
+
+Polygon(points=[(60, 350), (220, 370), (240, 500), (80, 470)], color="coral")
+Text("4 points", center=(150, 300), font_size=15)
+arrow = Polygon(points=[(300, 390), (420, 390), (420, 340), (520, 420), (420, 500), (420, 450), (300, 450)], color="gold")
+arrow.show_points()
+Text("7 points", center=(410, 300), font_size=15)
+Polygon(points=[(600, 350), (740, 380), (640, 500)], color="turquoise")
+Text("3 points", center=(670, 300), font_size=15)
+Polygon(points=[(800, 350), (940, 350), (870, 490)], visual=Neon())
+Text("visual=Neon()", center=(870, 300), font_size=15)
+
+run()
+`,
+      notes: [
+        {
+          at: "arrow.show_points()",
+          text: "<code>show_points()</code> marks each vertex (corner) of the arrow, just so you can see them."
+        },
+        {
+          at: "visual=Neon())",
+          text: "<code>visual=</code> instead of <code>color=</code>: every shape takes one of the two, and the visual has its own color."
+        }
+      ],
+      dive: [
+        {
+          title: "The order of the points",
+          body: `
+            <p>The polygon follows the list in order. Swap two points and the edges cross: the shape turns into a bow tie. For a polygon with equal sides, <code>RegularPolygon</code> works out the points for you.</p>
+            <p>In the Guide: <a href="../guide/index.html#shape-polygon">Polygon</a>.</p>
+          `,
+          try: [
+            {
+              note: "The quadrilateral with its third and fourth points swapped. In its place.",
+              replaces: ['Polygon(points=[(60, 350)'],
+              code: `Polygon(points=[(60, 350), (220, 370), (80, 470), (240, 500)], color="coral")`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "Regular polygons",
+      fresh: true,
+      part: "RegularPolygon",
+      body: `
+        <p>A <code>RegularPolygon</code> has all its sides equal. <code>n</code> is the number of sides: 3 is a triangle, 4 a square (standing on a corner), 5 a pentagon, 6 a hexagon. On top, from 3 to 8 sides; below, the other models.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="RegularPolygon")
+Wallpaper("dark navy")
+
+for n in range(3, 9):
+    x = 100 + (n - 3) * 160
+    RegularPolygon(n=n, center=(x, 480), radius=60, color="turquoise")
+    Text(f"n={n}", center=(x, 390), font_size=15)
+
+RegularPolygon(n=6, center=(150, 200), side=60, color="gold")
+Text("side=60", center=(150, 100), font_size=15)
+RegularPolygon(n=6, vertex=(480, 200), side=60, color="coral")
+Point(480, 200, color="white")
+Text("vertex, side", center=(420, 100), font_size=15)
+RegularPolygon(n=5, center=(680, 200), radius=70, angle=90, color="orchid")
+Text("angle=90", center=(680, 100), font_size=15)
+
+run()
+`,
+      notes: [
+        {
+          at: "x = 100 + (n - 3) * 160",
+          text: "Each polygon sits 160 farther right than the one before: the 3-sided one at 100, the 4-sided one at 260, and so on."
+        }
+      ],
+      after: `
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>n</code>, <code>center</code>, <code>radius</code></td><td>The number of sides, the center, and the distance from the center to each vertex. All the ones on top.</td></tr>
+            <tr><td><code>side</code></td><td>The size by the side, instead of <code>radius</code>.</td></tr>
+            <tr><td><code>vertex</code>, <code>side</code></td><td>By the first vertex (the small white dot), instead of the center.</td></tr>
+            <tr><td><code>angle</code></td><td>Where the first vertex points: 0 is to the right; with 90, the pentagon stands upright.</td></tr>
+          </tbody>
+        </table></div>
+      `
+    },
+    {
+      title: "Triangles",
+      fresh: true,
+      part: "Triangle",
+      body: `
+        <p>A <code>Triangle</code>, with nothing else, is equilateral: all three sides equal, like the regular polygon with 3 sides. It has a name of its own because it shows up a lot, in ships, arrows and pointers. Its <code>angle</code> is where the tip (the apex) points: 0 is to the right, 90 is up. That is why it shows a turn so well.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Triangle")
+Wallpaper("dark navy")
+
+Triangle(center=(120, 380), radius=70, color="coral")
+Text("center, radius", center=(120, 270), font_size=15)
+Triangle(center=(330, 380), radius=70, angle=90, color="gold")
+Text("angle=90", center=(330, 270), font_size=15)
+Triangle(center=(530, 380), side=100, color="turquoise")
+Text("side=100", center=(530, 270), font_size=15)
+Triangle(vertex=(800, 380), side=100, color="orchid")
+Point(800, 380, color="white")
+Text("vertex, side", center=(750, 270), font_size=15)
+
+run()
+`,
+      after: `
+        <p>The models are the regular polygon's:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>You give</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>center</code>, <code>radius</code></td><td>Center, and the distance from the center to each tip.</td></tr>
+            <tr><td><code>angle</code></td><td>Where the apex points.</td></tr>
+            <tr><td><code>side</code></td><td>The size by the side.</td></tr>
+            <tr><td><code>vertex</code>, <code>side</code></td><td>By the apex (the small white dot), instead of the center.</td></tr>
+          </tbody>
+        </table></div>
+      `,
+      try: [
+        {
+          note: "A pointer that looks at the mouse: the <code>angle</code> in a <code>lambda</code> with the heading toward it (<code>heading</code>, Appendix D). At the end of the program.",
+          code: `Triangle(center=(500, 600), radius=40, angle=lambda: heading((500, 600), mouse), color="white")`
+        }
+      ]
+    },
+    {
+      title: "Isosceles triangles",
+      body: [
+        `
+        <p>A new row underneath: triangles with two equal sides and a base of a different size, the <em>isosceles</em> ones.</p>
+        `,
+        {
+          snip: `Triangle(center=(200, 560), side=90, angle=90, base_ratio=0.5, color="coral")`
+        },
+        `
+        <p>With <code>base_ratio</code>, the two equal sides are the <code>side</code>, and the base (the side opposite the apex) measures <code>base_ratio</code> times that size. Here, the two sides measure 90 and the base measures 45.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Triangle")
+Wallpaper("dark navy")
+
+Triangle(center=(120, 380), radius=70, color="coral")
+Text("center, radius", center=(120, 270), font_size=15)
+Triangle(center=(330, 380), radius=70, angle=90, color="gold")
+Text("angle=90", center=(330, 270), font_size=15)
+Triangle(center=(530, 380), side=100, color="turquoise")
+Text("side=100", center=(530, 270), font_size=15)
+Triangle(vertex=(800, 380), side=100, color="orchid")
+Point(800, 380, color="white")
+Text("vertex, side", center=(750, 270), font_size=15)
+
+Triangle(center=(200, 560), side=90, angle=90, base_ratio=0.5, color="coral")
+Text("base_ratio=0.5", center=(200, 490), font_size=15)
+Triangle(center=(500, 560), side=90, angle=90, color="gold")
+Text("base_ratio=1", center=(500, 490), font_size=15)
+Triangle(center=(800, 560), side=90, angle=90, base_ratio=1.6, color="turquoise")
+Text("base_ratio=1.6", center=(800, 490), font_size=15)
+
+run()
+`,
+      after: `
+        <p>Without <code>base_ratio</code>, it is 1 and the triangle is equilateral: the middle one. Below 1, it gets pointier, like a ship; above 1, wider. The <code>radius</code> still runs from the center to the apex, so a pointy ship turns and flies by its nose.</p>
+      `
+    },
+    {
+      title: "Points and anchors",
+      fresh: true,
+      part: "Point and Anchor",
+      body: `
+        <p>A <code>Point</code> is a position that lives in the game, with no body: it has no size and does not collide. It is a building block for other shapes (the end of a line, the center of a circle); Appendix D shows how to do math with it. Here, four ways to make one.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Point")
+Wallpaper("dark navy")
+
+Point(125, 420)
+Text("Point(125, 420)", center=(125, 370), font_size=15)
+Point(375, 420, color="gold")
+Text('color="gold"', center=(375, 370), font_size=15)
+grip = Point(625, 420)
+grip.handle = True
+Text("handle = True", center=(625, 370), font_size=15)
+anchor = Anchor(875, 420)
+Text("Anchor", center=(875, 370), font_size=15)
+
+Line(p1=lambda: grip, p2=lambda: anchor, color="gray")
+Point(lambda: (mouse.x, mouse.y), color="white")
+
+run()
+`,
+      notes: [
+        {
+          at: "Line(p1=lambda: grip, p2=lambda: anchor",
+          text: "The gray line joins the handle point to the anchor with a <code>lambda</code>: drag either one, and the line follows."
+        },
+        {
+          at: "Point(lambda: (mouse.x, mouse.y)",
+          text: "A point linked to the mouse: the white one, which moves with it."
+        }
+      ],
+      after: `
+        <div class="tbl"><table>
+          <thead><tr><th>How</th><th>The point</th></tr></thead>
+          <tbody>
+            <tr><td><code>Point(125, 420)</code></td><td>Invisible: it exists, but does not show (that is why there is only the name, with no dot).</td></tr>
+            <tr><td><code>color=</code></td><td>Shows as a small dot of that color, to mark a place.</td></tr>
+            <tr><td><code>handle = True</code></td><td>Shows and can be dragged with the mouse (a handle).</td></tr>
+            <tr><td><code>Anchor</code></td><td>The shortcut for a point that is born visible and draggable.</td></tr>
+          </tbody>
+        </table></div>
+      `
+    },
+    {
+      title: "What every shape takes",
+      fresh: true,
+      part: "Options for every shape",
+      body: `
+        <p>Some options work for every shape. On top, five circles show the look; below, the turn, the layer and the group.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Options")
+Wallpaper("dark navy")
+
+Circle(center=(110, 450), radius=70, color="coral")
+Text('color="coral"', center=(110, 340), font_size=15)
+Circle(center=(305, 450), radius=70, visual=Neon("gold"))
+Text('visual=Neon("gold")', center=(305, 340), font_size=15)
+ring = Circle(center=(500, 450), radius=70, color="turquoise", line_width=10)
+ring.fill = None
+Text("line_width=10, fill = None", center=(500, 340), font_size=15)
+edge = Circle(center=(695, 450), radius=70, color="orchid", line_width=6)
+edge.line = "white"
+Text('line = "white"', center=(695, 340), font_size=15)
+dashed = Circle(center=(890, 450), radius=70, color="sky blue", line_width=4)
+dashed.fill = None
+dashed.dash = "dash"
+Text('dash = "dash"', center=(890, 340), font_size=15)
+
+Square(center=(140, 180), length=120, angle=20, color="gold")
+Text("angle=20", center=(140, 70), font_size=15)
+Square(center=(420, 200), length=120, color="coral", layer="top")
+Circle(center=(480, 150), radius=60, color="turquoise")
+Text('layer="top"', center=(440, 70), font_size=15)
+Circle(center=(700, 180), radius=50, color="orchid", group="balls")
+Circle(center=(850, 180), radius=50, color="sky blue", group="balls")
+group["balls"].color = "lime"
+Text('group="balls"', center=(775, 70), font_size=15)
+
+run()
+`,
+      notes: [
+        {
+          at: "Square(center=(140, 180), length=120, angle=20",
+          text: "<code>angle=</code> turns it. It works on shapes that have a direction: rectangles, ellipses, regular polygons, lines."
+        },
+        {
+          at: "layer=\"top\")",
+          text: "<code>layer=</code> picks the drawing order: the square is made before the circle, but it sits on top, because it is in the <code>\"top\"</code> layer."
+        },
+        {
+          at: "group[\"balls\"].color = \"lime\"",
+          text: "<code>group=</code> puts the shape in a group, and the group changes them all at once: the two balls were made with different colors, and this line paints both."
+        }
+      ],
+      after: [
+        `
+        <p>The look, in the circles on top:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Option</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>color=</code></td><td>Paints the fill, and Scena makes an outline in a contrasting shade.</td></tr>
+            <tr><td><code>visual=</code></td><td>A visual (<code>Neon</code>, <code>Halo</code>, <code>Metal</code>…) instead of the color. Use one or the other, not both.</td></tr>
+            <tr><td><code>line_width=</code></td><td>The thickness of the outline. With <code>.fill = None</code> (no fill), only the outline is left: a ring.</td></tr>
+            <tr><td><code>.line</code></td><td>The color of the outline alone: here, white around the purple.</td></tr>
+            <tr><td><code>.dash</code></td><td>A dashed outline.</td></tr>
+          </tbody>
+        </table></div>
+        <p><code>.fill</code>, <code>.line</code> and <code>.dash</code> do not go inside the parentheses. Written like this,</p>
+        `,
+        {
+          snip: `ring = Circle(center=(500, 450), radius=70, color="turquoise", line_width=10, fill=None)`,
+          alt: true
+        },
+        `
+        <p>Python stops with a <code>TypeError</code> that lists the valid options. Write them after the shape exists, on a line of their own, as the program does.</p>
+        `
+      ],
+      try: [
+        {
+          note: "Other visuals, one at a time, in place of the <code>Neon</code>. More in the Guide, under Visual.",
+          replaces: ['Circle(center=(305, 450)'],
+          code: `Circle(center=(305, 450), radius=70, visual=Halo("gold"))
+Circle(center=(305, 450), radius=70, visual=Metal("gold"))
+Circle(center=(305, 450), radius=70, visual=Rim("gold"))`
+        },
+        {
+          note: "<code>set_defaults</code> picks the look of the shapes made <em>after</em> it; Appendix B shows it in “Default look”. Right after the <code>Wallpaper</code>: every shape gets a dotted outline. The color <code>\"coral\"</code> only applies to shapes that do not pass <code>color=</code> (here, they all do).",
+          replaces: ['Wallpaper("dark navy")'],
+          code: `Wallpaper("dark navy")
+set_defaults("coral", line_width=3, dash="dot")`
+        }
+      ],
+      dive: [
+        {
+          title: "color, fill and line",
+          body: `
+            <p><code>color</code> is the shortcut: it paints the fill (<code>fill</code>) and makes an outline (<code>line</code>) to match. <code>fill</code> and <code>line</code> change each part on its own, and they also take a gradient (<code>Gradient</code>) or a texture (<code>Texture</code>). On a <code>Line</code>, which has only a stroke, <code>color</code> paints the stroke.</p>
+            <p>To change the color after the shape exists, write to its field: <code>shape.color = "tomato"</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#desenhar-shapes">Shapes</a> · <a href="../guide/index.html#aparencia-visual">Visual</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Fit into a region",
+      fresh: true,
+      part: "box=",
+      body: `
+        <p>The last way to place a shape works for almost all of them: <code>box=</code> fits the shape into a rectangular region. A region is a <code>Box</code>: a rectangle that does not show, it only measures. Here, a grid of eight regions, each with a shape inside.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="box=")
+Wallpaper("dark navy")
+
+zone = Box(center=(500, 380), width=940, height=380)
+slots = zone.grid(4, 2, gap=(20, 60))
+
+
+def slot(col, row, caption):
+    region = slots.cell(col, row)
+    border = Rect(box=region, color="gray")
+    border.fill = None
+    Text(caption, center=region.bottom_center + (0, -20), font_size=15)
+    return region
+
+
+Rect(box=slot(0, 0, "Rect"), color="coral")
+Ellipse(box=slot(1, 0, "Ellipse"), color="gold")
+Circle(box=slot(2, 0, "Circle"), color="turquoise")
+Square(box=slot(3, 0, "Square"), color="orchid")
+RegularPolygon(n=6, box=slot(0, 1, "RegularPolygon"), color="sky blue")
+Triangle(box=slot(1, 1, "Triangle"), color="coral")
+Circle(box=slot(2, 1, "radius=30"), radius=30, color="gold")
+Rect(box=slot(3, 1, "inset(20)").inset(20), color="turquoise")
+
+run()
+`,
+      notes: [
+        {
+          at: "slots = zone.grid(4, 2, gap=(20, 60))",
+          text: "<code>grid</code> slices the zone into 4 columns and 2 rows, with a <code>gap</code> of 20 between the columns and 60 between the rows."
+        },
+        {
+          at: "region = slots.cell(col, row)",
+          text: "<code>slots.cell(1, 0)</code> is the cell in column 1, row 0, the top one. Both count from 0."
+        },
+        {
+          at: "border = Rect(box=region, color=\"gray\")",
+          text: "The cell's gray frame: a <code>Rect</code> with the same <code>box=</code>, and no fill."
+        },
+        {
+          at: "region.bottom_center + (0, -20)",
+          text: "The name sits 20 below the middle of the bottom edge (<code>bottom_center</code>). The function returns the region, and the shape on each line fits into it."
+        }
+      ],
+      after: `
+        <p>Each shape fits in its own way:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Shape</th><th>In the region</th></tr></thead>
+          <tbody>
+            <tr><td><code>Rect</code>, <code>Ellipse</code></td><td><strong>Fill</strong> the whole region.</td></tr>
+            <tr><td><code>Triangle</code></td><td>Also <strong>fills</strong> it: the apex at the middle of the right side, the base on the left side. With <code>base_ratio=</code>, it is the largest one with that proportion that fits, in the middle.</td></tr>
+            <tr><td><code>Circle</code>, <code>Square</code>, regular polygons</td><td>Are <strong>inscribed</strong>: as big as the shorter side, in the middle.</td></tr>
+            <tr><td>with a size given (<code>radius=30</code>)</td><td>The shape only sits <strong>at the center</strong> of the region.</td></tr>
+            <tr><td><code>.inset(20)</code></td><td>Shrinks the region by 20 on each side first: a margin.</td></tr>
+          </tbody>
+        </table></div>
+      `,
+      dive: [
+        {
+          title: "What it is for",
+          body: `
+            <p>With <code>box=</code>, you think in regions, not in numbers: a board, a fleet in formation, the buttons of a panel. Change the size of the <code>zone</code> and everything rearranges itself.</p>
+            <p>A shape has its own region too: <code>block.box</code>, for putting something else inside it. <code>Sprite</code> and <code>Text</code> take <code>box=</code> as well.</p>
+            <p>In the Guide: <a href="../guide/index.html#colocar-box">Box</a> · <a href="../guide/index.html#colocar-grid">Grid</a>.</p>
+          `,
+          try: [
+            {
+              note: "Another grid: 5 columns. The cells get narrower; the rectangle, the ellipse and the triangle follow, and the inscribed shapes shrink with the shorter side. In place of the grid line.",
+              replaces: ['slots = zone.grid('],
+              code: `slots = zone.grid(5, 2, gap=(20, 60))`
+            }
+          ]
+        }
+      ]
+    }
+  ]
+});
+</script>
+</body>
+</html>

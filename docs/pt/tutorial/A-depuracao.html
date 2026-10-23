@@ -31,6 +31,7 @@ Tutorial.mount({
             <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>Liga e desliga o ajuste automático de qualidade (FX Auto).</td><td>Para comparar o jogo com e sem o ajuste.</td></tr>
             <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>A qualidade dos efeitos: low → medium → high.</td><td>Para ver quanto um efeito custa.</td></tr>
             <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>O ritmo dos quadros: vsync → vsync60 → vsync30 → 60 → 30 → max.</td><td>Para testar o jogo num computador mais lento.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+6</kbd></td><td>O painel de processos: desligado → tarefas e modos → também os timers soltos.</td><td>Uma sequência que parou sem aviso; um timer que não dispara.</td></tr>
             <tr><td><kbd>Ctrl+Shift+7</kbd></td><td>Desenha o invisível: colisores, a moldura da tela, a cruz da origem, as trilhas e o campo de jogo.</td><td>Uma colisão que não acontece; uma trilha que faz uma volta estranha.</td></tr>
             <tr><td><kbd>Ctrl+Shift+8</kbd></td><td>Afasta a vista (100% → 50% → 25%).</td><td>Para ver o que acontece fora da janela.</td></tr>
             <tr><td><kbd>Ctrl+Shift+P</kbd></td><td>O tempo: roda → pausa → ¼ da velocidade → roda.</td><td>Para ver com calma um choque rápido.</td></tr>
@@ -102,9 +103,9 @@ run()
         }
       ],
       after: `
-        <p>Rode e aperte <kbd>Ctrl+Shift+1</kbd>. No canto aparece o painel do sistema, o HUD (de <em>heads-up display</em>, o painel que fica por cima do jogo), com três leituras:</p>
+        <p>Rode e aperte <kbd>Ctrl+Shift+1</kbd>. No canto aparece o painel do sistema, o HUD (de <em>heads-up display</em>, o painel que fica por cima do jogo), com estas leituras, entre outras:</p>
         <div class="tbl"><table><thead><tr><th>Leitura</th><th>O que mostra</th></tr></thead><tbody>
-          <tr><td><code>fps</code></td><td>(<em>frames per second</em>, quadros por segundo) quantas vezes por segundo a tela é redesenhada. Perto de 60 é o normal; se cai muito, o jogo está pesado para o computador (veja <a href="#qualidade-e-quadros">Qualidade e ritmo</a>).</td></tr>
+          <tr><td><code>FPS</code></td><td>(<em>frames per second</em>, quadros por segundo) quantas vezes por segundo a tela é redesenhada. Perto de 60 é o normal; se cai muito, o jogo está pesado para o computador (veja <a href="#qualidade-e-quadros">Qualidade e ritmo</a>).</td></tr>
           <tr><td><code>objs</code></td><td>quantas coisas existem no jogo agora: a nave, cada meteoro, cada texto.</td></tr>
           <tr><td><code>xy</code></td><td>onde está o mouse, nas mesmas medidas do seu código.</td></tr>
         </tbody></table></div>
@@ -455,12 +456,12 @@ run()
         }
       ],
       after: `
-        <p>Rode e ligue o painel (<kbd>Ctrl+Shift+1</kbd>) para acompanhar o <code>fps</code>.</p>
+        <p>Rode e ligue o painel (<kbd>Ctrl+Shift+1</kbd>) para acompanhar o <code>FPS</code>.</p>
         <p>Sem você pedir, o Scena mede quanto tempo cada quadro leva. Se o computador não dá conta, ele baixa a qualidade dos efeitos (high → medium → low) e, se ainda não bastar, o ritmo, de 60 para 30 quadros por segundo. Se o que pesa é a lógica do jogo (o <code>update</code>, os processos, as colisões), baixar a qualidade não ajuda: ele vai direto para 30 e mantém a qualidade. Esse ajuste automático se chama FX Auto e começa ligado. As teclas deixam você mesmo escolher:</p>
         <div class="tbl"><table><thead><tr><th>Tecla</th><th>O que troca</th></tr></thead><tbody>
           <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>desliga e liga de novo o FX Auto</td></tr>
           <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>a qualidade: low (baixa) → medium (média) → high (alta). Em low, as fogueiras viram um brilho simples</td></tr>
-          <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>o ritmo dos quadros, um por aperto: o do monitor, 60, 30 ou sem limite. O <code>fps</code> do painel mostra o ritmo de verdade</td></tr>
+          <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>o ritmo dos quadros, um por aperto: o do monitor, 60, 30 ou sem limite. O <code>FPS</code> do painel mostra o ritmo de verdade</td></tr>
         </tbody></table></div>
         <p>Ponha em low e 30, e jogue: é assim que o seu jogo fica num computador mais fraco. Os movimentos escritos com <code>dt</code> andam na mesma velocidade em qualquer ritmo; só ficam menos suaves.</p>
       `,

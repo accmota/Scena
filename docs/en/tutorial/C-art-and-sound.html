@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Art and sound — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Appendix",
+  n: "C",
+  title: "Art and sound",
+  steps: [
+    {
+      title: "The sites",
+      part: "Where to find it",
+      body: `
+        <p>Almost all the art and sound in the tutorials came from sites that offer <em>assets</em> (images, animations, sounds, music, fonts) to people who make games:</p>
+        <div class="tbl"><table><thead><tr><th>Site</th><th>What it has</th></tr></thead><tbody>
+          <tr><td><a href="https://www.kenney.nl">kenney.nl</a></td><td>Thousands of free pieces in packs that go well together: ships, platforms, cards, buttons, sounds, fonts. The ships, planets and balls in the tutorials. Each pack comes with its pieces as separate files and also as one sheet holding them all (Appendix G).</td></tr>
+          <tr><td><a href="https://www.gameart2d.com">gameart2d.com</a></td><td>Animated characters and platform scenery, all by one artist: the ninja, the robot, the plane and the ground tiles, one file per animation frame. The <em>Freebies</em> section is free; the rest is paid.</td></tr>
+          <tr><td><a href="https://opengameart.org">opengameart.org</a></td><td>A community site: many people publish sprites, textures, music and sounds.</td></tr>
+          <tr><td><a href="https://itch.io/game-assets">itch.io</a></td><td>A store for independent creators, with many free or “pay what you want” packs.</td></tr>
+          <tr><td><a href="https://craftpix.net">craftpix.net</a></td><td>A large catalog of 2D art, almost all paid, with a free section.</td></tr>
+          <tr><td><a href="https://freesound.org">freesound.org</a></td><td>Sounds recorded or made by thousands of people: explosions, footsteps, doors, voices, ambiences. Downloading needs a free account. Several of the explosions in the tutorials.</td></tr>
+          <tr><td><a href="https://fonts.google.com">fonts.google.com</a></td><td>Over a thousand font families (the lettering of a <code>Text</code>), all free.</td></tr>
+          <tr><td><a href="https://www.1001fonts.com/video-game-fonts.html">1001fonts.com</a></td><td>This link opens the fonts that look like video games: pixel, arcade, science fiction.</td></tr>
+        </tbody></table></div>
+        <p>Pick a whole pack by one author over loose pieces by several: the styles match. Each site says, on the piece's page, what its license allows: read it before you download.</p>
+      `
+    },
+    {
+      title: "The media folder",
+      part: "Organizing the files",
+      fresh: true,
+      body: `
+        <p>When you write <code>Sprite("space/star_gold.png")</code>, Scena looks for the file in this order and uses the first one that exists:</p>
+        <ol>
+          <li>next to the script: the folder of the <code>.py</code> file you ran;</li>
+          <li>in the <code>media</code> folder next to the script;</li>
+          <li>in the folder the program was run from (the terminal's current folder).</li>
+        </ol>
+        <p>A full path, like <code>"/Users/ana/games/ship.png"</code>, means that one file only. The same search works for everything that opens a file by name: <code>Sprite</code>, <code>Wallpaper</code>, <code>Svg</code>, <code>Sheet</code>, <code>play_sound</code> and a text's <code>font=</code>.</p>
+        <p>That is why the tutorials ask you to copy the examples' <code>media</code> folder next to your scripts. Keep what you download the same way, one subfolder per pack:</p>
+        <ul>
+          <li><code>my_game.py</code></li>
+          <li><code>media/</code>
+            <ul>
+              <li><code>space/</code> — a Kenney pack</li>
+              <li><code>k-rolling-ball/</code> — another pack</li>
+              <li><code>audio/</code> — the sounds</li>
+            </ul>
+          </li>
+        </ul>
+        <p>The program shows three images from three subfolders, with each one's name written below it.</p>
+      `,
+      code: `from scena import *
+
+init(width=900, height=500, title="Folders")
+Wallpaper("dark navy")
+
+Sprite("space/star_gold.png", height=90, center=(180, 290))
+Sprite("k-rolling-ball/ball_blue_large.png", height=90, center=(450, 290))
+Sprite("robot/Idle (1).png", height=120, center=(720, 290))
+
+Text("space/star_gold.png", top_center=(180, 200), font_size=18)
+Text("k-rolling-ball/ball_blue_large.png", top_center=(450, 200), font_size=18)
+Text("robot/Idle (1).png", top_center=(720, 200), font_size=18)
+
+run()
+`,
+      notes: [
+        {
+          at: "Sprite(\"space/star_gold.png\"",
+          text: "The name includes the subfolder: Scena looks for <code>media/space/star_gold.png</code>. It does not search the subfolders on its own for a <code>star_gold.png</code>, so the subfolder has to be in the name."
+        },
+        {
+          at: "Sprite(\"robot/Idle (1).png\"",
+          text: "Exactly as the file is spelled, with capitals, spaces and parentheses. On Mac and Windows, <code>idle (1).png</code> still opens, but with a warning in the console: on Linux the file would not be found. If you rename files, prefer short names without accents or spaces."
+        }
+      ],
+      after: `
+        <p>Change <code>star_gold</code> to <code>star_gld</code> and run. A wrong name does not stop the game: a checkerboard shows in place of the image (for a sound, silence), and a warning in the console says which file was missing (Appendix A, “Warnings”).</p>
+        <details class="ask"><summary>There is a <code>space/star_gold.png</code> next to the script and another in <code>media/space/star_gold.png</code>. Which one shows?</summary><p>The one next to the script: the search stops at the first one it finds, and the script's folder comes before <code>media</code>. That way you can swap an image from a pack for one of your own without touching the <code>media</code> folder.</p></details>
+      `
+    },
+    {
+      title: "PNG, JPG, sounds and fonts",
+      part: "Formats",
+      fresh: true,
+      body: `
+        <p>The format is the file's type, and it shows at the end of the name, after the dot. This program uses four: the background is a JPG, the ship a PNG, the title uses a font, and keys 1 and 2 play two sounds.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=600, title="Formats")
+Wallpaper("images/bg3.jpg")
+
+Sprite("space/playerShip1_red.png", height=120, center=(500, 280))
+Text("FORMATS", top_center=(500, 560), font="space/kenvector_future.ttf", font_size=56)
+Text("1: OGG sound   2: WAV sound", top_left=(20, 50), font_size=22)
+
+
+def update(dt):
+    if keyp.once("1"):
+        play_sound("space/sfx_laser1.ogg")
+    if keyp.once("2"):
+        play_sound("synth/coin.wav")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "font=\"space/kenvector_future.ttf\"",
+          text: "A font (the lettering of a text) is a file too. Kenney's ship pack comes with this one."
+        }
+      ],
+      after: `
+        <p>The formats Scena opens:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Format</th><th>What for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>PNG</strong> (<code>.png</code>)</td><td>The format for sprites. It keeps transparency: there is no background around the ship, and the sky shows behind it.</td></tr>
+            <tr><td><strong>JPG</strong> (<code>.jpg</code>, <code>.jpeg</code>)</td><td>Photos and paintings, smaller files. No transparency: good for backgrounds, like this program's <code>Wallpaper</code>, not for sprites.</td></tr>
+            <tr><td><strong>SVG</strong> (<code>.svg</code>)</td><td>A drawing made of shapes rather than pixels, sharp at any size. It opens with <code>Svg("file.svg")</code>, instead of <code>Sprite</code>.</td></tr>
+            <tr><td><strong>Sounds</strong> (<code>.wav</code>, <code>.ogg</code>, <code>.mp3</code>, <code>.flac</code>)</td><td>WAV is common for short effects; OGG and MP3, which are smaller, for music.</td></tr>
+            <tr><td><strong>Fonts</strong> (<code>.ttf</code>, <code>.otf</code>)</td><td>The lettering of a text, with <code>font=</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <p>An animated character comes as several files, a strip or an atlas. How to load each one, with pictures, and how an image collides are in Appendix G.</p>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

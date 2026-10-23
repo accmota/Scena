@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helpers — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Appendix",
+  n: "E",
+  title: "Helpers",
+  steps: [
+    {
+      title: "A point between two",
+      part: "lerp",
+      body: `
+        <p>This appendix shows the <strong>helpers</strong>: small functions that do a calculation every game needs. Mixing two values (<code>lerp</code>), carrying a number from one scale to another (<code>remap</code>), getting closer to a target bit by bit (<code>chase</code>), giving a follower some slack (<code>deadzone</code>). Each section is a short program: run it, move the mouse, change the numbers. Random draws are in Appendix B.</p>
+        <p>The first is <code>lerp(a, b, t)</code>: the value a fraction <code>t</code> of the way from <code>a</code> to <code>b</code>. With <code>t = 0</code>, it is <code>a</code> itself; with <code>t = 1</code>, it is <code>b</code>; with <code>0.5</code>, the middle; with <code>0.25</code>, a quarter of the way, closer to <code>a</code>. The name is short for <em>linear interpolation</em>: filling in the straight path between two values.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="A segment from A to B, with marks at t equal to 0, 0.25, 0.5, 0.75 and 1; A is at 0 and B at 1">
+            <line class="ray" x1="40" y1="50" x2="360" y2="50"/>
+            <circle class="hot" cx="40" cy="50" r="6"/>
+            <circle class="hot" cx="360" cy="50" r="6"/>
+            <circle class="dot" cx="120" cy="50" r="4"/>
+            <circle class="dot" cx="200" cy="50" r="4"/>
+            <circle class="dot" cx="280" cy="50" r="4"/>
+            <text x="40" y="30" text-anchor="middle">a</text>
+            <text x="360" y="30" text-anchor="middle">b</text>
+            <text x="40" y="80" text-anchor="middle">0</text>
+            <text x="120" y="80" text-anchor="middle">0.25</text>
+            <text x="200" y="80" text-anchor="middle">0.5</text>
+            <text x="280" y="80" text-anchor="middle">0.75</text>
+            <text x="360" y="80" text-anchor="middle">1</text>
+            <text x="200" y="102" text-anchor="middle">t</text>
+          </svg>
+          <figcaption>The <code>t</code> says how much of the way from <code>a</code> to <code>b</code> has been covered.</figcaption>
+        </figure>
+        <p>The program draws the figure between two ends you can drag.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="lerp")
+Wallpaper("dark navy")
+
+a = Anchor(150, 300)
+b = Anchor(850, 450, color="lime")
+Line(p1=lambda: a.center, p2=lambda: b.center, color="gray")
+
+
+def mark(t, color):
+    Circle(center=lambda: lerp(a.center, b.center, t), radius=10, color=color)
+    Text(f"{t}", center=lambda: lerp(a.center + (0, 35), b.center + (0, 35), t), font_size=16)
+
+
+mark(0.25, "coral")
+mark(0.5, "gold")
+mark(0.75, "turquoise")
+
+run()
+`,
+      notes: [
+        {
+          at: "b = Anchor(850, 450",
+          text: "The ends are two <code>Anchor</code> objects: visible points you can drag."
+        },
+        {
+          at: "Circle(center=lambda: lerp(a.center, b.center, t)",
+          text: "A small dot a fraction <code>t</code> of the way. With two points, <code>lerp</code> returns a tuple <code>(x, y)</code>, and the <code>lambda</code> redoes the calculation every frame."
+        }
+      ],
+      after: `
+        <p>Drag the ends: the three dots always stay a quarter, half and three quarters of the way.</p>
+      `,
+      try: [
+        {
+          note: "The <code>t</code> does not have to stay between 0 and 1: with 1.25, the point goes past <code>b</code>; with −0.25, it lands before <code>a</code>. At the end of the program.",
+          code: `mark(1.25, "white")
+mark(-0.25, "white")`
+        }
+      ]
+    },
+    {
+      title: "The mouse as t",
+      body: `
+        <p>A white dot uses the mouse as its <code>t</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="lerp")
+Wallpaper("dark navy")
+
+a = Anchor(150, 300)
+b = Anchor(850, 450, color="lime")
+Line(p1=lambda: a.center, p2=lambda: b.center, color="gray")
+
+
+def mark(t, color):
+    Circle(center=lambda: lerp(a.center, b.center, t), radius=10, color=color)
+    Text(f"{t}", center=lambda: lerp(a.center + (0, 35), b.center + (0, 35), t), font_size=16)
+
+
+mark(0.25, "coral")
+mark(0.5, "gold")
+mark(0.75, "turquoise")
+
+Circle(center=lambda: lerp(a.center, b.center, mouse.x / 1000), radius=16, color="white")
+Text(lambda: f"t = mouse.x / 1000 = {round(mouse.x / 1000, 2)}", top_left=(20, 680), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "mouse.x / 1000), radius=16",
+          text: "<code>mouse.x / 1000</code> goes from 0, at the left edge, to 1, at the right: a ready-made <code>t</code>."
+        },
+        {
+          at: "round(mouse.x / 1000, 2)",
+          text: "<code>round(…, 2)</code> rounds to two decimal places, so the text does not show a long number."
+        }
+      ],
+      after: `
+        <p>Move the mouse from one side of the window to the other: the dot travels from A to B.</p>
+      `,
+      dive: [
+        {
+          title: "lerp and middle_point",
+          body: `
+            <p>The middle of two points is <code>lerp(a, b, 0.5)</code>. Scena also has <code>middle_point(a, b)</code>, which does the same calculation and reads better when the middle is what you want.</p>
+            <p>In the Guide: <a href="../guide/index.html#util-lerp">lerp</a> · <a href="../guide/index.html#geo-helpers">Points</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Numbers and colors",
+      fresh: true,
+      part: "lerp with numbers and colors",
+      body: `
+        <p><code>lerp</code> is not only for points. With two numbers, it gives the number between them: <code>lerp(20, 200, 0.5)</code> is 110. With two colors, it mixes the colors. Here the mouse is the <code>t</code> of both calculations.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="lerp")
+Wallpaper("dark navy")
+
+ball = Circle(center=(500, 350), radius=lambda: lerp(20, 200, mouse.x / 1000), color="gold")
+Text(lambda: f"radius = {round(ball.radius)}", top_left=(20, 680), font_size=20)
+
+
+def update(dt):
+    ball.color = lerp(Color("gold"), Color("purple"), mouse.x / 1000)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "radius=lambda: lerp(20, 200, mouse.x / 1000)",
+          text: "The radius goes from 20, with the mouse at the left edge, to 200, at the right."
+        },
+        {
+          at: "ball.color = lerp(Color(\"gold\")",
+          text: "The color goes from gold to purple, written every frame. <code>Color(\"gold\")</code> turns the name into a color <code>lerp</code> knows how to mix; with the text <code>\"gold\"</code>, it raises an error."
+        }
+      ],
+      after: `
+        <p>Move the mouse from left to right: the ball grows and turns from gold to purple. In the middle, it has the shade halfway between the two.</p>
+      `,
+      try: [
+        {
+          note: "Two other colors. In place of the color line.",
+          replaces: ['ball.color = lerp('],
+          code: `ball.color = lerp(Color("deep sky blue"), Color("tomato"), mouse.x / 1000)`
+        }
+      ]
+    },
+    {
+      title: "From one ruler to another",
+      fresh: true,
+      part: "remap",
+      body: `
+        <p>In the previous step, the radius came from <code>lerp(20, 200, mouse.x / 1000)</code>: first <code>mouse.x / 1000</code> turns the mouse position into a <code>t</code> from 0 to 1, then <code>lerp</code> carries that <code>t</code> over to the radius. <code>remap</code> does both calculations at once.</p>
+        <p><code>remap(value, from_min, from_max, to_min, to_max)</code> takes a value measured on one ruler and tells where it falls on the other:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 430 140" role="img" aria-label="Two rulers, one on top, from 0 to 1000, and one below, from 10 to 200; dashed lines join 0 to 10, 500 to 105 and 1000 to 200">
+            <line class="ray" x1="40" y1="40" x2="360" y2="40"/>
+            <line class="ray" x1="120" y1="100" x2="280" y2="100"/>
+            <line class="guide" x1="40" y1="40" x2="120" y2="100"/>
+            <line class="guide" x1="200" y1="40" x2="200" y2="100"/>
+            <line class="guide" x1="360" y1="40" x2="280" y2="100"/>
+            <circle class="dot" cx="40" cy="40" r="3.5"/>
+            <circle class="dot" cx="200" cy="40" r="3.5"/>
+            <circle class="dot" cx="360" cy="40" r="3.5"/>
+            <circle class="hot" cx="120" cy="100" r="4"/>
+            <circle class="hot" cx="200" cy="100" r="4"/>
+            <circle class="hot" cx="280" cy="100" r="4"/>
+            <text x="40" y="26" text-anchor="middle">0</text>
+            <text x="200" y="26" text-anchor="middle">500</text>
+            <text x="360" y="26" text-anchor="middle">1000</text>
+            <text x="120" y="122" text-anchor="middle">10</text>
+            <text x="200" y="122" text-anchor="middle">105</text>
+            <text x="280" y="122" text-anchor="middle">200</text>
+            <text x="372" y="44">mouse.x</text>
+            <text x="292" y="104">radius</text>
+          </svg>
+          <figcaption>Every point on the top ruler has its place on the bottom one.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="remap")
+Wallpaper("dark navy")
+
+ball = Circle(center=(300, 350), radius=lambda: remap(mouse.x, 0, 1000, 10, 200), color="coral")
+Text(lambda: f"mouse.x = {round(mouse.x)}", top_left=(20, 680), font_size=20)
+Text(lambda: f"radius = {round(ball.radius)}", top_left=(20, 650), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "radius=lambda: remap(mouse.x, 0, 1000, 10, 200)",
+          text: "The mouse moves on the ruler from 0 to 1000; the radius, on the one from 10 to 200."
+        }
+      ],
+      after: `
+        <p>Take the mouse to the middle of the window, at 500: the radius shows 105. The middle of one ruler falls on the middle of the other.</p>
+      `
+    },
+    {
+      title: "Backwards",
+      body: `
+        <p>A second ball, with two new rulers: one that runs backwards, and one smaller than the window.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="remap")
+Wallpaper("dark navy")
+
+ball = Circle(center=(300, 350), radius=lambda: remap(mouse.x, 0, 1000, 10, 200), color="coral")
+Text(lambda: f"mouse.x = {round(mouse.x)}", top_left=(20, 680), font_size=20)
+Text(lambda: f"radius = {round(ball.radius)}", top_left=(20, 650), font_size=20)
+
+other = Circle(center=lambda: (750, remap(mouse.y, 0, 700, 250, 450)), radius=lambda: remap(mouse.x, 0, 1000, 200, 10), color="turquoise")
+
+run()
+`,
+      notes: [
+        {
+          at: "radius=lambda: remap(mouse.x, 0, 1000, 200, 10)",
+          text: "The target ruler runs backwards: 200 with the mouse at the left, 10 at the right."
+        },
+        {
+          at: "remap(mouse.y, 0, 700, 250, 450)",
+          text: "The window height (0 to 700) becomes a smaller range, from 250 to 450."
+        }
+      ],
+      after: `
+        <p>Move the mouse: the new ball shrinks as the other grows. And the mouse covers the whole height of the window, but the ball moves up and down only part of the way.</p>
+      `,
+      dive: [
+        {
+          title: "Off the ruler",
+          body: `
+            <p><code>remap</code> does not stop at the ends: a value past the source ruler lands past the target ruler. <code>remap(1200, 0, 1000, 10, 200)</code> gives 238. With the mouse this does not happen (it does not leave the window), but with a hero's health, a ship's speed or a sound's volume, it can. To stop at the end, compare it yourself: <code>min(radius, 200)</code> is the smaller of the two numbers.</p>
+            <p>The real names of the first two numbers are <code>in_min</code> and <code>in_max</code> (the input); of the last two, <code>out_min</code> and <code>out_max</code> (the output).</p>
+            <p>In the Guide: <a href="../guide/index.html#util-remap">remap</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Six curves",
+      fresh: true,
+      part: "Curves",
+      body: `
+        <p>Between the ends, <code>remap</code> goes in a straight line: the middle of one ruler falls on the middle of the other. With <code>modifier=</code>, the path between the ends <strong>curves</strong>. The ends do not change; what changes is how you get from one to the other. The program draws six curves, one per square.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Curves")
+Wallpaper("dark navy")
+
+
+def panel(name, x, y):
+    Rect(top_left=(x, y + 200), width=200, height=200, color="#1b2340")
+    for i in range(41):
+        t = i / 40
+        Circle(center=(x + t * 200, y + remap(t, 0, 1, 0, 200, modifier=name)), radius=2, color="sky blue")
+    Circle(center=lambda: (x + mouse.x / 5, y + remap(mouse.x, 0, 1000, 0, 200, modifier=name)), radius=8, color="gold")
+    Text(name, center=(x + 100, y - 22), font_size=18)
+
+
+panel("linear", 70, 380)
+panel("ease_in", 400, 380)
+panel("ease_out", 730, 380)
+panel("ease_in_out", 70, 60)
+panel("bounce", 400, 60)
+panel("elastic", 730, 60)
+
+run()
+`,
+      notes: [
+        {
+          at: "def panel(name, x, y):",
+          text: "Each square draws one curve. The source ruler is the width of the square (from 0 to 1); the target ruler, its height (from 0 to 200)."
+        },
+        {
+          at: "for i in range(41):",
+          text: "41 small blue dots, from <code>t = 0</code> to <code>t = 1</code>, draw the curve."
+        },
+        {
+          at: "Circle(center=lambda: (x + mouse.x / 5",
+          text: "The gold ball in each square uses the mouse as its value."
+        }
+      ],
+      after: `
+        <p>Move the mouse from left to right: the six balls make the same trip, from the bottom corner to the top one, at different paces.</p>
+        <div class="tbl"><table><thead><tr><th>Name</th><th>The path</th></tr></thead><tbody>
+          <tr><td><code>"linear"</code></td><td>the straight line, the same as leaving out <code>modifier=</code></td></tr>
+          <tr><td><code>"ease_in"</code></td><td>starts slow and speeds up</td></tr>
+          <tr><td><code>"ease_out"</code></td><td>starts fast and brakes</td></tr>
+          <tr><td><code>"ease_in_out"</code></td><td>both: slow, fast, slow</td></tr>
+          <tr><td><code>"bounce"</code></td><td>hits the end and comes back, like a ball on the floor</td></tr>
+          <tr><td><code>"elastic"</code></td><td>goes past the end and wobbles, like a spring</td></tr>
+        </tbody></table></div>
+        <p>These are the same names as the <code>ease=</code> of timed movements: <code>move_to(…, time=1, ease="bounce")</code> arrives bouncing.</p>
+      `,
+      try: [
+        {
+          note: "Other curves, in place of one of the names: <code>\"quad\"</code>, <code>\"smoothstep\"</code>, <code>\"sigmoid\"</code>, <code>\"steps\"</code>, <code>\"erratic\"</code> or, as below, <code>\"spring\"</code>, which wobbles around the middle of the target ruler.",
+          replaces: ['panel("elastic"'],
+          code: `panel("spring", 730, 60)`
+        },
+        {
+          note: "A curve on the size of a ball: it grows slowly at first and fast at the end. At the end of the program.",
+          code: `Circle(center=(880, 650), radius=lambda: remap(mouse.x, 0, 1000, 5, 40, modifier="ease_in"), color="coral")`
+        }
+      ]
+    },
+    {
+      title: "Chasing the mouse",
+      fresh: true,
+      part: "chase",
+      body: `
+        <p><code>chase</code> brings a value closer to a target, a little every frame. The ball does not jump to the mouse: it moves fast when far away and slowly when close, and stops on top of it without overshooting.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="chase")
+Wallpaper("dark navy")
+
+ball = Circle(center=(500, 350), radius=20, color="coral")
+
+
+def update(dt):
+    ball.center = chase(ball.center, (mouse.x, mouse.y), rate=3)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ball.center = chase(ball.center, (mouse.x, mouse.y), rate=3)",
+          text: "<code>chase</code> returns the next step: a place between where the ball is and the mouse. On the next frame the calculation starts again, from the new place. That is why it goes in <code>update</code>, not in a <code>lambda</code>: each step starts from the previous one."
+        }
+      ],
+      after: `
+        <p><code>rate</code> says how fast: every 1/<code>rate</code> of a second, the distance left drops to about a third. With <code>rate=3</code>, after 1/3 of a second a third is left; after 2/3, a ninth; and so on.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="A ball at five moments on its way to a target on the right; at each moment the distance left is about a third of the one before, so the steps get smaller and smaller">
+            <circle class="hot" cx="360" cy="50" r="8"/>
+            <circle class="guide" cx="40" cy="50" r="9"/>
+            <circle class="guide" cx="242" cy="50" r="9"/>
+            <circle class="guide" cx="317" cy="50" r="9"/>
+            <circle class="dot" cx="344" cy="50" r="9"/>
+            <line class="ray" x1="52" y1="80" x2="230" y2="80"/>
+            <line class="ray" x1="250" y1="80" x2="308" y2="80"/>
+            <line class="ray" x1="322" y1="80" x2="340" y2="80"/>
+            <text x="40" y="26" text-anchor="middle">0 s</text>
+            <text x="242" y="26" text-anchor="middle">1/3 s</text>
+            <text x="317" y="26" text-anchor="middle">2/3 s</text>
+            <text x="360" y="26" text-anchor="middle">target</text>
+            <text x="200" y="102" text-anchor="middle">smaller and smaller steps</text>
+          </svg>
+          <figcaption>With <code>rate=3</code>: every third of a second, only a third of what was left remains.</figcaption>
+        </figure>
+      `
+    },
+    {
+      title: "Three rates",
+      body: `
+        <p>Three balls chase the mouse, each with its own <code>rate</code>: 1 (slow), 4, and 12 (almost glued to it).</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="chase")
+Wallpaper("dark navy")
+
+
+def chaser(rate, color):
+    ball = Circle(center=(500, 350), radius=20, color=color)
+    ball.rate = rate
+    Text(f"rate={rate}", center=lambda: ball.center + (0, 38), font_size=16)
+    return ball
+
+
+balls = [chaser(1, "orchid"), chaser(4, "coral"), chaser(12, "gold")]
+
+
+def update(dt):
+    for ball in balls:
+        ball.center = chase(ball.center, (mouse.x, mouse.y), rate=ball.rate)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def chaser(rate, color):",
+          text: "The function makes a ball and its number, which travels with it, and returns the ball."
+        },
+        {
+          at: "ball.rate = rate",
+          text: "Each ball keeps its own rate in a field, <code>ball.rate</code>."
+        },
+        {
+          at: "for ball in balls:",
+          text: "The list <code>balls</code> holds all three, and <code>update</code> goes through each one."
+        }
+      ],
+      after: `
+        <p>Race the mouse from one corner to the other and stop: all three arrive, each in its own time.</p>
+      `,
+      dive: [
+        {
+          title: "chase and lerp",
+          body: `
+            <p><code>chase</code> is a <code>lerp</code> with a <code>t</code> chosen for you. Every frame, it covers a fraction of the distance left; the fraction depends on <code>rate</code> and on the frame time (<code>dt</code>). That is why the pace is the same on a fast computer and a slow one: with shorter frames, each step is smaller.</p>
+            <p>Like <code>lerp</code>, it accepts numbers, tuples, points, <code>Vec2</code> and colors. A health bar that goes down smoothly: <code>bar.width = chase(bar.width, health, rate=8)</code>. A camera that follows the hero: <code>canvas.pan_to(chase(…, hero.center, rate=6))</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#util-chase">chase</a>.</p>
+          `,
+          try: [
+            {
+              note: "One number chasing another: the bar runs after the mouse, in width only. At the end of the program.",
+              code: `bar = Rect(top_left=(100, 60), width=10, height=20, color="turquoise")
+
+
+def update(dt):
+    for ball in balls:
+        ball.center = chase(ball.center, (mouse.x, mouse.y), rate=ball.rate)
+    bar.width = chase(bar.width, mouse.x, rate=2)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "A border with slack",
+      fresh: true,
+      part: "deadzone",
+      body: `
+        <p><code>deadzone</code> gives <strong>slack</strong>: the target moves freely inside a box, and nothing happens. When it leaves, the box goes along, just enough to keep it on the edge.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="On the left, a box with the target inside: the box does not move; on the right, the target left through the right side and the box moved until the target sat on its edge">
+            <rect class="guide" x="30" y="30" width="130" height="80"/>
+            <circle class="hot" cx="120" cy="60" r="6"/>
+            <text x="95" y="132" text-anchor="middle">inside: stays</text>
+            <rect class="guide" x="200" y="30" width="130" height="80"/>
+            <rect class="bar" x="240" y="30" width="130" height="80" fill-opacity="0.25"/>
+            <circle class="hot" cx="370" cy="70" r="6"/>
+            <line class="ray" x1="268" y1="70" x2="304" y2="70"/>
+            <polygon class="dot" points="310,70 302,66 302,74"/>
+            <text x="285" y="132" text-anchor="middle">outside: the box moves to the edge</text>
+          </svg>
+          <figcaption>Inside the box, the target moves on its own. Outside, it drags the box along.</figcaption>
+        </figure>
+        <p>Here the box is a blue border, and the target is the mouse.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="deadzone")
+Wallpaper("dark navy")
+
+border = Rect(center=(500, 350), width=300, height=200, color="sky blue", line_width=3)
+border.fill = None
+Circle(center=lambda: mouse, radius=8, color="gold")
+
+
+def update(dt):
+    border.center = deadzone(border.center, (mouse.x, mouse.y), size=(300, 200))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "border.fill = None",
+          text: "A <code>Rect</code> with no fill: only the outline."
+        },
+        {
+          at: "border.center = deadzone(",
+          text: "<code>deadzone</code> takes the current center of the box, the target and the size of the box (<code>size</code>: width and height), and returns the new center."
+        }
+      ],
+      after: `
+        <p>Move the mouse inside the border: it stays still. Push out of it: the border follows, touching the mouse.</p>
+      `
+    },
+    {
+      title: "Slack and chase",
+      body: `
+        <p>Together, the two make the camera of a platform game: <code>deadzone</code> says where to go (only when the hero leaves the box), and <code>chase</code> gets there gently. Here the border plays the camera.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="deadzone")
+Wallpaper("dark navy")
+
+border = Rect(center=(500, 350), width=300, height=200, color="sky blue", line_width=3)
+border.fill = None
+Circle(center=lambda: mouse, radius=8, color="gold")
+
+
+def update(dt):
+    goal = deadzone(border.center, (mouse.x, mouse.y), size=(300, 200))
+    border.center = chase(border.center, goal, rate=4)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "goal = deadzone(",
+          text: "<code>goal</code> is the place where the border should be."
+        },
+        {
+          at: "chase(border.center, goal, rate=4)",
+          text: "<code>chase</code> takes the border there, a little every frame."
+        }
+      ],
+      after: `
+        <p>Leave the border with the mouse: it no longer sticks to the edge; it glides there.</p>
+      `,
+      dive: [
+        {
+          title: "On the camera",
+          body: `
+            <p>In a game, the "center of the box" is where the camera looks, and the target is the hero. The Guide's recipe: <code>look = (canvas.pan_x, canvas.pan_y)</code>, then <code>canvas.pan_to(chase(look, deadzone(look, hero.center, size=(160, 90)), rate=6))</code>, every frame.</p>
+            <p><code>size</code> also accepts a single number: <code>size=200</code> is a square box, 200 by 200.</p>
+            <p>In the Guide: <a href="../guide/index.html#util-deadzone">deadzone</a> · <a href="../guide/index.html#util-chase">chase</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Two bars",
+      fresh: true,
+      part: "amp_db",
+      body: `
+        <p>The last helper is for sound. The <strong>level</strong> of a sound (how loud it is right now) is a number from 0 (silence) to 1 (the maximum): <code>audio.level</code> for everything that plays, <code>mic.level</code> for the microphone. The ear does not hear that number in a straight line: a sound at level 0.01 is already easy to hear, yet on a bar it would be a sliver 1% of the height.</p>
+        <p><code>amp_db</code> (the name comes from amplitude and decibel, the unit of how loud a sound is) converts the level to the ear's scale, also from 0 to 1, ready for the height of a bar.</p>
+        <p>The program plays no sound: the mouse plays the level, and two bars show it, before and after <code>amp_db</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="amp_db")
+Wallpaper("dark navy")
+
+Rect(p1=(300, 100), p2=lambda: (400, 100 + 500 * (mouse.x / 1000)), color="coral")
+Text("level", center=(350, 70), font_size=20)
+Rect(p1=(600, 100), p2=lambda: (700, 100 + 500 * amp_db(mouse.x / 1000)), color="turquoise")
+Text("amp_db(level)", center=(650, 70), font_size=20)
+Text(lambda: f"level = {round(mouse.x / 1000, 3)}", top_left=(20, 680), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "500 * (mouse.x / 1000)",
+          text: "The level as it is: <code>mouse.x / 1000</code>, from 0 to 1. The bar is a <code>Rect</code> given by two corners: <code>p1</code> at the bottom, <code>p2</code> at the top, in a <code>lambda</code>."
+        },
+        {
+          at: "500 * amp_db(mouse.x / 1000)",
+          text: "The same level, after <code>amp_db</code>."
+        }
+      ],
+      after: `
+        <p>Move the mouse near the left edge: the first bar almost disappears, the second is already tall.</p>
+        <details class="ask"><summary>With the level at 0.01, how far does the right bar reach?</summary><p>About a third of the way: <code>amp_db(0.01)</code> is close to 0.33. Quiet sounds get room on the bar, as they do in the ear.</p></details>
+      `,
+      dive: [
+        {
+          title: "Where the level shows up",
+          body: `
+            <p>A sound that is playing has its own level: <code>music = play_sound(…)</code>, then <code>music.level</code>. A bar that jumps with the music: <code>bar.height = 300 * amp_db(music.level)</code>, in <code>update</code>. Appendix C shows where to find sound files.</p>
+            <p>In the Guide: <a href="../guide/index.html#som-audio">audio</a>.</p>
+          `
+        }
+      ]
+    }
+  ]
+});
+</script>
+</body>
+</html>

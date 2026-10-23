@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Useful commands — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Appendix",
+  n: "B",
+  title: "Useful commands",
+  steps: [
+    {
+      title: "Design units",
+      part: "The window",
+      body: `
+        <p>This appendix gathers general commands that any game can use: the window's size and mode, the background, colors, random picks, the clock, and the values you want to peek at while the game runs. Each section is a short program to run and change.</p>
+        <p>The first one is the game's ruler: the numbers <code>init</code> picks, and where the corners and the middle of the screen are.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="My window")
+Wallpaper("dark navy")
+
+Circle(center=(0, 0), radius=40, color="coral")
+Circle(center=(400, 300), radius=40, color="white")
+Circle(center=(800, 600), radius=40, color="gold")
+
+Text("(0, 0)", top_left=(50, 80), font_size=24)
+Text("(400, 300)", top_center=(400, 250), font_size=24)
+Text("(800, 600)", top_right=(750, 560), font_size=24)
+
+run()
+`,
+      notes: [
+        {
+          at: "init(width=800, height=600, title=\"My window\")",
+          text: "<code>width</code> and <code>height</code> are not monitor pixels: they are the game's ruler, the <em>design units</em>. x goes from 0 (left edge) to 800 (right edge), y from 0 (bottom) to 600 (top). <code>title</code> is the text in the window's title bar."
+        },
+        {
+          at: "Circle(center=(0, 0)",
+          text: "The center sits right on the corner: only a quarter of the circle shows, and the rest is off screen."
+        }
+      ],
+      after: `
+        <p>Run it: the three circles mark the bottom-left corner, the middle (400, 300) and the top-right corner.</p>
+        <details class="ask"><summary>On a bigger monitor, does the drawing change?</summary><p>Only in size. Scena makes the window as big as fits your monitor, with the same proportion as the ruler (here, 4 by 3), and the drawing comes out the same, just bigger or smaller. Dragging the window's edge also changes the size, but not the proportion.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of <code>init</code>: the same proportion, with a ruler twice as long. The circles, with the same radii, show at half the size, and the corner (800, 600) becomes the middle. Want a screen wider than it is tall? Try 1280 × 720, for example.",
+          replaces: ['init(width='],
+          code: `init(width=1600, height=1200, title="My window")`
+        }
+      ]
+    },
+    {
+      title: "The window's size",
+      body: `
+        <p>Two things about the window: the size it opens at, and how your code reads the ruler without repeating the numbers.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="My window", window_scale=0.5)
+Wallpaper("dark navy")
+
+Circle(center=(0, 0), radius=40, color="coral")
+Circle(center=(canvas.width / 2, canvas.height / 2), radius=40, color="white")
+Circle(center=(800, 600), radius=40, color="gold")
+
+Text("(0, 0)", top_left=(50, 80), font_size=24)
+Text("(400, 300)", top_center=(400, 250), font_size=24)
+Text("(800, 600)", top_right=(750, 560), font_size=24)
+
+run()
+`,
+      notes: [
+        {
+          at: "window_scale=0.5",
+          text: "By default, the window opens at 80% of the largest size that fits the desktop. <code>window_scale</code> changes that fraction: <code>0.5</code> is half, <code>1.0</code> the largest that fits. It only counts when the window opens; after that, you drag the edge."
+        },
+        {
+          at: "canvas.width / 2",
+          text: "<code>canvas.width</code> and <code>canvas.height</code> give back the width and height from <code>init</code>. They are read-only: to change the ruler, change <code>init</code>."
+        }
+      ],
+      after: `
+        <p>Change the 800 × 600 in <code>init</code> to 1000 × 600 and run it again: the white circle stays in the middle, because <code>canvas.width / 2</code> is always half. The other two, with numbers typed by hand, don't follow.</p>
+      `
+    },
+    {
+      title: "The three modes",
+      part: "Maximized and fullscreen",
+      fresh: true,
+      body: `
+        <p>The window has three modes, and <code>canvas.display</code> picks one of them. Here the keys 1, 2 and 3 switch the mode, and a gold border marks the edge of the game.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Window modes")
+Wallpaper("dark navy")
+
+border = Rect(center=(400, 300), width=800, height=600, line_width=8)
+border.fill = None
+border.line = "gold"
+
+Text("1  windowed\\n2  maximized\\n3  fullscreen", center=(400, 300), font_size=32)
+mode = Text("", top_left=(20, 580), font_size=24)
+
+
+def update(dt):
+    if keyp.once("1"):
+        canvas.display = "windowed"
+    if keyp.once("2"):
+        canvas.display = "maximized"
+    if keyp.once("3"):
+        canvas.display = "fullscreen"
+    mode.text = "Mode: " + canvas.display
+
+
+run()
+`,
+      notes: [
+        {
+          at: "mode.text = \"Mode: \" + canvas.display",
+          text: "The text in the corner reads <code>canvas.display</code> every frame and shows the current mode."
+        }
+      ],
+      after: `
+        <div class="tbl"><table><thead><tr><th>Mode</th><th>What it does</th></tr></thead><tbody>
+          <tr><td><code>"windowed"</code></td><td>the default: a window with a border, in the middle of the screen</td></tr>
+          <tr><td><code>"maximized"</code></td><td>the window fills the whole desktop, and the taskbar stays in view, like the maximize button</td></tr>
+          <tr><td><code>"fullscreen"</code></td><td>the game covers the entire monitor, with no border and no taskbar</td></tr>
+        </tbody></table></div>
+        <p>Run it and press 2, then 3. The drawing doesn't stretch: a monitor almost never has the proportion of your <code>init</code> (here, 4 by 3), so Scena enlarges the game as far as it fits and fills the rest with black bars, on the sides or at the top and bottom.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 225" role="img" aria-label="A wide monitor, in a 16 by 9 proportion; in the middle, the 4 by 3 game takes the full height; bars are left over on both sides">
+            <rect class="ray" fill="none" x="40" y="14" width="320" height="180"/>
+            <rect class="bar child" x="40" y="14" width="40" height="180"/>
+            <rect class="bar child" x="320" y="14" width="40" height="180"/>
+            <rect class="bar" x="80" y="14" width="240" height="180"/>
+            <text x="200" y="100" text-anchor="middle">game, 4 by 3</text>
+            <text x="200" y="118" text-anchor="middle">(the gold border)</text>
+            <text x="60" y="212" text-anchor="middle">bar</text>
+            <text x="340" y="212" text-anchor="middle">bar</text>
+            <text x="200" y="212" text-anchor="middle">monitor, 16 by 9</text>
+          </svg>
+          <figcaption>On a monitor wider than the game, the game grows until it touches the top and bottom; black bars fill the sides. A circle stays round on any monitor.</figcaption>
+        </figure>
+        <p>In fullscreen there is no close button in sight. Go back to the window (here, key 1) or press <kbd>Ctrl+Shift+Z</kbd>, which closes any Scena game. <kbd>Ctrl+Shift+F</kbd> and <kbd>Ctrl+Shift+M</kbd> toggle fullscreen and maximized without writing anything (Appendix A).</p>
+      `,
+      try: [
+        {
+          note: "In place of <code>init</code>: the game opens in fullscreen right away. <code>display=</code> takes the same three names.",
+          replaces: ['init(width='],
+          code: `init(width=800, height=600, title="Window modes", display="fullscreen")`
+        }
+      ]
+    },
+    {
+      title: "Color, gradient or image",
+      part: "The background",
+      fresh: true,
+      body: `
+        <p>The background is what sits behind everything. The same <code>Wallpaper</code> that paints it a color takes two more things:</p>
+        <div class="tbl"><table><thead><tr><th>The background</th><th>How to write it</th></tr></thead><tbody>
+          <tr><td>a color</td><td><code>Wallpaper("dark navy")</code></td></tr>
+          <tr><td>a gradient, which shades from one color to another</td><td><code>Wallpaper(Gradient("black", "navy", angle=90))</code></td></tr>
+          <tr><td>an image, which covers the whole screen, cropping whatever is left over</td><td><code>Wallpaper("images/bg3.jpg")</code></td></tr>
+        </tbody></table></div>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Background")
+Wallpaper(Gradient("black", "navy", angle=90))
+
+Circle(center=(400, 300), radius=80, color="gold")
+
+run()
+`,
+      notes: [
+        {
+          at: "angle=90",
+          text: "<code>Gradient</code> is the color blend. <code>angle=90</code> (in degrees) runs the blend vertically, with the first color at the bottom; without it, it goes from left to right."
+        }
+      ],
+      after: `
+        <p>A new <code>Wallpaper</code> replaces the previous one: the last one created wins. That's why you can change the background in the middle of the game, on a new level or at game over. Animated backgrounds (skies, stars, clouds) are something else: they add on top of this one.</p>
+      `,
+      try: [
+        {
+          note: "In place of <code>Wallpaper</code>, one at a time: an image from the <code>media</code> folder, or a ready-made gradient by name (<code>\"sunset\"</code>; <code>angle=-90</code> draws it from top to bottom, with the sky up high).",
+          replaces: ['Wallpaper('],
+          code: `Wallpaper("images/bg3.jpg")`
+        },
+        {
+          replaces: ['Wallpaper('],
+          code: `Wallpaper(Gradient("sunset", angle=-90))`
+        }
+      ]
+    },
+    {
+      title: "Four ways to say a color",
+      part: "Colors",
+      fresh: true,
+      body: `
+        <p>Wherever Scena asks for a color (<code>color=</code>, the background, a text), you can write it four ways. The four circles show one each.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=400, title="Colors")
+Wallpaper("dark navy")
+
+Circle(center=(130, 200), radius=60, color="coral")
+Circle(center=(310, 200), radius=60, color="#33CCFF")
+Circle(center=(490, 200), radius=60, color=(0.5, 0.9, 0.3))
+Circle(center=(670, 200), radius=60, color=Color("gold").darker(0.2))
+
+run()
+`,
+      notes: [
+        {
+          at: "color=\"coral\"",
+          text: "By name: <code>\"coral\"</code>, <code>\"gold\"</code>, <code>\"sky blue\"</code>. <code>dark</code> or <code>light</code> in front darkens or lightens it: <code>\"dark red\"</code>."
+        },
+        {
+          at: "color=\"#33CCFF\"",
+          text: "In hexadecimal, as on websites. The six digits are three pairs, red, green and blue, from <code>00</code> (none) to <code>FF</code> (full)."
+        },
+        {
+          at: "color=(0.5, 0.9, 0.3)",
+          text: "In numbers, from 0 to 1, for red, green and blue: here, a lime green. <code>(1, 1, 1)</code> is white; <code>(0, 0, 0)</code>, black."
+        },
+        {
+          at: "Color(\"gold\").darker(0.2)",
+          text: "<code>Color</code> turns one color into another: the gold a little darker. <code>lighter</code> lightens."
+        }
+      ],
+      after: `
+        <p>A name Scena doesn't know turns magenta, with a warning in the console (Appendix A, “Warnings”).</p>
+      `,
+      try: [
+        {
+          note: "In place of the last circle: a random color, always bright. Run it a few times.",
+          replaces: ['Circle(center=(670'],
+          code: `Circle(center=(670, 200), radius=60, color=Color.random())`
+        }
+      ]
+    },
+    {
+      title: "A palette",
+      body: `
+        <p>Picking colors that go together takes work. A <code>Palette</code> does it for you, and a row of six squares shows its colors.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=400, title="Colors")
+Wallpaper("dark navy")
+
+Circle(center=(130, 200), radius=60, color="coral")
+Circle(center=(310, 200), radius=60, color="#33CCFF")
+Circle(center=(490, 200), radius=60, color=(0.5, 0.9, 0.3))
+Circle(center=(670, 200), radius=60, color=Color("gold").darker(0.2))
+
+colors = Palette("plasma", steps=6)
+for i in range(6):
+    Square(center=(150 + i * 100, 70), length=70, color=colors[i])
+
+run()
+`,
+      notes: [
+        {
+          at: "Palette(\"plasma\", steps=6)",
+          text: "Takes 6 evenly spaced colors (<em>steps</em>) from a ready-made range called <code>\"plasma\"</code>, from purple to yellow. The palette draws nothing; it only holds the colors."
+        },
+        {
+          at: "color=colors[i]",
+          text: "<code>colors[0]</code> is the first color, <code>colors[1]</code> the second, as in a list. Each square takes the color of its position."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>What about <code>colors[6]</code>, if the palette only has six?</summary><p>The palette wraps around to the start: <code>colors[6]</code> is the same as <code>colors[0]</code>. That's why you can use the level, the wave or the score as an index without fear of running off the list.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the palette, one at a time: another ready-made range, or your own, from the colors you give.",
+          replaces: ['colors = Palette('],
+          code: `colors = Palette("sunset", steps=6)`
+        },
+        {
+          replaces: ['colors = Palette('],
+          code: `colors = Palette("navy", "cyan", "white", steps=6)`
+        }
+      ]
+    },
+    {
+      title: "Confetti",
+      part: "Random picks",
+      fresh: true,
+      body: `
+        <p>Games need surprise: the enemy that shows up in a different place, the gift that falls now and then. Here, every 0.3 seconds, a piece of confetti lands on the screen, and every detail of it is random.</p>
+      `,
+      code: `from random import uniform, randint, choice
+from scena import *
+
+init(width=900, height=600, title="Random")
+Wallpaper("dark navy")
+
+COLORS = ["coral", "gold", "orchid", "deep sky blue"]
+
+
+@every(0.3)
+def confetti():
+    x = uniform(50, 850)
+    y = uniform(50, 550)
+    radius = randint(10, 40)
+    dot = Circle(center=(x, y), radius=radius, color=choice(COLORS))
+    if chance(0.1):
+        dot.glow = True
+    dot.after(3, dot.destroy)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "from random import uniform, randint, choice",
+          text: "Python comes with a module for random picks, <code>random</code>; this line takes three tools from it. The fourth, <code>chance</code>, comes from Scena."
+        },
+        {
+          at: "x = uniform(50, 850)",
+          text: "Any number between 50 and 850, with decimals (like 312.47). Good for positions."
+        },
+        {
+          at: "randint(10, 40)",
+          text: "A whole number between 10 and 40, both included (short for <em>random integer</em>). Good for counting: radii, amounts, the side of a die."
+        },
+        {
+          at: "choice(COLORS)",
+          text: "An item from the list, at random."
+        },
+        {
+          at: "if chance(0.1):",
+          text: "<code>True</code> 10% of the time, <code>False</code> the rest: one piece of confetti in ten gets a glow."
+        },
+        {
+          at: "dot.after(3, dot.destroy)",
+          text: "Each piece of confetti removes itself after 3 seconds, so the screen never fills up."
+        }
+      ],
+      try: [
+        {
+          note: "In place of the circle's line: any bright color, picked by <code>Color.random()</code>, instead of one from the list.",
+          replaces: ['dot = Circle('],
+          code: `dot = Circle(center=(x, y), radius=radius, color=Color.random())`
+        }
+      ]
+    },
+    {
+      title: "Game time",
+      part: "The clock",
+      fresh: true,
+      body: `
+        <p><code>clock</code> is the game's clock. A stopwatch in the corner shows how many seconds have passed since the start, and a square spins beside it, for comparison in the next step.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Clock")
+Wallpaper("dark navy")
+
+stopwatch = Text("", top_left=(20, 580), font_size=28)
+stopwatch["text"] @= lambda: f"{clock.time:.1f} s"
+
+square = Square(center=(400, 300), length=160, color="orchid")
+
+
+def update(dt):
+    square.rotate_by(90 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "stopwatch[\"text\"] @= lambda:",
+          text: "The text is linked to this formula. Since it reads <code>clock</code>, Scena recomputes it every frame, and the number moves on its own."
+        },
+        {
+          at: "{clock.time:.1f}",
+          text: "<code>clock.time</code> has many decimals (12.016666…). Inside the braces of an f-string, <code>:.1f</code> asks for just one: <code>12.0</code>. With <code>:.0f</code>, none; with <code>:.2f</code>, two."
+        },
+        {
+          at: "square.rotate_by(90 * dt)",
+          text: "90 degrees per second, through <code>dt</code>."
+        }
+      ]
+    },
+    {
+      title: "Slow motion and pause",
+      body: `
+        <p>The clock can also run slowly and stop. Three keys work it: L for slow motion, N for normal, P to pause.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Clock")
+Wallpaper("dark navy")
+
+stopwatch = Text("", top_left=(20, 580), font_size=28)
+stopwatch["text"] @= lambda: f"{clock.time:.1f} s"
+
+square = Square(center=(400, 300), length=160, color="orchid")
+
+
+def update(dt):
+    square.rotate_by(90 * dt)
+    if keyp.once("L"):
+        clock.scale = 0.25
+    if keyp.once("N"):
+        clock.scale = 1
+    if keyp.once("P"):
+        clock.paused = not clock.paused
+
+
+run()
+`,
+      notes: [
+        {
+          at: "clock.scale = 0.25",
+          text: "<code>clock.scale</code> is the speed of game time: 1 is normal, 0.25 is a quarter."
+        },
+        {
+          at: "clock.paused = not clock.paused",
+          text: "<code>clock.paused</code> stops time when it is <code>True</code>. <code>not</code> flips a value: <code>not True</code> is <code>False</code>, and <code>not False</code> is <code>True</code>. That way the same key pauses and resumes."
+        }
+      ],
+      after: `
+        <p>Run it and press L: the square spins slowly, and so does the stopwatch. In slow motion <code>dt</code> shrinks; while paused, it is 0. Everything that moves with <code>dt</code> slows down or stops along with it: the square, every <code>@every</code>, every <code>move_to(…, time=)</code>.</p>
+        <details class="ask"><summary>With the game paused, why does the P key still work?</summary><p>Because <code>update</code> still gets called every frame; only <code>dt</code> is 0. A pause menu relies on this: time stops, the keyboard doesn't.</p></details>
+      `
+    },
+    {
+      title: "The default look",
+      part: "Default look",
+      fresh: true,
+      body: `
+        <p>When several shapes share the same color and outline, repeating <code>color=</code> and <code>line_width=</code> on each one gets tiring. <code>set_defaults</code> picks the look of the shapes created after it.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Defaults")
+Wallpaper("dark navy")
+
+set_defaults("gold", line_width=4)
+Circle(center=(200, 420), radius=60)
+Square(center=(400, 420), length=110)
+RegularPolygon(n=6, center=(600, 420), radius=65)
+
+set_defaults("coral", dash="dot")
+Circle(center=(200, 180), radius=60)
+Square(center=(400, 180), length=110)
+RegularPolygon(n=6, center=(600, 180), radius=65, color="orchid")
+
+run()
+`,
+      notes: [
+        {
+          at: "set_defaults(\"gold\", line_width=4)",
+          text: "Gold, with an outline 4 thick. The three shapes right below come out that way without asking for anything."
+        },
+        {
+          at: "set_defaults(\"coral\", dash=\"dot\")",
+          text: "The default holds until the next <code>set_defaults</code>. This one switches to coral, with a dotted outline (<code>dash=\"dot\"</code>)."
+        },
+        {
+          at: "color=\"orchid\"",
+          text: "A shape that names its own color still has the final say."
+        }
+      ],
+      after: `
+        <p>Run it: only the bottom row is coral. The shapes that already existed when the second <code>set_defaults</code> ran stay as they were.</p>
+      `
+    },
+    {
+      title: "Print to the console",
+      part: "Seeing the values",
+      fresh: true,
+      body: `
+        <p>While you write a game, you often want to know a value: where the click landed, what the score is, whether that function ever ran. The simplest way is Python's <code>print</code>, which writes a line in the console, the text window where you ran the program.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Values")
+Wallpaper("dark navy")
+
+st.clicks = 0
+
+
+def on_mouse_click(x, y):
+    st.clicks += 1
+    print("click at", round(x), round(y), "- total:", st.clicks)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_click(x, y):",
+          text: "<code>on_mouse_click</code> is a function with a fixed name: Scena calls it on every click, with the point's <code>x</code> and <code>y</code>, in your game's units."
+        },
+        {
+          at: "round(x), round(y)",
+          text: "<code>round</code> drops the decimals, so the line stays short."
+        }
+      ],
+      after: `
+        <p>Run it and click in several places: each click writes a line in the console. It's also a good way to find out the coordinates of a spot on the screen.</p>
+        <p>Careful with <code>update</code>: a <code>print</code> there writes 60 lines per second, and the console turns into a waterfall. Put the <code>print</code> where things happen once: on a click, a collision, a key press.</p>
+      `
+    },
+    {
+      title: "A panel on the screen",
+      body: `
+        <p>For a value that changes all the time, like the mouse position, a text on the screen is better than the console.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Values")
+Wallpaper("dark navy")
+
+st.clicks = 0
+panel = Text("", top_left=(20, 580), font_size=22)
+
+
+def on_mouse_click(x, y):
+    st.clicks += 1
+    print("click at", round(x), round(y), "- total:", st.clicks)
+
+
+def update(dt):
+    panel.text = f"clicks {st.clicks}   mouse {mouse.x:.0f}, {mouse.y:.0f}"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "panel.text = f\"clicks",
+          text: "Every frame, <code>update</code> rewrites the panel's text: the clicks and the mouse position (<code>mouse.x</code>, <code>mouse.y</code>), with no decimals (<code>:.0f</code>)."
+        }
+      ],
+      after: `
+        <p>It's what the system panel does (<kbd>Ctrl+Shift+1</kbd>, Appendix A), but with the values you choose: the hero's speed, the shield's energy, the boss's mode. When the game is done, delete the panel, or keep it as part of the game.</p>
+      `
+    },
+    {
+      title: "What is this key's name?",
+      part: "Key names",
+      fresh: true,
+      body: `
+        <p>To read a key, <code>keyp("…")</code> needs its name: <code>"A"</code>, <code>"SPACE"</code>, <code>"LEFT"</code>. This program finds out the name of any key you press.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Keys")
+Wallpaper("dark navy")
+
+name = Text("Press a key", center=(400, 300), font_size=48)
+
+
+def on_key_down(key):
+    name.text = f"Key: {key}"
+    print(key)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_key_down(key):",
+          text: "<code>on_key_down</code> is another function with a fixed name: Scena calls it on every key press, with the name in <code>key</code>. The name goes to the middle of the screen and to the console."
+        }
+      ],
+      after: `
+        <p>Run it and press several keys. The names follow these rules:</p>
+        <div class="tbl"><table><thead><tr><th>Keys</th><th>Names</th></tr></thead><tbody>
+          <tr><td>letters and digits</td><td>themselves: <code>"A"</code>, <code>"7"</code>; upper or lower case doesn't matter</td></tr>
+          <tr><td>arrows</td><td><code>"LEFT"</code>, <code>"RIGHT"</code>, <code>"UP"</code>, <code>"DOWN"</code></td></tr>
+          <tr><td>space, Esc, Enter</td><td><code>"SPACE"</code>, <code>"ESC"</code>, <code>"ENTER"</code></td></tr>
+          <tr><td>function keys</td><td><code>"F1"</code> to <code>"F12"</code></td></tr>
+          <tr><td>Shift, Ctrl, Alt, Command</td><td><code>"SHIFT"</code>, <code>"CTRL"</code>, <code>"ALT"</code>, <code>"CMD"</code></td></tr>
+          <tr><td>punctuation</td><td><code>"K1"</code> to <code>"K12"</code>, a number instead of the symbol, because the printed symbol changes from one keyboard to another. On a Brazilian keyboard (ABNT2), the Ç is <code>"K7"</code></td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>Hold Ctrl and press R. What shows up?</summary><p>Only Ctrl: with Ctrl or Shift held, the letter doesn't reach this function. For a combination, use <code>keyp</code> with <code>+</code>: <code>keyp.once("CTRL+R")</code>.</p></details>
+      `
+    },
+    {
+      title: "Volume and mute",
+      part: "Volume",
+      fresh: true,
+      body: `
+        <p>Every game with music deserves a mute key. <code>audio</code> is the sound of the whole game, all the <code>play_sound</code> calls together: the M key mutes it, and the arrows turn the volume up and down.</p>
+      `,
+      code: `from scena import *
+
+init(width=800, height=600, title="Volume")
+Wallpaper("dark navy")
+
+play_sound("audio/SuperHero_original_no_Intro.ogg", loops="forever")
+info = Text("", top_left=(20, 580), font_size=24)
+
+
+def update(dt):
+    if keyp.once("M"):
+        audio.muted = not audio.muted
+    if keyp.once("UP"):
+        audio.volume = min(1, audio.volume + 0.1)
+    if keyp.once("DOWN"):
+        audio.volume = max(0, audio.volume - 0.1)
+    info.text = f"volume {audio.volume:.1f}   muted: {audio.muted}"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "loops=\"forever\"",
+          text: "The music starts at the top of the file and, with <code>loops=\"forever\"</code>, plays without stopping."
+        },
+        {
+          at: "audio.muted = not audio.muted",
+          text: "<code>audio.muted</code> silences everything when <code>True</code> and brings the sound back when <code>False</code>; <code>not</code> switches from one to the other."
+        },
+        {
+          at: "min(1, audio.volume + 0.1)",
+          text: "<code>audio.volume</code> is the overall volume: 1 is normal, 0 is silence. <code>min</code> gives back the smaller of the two numbers, so the volume never goes above 1."
+        },
+        {
+          at: "max(0, audio.volume - 0.1)",
+          text: "<code>max</code> gives back the larger, so the volume never drops below 0."
+        }
+      ]
+    }
+  ]
+});
+</script>
+</body>
+</html>

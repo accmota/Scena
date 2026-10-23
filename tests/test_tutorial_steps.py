@@ -18,7 +18,8 @@ Bug classes guarded (catalogue: Testing Design, TU and T4):
 One TestCase class per tutorial page (``TestSteps05`` runs
 ``05-naves.html``, ``TestStepsEn05`` its English twin), generated from the pages, so a new tutorial is covered
 without an edit here. Each class runs its page's programs in parallel child
-processes. The whole module is ~440 s of CPU: it is ``SLOW`` (not in the quick
+processes. The whole module is ~840 s of CPU with both languages (~440 s for
+Portuguese alone; 2026-10-22, ~3.6 min wall on 8 workers): it is ``SLOW`` (not in the quick
 tier) and ``SPLIT`` (the gate and deep tiers run one job per class). Why:
 Testing Design, "Test tiers".
 

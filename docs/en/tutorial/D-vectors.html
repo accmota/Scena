@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vectors and points — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Appendix",
+  n: "D",
+  title: "Vectors and points",
+  steps: [
+    {
+      title: "Where each point is",
+      part: "Points",
+      body: `
+        <p>This appendix does not build a game. Each section is a short program that shows one idea about <strong>points</strong> (places on the screen) and <strong>vectors</strong> (arrows: which way to go and how far). Run each one, change the numbers and run it again. The math here turns up in every game: the ball that moves, the ship that aims at the enemy, the shot that leaves the tip of the cannon.</p>
+        <p>A point is a pair of numbers, <code>(x, y)</code>. <code>x</code> grows to the right; <code>y</code> grows <strong>upward</strong>. The point <code>(0, 0)</code> is the bottom left corner. In a 1000 by 700 window, the top right corner is <code>(1000, 700)</code>, and the middle is <code>(500, 350)</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 230" role="img" aria-label="A horizontal x axis growing to the right and a vertical y axis growing upward, with the origin (0, 0) in the bottom left corner; a point marked at (500, 350), with dashed lines to both axes">
+            <line class="ray" x1="40" y1="200" x2="370" y2="200"/>
+            <polygon class="dot" points="378,200 368,195 368,205"/>
+            <line class="ray" x1="40" y1="200" x2="40" y2="20"/>
+            <polygon class="dot" points="40,12 35,22 45,22"/>
+            <line class="guide" x1="200" y1="90" x2="200" y2="200"/>
+            <line class="guide" x1="40" y1="90" x2="200" y2="90"/>
+            <circle class="hot" cx="200" cy="90" r="5"/>
+            <text x="208" y="84">(500, 350)</text>
+            <text x="40" y="218" text-anchor="middle">(0, 0)</text>
+            <text x="352" y="218">x</text>
+            <text x="50" y="22">y</text>
+            <text x="200" y="218" text-anchor="middle">500</text>
+            <text x="34" y="94" text-anchor="end">350</text>
+          </svg>
+          <figcaption><code>x</code> counts from left to right; <code>y</code>, from bottom to top.</figcaption>
+        </figure>
+        <p>The program marks five points on the screen, each with its coordinates written above it.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Points")
+Wallpaper("dark navy")
+
+
+def mark(x, y, color):
+    Circle(center=(x, y), radius=8, color=color)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+mark(100, 100, "coral")
+mark(500, 350, "gold")
+mark(900, 550, "turquoise")
+mark(100, 550, "orchid")
+mark(900, 100, "sky blue")
+
+run()
+`,
+      notes: [
+        {
+          at: "def mark(x, y, color):",
+          text: "A function that draws a dot at the point and writes the coordinates just above it, 28 units higher (<code>y + 28</code>)."
+        },
+        {
+          at: "Text(f\"({x}, {y})\"",
+          text: "An <em>f-string</em>: a text with an <code>f</code> in front, where whatever is inside the braces is replaced by its value. With <code>x = 100</code> and <code>y = 550</code>, it becomes <code>\"(100, 550)\"</code>."
+        }
+      ],
+      try: [
+        {
+          note: "More marks. Before you run it, guess where each one will land. The last one sits on the bottom edge: only half of the dot shows.",
+          code: `mark(500, 600, "white")
+mark(250, 350, "white")
+mark(500, 0, "white")`
+        }
+      ]
+    },
+    {
+      title: "The mouse is a point too",
+      body: `
+        <p><code>mouse</code> is the position of the mouse, in the same coordinates. A white dot will follow it, and a text in the corner shows the two numbers.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Points")
+Wallpaper("dark navy")
+
+
+def mark(x, y, color):
+    Circle(center=(x, y), radius=8, color=color)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+mark(100, 100, "coral")
+mark(500, 350, "gold")
+mark(900, 550, "turquoise")
+mark(100, 550, "orchid")
+mark(900, 100, "sky blue")
+
+Circle(center=lambda: mouse, radius=6, color="white")
+Text(lambda: f"mouse ({round(mouse.x)}, {round(mouse.y)})", top_left=(20, 680), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "Circle(center=lambda: mouse",
+          text: "The <code>lambda</code> tells Scena to read the mouse again every frame, and the dot goes along."
+        },
+        {
+          at: "Text(lambda: f\"mouse",
+          text: "The text gets a <code>lambda</code> too, which builds it again every frame from <code>mouse.x</code> and <code>mouse.y</code>. <code>top_left</code> is the top left corner of the text."
+        }
+      ],
+      after: `
+        <p>Run it and move the mouse around: near the bottom left corner, both numbers get small; as you go up, <code>y</code> grows.</p>
+      `
+    },
+    {
+      title: "Point: a point that lives in the game",
+      body: `
+        <p>So far, the points were <strong>tuples</strong>: <code>(500, 350)</code> is just two numbers written together, in parentheses. Python does not know they are a place. A <code>Point</code> is a point that <strong>lives in the game</strong>: it holds <code>.x</code> and <code>.y</code>, it can show up and be dragged, and other things can read its position.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Points")
+Wallpaper("dark navy")
+
+
+def mark(x, y, color):
+    Circle(center=(x, y), radius=8, color=color)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+mark(100, 100, "coral")
+mark(500, 350, "gold")
+mark(900, 550, "turquoise")
+mark(100, 550, "orchid")
+mark(900, 100, "sky blue")
+
+Circle(center=lambda: mouse, radius=6, color="white")
+Text(lambda: f"mouse ({round(mouse.x)}, {round(mouse.y)})", top_left=(20, 680), font_size=20)
+
+p = Point(300, 250, color="gold")
+p.handle = True
+Text(lambda: f"p ({round(p.x)}, {round(p.y)})", center=lambda: (p.x, p.y + 28), font_size=16)
+
+run()
+`,
+      notes: [
+        {
+          at: "p = Point(300, 250, color=\"gold\")",
+          text: "With <code>color=</code>, the point shows up as a dot."
+        },
+        {
+          at: "p.handle = True",
+          text: "With <code>handle</code> on, the point can be dragged with the mouse."
+        },
+        {
+          at: "Text(lambda: f\"p (",
+          text: "The text reads <code>p.x</code> and <code>p.y</code> and moves along. <code>round</code> rounds: the mouse moves in fractional steps (300.4…), and the text shows the whole number."
+        }
+      ],
+      after: `
+        <p>Run it and drag the gold dot: the text follows, with the new numbers.</p>
+      `,
+      try: [
+        {
+          note: "<code>Anchor</code> is the shortcut: a <code>Point</code> that is born visible and draggable. In place of the two lines of <code>p</code>.",
+          replaces: ['p = Point(', 'p.handle = True'],
+          code: `p = Anchor(300, 250)`
+        }
+      ]
+    },
+    {
+      title: "The center of a shape",
+      body: `
+        <p>Every shape has a <code>center</code>, and it is a <code>Point</code>: <code>ball.center.x</code> is the <code>x</code> of the ball's center.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Points")
+Wallpaper("dark navy")
+
+
+def mark(x, y, color):
+    Circle(center=(x, y), radius=8, color=color)
+    Text(f"({x}, {y})", center=(x, y + 28), font_size=16)
+
+
+mark(100, 100, "coral")
+mark(500, 350, "gold")
+mark(900, 550, "turquoise")
+mark(100, 550, "orchid")
+mark(900, 100, "sky blue")
+
+Circle(center=lambda: mouse, radius=6, color="white")
+Text(lambda: f"mouse ({round(mouse.x)}, {round(mouse.y)})", top_left=(20, 680), font_size=20)
+
+p = Point(300, 250, color="gold")
+p.handle = True
+Text(lambda: f"p ({round(p.x)}, {round(p.y)})", center=lambda: (p.x, p.y + 28), font_size=16)
+
+ball = Circle(center=(700, 300), radius=40, color="coral")
+ball.draggable = True
+Text(lambda: f"ball.center ({round(ball.center.x)}, {round(ball.center.y)})", top_left=(20, 650), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "ball.draggable = True",
+          text: "<code>draggable</code> lets you grab the whole ball with the mouse."
+        }
+      ],
+      after: `
+        <p>Drag the ball: the lower text reads the center and keeps up. The same goes for the ends of a line (<code>line.p1</code>, <code>line.p2</code>) and the corners of a rectangle (<code>box.top_left</code>): they are all points.</p>
+      `
+    },
+    {
+      title: "Point plus offset",
+      fresh: true,
+      part: "Point + (dx, dy)",
+      body: [
+        `
+        <p>A new program. Often you want a place <strong>near</strong> another one: the shot leaves a little above the ship, the name sits below the hero. For that, add a pair of numbers to the point:</p>
+        `,
+        {
+          snip: `Circle(center=sun.center + (200, 0), radius=16, color="coral")`
+        },
+        `
+        <p><code>sun.center + (200, 0)</code> is the point 200 to the right of the sun's center. The pair is an <strong>offset</strong>, <code>(dx, dy)</code>: how far to go in x and in y. A negative number goes the other way: <code>(-200, -150)</code> goes 200 to the left and 150 down.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="A sun in the middle; to its right, a dot at (200, 0); above, another at (0, 150); down to the left, a third at (-200, -150); dashed lines from the sun to each one">
+            <circle class="bar" cx="200" cy="110" r="22"/>
+            <line class="guide" x1="200" y1="110" x2="330" y2="110"/>
+            <line class="guide" x1="200" y1="110" x2="200" y2="20"/>
+            <line class="guide" x1="200" y1="110" x2="80" y2="180"/>
+            <circle class="hot" cx="330" cy="110" r="7"/>
+            <circle class="hot" cx="200" cy="20" r="7"/>
+            <circle class="hot" cx="80" cy="180" r="7"/>
+            <text x="300" y="134">+ (200, 0)</text>
+            <text x="212" y="24">+ (0, 150)</text>
+            <text x="94" y="194">+ (-200, -150)</text>
+          </svg>
+          <figcaption>The same point, plus three offsets: three new places around it.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Point + offset")
+Wallpaper("dark navy")
+
+sun = Circle(center=(500, 350), radius=50, color="gold")
+
+Circle(center=sun.center + (200, 0), radius=16, color="coral")
+Text("+ (200, 0)", center=sun.center + (200, 40), font_size=16)
+Circle(center=sun.center + (0, 150), radius=16, color="turquoise")
+Text("+ (0, 150)", center=sun.center + (0, 190), font_size=16)
+Circle(center=sun.center + (-200, -150), radius=16, color="orchid")
+Text("+ (-200, -150)", center=sun.center + (-200, -110), font_size=16)
+
+run()
+`,
+      after: `
+        <p>Each sum gives a new <code>Point</code>, computed <strong>now</strong>: the dots are born there and stay there.</p>
+        <details class="ask"><summary>If the sun moves later, do the dots go along?</summary><p>No. The sum happened once, when each dot was born, and the result is just a place.</p></details>
+      `,
+      try: [
+        {
+          note: "Subtracting goes the other way: <code>sun.center - (200, 0)</code> is the point 200 to the left.",
+          code: `Circle(center=sun.center - (200, 0), radius=16, color="white")`
+        }
+      ]
+    },
+    {
+      title: "Keeping up",
+      body: `
+        <p>Now the sun can be dragged, and the moons go along.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Point + offset")
+Wallpaper("dark navy")
+
+sun = Circle(center=(500, 350), radius=50, color="gold")
+sun.draggable = True
+
+Circle(center=lambda: sun.center + (200, 0), radius=16, color="coral")
+Text("+ (200, 0)", center=lambda: sun.center + (200, 40), font_size=16)
+Circle(center=lambda: sun.center + (0, 150), radius=16, color="turquoise")
+Text("+ (0, 150)", center=lambda: sun.center + (0, 190), font_size=16)
+Circle(center=lambda: sun.center + (-200, -150), radius=16, color="orchid")
+Text("+ (-200, -150)", center=lambda: sun.center + (-200, -110), font_size=16)
+
+run()
+`,
+      notes: [
+        {
+          at: "Circle(center=lambda: sun.center + (200, 0)",
+          text: "The sum is the same as in the previous step; the difference is the <code>lambda</code>. Scena redoes the sum every frame, reading where the sun's center is now. The texts too."
+        }
+      ],
+      after: `
+        <p>Run it and drag the sun: the three moons and the three texts keep up.</p>
+      `,
+      dive: [
+        {
+          title: "What can add an offset",
+          body: `
+            <p>These can add an offset: a <code>Point</code>, the <code>center</code> of any shape or sprite, the ends of a line (<code>line.p2 + (0, 10)</code>), the corners of a rectangle, and a <code>Vec2</code> (the arrow of the next section).</p>
+            <p>A tuple and the mouse cannot. <code>(500, 350) + (200, 0)</code> raises no error, but it is Python's addition for tuples: it <em>glues</em> the two together and returns <code>(500, 350, 200, 0)</code>, four numbers. With the mouse, add by hand, <code>(mouse.x + 200, mouse.y)</code>; for a fixed place, keep it in a <code>Point</code>: <code>Point(500, 350) + (200, 0)</code> works.</p>
+            <p>To put the sun in a new place, write the whole sum: <code>sun.center = sun.center + (10, 0)</code>. The shortcut <code>sun.center += (10, 0)</code> raises an error on purpose. Traveling there is something else: the box “Place or travel”, in the Velocity section, tells the difference.</p>
+            <p>In the Guide: <a href="../guide/index.html#geo-helpers">Points</a>.</p>
+          `,
+          try: [
+            {
+              note: "A ring that jumps 10 to the right on each click. At the end of the program.",
+              code: `ring = Circle(center=(150, 600), radius=20, color="white")
+
+
+@click(ring)
+def jump():
+    ring.center = ring.center + (10, 0)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "An arrow",
+      fresh: true,
+      part: "Vectors",
+      body: `
+        <p>A point says <strong>where</strong>. A <strong>vector</strong> says <strong>how far to go and which way</strong>: it is an arrow, with a direction and a size. In Scena, a vector is a <code>Vec2</code> (a vector of 2 numbers). <code>Vec2(200, 100)</code> is the arrow that goes 200 to the right and 100 up.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 190" role="img" aria-label="An arrow from a point at the bottom left to a point at the top right; a horizontal dashed line shows the x part, 200, and a vertical one shows the y part, 100">
+            <line class="guide" x1="60" y1="160" x2="320" y2="160"/>
+            <line class="guide" x1="320" y1="160" x2="320" y2="30"/>
+            <line class="ray" x1="60" y1="160" x2="312" y2="34"/>
+            <polygon class="dot" points="322,29 306,30 312,43"/>
+            <circle class="dot" cx="60" cy="160" r="4"/>
+            <text x="170" y="178">x: 200</text>
+            <text x="330" y="100">y: 100</text>
+            <text x="60" y="70">Vec2(200, 100)</text>
+          </svg>
+          <figcaption>The arrow <code>Vec2(200, 100)</code>: 200 to the right, 100 up.</figcaption>
+        </figure>
+        <p>The program draws the same arrow <code>v</code> three times, starting from three different points.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Vectors")
+Wallpaper("dark navy")
+
+
+def arrow(start, vector, color):
+    finish = start + vector
+    Line(p1=start, p2=finish, color=color, line_width=4)
+    Triangle(center=finish, radius=12, angle=vector.angle, color=color)
+
+
+v = Vec2(200, 100)
+
+arrow(Point(100, 400), v, "gold")
+arrow(Point(400, 150), v, "gold")
+arrow(Point(650, 450), v, "gold")
+Text("v = Vec2(200, 100)", top_left=(20, 680), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "def arrow(start, vector, color):",
+          text: "Scena has no “arrow” shape; this function draws one from two pieces: a <code>Line</code> from the start to the finish, and a <code>Triangle</code> at the tip."
+        },
+        {
+          at: "finish = start + vector",
+          text: "The finish is the start plus the vector: the sum from the previous section, with an arrow in place of the pair. That is why the start is a <code>Point(…)</code> and not a tuple, which cannot add."
+        },
+        {
+          at: "angle=vector.angle",
+          text: "The triangle turns to face the way the arrow points: <code>vector.angle</code> is its angle, in degrees."
+        }
+      ],
+      after: `
+        <p>The three arrows are equal: the same size, the same direction. An arrow is not a place. That is why a vector is good for <em>moving</em> (the velocity of a ball) and for <em>measuring</em> (from one point to another), but not for saying where something is.</p>
+      `
+    },
+    {
+      title: "Length and angle",
+      body: `
+        <p>An arrow has a size and a direction, and a <code>Vec2</code> can tell you both. One more line writes the numbers of the arrow <code>v</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Vectors")
+Wallpaper("dark navy")
+
+
+def arrow(start, vector, color):
+    finish = start + vector
+    Line(p1=start, p2=finish, color=color, line_width=4)
+    Triangle(center=finish, radius=12, angle=vector.angle, color=color)
+
+
+v = Vec2(200, 100)
+
+arrow(Point(100, 400), v, "gold")
+arrow(Point(400, 150), v, "gold")
+arrow(Point(650, 450), v, "gold")
+Text("v = Vec2(200, 100)", top_left=(20, 680), font_size=20)
+Text(f"length {round(v.length)}   angle {round(v.angle)}", top_left=(20, 650), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "round(v.length)",
+          text: "<code>v.length</code> is the size of the arrow: for <code>(200, 100)</code>, about 224."
+        },
+        {
+          at: "round(v.angle)",
+          text: "<code>v.angle</code> is the direction, in degrees: 0 is to the right, 90 is up. This arrow rises a little, about 27 degrees."
+        }
+      ],
+      after: `
+        <p><code>v.x</code> and <code>v.y</code> read the two parts of the arrow, as with a point.</p>
+      `,
+      try: [
+        {
+          note: "Other arrows, one at a time, in place of <code>v</code>. Look at the length and angle of each. <code>Vec2(0, 150)</code> goes straight up (90 degrees); <code>Vec2(-200, 0)</code> goes left (180); with a negative <code>y</code>, the arrow goes down and the angle turns negative.",
+          replaces: ['v = Vec2('],
+          code: `v = Vec2(0, 150)
+v = Vec2(-200, 0)
+v = Vec2(150, -150)`
+        }
+      ],
+      dive: [
+        {
+          title: "Where the length comes from",
+          body: `
+            <p>The two parts of the arrow and the arrow itself form a right triangle: 200 lying down, 100 standing up, and the arrow is the long side. The length comes from the Pythagorean theorem: the square root of 200 × 200 + 100 × 100, which is 223.6. You do not need to do the math: <code>v.length</code> does it.</p>
+            <p>In the Guide: <a href="../guide/index.html#geo-vec2">Vec2</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Adding arrows",
+      fresh: true,
+      part: "Adding",
+      body: `
+        <p>Adding two arrows means walking one and then the other. Walk <code>a</code> (coral); from its end, walk <code>b</code> (turquoise). The gold arrow, <code>a + b</code>, goes straight from the start of the path to its end.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="An arrow a, almost flat, then an arrow b rising from the tip of a; a third arrow, a + b, goes from the start of a to the tip of b, closing a triangle">
+            <line class="ray" x1="40" y1="180" x2="262" y2="150"/>
+            <polygon class="dot" points="272,148 259,143 261,157"/>
+            <line class="ray" x1="272" y1="148" x2="341" y2="36"/>
+            <polygon class="dot" points="346,28 334,37 345,44"/>
+            <line class="guide" x1="40" y1="180" x2="338" y2="34"/>
+            <circle class="dot" cx="40" cy="180" r="4"/>
+            <text x="150" y="186">a</text>
+            <text x="318" y="110">b</text>
+            <text x="150" y="98">a + b</text>
+          </svg>
+          <figcaption>Walking <code>a</code> and then <code>b</code> takes you to the same place as walking <code>a + b</code> in one go.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Adding")
+Wallpaper("dark navy")
+
+
+def arrow(start, vector, color):
+    finish = start + vector
+    Line(p1=start, p2=finish, color=color, line_width=4)
+    Triangle(center=finish, radius=12, angle=vector.angle, color=color)
+
+
+a = Vec2(300, 50)
+b = Vec2(100, 250)
+start = Point(250, 150)
+
+arrow(start, a, "coral")
+arrow(start + a, b, "turquoise")
+arrow(start, a + b, "gold")
+Text(f"a = {a}", top_left=(20, 680), font_size=20, color="coral")
+Text(f"b = {b}", top_left=(20, 650), font_size=20, color="turquoise")
+Text(f"a + b = {a + b}", top_left=(20, 620), font_size=20, color="gold")
+
+run()
+`,
+      notes: [
+        {
+          at: "arrow(start + a, b, \"turquoise\")",
+          text: "The turquoise arrow starts at <code>start + a</code>, the point where arrow <code>a</code> ends."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>What is <code>a + b</code>?</summary><p><code>Vec2(400, 300)</code>. The sum goes part by part: the <code>x</code> parts add up (300 + 100) and the <code>y</code> parts add up (50 + 250). The text shows <code>400.0</code>: a <code>Vec2</code> holds numbers with a decimal point, and <code>400.0</code> is the same 400.</p></details>
+      `,
+      try: [
+        {
+          note: "In the other order: walk <code>b</code> first, then <code>a</code>. The path is different, and the end is the same. At the end of the program.",
+          code: `arrow(start, b, "white")
+arrow(start + b, a, "white")`
+        }
+      ]
+    },
+    {
+      title: "From A to B",
+      fresh: true,
+      part: "From one point to another",
+      body: `
+        <p>The arrow that goes from a point <code>A</code> to a point <code>B</code> is <strong>B minus A</strong>: the destination minus the origin.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="Two points, A at the bottom left and B at the top right; an arrow from A to B, labeled B minus A">
+            <line class="ray" x1="70" y1="140" x2="310" y2="52"/>
+            <polygon class="dot" points="320,48 304,46 309,60"/>
+            <circle class="hot" cx="70" cy="140" r="6"/>
+            <circle class="hot" cx="320" cy="48" r="6"/>
+            <text x="58" y="164">A</text>
+            <text x="330" y="44">B</text>
+            <text x="200" y="118">b.center - a.center</text>
+          </svg>
+          <figcaption>Destination minus origin: the arrow that takes you from <code>A</code> to <code>B</code>.</figcaption>
+        </figure>
+        <p>Why minus? Because it answers “how far is left to go”. If A is at <code>(200, 200)</code> and B at <code>(700, 450)</code>, there is 700 − 200 = 500 left to go in x and 450 − 200 = 250 in y.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="From A to B")
+Wallpaper("dark navy")
+
+a = Anchor(200, 200)
+b = Anchor(700, 450, color="lime")
+Text("A", center=lambda: a.center + (0, -30), font_size=20)
+Text("B", center=lambda: b.center + (0, 30), font_size=20)
+
+Line(p1=lambda: a.center, p2=lambda: b.center, color="gold", line_width=4)
+Triangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
+
+
+def from_a_to_b():
+    d = b.center - a.center
+    return f"b.center - a.center = Vec2({round(d.x)}, {round(d.y)})"
+
+
+Text(from_a_to_b, top_left=(20, 680), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "b = Anchor(700, 450",
+          text: "Both ends are an <code>Anchor</code>: points that are born visible and draggable."
+        },
+        {
+          at: "def from_a_to_b():",
+          text: "The <code>Text</code> just below gets this function and calls it every frame: it does the math and returns the finished text."
+        }
+      ],
+      after: `
+        <p>Drag the ends: the arrow and the text keep up.</p>
+        <details class="ask"><summary>And <code>a.center - b.center</code>?</summary><p>It is the arrow back, from B to A: the same size, the opposite direction. The order matters.</p></details>
+      `,
+      dive: [
+        {
+          title: "Point minus point, point minus pair",
+          body: `
+            <p>Point minus point gives an arrow (a <code>Vec2</code>): <code>b.center - a.center</code>. Both must be real points, like a <code>Point</code> or the <code>center</code> of a shape.</p>
+            <p>Point minus pair gives a point: <code>b.center - (200, 200)</code> is the place 200 to the left of B and 200 below it, the math of the “Point + (dx, dy)” section.</p>
+            <p>Point plus point raises an error: there is no such thing as “adding two places”. The point in the middle is <code>middle_point(a, b)</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#geo-helpers">Points</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Distance and heading",
+      body: `
+        <p>Two questions come up in every game: <strong>how far</strong> the enemy is, and <strong>which way</strong> it is. Scena has a function for each.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="From A to B")
+Wallpaper("dark navy")
+
+a = Anchor(200, 200)
+b = Anchor(700, 450, color="lime")
+Text("A", center=lambda: a.center + (0, -30), font_size=20)
+Text("B", center=lambda: b.center + (0, 30), font_size=20)
+
+Line(p1=lambda: a.center, p2=lambda: b.center, color="gold", line_width=4)
+Triangle(center=lambda: b.center, radius=14, angle=lambda: (b.center - a.center).angle, color="gold")
+
+
+def from_a_to_b():
+    d = b.center - a.center
+    return f"b.center - a.center = Vec2({round(d.x)}, {round(d.y)})"
+
+
+Text(from_a_to_b, top_left=(20, 680), font_size=20)
+Text(lambda: f"distance(a, b) = {round(distance(a, b))}", top_left=(20, 650), font_size=20)
+Text(lambda: f"heading(a, b) = {round(heading(a, b))}", top_left=(20, 620), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "round(distance(a, b))",
+          text: "<code>distance(a, b)</code> is the size of the arrow from A to B: the same as <code>(b.center - a.center).length</code>."
+        },
+        {
+          at: "round(heading(a, b))",
+          text: "<code>heading(a, b)</code> is the angle of that arrow, in degrees: where to point, from A, to face B. The same as <code>(b.center - a.center).angle</code>."
+        }
+      ],
+      after: `
+        <p>Both take points, tuples, shapes (they use the <code>center</code>) and the <code>mouse</code>. Drag the anchors and watch the numbers: with B straight above A, the heading is 90; to the left, near 180.</p>
+        <details class="ask"><summary>And with B right below A?</summary><p>The heading turns negative, near −90. With <code>heading</code>, the order matters: <code>heading(b, a)</code> is the heading back, half a turn (180 degrees) apart.</p></details>
+      `,
+      try: [
+        {
+          note: "The triangle can use <code>heading</code> in place of the arrow math. It comes out the same.",
+          replaces: ['Triangle('],
+          code: `Triangle(center=lambda: b.center, radius=14, angle=lambda: heading(a, b), color="gold")`
+        },
+        {
+          note: "A dot that lights up when B comes near A (closer than 150). At the end of the program.",
+          code: `light = Circle(center=(900, 640), radius=20, color="gray")
+
+
+def update(dt):
+    if distance(a, b) < 150:
+        light.color = "lime"
+    else:
+        light.color = "gray"`
+        }
+      ]
+    },
+    {
+      title: "Multiplying by a number",
+      fresh: true,
+      part: "Stretch and shrink",
+      body: `
+        <p>Multiplying an arrow by a number changes its <strong>size</strong> and keeps its <strong>direction</strong>. The program draws the same arrow <code>v</code> with four different numbers.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Stretch and shrink")
+Wallpaper("dark navy")
+
+
+def arrow(start, vector, color):
+    finish = start + vector
+    Line(p1=start, p2=finish, color=color, line_width=4)
+    Triangle(center=finish, radius=12, angle=vector.angle, color=color)
+
+
+v = Vec2(160, 60)
+
+arrow(Point(100, 560), v, "gold")
+Text("v", center=(330, 600), font_size=20)
+arrow(Point(100, 380), v * 2, "coral")
+Text("v * 2", center=(500, 470), font_size=20)
+arrow(Point(100, 200), v * 0.5, "turquoise")
+Text("v * 0.5", center=(260, 230), font_size=20)
+arrow(Point(450, 120), v * -1, "orchid")
+Text("v * -1", center=(330, 120), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "arrow(Point(100, 380), v * 2",
+          text: "Twice as long. The math goes part by part, as with adding: <code>Vec2(160, 60) * 2</code> is <code>Vec2(320, 120)</code>."
+        },
+        {
+          at: "arrow(Point(100, 200), v * 0.5",
+          text: "Half. Dividing works too: <code>v / 2</code> is the same as <code>v * 0.5</code>."
+        },
+        {
+          at: "arrow(Point(450, 120), v * -1",
+          text: "With a negative number, the arrow turns to face the opposite way."
+        }
+      ],
+      after: [
+        `
+        <p>The number always goes <strong>after</strong> the arrow. Written in the other order,</p>
+        `,
+        {
+          snip: `arrow(Point(100, 380), 2 * v, "coral")`,
+          alt: true
+        },
+        `
+        <p>it raises an error (<code>TypeError</code>): Python does not know how to multiply a number by an arrow.</p>
+        `
+      ]
+    },
+    {
+      title: "Just the direction",
+      body: [
+        `
+        <p>Sometimes you want the direction of an arrow with a size of your own: the bullet flies <em>toward</em> the enemy, always at 400 per second, whether it is near or far.</p>
+        `,
+        {
+          snip: `arrow(Point(650, 150), v.normalize() * 150, "white")`
+        },
+        `
+        <p><code>v.normalize()</code> returns an arrow in the same direction, with length 1. Multiply it by the size you want: <code>v.normalize() * 150</code> has length 150.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Stretch and shrink")
+Wallpaper("dark navy")
+
+
+def arrow(start, vector, color):
+    finish = start + vector
+    Line(p1=start, p2=finish, color=color, line_width=4)
+    Triangle(center=finish, radius=12, angle=vector.angle, color=color)
+
+
+v = Vec2(160, 60)
+
+arrow(Point(100, 560), v, "gold")
+Text("v", center=(330, 600), font_size=20)
+arrow(Point(100, 380), v * 2, "coral")
+Text("v * 2", center=(500, 470), font_size=20)
+arrow(Point(100, 200), v * 0.5, "turquoise")
+Text("v * 0.5", center=(260, 230), font_size=20)
+arrow(Point(450, 120), v * -1, "orchid")
+Text("v * -1", center=(330, 120), font_size=20)
+
+w = Vec2(60, 400)
+arrow(Point(650, 150), v, "gray")
+arrow(Point(650, 150), w, "gray")
+arrow(Point(650, 150), v.normalize() * 150, "white")
+arrow(Point(650, 150), w.normalize() * 150, "white")
+Text(f"v: {round(v.length)}   w: {round(w.length)}   white: 150", top_left=(600, 680), font_size=20)
+
+run()
+`,
+      after: `
+        <p>Run it and look to the right: the gray arrows <code>v</code> and <code>w</code> have different sizes; the white ones, made with <code>normalize() * 150</code>, have the same size as each other and the same directions as the gray ones.</p>
+      `,
+      try: [
+        {
+          note: "To only <em>limit</em> the size (a top speed, for example), <code>clamp_length(low, high)</code> holds the length between two numbers. At the end of the program: the arrow <code>w</code>, which is 404 long, comes out at 250.",
+          code: `arrow(Point(850, 150), w.clamp_length(0, 250), "lime")`
+        }
+      ]
+    },
+    {
+      title: "The full turn",
+      fresh: true,
+      part: "Angles",
+      body: `
+        <p>Scena measures angles in <strong>degrees</strong>. A full turn is 360. 0 points to the right, and angles grow <strong>counterclockwise</strong> (the opposite way from a clock's hands): 90 is up, 180 is left, 270 is down. A negative angle turns the other way: −90 is also down.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 220" role="img" aria-label="Eight arrows from the same center, every 45 degrees; 0 points right, 90 up, 180 left and 270 down; a curved arrow shows the counterclockwise direction">
+            <line class="ray" x1="200" y1="110" x2="290" y2="110"/>
+            <line class="ray" x1="200" y1="110" x2="200" y2="20"/>
+            <line class="ray" x1="200" y1="110" x2="110" y2="110"/>
+            <line class="ray" x1="200" y1="110" x2="200" y2="200"/>
+            <line class="guide" x1="200" y1="110" x2="264" y2="46"/>
+            <line class="guide" x1="200" y1="110" x2="136" y2="46"/>
+            <line class="guide" x1="200" y1="110" x2="136" y2="174"/>
+            <line class="guide" x1="200" y1="110" x2="264" y2="174"/>
+            <polygon class="dot" points="298,110 288,105 288,115"/>
+            <polygon class="dot" points="200,12 195,22 205,22"/>
+            <polygon class="dot" points="102,110 112,105 112,115"/>
+            <polygon class="dot" points="200,208 195,198 205,198"/>
+            <path class="guide" d="M 245 110 A 45 45 0 0 0 200 65"/>
+            <text x="304" y="114">0</text>
+            <text x="208" y="18">90</text>
+            <text x="98" y="114" text-anchor="end">180</text>
+            <text x="208" y="210">270 (or −90)</text>
+            <text x="268" y="42">45</text>
+            <text x="132" y="42" text-anchor="end">135</text>
+          </svg>
+          <figcaption>0 to the right and the turn going counterclockwise: 90 at the top, 180 on the left, 270 at the bottom.</figcaption>
+        </figure>
+        <p>The program draws the figure: an arrow every 45 degrees, with the angle written at the tip.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Angles")
+Wallpaper("dark navy")
+
+
+def arrow(start, vector, color):
+    finish = start + vector
+    Line(p1=start, p2=finish, color=color, line_width=4)
+    Triangle(center=finish, radius=12, angle=vector.angle, color=color)
+
+
+center = Point(500, 350)
+
+for angle in range(0, 360, 45):
+    arrow(center, vec_from_angle(angle, length=200), "gold")
+    Text(f"{angle}", center=center + vec_from_angle(angle, length=245), font_size=18)
+
+run()
+`,
+      notes: [
+        {
+          at: "for angle in range(0, 360, 45):",
+          text: "<code>range(0, 360, 45)</code> counts from 0 up to just before 360, in steps of 45: 0, 45, 90, … 315. That is eight angles, one arrow for each."
+        },
+        {
+          at: "vec_from_angle(angle, length=200)",
+          text: "<code>vec_from_angle</code> makes the arrow that points at that angle, with that length. It is the reverse of <code>.angle</code>."
+        },
+        {
+          at: "length=245",
+          text: "The number sits a little past the tip: at the same angle, with length 245."
+        }
+      ],
+      try: [
+        {
+          note: "Change the step of the <code>range</code>: in steps of 30 you get 12 arrows, like the hours on a clock. In place of the <code>for</code> line.",
+          replaces: ['for angle in range('],
+          code: `for angle in range(0, 360, 30):`
+        }
+      ]
+    },
+    {
+      title: "Pointing at the mouse",
+      body: `
+        <p>A triangle in the middle turns to face the mouse, using the heading from the previous section.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Angles")
+Wallpaper("dark navy")
+
+
+def arrow(start, vector, color):
+    finish = start + vector
+    Line(p1=start, p2=finish, color=color, line_width=4)
+    Triangle(center=finish, radius=12, angle=vector.angle, color=color)
+
+
+center = Point(500, 350)
+
+for angle in range(0, 360, 45):
+    arrow(center, vec_from_angle(angle, length=200), "gold")
+    Text(f"{angle}", center=center + vec_from_angle(angle, length=245), font_size=18)
+
+Triangle(center=(500, 350), radius=50, angle=lambda: heading(center, mouse), color="coral")
+Text(lambda: f"heading(center, mouse) = {round(heading(center, mouse))}", top_left=(20, 680), font_size=20)
+
+run()
+`,
+      notes: [
+        {
+          at: "angle=lambda: heading(center, mouse)",
+          text: "The angle is the heading from the center to the mouse. Since it comes from a <code>lambda</code>, it is worked out again every frame."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>Move the mouse below the center. What number shows up?</summary><p>Near −90, not 270. <code>heading</code> returns a number between −180 and 180; −90 and 270 are the same direction.</p></details>
+      `,
+      dive: [
+        {
+          title: "Turning an arrow",
+          body: `
+            <p><code>v.rotate(30)</code> returns the same arrow, turned 30 degrees counterclockwise; with −30, the other way. The size does not change. The Velocity section, next, turns a ball's velocity a little every frame.</p>
+            <p>In the Guide: <a href="../guide/index.html#geo-vec2">Vec2</a> · <a href="../guide/index.html#geo-helpers">Points</a>.</p>
+          `,
+          try: [
+            {
+              note: "The arrow pointing up (90 degrees), turned 60 degrees each way: two white arrows, one at 30 and one at 150 degrees. At the end of the program.",
+              code: `up = vec_from_angle(90, length=200)
+arrow(Point(150, 150), up.rotate(-60), "white")
+arrow(Point(150, 150), up.rotate(60), "white")`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "Moving by an arrow",
+      fresh: true,
+      part: "Velocity",
+      body: `
+        <p>The velocity of a thing is an arrow: how far it goes <strong>per second</strong>, in x and in y. Here a ball moves by its own, and a gold line shows the arrow coming out of it.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Velocity")
+Wallpaper("dark navy")
+
+ball = Circle(center=(500, 250), radius=20, color="coral")
+ball.vel = Vec2(180, 120)
+
+Line(p1=lambda: ball.center, p2=lambda: ball.center + ball.vel, color="gold", line_width=3)
+Text(lambda: f"vel = Vec2({round(ball.vel.x)}, {round(ball.vel.y)})", top_left=(20, 680), font_size=20)
+
+
+def update(dt):
+    ball.move_by(ball.vel * dt)
+    ball.confine(canvas.game_view, by="box", action="bounce")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ball.vel = Vec2(180, 120)",
+          text: "The ball keeps its velocity in a field, <code>vel</code> (short for <em>velocity</em>): 180 per second to the right, 120 up."
+        },
+        {
+          at: "ball.move_by(ball.vel * dt)",
+          text: "<code>dt</code> is the frame time, in seconds (about 1/60). <code>ball.vel * dt</code> is the piece of the arrow that fits in one frame, and <code>move_by</code> travels that piece. In one second, the pieces add up to the whole arrow."
+        },
+        {
+          at: "action=\"bounce\"",
+          text: "<code>confine</code> keeps the ball inside the game view (<code>canvas.game_view</code>); with <code>action=\"bounce\"</code>, it flips the part of the velocity that hit the edge."
+        }
+      ],
+      after: `
+        <p>Run it and watch the gold line at each hit: on a side wall, the arrow's <code>x</code> changes sign; on the floor or the ceiling, its <code>y</code>.</p>
+      `,
+      dive: [
+        {
+          title: "Place or travel",
+          body: `
+            <p>The math for the new position is <code>ball.center + ball.vel * dt</code>: the current place plus the piece of the arrow. You can write it like this, <code>ball.center = ball.center + ball.vel * dt</code>, and the ball moves the same way.</p>
+            <p>The difference shows up with walls. Writing to <code>center</code> <strong>places</strong> the ball in the new spot: it passes through a <code>resolve</code> wall. <code>move_by</code> <strong>travels</strong> there, and the wall stops it on the way. That is why movement goes through <code>move_by</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#mover-confine">confine</a> · <a href="../guide/index.html#geo-vec2">Vec2</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "An arrow that turns",
+      body: `
+        <p>One more line: every frame, the velocity turns a little.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Velocity")
+Wallpaper("dark navy")
+
+ball = Circle(center=(500, 250), radius=20, color="coral")
+ball.vel = Vec2(180, 120)
+
+Line(p1=lambda: ball.center, p2=lambda: ball.center + ball.vel, color="gold", line_width=3)
+Text(lambda: f"vel = Vec2({round(ball.vel.x)}, {round(ball.vel.y)})", top_left=(20, 680), font_size=20)
+
+
+def update(dt):
+    ball.vel = ball.vel.rotate(60 * dt)
+    ball.move_by(ball.vel * dt)
+    ball.confine(canvas.game_view, by="box", action="bounce")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ball.vel = ball.vel.rotate(60 * dt)",
+          text: "<code>rotate</code> returns the arrow turned, here by 60 degrees per second. The size does not change, only the direction."
+        }
+      ],
+      after: `
+        <p>The ball, which used to go straight, now moves in a curve, and makes a full turn every 6 seconds (360 ÷ 60).</p>
+        <p>This is how you think about movement with vectors: the position changes by the velocity, and the velocity changes by whatever you decide (turning, growing, falling).</p>
+      `,
+      try: [
+        {
+          note: "Gravity in place of the turn: the velocity gains a downward arrow every frame, and the ball falls in a curve. In place of the <code>rotate</code> line.",
+          replaces: ['ball.vel = ball.vel.rotate('],
+          code: `ball.vel = ball.vel + Vec2(0, -300) * dt`
+        },
+        {
+          note: "Always toward the mouse, at 200 per second: the arrow is made again every frame, with the heading to the mouse. When it gets there, the ball jitters around it: it overshoots a little, comes back, overshoots again. The <code>chase</code> of Appendix E is the way to arrive gently. In place of the <code>rotate</code> line.",
+          replaces: ['ball.vel = ball.vel.rotate('],
+          code: `ball.vel = vec_from_angle(heading(ball, mouse), length=200)`
+        }
+      ]
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debug keys — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Appendix",
+  n: "A",
+  title: "Debug keys",
+  steps: [
+    {
+      title: "The keys",
+      part: "The lab",
+      body: `
+        <p>Every Scena game comes with hidden keys that show what the game is doing inside. They answer the questions your eyes alone can't: how many things exist right now? Why did that meteor pass through the ship without hitting it? Where did the star that vanished go? That is what <em>debugging</em> means: finding out why a program does what it does.</p>
+        <p>They are all <kbd>Ctrl+Shift</kbd> plus one key: hold Ctrl and Shift together and press the third. On a Mac it is the Control key too, not Command. They work in any Scena game, without writing anything, and they don't change the game; they only show it.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Key</th><th>What it does</th><th>When it helps</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Ctrl+Shift+1</kbd></td><td>The system HUD: frames per second, how many objects exist, where the mouse is.</td><td>Has the game slowed down? Is something that should be gone still there?</td></tr>
+            <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>Turns the automatic quality adjustment (FX Auto) off and on.</td><td>To compare the game with and without it.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>The quality of the effects: low → medium → high.</td><td>To see how much an effect costs.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>The framerate: vsync → vsync60 → vsync30 → 60 → 30 → max.</td><td>To see how the game runs on a slower computer.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+6</kbd></td><td>The process panel: off → tasks and modes → also the loose timers.</td><td>A sequence that stopped without a warning; a timer that does not fire.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+7</kbd></td><td>Draws the invisible: hitboxes, the design frame, the origin cross, the tracks and the playfield.</td><td>A collision that doesn't happen; a track that takes a strange turn.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+8</kbd></td><td>Zooms your view out (100% → 50% → 25%).</td><td>To see what happens outside the window.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+P</kbd></td><td>Time: running → paused → ¼ speed → running.</td><td>To take a calm look at a fast crash.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+E</kbd></td><td>Closes the warning banner (SCENA WARNING).</td><td>After you have read the warning.</td></tr>
+            <tr><td><kbd>Ctrl+Shift+F</kbd></td><td>Fullscreen.</td><td></td></tr>
+            <tr><td><kbd>Ctrl+Shift+M</kbd></td><td>Maximized window.</td><td></td></tr>
+            <tr><td><kbd>Ctrl+Shift+Z</kbd></td><td>Quits the game.</td><td>In fullscreen, where there is no close button.</td></tr>
+          </tbody>
+        </table></div>
+        <p>To see each key at work, let's build a small lab: a ship, falling meteors, a flying saucer that loops around. Each step adds one piece and the key that shows it from the inside. We start with the ship, which moves with the arrow keys.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Lab")
+Wallpaper("dark navy")
+
+ship = Sprite("space/playerShip1_red.png", width=70, center=(500, 100), group="ship")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-400 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(400 * dt, 0)
+
+
+run()
+`
+    },
+    {
+      title: "The HUD",
+      body: `
+        <p>Now meteors fall, one every half second. With them comes the first key: the panel that counts what exists in the game.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Lab")
+Wallpaper("dark navy")
+
+ship = Sprite("space/playerShip1_red.png", width=70, center=(500, 100), group="ship")
+
+
+@every(0.5)
+def drop_meteor():
+    x = uniform(60, 940)
+    Sprite("space/meteorBrown_big3.png", size=60, center=(x, 760), group="meteors")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-400 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(400 * dt, 0)
+    for meteor in group["meteors"]:
+        meteor.move_by(0, -250 * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "center=(x, 760)",
+          text: "The meteor starts at <code>y</code> 760, a little above the screen, which goes up to 700. The <code>x</code> is picked at random by <code>uniform(60, 940)</code>: any number between 60 and 940."
+        },
+        {
+          at: "meteor.move_by(0, -250 * dt)",
+          text: "Each meteor falls 250 units per second. No line removes it."
+        }
+      ],
+      after: `
+        <p>Run it and press <kbd>Ctrl+Shift+1</kbd>. The system panel appears in the corner: the HUD (short for <em>heads-up display</em>, a panel that sits on top of the game). Three of its readings:</p>
+        <div class="tbl"><table><thead><tr><th>Reading</th><th>What it shows</th></tr></thead><tbody>
+          <tr><td><code>FPS</code></td><td>(short for <em>frames per second</em>) how many times per second the screen is redrawn. Around 60 is normal; if it drops a lot, the game is too heavy for the computer (see <a href="#qualidade-e-quadros">Quality and framerate</a>).</td></tr>
+          <tr><td><code>objs</code></td><td>how many things exist in the game right now: the ship, each meteor, each text.</td></tr>
+          <tr><td><code>xy</code></td><td>where the mouse is, in the same units as your code.</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>Watch <code>objs</code> for half a minute. What does it do?</summary><p>It only goes up. The meteors that pass the bottom of the screen vanish from view, but they still exist and keep falling forever. A program that creates things and never removes them has a <em>leak</em>: it gets heavier every second, and <code>objs</code> is the quickest way to find out.</p></details>
+        <p><code>xy</code> works as a ruler too. Want to put something near the top right corner and don't know which numbers to write? Move the mouse there and read it: something like (900, 620). That is the <code>center=(…)</code> you are looking for.</p>
+      `
+    },
+    {
+      title: "Seeing past the window",
+      body: `
+        <p>To plug the leak, a meteor that leaves the game is removed. And a second key shows where that happens.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Lab")
+Wallpaper("dark navy")
+
+ship = Sprite("space/playerShip1_red.png", width=70, center=(500, 100), group="ship")
+
+
+@every(0.5)
+def drop_meteor():
+    x = uniform(60, 940)
+    Sprite("space/meteorBrown_big3.png", size=60, center=(x, 760), group="meteors")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-400 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(400 * dt, 0)
+    for meteor in group["meteors"]:
+        meteor.move_by(0, -250 * dt)
+
+
+@leave_playfield("meteors")
+def gone(meteor):
+    meteor.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "@leave_playfield(\"meteors\")",
+          text: "<code>@leave_playfield</code> calls the function right below it when a meteor leaves the game area, and the function removes it with <code>destroy</code>."
+        }
+      ],
+      after: `
+        <p>Run it with the HUD on: now <code>objs</code> goes up a little and stops.</p>
+        <p>Where exactly is the meteor removed? Press <kbd>Ctrl+Shift+8</kbd>: the view zooms out to 50%. Once more, 25%; once more, back to normal. Zoomed out, the window becomes a frame in the middle, and you see what happens outside it: the meteors appearing above the top edge and falling past the bottom edge until they vanish.</p>
+        <figure class="fig">
+          <svg viewBox="-21 0 341 212" role="img" aria-label="A small rectangle, the window, inside a larger dashed rectangle, the playfield; dots above and below the window, still inside the playfield, and one dot that has just crossed the bottom edge of the playfield">
+            <rect class="guide" x="40" y="22" width="240" height="168"/>
+            <rect class="bar" x="80" y="50" width="160" height="112"/>
+            <text x="160" y="110" text-anchor="middle">window</text>
+            <text x="160" y="17" text-anchor="middle">playfield</text>
+            <circle class="dot" cx="120" cy="38" r="5"/>
+            <circle class="dot" cx="200" cy="90" r="5"/>
+            <circle class="dot" cx="140" cy="140" r="5"/>
+            <circle class="dot" cx="215" cy="176" r="5"/>
+            <circle class="hot" cx="105" cy="198" r="5"/>
+            <text x="30" y="205" text-anchor="end">destroy</text>
+          </svg>
+          <figcaption>The playfield is larger than the window: a quarter more on each side. The meteor is removed only when its center crosses the edge of the playfield.</figcaption>
+        </figure>
+        <p>The playfield (<code>canvas.playfield</code>) is larger than the screen so that something that goes out a little and comes back isn't removed by mistake. Press <kbd>Ctrl+Shift+7</kbd> with the view zoomed out: the playfield is drawn in cyan.</p>
+        <p>The 8 changes neither the game nor the camera; only your view. The meteors keep falling, and the collisions stay the same.</p>
+      `,
+      try: [
+        {
+          note: "The playfield can be exactly the size of the screen. Run it, zoom out and watch the meteors vanish right at the bottom edge (and, with the 7, the cyan playfield hugging the window).",
+          code: `canvas.playfield.pad = 0`
+        }
+      ]
+    },
+    {
+      title: "Hitboxes",
+      body: `
+        <p>Now the ship takes the hit: a meteor that touches it is removed, and the ship flashes. This step's key shows the shape that decides the touch.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Lab")
+Wallpaper("dark navy")
+
+ship = Sprite("space/playerShip1_red.png", width=70, center=(500, 100), group="ship")
+
+
+@every(0.5)
+def drop_meteor():
+    x = uniform(60, 940)
+    Sprite("space/meteorBrown_big3.png", size=60, center=(x, 760), group="meteors")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-400 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(400 * dt, 0)
+    for meteor in group["meteors"]:
+        meteor.move_by(0, -250 * dt)
+
+
+@leave_playfield("meteors")
+def gone(meteor):
+    meteor.destroy()
+
+
+@collide("ship", "meteors")
+def crashed(ship, meteor):
+    meteor.destroy()
+    ship.flash(0.2)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "@collide(\"ship\", \"meteors\")",
+          text: "<code>@collide</code> calls the function when a member of the <code>ship</code> group touches one of the <code>meteors</code> group, and hands it both."
+        },
+        {
+          at: "ship.flash(0.2)",
+          text: "<code>flash</code> makes the ship flash for 0.2 s."
+        }
+      ],
+      after: `
+        <p>Run it, press <kbd>Ctrl+Shift+7</kbd> and let a few meteors pass close to the ship. A thin outline appears over each image: the <strong>hitbox</strong>, the shape Scena uses to decide whether two things touch. A collision doesn't look at the drawing; it looks at that shape. The color tells the kind:</p>
+        <div class="tbl"><table><thead><tr><th>Color</th><th>The hitbox</th></tr></thead><tbody>
+          <tr><td>green</td><td>only reports the touch, like the <code>@collide</code> here</td></tr>
+          <tr><td>gold</td><td>solid, doesn't let things through (<code>resolve</code>)</td></tr>
+          <tr><td>cyan</td><td>an extra part of the body (<code>add_hitbox</code>)</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>A meteor grazed the wing and nothing happened. Why?</summary><p>For an image, Scena computes the hitbox from the drawing's pixels and would rather err on the inside: the wing tips and the edges of the meteor can be left out. With the 7 on, you see that the two shapes didn't touch. It is the first key to press when a collision surprises you, either way.</p></details>
+        <p>The same drawing shows two more things. The frame is the rectangle of <code>init</code>, 1000 × 700: everything inside it appears in the window. The cross marks the origin, the point (0, 0), in the bottom left corner. With the view zoomed out (8), the two show where the screen ends and where the world goes on.</p>
+      `,
+      try: [
+        {
+          note: "The same drawing, turned on by code from the start: handy while you tune a collision and don't want to press the key every time. Remove the line when you are done; the finished game shouldn't show its hitboxes.",
+          code: `collision.show_colliders()`
+        }
+      ]
+    },
+    {
+      title: "Tracks",
+      body: `
+        <p>A flying saucer joins in and flies a figure eight near the top of the screen, along a path nobody sees.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Lab")
+Wallpaper("dark navy")
+
+ship = Sprite("space/playerShip1_red.png", width=70, center=(500, 100), group="ship")
+
+ufo = Sprite("space/ufoYellow.png", width=70, center=(500, 520))
+ufo.move_along(Track.eight(width=600, height=160), time=6, loops="forever")
+
+
+@every(0.5)
+def drop_meteor():
+    x = uniform(60, 940)
+    Sprite("space/meteorBrown_big3.png", size=60, center=(x, 760), group="meteors")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-400 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(400 * dt, 0)
+    for meteor in group["meteors"]:
+        meteor.move_by(0, -250 * dt)
+
+
+@leave_playfield("meteors")
+def gone(meteor):
+    meteor.destroy()
+
+
+@collide("ship", "meteors")
+def crashed(ship, meteor):
+    meteor.destroy()
+    ship.flash(0.2)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ufo.move_along(",
+          text: "<code>move_along</code> carries the saucer along a track, a <code>Track</code>, at 6 seconds per lap; <code>loops=\"forever\"</code> repeats it forever."
+        },
+        {
+          at: "Track.eight(width=600, height=160)",
+          text: "A ready-made figure-eight track, 600 wide and 160 tall, that starts where the saucer is."
+        }
+      ],
+      after: `
+        <p>The track guides the saucer, but it isn't drawn. Run it and press <kbd>Ctrl+Shift+7</kbd>: it appears in magenta, whole, and you see the entire path at once, not just the part the saucer has already covered. When the saucer takes an unexpected turn, this is where you check whether the track really is where you thought.</p>
+      `,
+      try: [
+        {
+          note: "Only the tracks, turned on by code (the hitboxes are left out).",
+          code: `show_tracks()`
+        }
+      ]
+    },
+    {
+      title: "Time",
+      body: `
+        <p>The crash gets a burst. It lasts an instant, too fast to see properly, and this step's key slows time down.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1000, height=700, title="Lab")
+Wallpaper("dark navy")
+
+ship = Sprite("space/playerShip1_red.png", width=70, center=(500, 100), group="ship")
+
+ufo = Sprite("space/ufoYellow.png", width=70, center=(500, 520))
+ufo.move_along(Track.eight(width=600, height=160), time=6, loops="forever")
+
+
+@every(0.5)
+def drop_meteor():
+    x = uniform(60, 940)
+    Sprite("space/meteorBrown_big3.png", size=60, center=(x, 760), group="meteors")
+
+
+def update(dt):
+    if keyp("LEFT"):
+        ship.move_by(-400 * dt, 0)
+    if keyp("RIGHT"):
+        ship.move_by(400 * dt, 0)
+    for meteor in group["meteors"]:
+        meteor.move_by(0, -250 * dt)
+
+
+@leave_playfield("meteors")
+def gone(meteor):
+    meteor.destroy()
+
+
+@collide("ship", "meteors")
+def crashed(ship, meteor):
+    canvas.burst_at(meteor, radius=40)
+    meteor.destroy()
+    ship.flash(0.2)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "canvas.burst_at(meteor, radius=40)",
+          text: "<code>burst_at</code> sets off a ring of sparks of radius 40 where the meteor was, before it is removed."
+        }
+      ],
+      after: `
+        <p>Run it and press <kbd>Ctrl+Shift+P</kbd> a few times. The game's time goes around a cycle: running → paused → ¼ speed → running.</p>
+        <p>When paused, everything stops, but the window keeps drawing: turn on the 7, zoom out with the 8 and take your time checking where everything is. At ¼, you can see the meteor arrive, the two hitboxes touch and the burst open.</p>
+        <p>The clock of the whole game changes together: the meteors, the <code>@every</code> that drops them, the saucer on its eight. The game stays the same, only slower.</p>
+      `,
+      try: [
+        {
+          note: "The same by code: <code>clock.scale</code> is the speed of time. 1 is normal, 0.5 is half, 0.25 is a quarter, 0 is stopped. Appendix B shows the clock in more detail.",
+          code: `clock.scale = 0.25`
+        }
+      ]
+    },
+    {
+      title: "The warning banner",
+      part: "Warnings",
+      fresh: true,
+      body: `
+        <p>A new, small program: a gold ball that changes color when you press space. The change has a mistake on purpose, to see how Scena warns you.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Warnings")
+Wallpaper("dark navy")
+
+Text("Press SPACE", top_left=(20, 680), font_size=24)
+ball = Circle(center=(500, 350), radius=100, color="gold")
+
+
+def update(dt):
+    if keyp.once("SPACE"):
+        ball.color = "tangerine"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ball.color = \"tangerine\"",
+          text: "The mistake: <code>\"tangerine\"</code> is not one of Scena's color names."
+        }
+      ],
+      after: `
+        <p>Run it and press space. The ball turns magenta, a strong pink, and two things appear: a message in the console that starts with <strong>SCENA WARNING</strong> and an amber banner in the corner of the window.</p>
+        <p>Scena doesn't stop the game over a wrong color name: it paints the ball magenta, a color picked to catch your eye, and warns you. The banner stays on screen until you have read it; <kbd>Ctrl+Shift+E</kbd> closes it, and the warning stays in the console in case you need it again.</p>
+        <details class="ask"><summary>Does every error become a banner?</summary><p>No. Only problems that don't keep the game from going on become warnings: a missing image file (a checkerboard appears in its place), a missing sound (silence), an unknown color name (magenta). A mistake in the Python code, like a misspelled variable (<code>bal.color</code>) or a missing parenthesis, stops the program, and Python shows the error message with the line where it happened.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the color line: a name Scena knows, <code>orange</code>. No warning, no banner.",
+          replaces: ['ball.color = "tangerine"'],
+          code: `ball.color = "orange"`
+        }
+      ]
+    },
+    {
+      title: "Quality and frames",
+      id: "qualidade-e-quadros",
+      part: "Quality and framerate",
+      fresh: true,
+      body: `
+        <p>Another new program, this one full of effects. Effects cost the computer work, frame after frame, and three keys show how the game looks on a weaker computer.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Quality")
+SkyGradient("night")
+Stars()
+Bloom(intensity=0.8)
+
+for i in range(6):
+    Fire(center=(140 + i * 145, 160))
+    ball = Circle(center=(140 + i * 145, 450), radius=40, color="orchid")
+    ball.glow = True
+
+run()
+`,
+      notes: [
+        {
+          at: "Bloom(intensity=0.8)",
+          text: "<code>Bloom</code> is a glow over the whole screen: everything bright spreads light around it."
+        },
+        {
+          at: "Fire(center=",
+          text: "Six fires (<code>Fire</code>), the heaviest effect in the program. Below them, six glowing balls."
+        }
+      ],
+      after: `
+        <p>Run it and turn on the HUD (<kbd>Ctrl+Shift+1</kbd>) to keep an eye on the <code>FPS</code>.</p>
+        <p>Without being asked, Scena measures how long each frame takes. If the computer can't keep up, it lowers the quality of the effects (high → medium → low) and, if that is still not enough, the framerate, from 60 to 30 frames per second. If what weighs is the game's logic (the <code>update</code>, the processes, the collisions), lowering the quality doesn't help: it goes straight to 30 and keeps the quality. This automatic adjustment is called FX Auto, and it starts on. The keys let you choose for yourself:</p>
+        <div class="tbl"><table><thead><tr><th>Key</th><th>What it changes</th></tr></thead><tbody>
+          <tr><td><kbd>Ctrl+Shift+2</kbd></td><td>turns FX Auto off and back on</td></tr>
+          <tr><td><kbd>Ctrl+Shift+3</kbd></td><td>the quality: low → medium → high. At low, the fires become a simple glow</td></tr>
+          <tr><td><kbd>Ctrl+Shift+4</kbd></td><td>the framerate, one per press: the monitor's own, 60, 30 or no limit. The HUD's <code>FPS</code> shows the real rate</td></tr>
+        </tbody></table></div>
+        <p>Set it to low and 30, and play: that is how your game looks on a weaker computer. Movement written with <code>dt</code> goes at the same speed at any framerate; it is just less smooth.</p>
+      `,
+      try: [
+        {
+          note: "The same settings by code, one at a time. The last line, <code>set_fx_auto(False)</code>, turns the automatic adjustment off, like <kbd>Ctrl+Shift+2</kbd>.",
+          code: `canvas.fx_quality = "low"
+canvas.framerate = 30
+set_fx_auto(False)`
+        }
+      ]
+    },
+    {
+      title: "Fullscreen and quitting",
+      part: "The window",
+      fresh: true,
+      body: `
+        <p>The last program only draws a gold frame around the area of <code>init</code> (1000 × 700), so you can see where it ends up when the window changes size.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Window")
+Wallpaper("dark navy")
+
+border = Rect(center=(500, 350), width=1000, height=700, line_width=8)
+border.fill = None
+border.line = "gold"
+Text("Ctrl+Shift+F  fullscreen\\nCtrl+Shift+M  maximized\\nCtrl+Shift+Z  quit", center=(500, 350), font_size=32)
+
+run()
+`,
+      notes: [
+        {
+          at: "border.fill = None",
+          text: "No <code>fill</code>, only a gold outline (<code>line</code>): a hollow <code>Rect</code> the size of the screen."
+        }
+      ],
+      after: `
+        <p>Run it and try the three keys:</p>
+        <div class="tbl"><table><thead><tr><th>Key</th><th>What it does</th></tr></thead><tbody>
+          <tr><td><kbd>Ctrl+Shift+F</kbd></td><td>fullscreen: the game covers the whole monitor, with no window border and no taskbar. Pressing it again goes back to the window</td></tr>
+          <tr><td><kbd>Ctrl+Shift+M</kbd></td><td>maximized: the window fills the whole desktop, but the taskbar stays, as with the maximize button</td></tr>
+          <tr><td><kbd>Ctrl+Shift+Z</kbd></td><td>quits the game, like closing the window. Handy in fullscreen, where no close button is in sight</td></tr>
+        </tbody></table></div>
+        <details class="ask"><summary>In fullscreen, what happens to the frame?</summary><p>It doesn't stretch: everything inside the gold frame is the game, in the same shape, and what is left of the monitor gets black bars. Appendix B, in “The three modes”, explains why.</p></details>
+      `,
+      try: [
+        {
+          note: "By code, the game opens in fullscreen right away. The shortcut toggles; the code sets one mode (<code>\"windowed\"</code>, <code>\"maximized\"</code> or <code>\"fullscreen\"</code>). Appendix B shows the window in detail.",
+          code: `canvas.display = "fullscreen"`
+        }
+      ]
+    }
+  ]
+});
+</script>
+</body>
+</html>
