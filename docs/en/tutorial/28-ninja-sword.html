@@ -1,0 +1,2470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ninja V · Sword — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "28",
+  title: "Ninja V · Sword",
+  steps: [
+    {
+      title: "The game from Ninja IV",
+      body: `
+        <p>The level from Ninja IV has three wooden crates, and they are only decoration: the ninja walks right through them. In this tutorial they join the game. Only the sword breaks them, and only at the moment of the slash; a broken crate leaves a light behind, and whoever picks up the light is invincible for a few seconds.</p>
+        <p>We start from the Ninja IV game, as it ended.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("playing", loops=1, next="idle")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing("playing"):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "for crate in level_map.group(\"crate\"):",
+          text: "The level's three crates, in a group of their own. For now, each one is made as it was drawn in the editor, and nothing more."
+        }
+      ]
+    },
+    {
+      title: "Crates in the way",
+      body: `
+        <p>First, the crates become solid: the ninja stops beside them and can climb on top. It is the same <code>resolve</code> as the floor's, with another group.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("playing", loops=1, next="idle")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing("playing"):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "crate", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@collide("kunai", "crate")
+def stuck(kunai, crate, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+        group["crate"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "resolve(\"hero\", \"crate\", bounce=0)",
+          text: "One more rule for the ninja: the crate holds him up, like the floor."
+        },
+        {
+          at: "group[\"crate\"].mass = STATIC",
+          text: "It stays put, like the floor: when the ninja walks into it, he does not push it."
+        },
+        {
+          at: "def stuck(kunai, crate, info):",
+          text: "A kunai that hits a crate sticks in it and disappears. The kunai does not break the crate: that will be the sword's job."
+        }
+      ],
+      after: `
+        <p>Run it and walk to the first crate: it stops the ninja. Jump on top of it, and throw a kunai from a distance.</p>
+      `
+    },
+    {
+      title: "The slash",
+      body: [
+        `
+        <p>Next to a crate, space becomes a sword slash; away from all of them, it is still the kunai. Which crate is close is a question you ask the group:</p>
+        `,
+        {
+          snip: `crate = group["crate"].nearest(self, within=75)
+if crate:`
+        },
+        `
+        <p><code>nearest</code> returns the crate closest to the ninja, or <code>None</code> if no crate is within 75 of him. Standing against a crate, the ninja's center (his feet) is about 55 from its center; 75 leaves some slack that the blade still reaches. With <code>None</code>, the <code>if</code> is skipped, and space throws the kunai.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("sword", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if self.showing("sword"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("sword"):
+            crate = group["crate"].nearest(self, within=75)
+            if crate:
+                self.flip_x = crate.center.x < self.center.x
+                self.play("sword", loops=1, next="idle")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("playing", loops=1, next="idle")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("playing", "sword")):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "crate", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@collide("kunai", "crate")
+def stuck(kunai, crate, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+        group["crate"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "ninja.strip(\"sword\"",
+          text: "The slash PNGs (<code>Attack__</code>) are much wider than the others, 536 pixels, with the ninja on the left and 42 empty pixels at the bottom. The <code>offset</code>, like the robots' in Ninja II, puts the drawing right: 50 pixels to the right and 42 down. Without it, the ninja would jump back and float on every slash."
+        },
+        {
+          at: "if self.showing(\"sword\"):",
+          text: "During the slash, the ninja stands still: the arrows wait for the slash to end."
+        },
+        {
+          at: "self.flip_x = crate.center.x < self.center.x",
+          text: "The ninja turns to face the crate: <code>True</code> if it is on his left. A slash with his back to it would hit nothing."
+        },
+        {
+          at: "elif ready(\"kunai\", 0.4):",
+          text: "With no crate nearby, the kunai from before, with the same interval."
+        },
+        {
+          at: "if self.showing((\"playing\", \"sword\")):",
+          text: "<code>showing</code> takes several clips in a tuple: while the throw or the slash is on the screen, choosing the clip waits."
+        }
+      ],
+      after: `
+        <p>Run it, go up to a crate and press space: the ninja turns to it and slashes, but the crate does not even feel it. The sword is still only a drawing; the ninja's collision is still his main hitbox, the one that stands on the floor.</p>
+      `
+    },
+    {
+      title: "A hitbox for the sword",
+      body: [
+        `
+        <p>The sword needs a hitbox of its own, like the hurtbox from Ninja IV. But this one does not follow the whole drawing: it is the blade's area, placed by hand.</p>
+        `,
+        {
+          snip: `sword = self.add_hitbox(group="sword", px_rect=(400, 60, 136, 375))`
+        },
+        `
+        <p><code>px_rect</code> (a rectangle in pixels) is a rectangle in the frame's pixels, counted the way an image editor counts them: <code>(x, y, width, height)</code>, from the top-left corner, with y going down. It is an address in the image, measured on the slash frame. Scena carries the rectangle along with the drawing: the <code>offset</code>, the <code>flip_x</code> and the ninja's size apply to it too, and you never add anything up.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 250" role="img" aria-label="The frame Attack__005, a wide rectangle. The ninja fills the left part; the trail of the slash makes an arc to his right. A filled rectangle covers the arc: it starts at pixel 400, 60 and is 136 wide by 375 tall">
+            <rect class="guide" x="20" y="20" width="214" height="198"/>
+            <rect class="bar" x="42" y="52" width="96" height="150" rx="22"/>
+            <text x="90" y="132" text-anchor="middle">ninja</text>
+            <rect class="hot" x="180" y="44" width="54" height="150"/>
+            <path class="ray" d="M168 40 Q 252 120 172 196" fill="none"/>
+            <text x="24" y="14">(0, 0)</text>
+            <text x="176" y="38" text-anchor="end">(400, 60)</text>
+            <text x="207" y="236" text-anchor="middle">136</text>
+            <text x="244" y="124">375</text>
+            <text x="300" y="60" text-anchor="middle">x →</text>
+            <text x="300" y="84" text-anchor="middle">y ↓</text>
+          </svg>
+          <figcaption>The frame <code>Attack__005</code>, 536 × 495 pixels, and the trail of the slash. The filled rectangle is <code>px_rect=(400, 60, 136, 375)</code>: it starts at pixel (400, 60), counted from the top-left corner, and covers the arc of the blade.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("sword", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField)
+        sword = self.add_hitbox(group="sword", px_rect=(400, 60, 136, 375))
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if self.showing("sword"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("sword"):
+            crate = group["crate"].nearest(self, within=75)
+            if crate:
+                self.flip_x = crate.center.x < self.center.x
+                self.play("sword", loops=1, next="idle")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("playing", loops=1, next="idle")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("playing", "sword")):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "crate", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@collide("sword", "crate")
+def smashed(hero, crate, info):
+    canvas.debris_at(crate, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    crate.destroy()
+
+
+@collide("kunai", "crate")
+def stuck(kunai, crate, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+        group["crate"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "sword = self.add_hitbox(",
+          text: "The new hitbox answers for the <code>sword</code> group. Like the hurtbox, it only detects: it does not stand on the floor or push anything."
+        },
+        {
+          at: "@collide(\"sword\", \"crate\")",
+          text: "The rule for the groups: when the sword hitbox touches a wooden crate, the function gets the sword's owner (the ninja) and the crate."
+        },
+        {
+          at: "canvas.debris_at(crate, color=\"peru\", fall=1)",
+          text: "<code>debris_at</code> scatters pieces where the crate was; they fly off and fade. The color is the wood's, and <code>fall=1</code> makes the pieces fall, as fits a game with gravity."
+        }
+      ],
+      after: `
+        <p>Run it and walk to the first crate. It breaks before any slash, just from the ninja coming close.</p>
+        <p>With <kbd>Ctrl+Shift+7</kbd>, the sword hitbox shows up in cyan, always in front of the ninja: standing, running, jumping. The rectangle was measured on the slash frame, which is wide. On the idle frame, 232 pixels wide, pixel 400 lies past the drawing, and the same numbers land just in front of the ninja: the wooden crate bumps into it.</p>
+      `
+    },
+    {
+      title: "Only during the slash",
+      body: [
+        `
+        <p>The sword hitbox should exist only on the frames where the blade is out: in the slash, frames 4, 5 and 6.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 96" role="img" aria-label="The ten frames of the slash, 0 to 9, in a row. Frames 4, 5 and 6 are highlighted: on them the sword hitbox is on">
+            <rect class="bar" x="20" y="24" width="30" height="30"/>
+            <rect class="bar" x="56" y="24" width="30" height="30"/>
+            <rect class="bar" x="92" y="24" width="30" height="30"/>
+            <rect class="bar" x="128" y="24" width="30" height="30"/>
+            <rect class="hot" x="164" y="24" width="30" height="30"/>
+            <rect class="hot" x="200" y="24" width="30" height="30"/>
+            <rect class="hot" x="236" y="24" width="30" height="30"/>
+            <rect class="bar" x="272" y="24" width="30" height="30"/>
+            <rect class="bar" x="308" y="24" width="30" height="30"/>
+            <rect class="bar" x="344" y="24" width="30" height="30"/>
+            <text x="35" y="72" text-anchor="middle">0</text>
+            <text x="179" y="72" text-anchor="middle">4</text>
+            <text x="215" y="72" text-anchor="middle">5</text>
+            <text x="251" y="72" text-anchor="middle">6</text>
+            <text x="359" y="72" text-anchor="middle">9</text>
+            <text x="215" y="16" text-anchor="middle">the blade cuts</text>
+            <text x="200" y="92" text-anchor="middle">one frame every 1/20 of a second</text>
+          </svg>
+          <figcaption>The ten frames of the slash, at 20 per second. The sword hitbox counts only on the three highlighted ones.</figcaption>
+        </figure>
+        `,
+        {
+          snip: `SLASH = ("Attack__004", "Attack__005", "Attack__006")
+...
+sword["active"] @= lambda: self.showing(SLASH)`
+        },
+        `
+        <p>The <code>showing</code> from Ninja II also takes frame names: the file name, without the <code>.png</code>. It says whether the frame on the screen is one of these. <code>active</code> switches the sword hitbox on and off, and <code>@=</code> links <code>active</code> to that question: Scena asks it again every frame, right before collision, and the hitbox exists only while the answer is yes.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+SLASH = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("sword", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField)
+        sword = self.add_hitbox(group="sword", px_rect=(400, 60, 136, 375))
+        sword["active"] @= lambda: self.showing(SLASH)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if self.showing("sword"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("sword"):
+            crate = group["crate"].nearest(self, within=75)
+            if crate:
+                self.flip_x = crate.center.x < self.center.x
+                self.play("sword", loops=1, next="idle")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("playing", loops=1, next="idle")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("playing", "sword")):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "crate", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@collide("sword", "crate")
+def smashed(hero, crate, info):
+    canvas.debris_at(crate, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    crate.destroy()
+
+
+@collide("kunai", "crate")
+def stuck(kunai, crate, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+        group["crate"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "SLASH = (",
+          text: "The three frames with the blade out, in a named tuple at the top of the file. The name in capitals says it does not change during the game."
+        },
+        {
+          at: "sword[\"active\"] @= lambda: self.showing(SLASH)",
+          text: "Square brackets before <code>@=</code>, as in every linked field (Formulas). On frame 4 the sword hitbox joins the collision and breaks any crate that is there; after frame 6, it leaves."
+        }
+      ],
+      after: `
+        <p>Run it: the wooden crate stops the ninja, and only the slash breaks it. With <kbd>Ctrl+Shift+7</kbd>, the cyan rectangle appears in the middle of the slash and disappears.</p>
+        <details class="ask"><summary>Couldn't I just write <code>sword.active = self.showing(SLASH)</code> in <code>on_update</code>?</summary><p>Almost always, yes. But <code>play("sword")</code> comes after that line in <code>on_update</code>: on the frame the slash starts, the line would still see the clip from before, and the hitbox would arrive one frame late. And if the ninja loses his last life in the middle of a slash, <code>on_update</code> leaves right at the start, at the <code>return</code> for a ninja with no lives, and nothing switches the sword hitbox off anymore. With <code>@=</code>, Scena asks the question by itself, every frame, always at the right moment.</p></details>
+      `
+    },
+    {
+      title: "The light",
+      body: `
+        <p>A light appears where the broken crate was, and the ninja picks it up by walking through it.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+SLASH = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("sword", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField)
+        sword = self.add_hitbox(group="sword", px_rect=(400, 60, 136, 375))
+        sword["active"] @= lambda: self.showing(SLASH)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if self.showing("sword"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("sword"):
+            crate = group["crate"].nearest(self, within=75)
+            if crate:
+                self.flip_x = crate.center.x < self.center.x
+                self.play("sword", loops=1, next="idle")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("playing", loops=1, next="idle")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("playing", "sword")):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("light")
+    def caught_light(self, light):
+        light.destroy()
+        play_sound("audio/impactBell_heavy_000.ogg")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "crate", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@collide("sword", "crate")
+def smashed(hero, crate, info):
+    canvas.debris_at(crate, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    Orb(center=crate.center, radius=14, color="gold", group="light")
+    crate.destroy()
+
+
+@collide("kunai", "crate")
+def stuck(kunai, crate, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+        group["crate"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "Orb(center=crate.center",
+          text: "<code>Orb</code> is an effect that lives at a place in the world, like the bolts: a bright disc with a halo of light. <code>radius</code> is the size of the disc, which is also what collides; the light around it is only drawing. It is born in the <code>light</code> group."
+        },
+        {
+          at: "@collide_with(\"light\")",
+          text: "Picking up the light: it disappears, with the sound of a bell."
+        }
+      ],
+      after: `
+        <p>Break the first crate and walk through the light.</p>
+      `,
+      try: [
+          {
+            note: "Other lights, in place of the <code>Orb</code>: a stronger one, one in another color, or sparks. One at a time. More in the Guide, in SpatialFx.",
+            replaces: ['Orb(center=crate.center'],
+            code: `Orb(center=crate.center, radius=14, color="gold", glow=2, group="light")
+Orb(center=crate.center, radius=14, color="cyan", group="light")
+Sparks(center=crate.center, radius=20, color="gold", group="light")`
+          }
+        ]
+    },
+    {
+      title: "Invincible",
+      body: [
+        `
+        <p>The light makes the ninja invincible for six seconds, with a golden aura around him. That is three things, one after another: switch on, wait, switch off. A task, as in the interlude Events and processes, writes them in order:</p>
+        `,
+        {
+          snip: `async def shine(self):
+    self.invincible = True
+...
+    self.visual = Aura("gold")
+    await wait(6)
+    self.visual = None
+    self.invincible = False`
+        },
+        `
+        <p><code>self.run_task(self.shine, name="invincible")</code> starts the task. It switches the aura on and sleeps at <code>await wait(6)</code> while the game goes on; six seconds later, it wakes up and switches everything off. With <code>name=</code>, a second light picked up along the way cancels the earlier task and starts the six seconds over. The task belongs to the ninja: if he goes away (R restarts the level), it goes with him.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+SLASH = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("sword", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.invincible = False
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField, Aura)
+        sword = self.add_hitbox(group="sword", px_rect=(400, 60, 136, 375))
+        sword["active"] @= lambda: self.showing(SLASH)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if self.showing("sword"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("sword"):
+            crate = group["crate"].nearest(self, within=75)
+            if crate:
+                self.flip_x = crate.center.x < self.center.x
+                self.play("sword", loops=1, next="idle")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("playing", loops=1, next="idle")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("playing", "sword")):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("light")
+    def caught_light(self, light):
+        light.destroy()
+        play_sound("audio/impactBell_heavy_000.ogg")
+        self.run_task(self.shine, name="invincible")
+
+    async def shine(self):
+        self.invincible = True
+        self.restore_visual()
+        self.visual = Aura("gold")
+        await wait(6)
+        self.visual = None
+        self.invincible = False
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0 or self.invincible:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "crate", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    if hero.invincible:
+        return
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@collide("sword", "crate")
+def smashed(hero, crate, info):
+    canvas.debris_at(crate, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    Orb(center=crate.center, radius=14, color="gold", group="light")
+    crate.destroy()
+
+
+@collide("kunai", "crate")
+def stuck(kunai, crate, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+        group["crate"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "self.prepare_fx(ElectricField, Aura)",
+          text: "The aura also follows the ninja's outline, frame by frame. Like the shock, its outline is built now, when the ninja is born, so picking up the light does not make the game stutter."
+        },
+        {
+          at: "self.run_task(self.shine, name=\"invincible\")",
+          text: "<code>self.shine</code> without parentheses: <code>run_task</code> takes the function and runs it as a task."
+        },
+        {
+          at: "self.restore_visual()",
+          text: "If the ninja picks up the light while still showing the arcs of a shock, <code>restore_visual</code> brings back his look from before the shock, and only then does the aura go on. Without it, the end of the shock, 2.5 seconds later, would bring back the look without the aura in the middle of the invincibility."
+        },
+        {
+          at: "self.visual = Aura(\"gold\")",
+          text: "<code>Aura</code> is a visual: a band of light that follows the ninja's silhouette on every frame of the animation."
+        },
+        {
+          at: "if st.lives == 0 or self.invincible:",
+          text: "While the ninja is invincible, <code>lose</code> leaves right away: no robot, bolt or water takes a life. Falling into the water still sends him back to the start, because <code>fell</code> puts him there."
+        },
+        {
+          at: "if hero.invincible:",
+          text: "A bolt does not set off the shock on an invincible ninja either: the aura stays on its own."
+        }
+      ],
+      after: `
+        <p>Pick up the light and touch a robot: nothing happens. Six seconds later, the aura goes away, and the robot hurts again.</p>
+      `,
+      try: [
+          {
+            note: "Other visuals that follow the silhouette, in place of the <code>Aura</code>. One at a time; put the name in <code>prepare_fx</code> too. More in the Guide, in Visual.",
+            replaces: ['self.visual = Aura('],
+            code: `self.visual = Halo("gold")
+self.visual = Rim("gold")`
+          }
+        ]
+    },
+    {
+      title: "The warning",
+      example: "ninja_5_sword.py",
+      body: [
+        `
+        <p>As it is, the invincibility ends all of a sudden, and the player has no way of knowing when. In the last two seconds, the aura blinks: a tenth of a second off, a tenth on.</p>
+        `,
+        {
+          snip: `await wait(4)
+for turn in range(10):
+    self.visual = None
+    await wait(0.1)
+    self.visual = Aura("gold")
+    await wait(0.1)`
+        },
+        `
+        <p>Ten rounds of two waits of 0.1 second: two seconds. Added to the four at the start, the invincibility still lasts six.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png", fit="tile", tile_size=(1000, 750), tile_mode="mirror", pan_response=0.1)
+canvas.layers.create("far", pan_response=0.5, below="default")
+for x in range(100, 2600, 300):
+    Sprite("tilesets/Object/Tree_3.png", height=130, center=(x, 140), layer="far")
+
+level_map = Level("levels/ninja_hazards.json")
+canvas.playfield.set(level_map.box)
+
+SLASH = ("Attack__004", "Attack__005", "Attack__006")
+
+
+def new_game():
+    st.stars = 0
+    st.lives = 3
+    st.drop = False
+    st.notice = ""
+
+
+new_game()
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715), layer="ui")
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green", layer="ui")
+notice["text"] @= lambda: st.notice
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("sword", "ninja/Attack__*.png", fps=20, offset=(50, -42))
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.vel.x > 0 and not self.floor_below(dx=40, group=["floor", "platform"]):
+            self.vel.x = -90
+            self.flip_x = True
+        if self.vel.x < 0 and not self.floor_below(dx=-40, group=["floor", "platform"]):
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        self.invincible = False
+        self.add_hitbox(group="hurt")
+        self.prepare_fx(ElectricField, Aura)
+        sword = self.add_hitbox(group="sword", px_rect=(400, 60, 136, 375))
+        sword["active"] @= lambda: self.showing(SLASH)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if self.showing("sword"):
+            self.vel.x = 0
+        elif keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        st.drop = recently("drop", keyp.once("DOWN"), hold=0.2)
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and not self.showing("sword"):
+            crate = group["crate"].nearest(self, within=75)
+            if crate:
+                self.flip_x = crate.center.x < self.center.x
+                self.play("sword", loops=1, next="idle")
+                play_sound("synth/throw.wav")
+            elif ready("kunai", 0.4):
+                self.play("playing", loops=1, next="idle")
+                kunai = Kunai(center=(self.center.x, self.center.y + 50))
+                kunai.rotate_to(self.angle)
+                play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing(("playing", "sword")):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == len(level_map.group("star")):
+            st.notice = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("light")
+    def caught_light(self, light):
+        light.destroy()
+        play_sound("audio/impactBell_heavy_000.ogg")
+        self.run_task(self.shine, name="invincible")
+
+    async def shine(self):
+        self.invincible = True
+        self.restore_visual()
+        self.visual = Aura("gold")
+        await wait(4)
+        for turn in range(10):
+            self.visual = None
+            await wait(0.1)
+            self.visual = Aura("gold")
+            await wait(0.1)
+        self.visual = None
+        self.invincible = False
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+        if st.lives > 0:
+            self.center = level_map["spawn"].center
+            self.vel = Vec2(0, 0)
+
+    def lose(self):
+        if st.lives == 0 or self.invincible:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.blink(1.5)
+            self.untag("hurt")
+            self.after(1.5, lambda: self.tag("hurt"))
+        else:
+            play_sound("audio/gameover.wav")
+            st.notice = "GAME OVER · R restarts"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+resolve("hero", "crate", bounce=0)
+resolve("hero", "platform", bounce=0, only=lambda c: c.side == "bottom" and not st.drop)
+
+@collide("robot", "hurt")
+def touched(robot, hero, info):
+    hero.lose()
+
+
+@collide("bolt", "hurt")
+def shock(bolt, hero, info):
+    if hero.invincible:
+        return
+    hero.lose()
+    hero.save_visual()
+    hero.visual = ElectricField("cyan")
+    hero.glow = "light blue"
+    hero.after(2.5, hero.restore_visual, name="shock")
+
+
+@collide("sword", "crate")
+def smashed(hero, crate, info):
+    canvas.debris_at(crate, color="peru", fall=1)
+    play_sound("audio/impactPlank_medium_002.ogg")
+    Orb(center=crate.center, radius=14, color="gold", group="light")
+    crate.destroy()
+
+
+@collide("kunai", "crate")
+def stuck(kunai, crate, info):
+    kunai.destroy()
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+
+class Play(Act):
+    def setup(self):
+        for decor in level_map.group("decor"):
+            decor.make()
+        for crate in level_map.group("crate"):
+            crate.make()
+        for piece in level_map.group("floor"):
+            piece.make()
+        for piece in level_map.group("platform"):
+            piece.make()
+        elevator = level_map["elevator"].make(group="platform", visual=Metal("gold"))
+        elevator.move_by(0, 360, time=3, ease="ease_in_out", loops="forever", yoyo=True)
+        for spot in level_map.group("wall"):
+            wall = spot.make(group="floor")
+            wall.visible = False
+        group["floor"].mass = STATIC
+        group["platform"].mass = STATIC
+        group["crate"].mass = STATIC
+
+        self.hero = Hero(center=level_map["spawn"].center)
+
+        for spot in level_map.group("star"):
+            star = Sprite("k-rolling-ball/star.png", height=36, center=spot.center, group="star")
+            star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+        for spot in level_map.group("robot"):
+            Robot(center=spot.center)
+
+        for water in level_map.group("water"):
+            water.make()
+
+        for spot in level_map.group("bolt"):
+            spot.make(visual=ElectricField("cyan", amount=10))
+
+        self.follow = False
+        canvas.frame_to(level_map.box)
+        self.after(2, self.start_round)
+
+    def start_round(self):
+        canvas.zoom_to(1, time=1)
+        self.follow = True
+
+    @every(1.5)
+    def flicker(self):
+        for bolt in group["bolt"]:
+            bolt.active = not bolt.active
+
+    def on_update(self, dt):
+        if keyp.once("R"):
+            new_game()
+            change_act(Play)
+            return
+        if not self.follow:
+            return
+        face = (canvas.pan_x, canvas.pan_y)
+        x, y = deadzone(face, self.hero.center, size=200)
+        x = max(x, 500)
+        x = min(x, 3500)
+        canvas.pan_to(chase(face, (x, 375), rate=5))
+
+
+run(Play)
+`,
+      notes: [
+        {
+          at: "for turn in range(10):",
+          text: "A <code>for</code> inside the task. Each <code>await wait(0.1)</code> waits without stopping the game, and the next round picks up where it left off."
+        }
+      ],
+      after: `
+        <p>Pick up the light and wait: the aura blinks before it goes away.</p>
+      `,
+      closing: `
+        <p>The whole level appears and the camera dives in on the ninja. The left and right arrows walk; the up arrow jumps; the down arrow drops off a platform. Space, next to a crate, is a sword slash that breaks it; away from the crates, it throws a kunai. Each broken crate leaves a light: whoever picks it up is invincible for six seconds, with a golden aura that blinks at the end. R restarts.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>group["crate"].nearest(self, within=75)</code> — the closest crate, if it is in reach; otherwise, <code>None</code>.</li>
+          <li><code>offset</code> in <code>strip</code> — the slash has wider PNGs: the drawing moves sideways and down, and the ninja stays in place.</li>
+          <li><code>add_hitbox</code> with <code>px_rect</code> — a hitbox placed by hand in the frame's pixels, which follows the drawing.</li>
+          <li><code>sword["active"] @=</code> with <code>showing(SLASH)</code> — the sword hitbox counts only on the frames where the blade is out.</li>
+          <li><code>debris_at</code> and <code>Orb</code> — the crate turns into pieces, and in its place stays a light that collides.</li>
+          <li><code>run_task</code>, <code>await wait</code> and <code>Aura</code> — switch on, wait and switch off in order, in a task of the ninja's; <code>prepare_fx</code> builds the aura ahead of time.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#spr-hit-ataque">Attack boxes (px_rect, active)</a> · <a href="../guide/index.html#spr-hit-partes">Sprite hitbox (Parts)</a> · <a href="../guide/index.html#mundo-grupos">Groups (nearest)</a> · <a href="../guide/index.html#mundo-impactos">Impacts</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a> · <a href="../guide/index.html#mode-task">Tasks</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#sprite-extras">More Sprite features (prepare_fx)</a>.</p>
+        <p><strong>Next:</strong> the robot becomes the hero, in a corridor that never ends, built by <code>Endless</code> while the camera moves.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Make the sword break the robots too.</li>
+          <li>Can you make a slash in the air, with the attack frames for jumping?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

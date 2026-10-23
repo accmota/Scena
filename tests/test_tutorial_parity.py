@@ -308,6 +308,10 @@ class TestDraftAndCheck(unittest.TestCase):
         self.assertEqual(tp.names_left("<code>paddle</code> <text>paddle</text>", gn, gs), [])
         # A file keeps its name (tutorial 22: audio/nota.wav is a real file).
         self.assertEqual(tp.names_left("<code>audio/barra.wav</code>", gn, gs), [])
+        # ...but an attribute is not a file with an extension (tutorial 19: self.meio).
+        self.assertEqual(tp.names_left("<code>self.barra</code>", gn, gs), ["barra"])
+        self.assertFalse(tp._is_file_name("self.barra"))
+        self.assertTrue(tp._is_file_name("barra.png"))
         out = tp.draft("99", self.pt, self.en, NAMES)
         self.assertNotIn("<code>barra</code>", out.read_text(encoding="utf-8"))
         self.assertEqual(tp.rename_code("audio/barra.wav", gn, gs), "audio/paddle.wav",

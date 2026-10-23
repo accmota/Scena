@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Events and processes — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlude",
+  title: "Events and processes",
+  steps: [
+    {
+      title: "The frame",
+      body: [
+        `
+        <p>Throughout the series, your code has run in many ways: in <code>update</code>, in a <code>@collide</code>, in an <code>@every</code>, after an <code>after</code>, in a formula, in an <code>async</code> mode. Each tutorial introduced the piece its game needed. This interlude puts the pieces together into one idea, with a crossing: a street, a traffic light, cars and pedestrians.</p>
+        <p>It all starts with the <strong>frame</strong>. A Scena game is a line of frames, about 60 per second, and in each one Scena does the same things, always in the same order:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 250" role="img" aria-label="The stages of a frame, from top to bottom: input, update, processes, collision, edges and mouse, watchers and drawing; an arrow goes back from drawing to the input of the next frame">
+            <rect class="bar" x="40" y="10" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="40" width="120" height="22" rx="4"/>
+            <rect class="bar child" x="40" y="70" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="100" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="130" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="160" width="120" height="22" rx="4"/>
+            <rect class="bar" x="40" y="190" width="120" height="22" rx="4"/>
+            <text x="50" y="25">input</text>
+            <text x="50" y="55">update</text>
+            <text x="50" y="85">processes</text>
+            <text x="50" y="115">collision</text>
+            <text x="50" y="145">edges and mouse</text>
+            <text x="50" y="175">watchers</text>
+            <text x="50" y="205">drawing</text>
+            <text x="172" y="25">on_key_down, clicks</text>
+            <text x="172" y="55">update(dt)</text>
+            <text x="172" y="85">after, every, time=, async…</text>
+            <text x="172" y="115">@collide, resolve</text>
+            <text x="172" y="145">@leave_playfield, @hover</text>
+            <text x="172" y="175">@when, @on_change</text>
+            <text x="172" y="205">the screen</text>
+            <line class="ray" x1="22" y1="201" x2="22" y2="21"/>
+            <line class="ray" x1="22" y1="201" x2="38" y2="201"/>
+            <line class="ray" x1="22" y1="21" x2="38" y2="21"/>
+            <line class="ray" x1="38" y1="21" x2="32" y2="17"/>
+            <line class="ray" x1="38" y1="21" x2="32" y2="25"/>
+            <text x="40" y="238">the next frame starts again at the top</text>
+          </svg>
+          <figcaption>One frame, from top to bottom. The processes (timers, movements with <code>time=</code>, <code>async</code> sequences, each object's <code>on_update</code>) all run in the same stage.</figcaption>
+        </figure>
+        <p>Nothing runs at the same time as anything else. Each function Scena calls runs to the end, and only then does the next one come. To start, a car and two ways of reading the keyboard.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+car = Sprite(fleet, frame="car_red_1.png", height=100, center=(500, 80))
+
+
+def update(dt):
+    if keyp("UP"):
+        car.move_by(0, 220 * dt)
+
+
+def on_key_down(key):
+    if key == "SPACE":
+        car.flash(0.2)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "atlas=",
+          text: "The car sheet from the racing pack, with its atlas: the file that says where each car is. <code>frame=</code> picks one by name. The pack's cars are seen from above, facing up."
+        },
+        {
+          at: "if keyp(\"UP\"):",
+          text: "A <strong>check</strong>: on every frame, <code>update</code> asks whether the arrow is held. While you hold it, the answer is yes on every frame, and the car moves a little on each one."
+        },
+        {
+          at: "def on_key_down(key):",
+          text: "An <strong>event</strong>: Scena calls <code>on_key_down</code> once, on the frame the key goes down. <code>flash(0.2)</code> lightens the car for 0.2 s."
+        }
+      ],
+      after: `
+        <p>Run it. Hold the up arrow, and press Space now and then.</p>
+        <details class="ask"><summary>What if the flash were in <code>update</code>, with <code>if keyp("SPACE"):</code>?</summary><p>The car would stay light the whole time you hold Space: the check answers yes on every one of those frames, and the flash restarts on each. For a state (is the key held?), the check; for an instant (the key just went down), the event.</p></details>
+      `
+    },
+    {
+      title: "The cars",
+      body: [
+        `
+        <p>Now the traffic moves on its own. Each car is an object of the <code>Car</code> class, and a timer makes a new one every 1.6 seconds, below the screen.</p>
+        <p>The timer calls a plain function, <code>new_car</code>. It runs whole, right then, like the key event's function. What changes is who decides when: the timer's clock, not you.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Car(Sprite, source=fleet, height=100, group="cars"):
+    def on_update(self, dt):
+        self.move_by(0, 220 * dt)
+
+    @leave_playfield
+    def gone(self):
+        self.destroy()
+
+
+def new_car():
+    Car(frame=choice(CARS), center=(500, -60))
+
+
+traffic = every(1.6, new_car)
+
+
+def on_key_down(key):
+    if key == "P":
+        if traffic.paused:
+            traffic.resume()
+        else:
+            traffic.pause()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_update(self, dt):",
+          text: "<code>on_update</code> is each car's own <code>update</code>. Scena calls it on every frame, in the processes stage."
+        },
+        {
+          at: "@leave_playfield",
+          text: "Another event: <code>@leave_playfield</code> calls <code>gone</code> once, when the car goes past the top edge."
+        },
+        {
+          at: "traffic = every(1.6, new_car)",
+          text: "<code>every</code> calls <code>new_car</code> every 1.6 s and returns a <strong>Handle</strong>: the control for that timer. Kept in a variable, it can be paused, resumed and cancelled."
+        },
+        {
+          at: "if traffic.paused:",
+          text: "<code>pause()</code> holds the clock where it is; <code>resume()</code> carries on from where it stopped. <code>paused</code> says which of the two it is in."
+        }
+      ],
+      after: `
+        <p>Run it and press P. The cars on the street keep going: the only thing that stopped is the clock that makes cars.</p>
+      `,
+      dive: [
+        {
+          title: "The Handle",
+          body: `
+            <p>Every Scena process returns a Handle: <code>after</code>, <code>every</code>, a <code>move_to</code> with <code>time=</code>, a <code>play_sound</code>, a task. It is always the same control, with the same readings:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>On the Handle</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td><code>h.done</code></td><td>has it finished? (<code>True</code> or <code>False</code>)</td></tr>
+                <tr><td><code>h.cancel()</code></td><td>cancels: the timer fires no more, the movement stops where it is</td></tr>
+                <tr><td><code>h.pause()</code> · <code>h.resume()</code></td><td>holds and resumes, without losing its turn</td></tr>
+                <tr><td><code>h.elapsed</code> · <code>h.remaining</code></td><td>how much time has passed, how much is left</td></tr>
+              </tbody>
+            </table></div>
+            <p>If you don't need to control the process, don't keep the Handle: <code>every(1.6, new_car)</code> alone on its line works too.</p>
+            <p>In the Guide: <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#agendar-handle">Handle</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "The traffic light with after",
+      body: [
+        `
+        <p>The traffic light is a dark box with three lamps. Its current state is kept in <code>st.light</code>, and each lamp has its color as a formula: lit when <code>st.light</code> is its state, dark for the others.</p>
+        `,
+        {
+          snip: `Circle(center=(730, 460), radius=16, color=lambda: "red" if st.light == "stop" else "#401818")`
+        },
+        `
+        <p>This is the third way Scena runs your code, after the check and the event: the formula stays in force, and Scena works it out again when what it reads changes (Formulas, tutorial 09). Just write to <code>st.light</code>, and the three lamps set themselves.</p>
+        <p>To change color, an <code>after</code> in each phase: green schedules yellow for 4 s from now, yellow schedules red, red schedules green again.</p>
+        `,
+        {
+          snip: `def green():
+    st.light = "go"
+    after(4, yellow)`
+        },
+        `
+        <p>The call <code>green()</code>, alone at the end of the file, starts the cycle; from then on each phase calls the next. And the car now watches the traffic light.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.light = "go"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.light == "stop" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.light == "slow" else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.light == "go" else "#183818")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Car(Sprite, source=fleet, height=100, group="cars"):
+    def on_update(self, dt):
+        if self.can_go():
+            self.move_by(0, 220 * dt)
+
+    def can_go(self):
+        at_line = 150 < self.center.y < 250
+        if at_line and st.light in ("slow", "stop"):
+            return False
+        if group["cars"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def gone(self):
+        self.destroy()
+
+
+def new_car():
+    Car(frame=choice(CARS), center=(500, -60))
+
+
+traffic = every(1.6, new_car)
+
+
+def green():
+    st.light = "go"
+    after(4, yellow)
+
+
+def yellow():
+    st.light = "slow"
+    after(1, red)
+
+
+def red():
+    st.light = "stop"
+    after(4, green)
+
+
+def on_key_down(key):
+    if key == "P":
+        if traffic.paused:
+            traffic.resume()
+        else:
+            traffic.pause()
+
+
+green()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "at_line = 150 < self.center.y < 250",
+          text: "The car is reaching the crosswalk: its center between 150 and 250, just before the stripes."
+        },
+        {
+          at: "if at_line and st.light in (\"slow\", \"stop\"):",
+          text: "On yellow and on red, a car that is arriving stops. One that has already passed the line keeps going."
+        },
+        {
+          at: "group[\"cars\"].any(",
+          text: "The line of cars: <code>any</code> asks whether some car is just ahead, up to 130 above this one's center. A car is 100 tall; that leaves a gap of 30."
+        }
+      ],
+      after: `
+        <p>Run it. The cars stop on red and line up; on green, they leave one after the other.</p>
+        <details class="ask"><summary>It works. But where is the order of the cycle in the code?</summary><p>Spread over three functions. To read green, yellow, red, you jump from one to the next following the <code>after</code> calls. Adding a phase, such as red with yellow before green, means one more function and one more link in the chain.</p></details>
+      `
+    },
+    {
+      title: "The same order, as a sequence",
+      body: [
+        `
+        <p>The cycle is a <strong>sequence</strong>: green, wait 4 s, yellow, wait 1 s, red, wait 4 s, and again. A sequence with waits is written as an <code>async</code> function, which you already used for the modes in Ships V · Chapters and sequences:</p>
+        `,
+        {
+          snip: `async def cycle():
+    while True:
+        st.light = "go"
+        await wait(4)
+        st.light = "slow"`
+        },
+        `
+        <p>The traffic light's order is now the order of the lines. <code>await wait(4)</code> pauses only this function, for 4 s; the game does not stop. The frames go on, the cars move, and the function sleeps until it is time to go on to the next line:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="Two lanes in time, from 0 to 9 seconds. On top, the cycle: green for 4 seconds, yellow for 1, red for 4, with a dot at each change. Below, the game's frames, one short tick mark after another, without stopping">
+            <line class="ray" x1="70.0" y1="80" x2="70.0" y2="98"/>
+            <line class="ray" x1="75.5" y1="80" x2="75.5" y2="98"/>
+            <line class="ray" x1="81.0" y1="80" x2="81.0" y2="98"/>
+            <line class="ray" x1="86.5" y1="80" x2="86.5" y2="98"/>
+            <line class="ray" x1="92.0" y1="80" x2="92.0" y2="98"/>
+            <line class="ray" x1="97.5" y1="80" x2="97.5" y2="98"/>
+            <line class="ray" x1="103.0" y1="80" x2="103.0" y2="98"/>
+            <line class="ray" x1="108.5" y1="80" x2="108.5" y2="98"/>
+            <line class="ray" x1="114.0" y1="80" x2="114.0" y2="98"/>
+            <line class="ray" x1="119.5" y1="80" x2="119.5" y2="98"/>
+            <line class="ray" x1="125.0" y1="80" x2="125.0" y2="98"/>
+            <line class="ray" x1="130.5" y1="80" x2="130.5" y2="98"/>
+            <line class="ray" x1="136.0" y1="80" x2="136.0" y2="98"/>
+            <line class="ray" x1="141.5" y1="80" x2="141.5" y2="98"/>
+            <line class="ray" x1="147.0" y1="80" x2="147.0" y2="98"/>
+            <line class="ray" x1="152.5" y1="80" x2="152.5" y2="98"/>
+            <line class="ray" x1="158.0" y1="80" x2="158.0" y2="98"/>
+            <line class="ray" x1="163.5" y1="80" x2="163.5" y2="98"/>
+            <line class="ray" x1="169.0" y1="80" x2="169.0" y2="98"/>
+            <line class="ray" x1="174.5" y1="80" x2="174.5" y2="98"/>
+            <line class="ray" x1="180.0" y1="80" x2="180.0" y2="98"/>
+            <line class="ray" x1="185.5" y1="80" x2="185.5" y2="98"/>
+            <line class="ray" x1="191.0" y1="80" x2="191.0" y2="98"/>
+            <line class="ray" x1="196.5" y1="80" x2="196.5" y2="98"/>
+            <line class="ray" x1="202.0" y1="80" x2="202.0" y2="98"/>
+            <line class="ray" x1="207.5" y1="80" x2="207.5" y2="98"/>
+            <line class="ray" x1="213.0" y1="80" x2="213.0" y2="98"/>
+            <line class="ray" x1="218.5" y1="80" x2="218.5" y2="98"/>
+            <line class="ray" x1="224.0" y1="80" x2="224.0" y2="98"/>
+            <line class="ray" x1="229.5" y1="80" x2="229.5" y2="98"/>
+            <line class="ray" x1="235.0" y1="80" x2="235.0" y2="98"/>
+            <line class="ray" x1="240.5" y1="80" x2="240.5" y2="98"/>
+            <line class="ray" x1="246.0" y1="80" x2="246.0" y2="98"/>
+            <line class="ray" x1="251.5" y1="80" x2="251.5" y2="98"/>
+            <line class="ray" x1="257.0" y1="80" x2="257.0" y2="98"/>
+            <line class="ray" x1="262.5" y1="80" x2="262.5" y2="98"/>
+            <line class="ray" x1="268.0" y1="80" x2="268.0" y2="98"/>
+            <line class="ray" x1="273.5" y1="80" x2="273.5" y2="98"/>
+            <line class="ray" x1="279.0" y1="80" x2="279.0" y2="98"/>
+            <line class="ray" x1="284.5" y1="80" x2="284.5" y2="98"/>
+            <line class="ray" x1="290.0" y1="80" x2="290.0" y2="98"/>
+            <line class="ray" x1="295.5" y1="80" x2="295.5" y2="98"/>
+            <line class="ray" x1="301.0" y1="80" x2="301.0" y2="98"/>
+            <line class="ray" x1="306.5" y1="80" x2="306.5" y2="98"/>
+            <line class="ray" x1="312.0" y1="80" x2="312.0" y2="98"/>
+            <line class="ray" x1="317.5" y1="80" x2="317.5" y2="98"/>
+            <line class="ray" x1="323.0" y1="80" x2="323.0" y2="98"/>
+            <line class="ray" x1="328.5" y1="80" x2="328.5" y2="98"/>
+            <line class="ray" x1="334.0" y1="80" x2="334.0" y2="98"/>
+            <line class="ray" x1="339.5" y1="80" x2="339.5" y2="98"/>
+            <line class="ray" x1="345.0" y1="80" x2="345.0" y2="98"/>
+            <line class="ray" x1="350.5" y1="80" x2="350.5" y2="98"/>
+            <line class="ray" x1="356.0" y1="80" x2="356.0" y2="98"/>
+            <line class="ray" x1="361.5" y1="80" x2="361.5" y2="98"/>
+            <line class="ray" x1="367.0" y1="80" x2="367.0" y2="98"/>
+            <line class="ray" x1="372.5" y1="80" x2="372.5" y2="98"/>
+            <line class="ray" x1="378.0" y1="80" x2="378.0" y2="98"/>
+            <line class="ray" x1="383.5" y1="80" x2="383.5" y2="98"/>
+            <line class="ray" x1="389.0" y1="80" x2="389.0" y2="98"/>
+            <line class="ray" x1="394.5" y1="80" x2="394.5" y2="98"/>
+            <line class="ray" x1="400.0" y1="80" x2="400.0" y2="98"/>
+            <rect class="bar" x="70" y="30" width="146" height="24" rx="4"/>
+            <rect class="bar child" x="217" y="30" width="36" height="24" rx="4"/>
+            <rect class="bar" x="254" y="30" width="146" height="24" rx="4"/>
+            <circle class="hot" cx="70" cy="42" r="5"/>
+            <circle class="hot" cx="217" cy="42" r="5"/>
+            <circle class="hot" cx="254" cy="42" r="5"/>
+            <circle class="hot" cx="400" cy="42" r="5"/>
+            <text x="120" y="22">green</text>
+            <text x="210" y="22">yellow</text>
+            <text x="300" y="22">red</text>
+            <text x="100" y="47">await wait(4)</text>
+            <text x="226" y="47">1 s</text>
+            <text x="284" y="47">await wait(4)</text>
+            <text x="8" y="47">cycle</text>
+            <text x="8" y="92">frames</text>
+            <line class="ray" x1="70" y1="118" x2="400" y2="118"/>
+            <text x="64" y="134">0 s</text>
+            <text x="211" y="134">4</text>
+            <text x="250" y="134">5</text>
+            <text x="394" y="134">9</text>
+          </svg>
+          <figcaption>While the cycle waits, the frames go on. The task only wakes up at the dots: it changes the color and goes back to sleep until the next wait.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.light = "go"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.light == "stop" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.light == "slow" else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.light == "go" else "#183818")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Car(Sprite, source=fleet, height=100, group="cars"):
+    def on_update(self, dt):
+        if self.can_go():
+            self.move_by(0, 220 * dt)
+
+    def can_go(self):
+        at_line = 150 < self.center.y < 250
+        if at_line and st.light in ("slow", "stop"):
+            return False
+        if group["cars"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def gone(self):
+        self.destroy()
+
+
+def new_car():
+    Car(frame=choice(CARS), center=(500, -60))
+
+
+traffic = every(1.6, new_car)
+
+
+async def cycle():
+    while True:
+        st.light = "go"
+        await wait(4)
+        st.light = "slow"
+        await wait(1)
+        st.light = "stop"
+        await wait(4)
+
+
+def on_key_down(key):
+    if key == "P":
+        if traffic.paused:
+            traffic.resume()
+        else:
+            traffic.pause()
+
+
+run_task(cycle)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "async def cycle():",
+          text: "<code>async def</code> makes a function that can wait partway through. The three functions and the three <code>after</code> calls became this one."
+        },
+        {
+          at: "while True:",
+          text: "<code>while True</code> repeats forever. The <code>await</code> inside the loop is what lets the game go on while the function waits."
+        },
+        {
+          at: "await wait(1)",
+          text: "Without the <code>await</code>, <code>wait(1)</code> waits for nothing: Scena refuses it (<code>TypeError</code>) and names the line and the missing <code>await</code>."
+        },
+        {
+          at: "run_task(cycle)",
+          text: "<code>run_task</code> runs <code>cycle</code> as a <strong>task</strong>: a sequence that runs alongside the game. The first part, up to the first <code>await</code>, runs right here; the rest, over the next frames. Pass the function without parentheses: <code>run_task(cycle())</code> is refused."
+        }
+      ],
+      after: `
+        <p>Run it: the traffic light does the same as before.</p>
+        <details class="ask"><summary>And a <code>while True</code> with no <code>await</code> inside?</summary><p>The loop never gives up its turn, and the frame never ends: the game freezes. After half a second Scena cancels the task and reports (SCENA ERROR) that an <code>await</code> is missing inside the loop.</p></details>
+      `
+    },
+    {
+      title: "A slot with a name",
+      body: [
+        `
+        <p>Late at night, the traffic light flashes yellow. That is another sequence, <code>flashing</code>, and keys swap one for the other: N turns on the flashing yellow, D goes back to the daytime cycle.</p>
+        <p>Two tasks writing to <code>st.light</code> at the same time would fight. So both take the same <strong>slot</strong>, a name:</p>
+        `,
+        {
+          snip: `run_task(flashing, name="traffic_light")`
+        },
+        `
+        <p>A new task with the same <code>name=</code> cancels the one that is running. And what the old task had started goes with it: the cycle's wait is cancelled, and nothing switches back to yellow 4 s later.</p>
+        `
+      ],
+      code: `from random import choice
+from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.light = "go"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.light == "stop" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.light in ("slow", "flashing") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.light == "go" else "#183818")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+CARS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+
+
+class Car(Sprite, source=fleet, height=100, group="cars"):
+    def on_update(self, dt):
+        if self.can_go():
+            self.move_by(0, 220 * dt)
+
+    def can_go(self):
+        at_line = 150 < self.center.y < 250
+        if at_line and st.light in ("slow", "stop"):
+            return False
+        if group["cars"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def gone(self):
+        self.destroy()
+
+
+def new_car():
+    Car(frame=choice(CARS), center=(500, -60))
+
+
+traffic = every(1.6, new_car)
+
+
+async def cycle():
+    while True:
+        st.light = "go"
+        await wait(4)
+        st.light = "slow"
+        await wait(1)
+        st.light = "stop"
+        await wait(4)
+
+
+async def flashing():
+    while True:
+        st.light = "flashing"
+        await wait(0.5)
+        st.light = "off"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if traffic.paused:
+            traffic.resume()
+        else:
+            traffic.pause()
+    if key == "N":
+        run_task(flashing, name="traffic_light")
+    if key == "D":
+        run_task(cycle, name="traffic_light")
+
+
+run_task(cycle, name="traffic_light")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "st.light in (\"slow\", \"flashing\")",
+          text: "The yellow lamp lights on the cycle's yellow and on the flashing sequence's <code>\"flashing\"</code>. Cars stop only on yellow and on red, so with the flashing yellow they go through."
+        },
+        {
+          at: "if key == \"D\":",
+          text: "D puts the cycle back in the slot. The cycle that starts the game, at the end of the file, got the <code>name=</code> too: without it, N would have nothing to replace."
+        }
+      ],
+      after: `
+        <p>Run it. Press N and, after a while, D: the cycle restarts from green, because the new task starts from the beginning.</p>
+        <details class="ask"><summary>And without the <code>name=</code>?</summary><p>The two tasks would run together, each writing its own state to <code>st.light</code>: the traffic light would flash and change color at the same time. And each D would start one more cycle, without stopping the one before.</p></details>
+      `
+    },
+    {
+      title: "Who crosses",
+      body: [
+        `
+        <p>Here come the pedestrians, one every 5 s, on the left sidewalk. Each one waits for red, crosses and walks up the other sidewalk.</p>
+        <p>Waiting, crossing and leaving is what the pedestrian <em>is doing</em>: a chapter of its own, a mode. As in Ships V · Chapters and sequences, a mode with waits is an <code>async</code> mode:</p>
+        `,
+        {
+          snip: `@on_mode
+async def crossing(self):
+    await until(lambda: st.light == "stop")
+    await self.move_to(650, self.center.y, time=2.5, face=True)`
+        },
+        `
+        <p><code>until</code> waits for a condition: Scena asks the <code>lambda</code>'s question on every frame, and the <code>await</code> moves on at the first frame where the answer is yes. A pedestrian who arrives in the middle of red does not wait at all: the answer is already yes.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.light = "go"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.light == "stop" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.light in ("slow", "flashing") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.light == "go" else "#183818")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+people = Sheet("racing/spritesheet_characters.png", atlas="racing/spritesheet_characters.xml")
+CARS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+PEOPLE = ["character_brown_blue.png", "character_blonde_red.png", "character_black_green.png"]
+
+
+class Car(Sprite, source=fleet, height=100, group="cars"):
+    def on_update(self, dt):
+        if self.can_go():
+            self.move_by(0, 220 * dt)
+
+    def can_go(self):
+        at_line = 150 < self.center.y < 250
+        if at_line and st.light in ("slow", "stop"):
+            return False
+        if at_line and group["pedestrians"].any(lambda p: 370 < p.center.x < 630):
+            return False
+        if group["cars"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def gone(self):
+        self.destroy()
+
+
+def new_car():
+    Car(frame=choice(CARS), center=(500, -60))
+
+
+traffic = every(1.6, new_car)
+
+
+class Pedestrian(Sprite, source=people, height=24, group="pedestrians", art_angle=-90):
+    def setup(self):
+        self.mode = self.crossing
+
+    @on_mode
+    async def crossing(self):
+        await until(lambda: st.light == "stop")
+        await self.move_to(650, self.center.y, time=2.5, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+
+def new_pedestrian():
+    Pedestrian(frame=choice(PEOPLE), center=(350, uniform(320, 380)))
+
+
+every(5, new_pedestrian)
+
+
+async def cycle():
+    while True:
+        st.light = "go"
+        await wait(4)
+        st.light = "slow"
+        await wait(1)
+        st.light = "stop"
+        await wait(4)
+
+
+async def flashing():
+    while True:
+        st.light = "flashing"
+        await wait(0.5)
+        st.light = "off"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if traffic.paused:
+            traffic.resume()
+        else:
+            traffic.pause()
+    if key == "N":
+        run_task(flashing, name="traffic_light")
+    if key == "D":
+        run_task(cycle, name="traffic_light")
+
+
+run_task(cycle, name="traffic_light")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "art_angle=-90",
+          text: "The pack's pedestrians face down; <code>art_angle=-90</code> tells Scena so, and <code>face=True</code> turns each one toward where it walks."
+        },
+        {
+          at: "self.mode = self.crossing",
+          text: "The pedestrian enters the mode as soon as it is born."
+        },
+        {
+          at: "await self.move_to(650, self.center.y, time=2.5, face=True)",
+          text: "You can wait for a movement with <code>time=</code> too: the <code>await</code> moves on when the pedestrian reaches the other side."
+        },
+        {
+          at: "group[\"pedestrians\"].any(",
+          text: "And the car waits for anyone still on the crosswalk, even if green is already back."
+        },
+        {
+          at: "every(5, new_pedestrian)",
+          text: "The pedestrians arrive by a timer, like the cars."
+        }
+      ],
+      after: `
+        <p>Run it and wait for red.</p>
+      `,
+      dive: [
+        {
+          title: "Mode or task?",
+          body: `
+            <p>Both are <code>async</code> sequences. The difference is whom they belong to, and how many run together:</p>
+            <div class="tbl"><table>
+              <thead><tr><th></th><th>Mode</th><th>Task</th></tr></thead>
+              <tbody>
+                <tr><td>Is</td><td>what the object is doing</td><td>extra work, or work that belongs to no one</td></tr>
+                <tr><td>How many</td><td>one at a time: entering another cancels the current one</td><td>as many as you start</td></tr>
+                <tr><td>Starts with</td><td><code>self.mode = self.crossing</code></td><td><code>run_task(cycle)</code></td></tr>
+                <tr><td>Here</td><td>the pedestrian waiting and crossing</td><td>the traffic light's cycle, which belongs to no object</td></tr>
+              </tbody>
+            </table></div>
+            <p>A task can also belong to an object: <code>self.run_task(self.flicker)</code> starts a task that ends when the object is destroyed and that ignores its mode changes. It suits work that runs alongside the chapter, like a power-up that lasts a few seconds while the ship fights.</p>
+            <p>In the Guide: <a href="../guide/index.html#mode-async">async / wait</a> · <a href="../guide/index.html#mode-task">tasks</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Whichever comes first",
+      body: [
+        `
+        <p>With the flashing yellow there is no red, and the pedestrian would wait forever. It waits 8 s at most: whichever comes first, red or the end of its patience.</p>
+        `,
+        {
+          snip: `winner = await race(until(lambda: st.light == "stop"), wait(8))`
+        },
+        `
+        <p><code>until(…)</code> and <code>wait(8)</code> also return a Handle, like <code>every</code>. <code>race</code> takes two or more, waits for the first to finish and cancels the others. The answer is the position of the winner: <code>0</code> for the first, <code>1</code> for the second.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.light = "go"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.light == "stop" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.light in ("slow", "flashing") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.light == "go" else "#183818")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+people = Sheet("racing/spritesheet_characters.png", atlas="racing/spritesheet_characters.xml")
+CARS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+PEOPLE = ["character_brown_blue.png", "character_blonde_red.png", "character_black_green.png"]
+
+
+class Car(Sprite, source=fleet, height=100, group="cars"):
+    def on_update(self, dt):
+        if self.can_go():
+            self.move_by(0, 220 * dt)
+
+    def can_go(self):
+        at_line = 150 < self.center.y < 250
+        if at_line and st.light in ("slow", "stop"):
+            return False
+        if at_line and group["pedestrians"].any(lambda p: 370 < p.center.x < 630):
+            return False
+        if group["cars"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def gone(self):
+        self.destroy()
+
+
+def new_car():
+    Car(frame=choice(CARS), center=(500, -60))
+
+
+traffic = every(1.6, new_car)
+
+
+class Pedestrian(Sprite, source=people, height=24, group="pedestrians", art_angle=-90):
+    def setup(self):
+        self.mode = self.crossing
+
+    @on_mode
+    async def crossing(self):
+        winner = await race(until(lambda: st.light == "stop"), wait(8))
+        if winner == 0:
+            await self.move_to(650, self.center.y, time=2.5, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+
+def new_pedestrian():
+    Pedestrian(frame=choice(PEOPLE), center=(350, uniform(320, 380)))
+
+
+every(5, new_pedestrian)
+
+
+async def cycle():
+    while True:
+        st.light = "go"
+        await wait(4)
+        st.light = "slow"
+        await wait(1)
+        st.light = "stop"
+        await wait(4)
+
+
+async def flashing():
+    while True:
+        st.light = "flashing"
+        await wait(0.5)
+        st.light = "off"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if traffic.paused:
+            traffic.resume()
+        else:
+            traffic.pause()
+    if key == "N":
+        run_task(flashing, name="traffic_light")
+    if key == "D":
+        run_task(cycle, name="traffic_light")
+
+
+run_task(cycle, name="traffic_light")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if winner == 0:",
+          text: "Red came: the pedestrian crosses. If its patience ran out, it skips the crossing and just walks up the sidewalk it is on."
+        }
+      ],
+      after: `
+        <p>Run it, press N and wait: after 8 s with no red, the pedestrian gives up and leaves along the left sidewalk.</p>
+        <details class="ask"><summary>And to wait for both things, not the first?</summary><p><code>parallel</code> is <code>race</code>'s partner: <code>await parallel(h1, h2)</code> waits for all of them to finish. It suits two movements that go together, with the rest following only after both.</p></details>
+      `
+    },
+    {
+      title: "Whose it is, and when it ends",
+      body: [
+        `
+        <p>A click on a pedestrian sends it back to the nearest sidewalk, wherever it is: waiting, in the middle of the street, or already on the other side.</p>
+        <p>The click changes its mode:</p>
+        `,
+        {
+          snip: `def on_click(self):
+    self.mode = self.turning_back`
+        },
+        `
+        <p>And changing mode cancels everything the old mode started: the race, the wait for red, the 8 s of patience, the movement to the other side. None of it needs undoing by hand. Every process has an <strong>owner</strong>, and it ends when its owner ends.</p>
+        `
+      ],
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1000, height=700, title="Traffic Light")
+Wallpaper("#6a9a52")
+
+Rect(center=(500, 350), width=240, height=700, color="#44444c")
+Rect(center=(355, 350), width=50, height=700, color="#b8b4a8")
+Rect(center=(645, 350), width=50, height=700, color="#b8b4a8")
+for i in range(6):
+    Rect(center=(410 + i * 36, 350), width=20, height=70, color="white")
+
+st.light = "go"
+Rect(center=(730, 420), width=50, height=130, color="#222222")
+Circle(center=(730, 460), radius=16, color=lambda: "red" if st.light == "stop" else "#401818")
+Circle(center=(730, 420), radius=16, color=lambda: "gold" if st.light in ("slow", "flashing") else "#403818")
+Circle(center=(730, 380), radius=16, color=lambda: "lime" if st.light == "go" else "#183818")
+
+fleet = Sheet("racing/spritesheet_vehicles.png", atlas="racing/spritesheet_vehicles.xml")
+people = Sheet("racing/spritesheet_characters.png", atlas="racing/spritesheet_characters.xml")
+CARS = ["car_red_1.png", "car_blue_3.png", "car_green_2.png", "car_yellow_5.png", "car_black_4.png"]
+PEOPLE = ["character_brown_blue.png", "character_blonde_red.png", "character_black_green.png"]
+
+
+class Car(Sprite, source=fleet, height=100, group="cars"):
+    def on_update(self, dt):
+        if self.can_go():
+            self.move_by(0, 220 * dt)
+
+    def can_go(self):
+        at_line = 150 < self.center.y < 250
+        if at_line and st.light in ("slow", "stop"):
+            return False
+        if at_line and group["pedestrians"].any(lambda p: 370 < p.center.x < 630):
+            return False
+        if group["cars"].any(lambda c: 0 < c.center.y - self.center.y < 130):
+            return False
+        return True
+
+    @leave_playfield
+    def gone(self):
+        self.destroy()
+
+
+def new_car():
+    Car(frame=choice(CARS), center=(500, -60))
+
+
+traffic = every(1.6, new_car)
+
+
+class Pedestrian(Sprite, source=people, height=24, group="pedestrians", art_angle=-90):
+    def setup(self):
+        self.mode = self.crossing
+
+    @on_mode
+    async def crossing(self):
+        winner = await race(until(lambda: st.light == "stop"), wait(8))
+        if winner == 0:
+            await self.move_to(650, self.center.y, time=2.5, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+    def on_click(self):
+        self.mode = self.turning_back
+
+    @on_mode
+    async def turning_back(self):
+        side = 350 if self.center.x < 500 else 650
+        await self.move_to(side, self.center.y, time=0.6, face=True)
+        await self.move_by(0, 450, time=4, face=True)
+        self.destroy()
+
+
+def new_pedestrian():
+    Pedestrian(frame=choice(PEOPLE), center=(350, uniform(320, 380)))
+
+
+every(5, new_pedestrian)
+
+
+async def cycle():
+    while True:
+        st.light = "go"
+        await wait(4)
+        st.light = "slow"
+        await wait(1)
+        st.light = "stop"
+        await wait(4)
+
+
+async def flashing():
+    while True:
+        st.light = "flashing"
+        await wait(0.5)
+        st.light = "off"
+        await wait(0.5)
+
+
+def on_key_down(key):
+    if key == "P":
+        if traffic.paused:
+            traffic.resume()
+        else:
+            traffic.pause()
+    if key == "N":
+        run_task(flashing, name="traffic_light")
+    if key == "D":
+        run_task(cycle, name="traffic_light")
+
+
+run_task(cycle, name="traffic_light")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_click(self):",
+          text: "An event, a plain <code>def</code>: Scena calls it on the click, and it runs whole. To start a sequence from an event, it changes the mode (or calls <code>run_task</code>)."
+        },
+        {
+          at: "side = 350 if self.center.x < 500 else 650",
+          text: "The nearest sidewalk: the left one if the pedestrian has not yet passed the middle of the street."
+        }
+      ],
+      after: `
+        <p>Run it and click the pedestrians: the ones waiting, the ones in the middle of the crosswalk.</p>
+      `,
+      dive: [
+        {
+          title: "Whose each process is",
+          body: `
+            <p>A process's owner is the place where it started. When the owner ends, the process ends with it, without notice:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Started</th><th>Owner</th><th>Ends when</th></tr></thead>
+              <tbody>
+                <tr><td>at the top level of the file (the cars' <code>every</code>, the cycle)</td><td>the game</td><td>the game closes</td></tr>
+                <tr><td>in <code>update</code> or in a top-level event (N's <code>run_task</code>)</td><td>the current act</td><td><code>change_act</code> (Ships VI · Acts)</td></tr>
+                <tr><td>inside a mode (the pedestrian's race)</td><td>the mode</td><td>the object changes mode, or is destroyed</td></tr>
+                <tr><td>in an object method that is not a mode (<code>setup</code>, <code>on_update</code>, an event in the class), or with <code>self.after</code>, <code>self.run_task</code></td><td>the object</td><td>the object is destroyed</td></tr>
+                <tr><td>inside a task</td><td>the task</td><td>the task is cancelled (<code>cancel()</code>, <code>name=</code>, its own owner ends)</td></tr>
+              </tbody>
+            </table></div>
+            <p>Sound is the exception: a <code>play_sound</code> that ends on its own finishes playing, even after its owner is gone.</p>
+            <p>In the Guide: <a href="../guide/index.html#mode-cancela">Scope and cancelling</a>.</p>
+          `
+        },
+        {
+          title: "Which to use",
+          body: `
+            <p>The three ways your code runs, and the pieces of each:</p>
+            <div class="tbl"><table>
+              <thead><tr><th>I want</th><th>I use</th></tr></thead>
+              <tbody>
+                <tr><td>something to always match something else (the lamp's color)</td><td>a formula: <code>lambda</code>, <code>@=</code></td></tr>
+                <tr><td>to know a state every frame (is the key held?)</td><td>a check in <code>update</code> or in <code>on_update</code></td></tr>
+                <tr><td>to react to an instant (a key, a click, a hit, leaving the screen)</td><td>an event: <code>on_key_down</code>, <code>on_click</code>, <code>@collide</code>, <code>@leave_playfield</code></td></tr>
+                <tr><td>to react when a condition becomes true</td><td><code>@when</code></td></tr>
+                <tr><td>once, later</td><td><code>after</code></td></tr>
+                <tr><td>again and again</td><td><code>every</code></td></tr>
+                <tr><td>a sequence with waits, for what the object is doing</td><td>an <code>async</code> mode</td></tr>
+                <tr><td>one more sequence, or one that belongs to no object</td><td><code>run_task</code></td></tr>
+              </tbody>
+            </table></div>
+            <p>The most common mistakes with time, and what Scena says:</p>
+            <ul>
+              <li><code>wait(1)</code> without <code>await</code> waits for nothing. Scena refuses it, naming the line and the missing <code>await</code>.</li>
+              <li>An event cannot be <code>async</code>: <code>async def on_click(self)</code> would never run, and Scena refuses it. The event is a plain <code>def</code> that starts the sequence, by changing the mode or calling <code>run_task</code>.</li>
+              <li>Calling an <code>async</code> function without <code>await</code> (<code>self.flicker()</code> alone on a line, for an <code>async def flicker</code>) runs nothing. Scena warns you (SCENA WARNING) with the line.</li>
+              <li><code>run_task(cycle())</code>, with parentheses, is refused: pass the function, <code>run_task(cycle)</code>.</li>
+              <li>A <code>while True</code> without <code>await</code> freezes the game; Scena cancels the task and tells you.</li>
+            </ul>
+            <p>In the Guide: <a href="../guide/index.html#qual-usar">Which to use</a> (the same map) · <a href="../guide/index.html#reagir">React</a> · <a href="../guide/index.html#agendar">Schedule</a> · <a href="../guide/index.html#mode">Mode</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>The cars stop on yellow and on red and line up. The pedestrians arrive every 5 s, wait for red (8 s at most) and cross; a click sends a pedestrian back to the nearest sidewalk. <kbd>P</kbd> pauses the arrival of cars, <kbd>N</kbd> turns on the flashing yellow, <kbd>D</kbd> goes back to the daytime cycle.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add a second traffic light, for the cross street, that turns red when the first one turns green.</li>
+          <li>Can you make a pedestrian button that, when clicked, shortens the cars' green?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

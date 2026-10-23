@@ -192,7 +192,8 @@ _NAMES = {
 _LIST_NAMES = {ast.Global: "names", ast.Nonlocal: "names"}
 _WORD = re.compile(r"^\w+$")
 # A file name or pattern: no spaces ("45 * dt" on screen is text, not a glob).
-_PATH = re.compile(r"^\S*(?:[/\\*]\S*|\.\w{2,4})$")
+_EXT = r"\.(?:png|jpe?g|gif|webp|svg|xml|json|wav|ogg|mp3|flac|ttf|otf|txt|py)"
+_PATH = re.compile(r"^\S*(?:[/\\*]\S*|" + _EXT + r")$", re.I)   # self.meio is not a file
 
 _SHADOW: set | None = None
 
@@ -712,7 +713,8 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
     if key in pages(en_dir):
         raise SystemExit(f"a página {key} em inglês já existe; nada feito")
     gn, gs = glossary_for(key, names)
-    gs = {**gs, **{a: e["en"] for a, e in (names.get("levels") or {}).items()}}   # Level("levels/…")
+    levels = {a: e["en"] for a, e in (names.get("levels") or {}).items()}
+    gs = {**gs, **levels}                     # Level("levels/…")
     text = pt[key].read_text(encoding="utf-8")
     ren = lambda s: rename_code(s, gn, gs)  # noqa: E731
     text = re.sub(r'<html lang="[^"]*">', '<html lang="en">', text, count=1)
@@ -734,17 +736,21 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
     # A bare word may be a group tag (<code>tiros_inimigos</code>): strings too.
     def inline(m):
         tag, body = m.group(1), m.group(2)
-        if _is_file_name(body):
-            return m.group(0)                 # a file name (audio/nota.wav) stays
+        if _is_file_name(body):               # a file name stays, unless it has an English twin
+            for pt_file, en_file in levels.items():
+                body = body.replace(pt_file, en_file)
+            return f"<{tag}>{body}</{tag}>"
         if re.fullmatch(r"\w+", body) and body not in gn and body in gs:
             return f"<{tag}>{gs[body]}</{tag}>" if tag == "code" else m.group(0)
         if '\\"' in body:
             return f"<{tag}>" + ren(body.replace('\\"', '"')).replace('"', '\\"') + f"</{tag}>"
         return f"<{tag}>{ren(body)}</{tag}>"
     text = re.sub(r"<(code)>(.*?)</code>", inline, text, flags=re.S)
-    # Code drawn in a figure (<text …>st.velocidade = -80</text>).
+    # Code drawn in a figure (<text …>st.velocidade = -80</text>); a caption
+    # in words ("a moldura: o tamanho da fase") is left to the translator.
     text = re.sub(r"(<text\b[^>]*>)(.*?)(</text>)",
-                  lambda m: m.group(1) + ren(m.group(2)) + m.group(3), text, flags=re.S)
+                  lambda m: m.group(1) + (ren(m.group(2)) if re.search(r"[=(\[.]", m.group(2)) else m.group(2))
+                  + m.group(3), text, flags=re.S)
     text = cross_links(text, names, pt_dir, en_dir)
     for pt_ex in re.findall(r'^\s*example:\s*"([^"]*)"', text, re.M):
         en_ex = (names.get("examples") or {}).get(pt_ex)
@@ -932,4 +938,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(errors="backslashreplace")   # piped on Windows: cp1252, strict
     raise SystemExit(main(sys.argv[1:]))

@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ninja II · The world — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "19",
+  title: "Ninja II · The world",
+  steps: [
+    {
+      title: "The game from 18",
+      body: `
+        <p>The ninja runs, jumps and stands on the ground, but has nothing to do. In this tutorial, he gets a world to live in: a hole with water, stars to catch, patrolling robots, kunais (the ninja's throwing knives) to throw, and three lives.</p>
+        <p>The starting point is the ninja game as we left it.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+
+run()
+`,
+      after: `
+        <p>Run it and remember: the left and right arrows walk, the up arrow jumps.</p>
+      `
+    },
+    {
+      title: "A hole in the ground",
+      body: `
+        <p>The ground gets a hole with water, and falling into it costs you: the ninja goes back to the start. The ground now comes in two pieces, with a gap two tiles wide between them:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 112" role="img" aria-label="The ground in thirteen slots of 80; the slots at x 520 and 600 have no ground, only water, lower down; the tiles on both sides of the gap, at 440 and 680, are end pieces">
+            <rect class="bar" x="13" y="50" width="26" height="26"/>
+            <rect class="bar" x="41" y="50" width="26" height="26"/>
+            <rect class="bar" x="69" y="50" width="26" height="26"/>
+            <rect class="bar" x="97" y="50" width="26" height="26"/>
+            <rect class="bar" x="125" y="50" width="26" height="26"/>
+            <rect class="bar child" x="153" y="50" width="26" height="26"/>
+            <rect class="guide" x="181" y="60" width="26" height="16"/>
+            <rect class="guide" x="209" y="60" width="26" height="16"/>
+            <rect class="bar child" x="237" y="50" width="26" height="26"/>
+            <rect class="bar" x="265" y="50" width="26" height="26"/>
+            <rect class="bar" x="293" y="50" width="26" height="26"/>
+            <rect class="bar" x="321" y="50" width="26" height="26"/>
+            <rect class="bar" x="349" y="50" width="26" height="26"/>
+            <text x="166" y="40" text-anchor="middle">3.png</text>
+            <text x="208" y="54" text-anchor="middle">water</text>
+            <text x="250" y="40" text-anchor="middle">1.png</text>
+            <text x="26" y="96" text-anchor="middle">40</text>
+            <text x="166" y="96" text-anchor="middle">440</text>
+            <text x="194" y="96" text-anchor="middle">520</text>
+            <text x="222" y="96" text-anchor="middle">600</text>
+            <text x="250" y="96" text-anchor="middle">680</text>
+            <text x="362" y="96" text-anchor="middle">1000</text>
+          </svg>
+          <figcaption>The ground in slots of 80, by the x of the center. The slots at 520 and 600 have no ground, only water, lower down. The tiles on both sides of the gap are end pieces, with the edge drawn on them.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="floor")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="floor")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+platform(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+
+    def lose(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Sprite(\"tilesets/Object/Tree_2.png\"",
+          text: "The tree, the bushes, the sign and the mushroom are just decoration: no group and no collision. What is created later is drawn in front, and these are created before the ground: they stay behind everything."
+        },
+        {
+          at: "platform(420, 560)",
+          text: "A third platform, high up."
+        },
+        {
+          at: "@when(lambda self: self.center.y < 30)",
+          text: "With the anchor at the bottom, <code>center</code> is the feet. Below y = 30, the ninja has fallen into the water. A <code>@when</code> in a class applies to each ninja: when the question goes from false to true, Scena calls <code>fell</code>, and <code>fell</code> calls <code>self.lose()</code>, a function of the class itself."
+        },
+        {
+          at: "self.center = (100, 400)",
+          text: "Giving <code>center</code> a value places the ninja: he vanishes from one spot and appears in the other, without crossing the space between. For now, losing is just that: back to the start, standing still."
+        },
+        {
+          at: "center=(520, 31))",
+          text: "The two water tiles (<code>17.png</code>), lower than the ground. They are created after the ninja, so they are drawn in front of him: a ninja who falls sinks behind the water."
+        }
+      ],
+      after: `
+        <p>Run it and fall into the hole: the ninja sinks behind the water and reappears at the start.</p>
+        <details class="ask"><summary>Wouldn't an <code>if self.center.y < 30:</code> in <code>on_update</code>, right after the <code>move_by</code>, be simpler?</summary><p>At that point the ninja hasn't gone through collision yet. Every frame, <code>move_by</code> takes the ninja where gravity sends him, and only afterward does <code>resolve</code> push him back up onto the ground. In a normal frame, the drop is less than one unit and nobody notices. But in a slow frame (the computer stalled for a fifth of a second), gravity takes the feet below 30 before the push, and the <code>if</code> would see a ninja fallen into the hole while he is standing on the ground. <code>@when</code> asks the question at the end of the frame, after collision, with the ninja already in place.</p></details>
+        <details class="ask"><summary>Why place the ninja at the start, instead of taking him there with <code>move_by</code>?</summary><p><code>resolve</code> stops whoever travels. Going from the water to the start with <code>move_by</code>, the ninja would meet the edge of the ground on the way and get stuck there, at the rim of the hole. Placed, he simply appears at the start. And <code>vel</code> goes back to zero; otherwise, he would arrive still falling fast.</p></details>
+      `,
+      try: [
+          {
+            note: "More decorations from the same folder (a stone, another tree, another mushroom), to put with the others, before the ground, so they stay behind.",
+            code: `Sprite("tilesets/Object/Stone.png", height=40, center=(880, 100))
+Sprite("tilesets/Object/Tree_3.png", height=200, center=(900, 180))
+Sprite("tilesets/Object/Mushroom_2.png", height=30, center=(240, 95))`
+          }
+        ]
+    },
+    {
+      title: "A fairer jump",
+      body: [
+        `
+        <p>Run to the edge of the hole and jump at the last moment. Often the ninja falls instead of jumping, and it feels unfair: you pressed in time. What happened is that, for a frame or two, the feet had already left the ground, and <code>"bottom"</code> was no longer in <code>touching_sides</code>.</p>
+        <p>Platform games give some slack here: the character can still jump a little after leaving the edge. It even has a name, <em>coyote time</em> (after the cartoon coyote, who only falls when he looks down). In Scena, the slack is one line:</p>
+        `,
+        {
+          snip: `can_jump = recently("on_ground", on_ground, hold=0.12)`
+        },
+        `
+        <p><code>recently</code> answers <code>True</code> if <code>on_ground</code> was true at some moment in the last 0.12 seconds (<code>hold</code>). The jump now asks <code>can_jump</code> instead of <code>on_ground</code>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="A timeline. The on_ground band runs until the moment the ninja leaves the edge. The can_jump band runs to the same point and goes on for another 0.12 second. Pressing the arrow inside that slack still jumps; after it, not">
+            <line class="ray" x1="20" y1="140" x2="380" y2="140"/>
+            <text x="20" y="38">on_ground</text>
+            <rect class="bar" x="110" y="28" width="140" height="16" rx="3"/>
+            <text x="20" y="78">can_jump</text>
+            <rect class="bar" x="110" y="68" width="140" height="16" rx="3"/>
+            <rect class="bar child" x="250" y="68" width="62" height="16" rx="3"/>
+            <line class="guide" x1="250" y1="16" x2="250" y2="140"/>
+            <line class="guide" x1="312" y1="60" x2="312" y2="140"/>
+            <text x="258" y="60">0.12 s</text>
+            <circle class="hot" cx="285" cy="112" r="5"/>
+            <text x="272" y="130">jumps</text>
+            <circle class="dot" cx="345" cy="112" r="5"/>
+            <text x="336" y="130">falls</text>
+            <text x="196" y="158">leaves the edge</text>
+            <text x="336" y="158">time</text>
+          </svg>
+          <figcaption>The feet leave the ground at the dashed line. <code>can_jump</code> stays true for another 0.12 second: pressing the arrow there still jumps (the red dot); after that, it doesn't.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="floor")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="floor")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+platform(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+
+    def lose(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "recently(\"on_ground\"",
+          text: "<code>\"on_ground\"</code> is the name of the drawer where Scena keeps this memory."
+        },
+        {
+          at: "recently.reset(\"on_ground\")",
+          text: "<code>recently</code> says <code>True</code> on every frame of the slack, not just once. <code>reset</code> erases the memory after the jump; without it, a ninja who has just jumped would still have 0.12 second to jump again, in the air."
+        }
+      ],
+      after: `
+        <p>Run it and jump at the last moment, already leaving the edge: now the jump happens.</p>
+      `,
+      try: [
+          {
+            note: "The other slack, for when you press too early: the arrow pressed up to 0.12 second before landing also counts (the jump is kept for later). In place of the <code>if</code> line:",
+            replaces: ['if keyp.once("UP") and can_jump:'],
+            code: `if recently("jump", keyp.once("UP"), hold=0.12) and can_jump:
+    recently.reset("jump")`
+          }
+        ]
+    },
+    {
+      title: "Stars",
+      body: [
+        `
+        <p>Now there is something to catch: five stars spread around the world, above the platforms, over the hole, in a corner. The five points come from a list:</p>
+        `,
+        {
+          snip: `for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:`
+        },
+        `
+        <p>Each item of the list is a pair, and <code>for x, y in …</code> unpacks the pair into two names: on the first pass, <code>x</code> is 360 and <code>y</code> is 300; on the second, 560 and 220. Five passes, five stars.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="floor")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="floor")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+platform(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+st.stars = 0
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == 5:
+            notice.text = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+
+    def lose(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    star = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="star")
+    star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "scoreboard[\"text\"] @=",
+          text: "<code>@=</code> links the text to this function: when <code>st.stars</code> changes, the scoreboard changes."
+        },
+        {
+          at: "@collide_with(\"star\")",
+          text: "Inside <code>Hero</code>: when the ninja touches a star, Scena calls <code>caught</code> with it. The function destroys the star, adds one and plays a sound."
+        },
+        {
+          at: "if st.stars == 5:",
+          text: "On the fifth, <code>notice</code>, an empty <code>Text</code> at the top, gets the victory line, with music."
+        },
+        {
+          at: "star.scale_to(1.2",
+          text: "Each star pulses forever: it grows to 1.2 in half a second and back."
+        }
+      ],
+      after: `
+        <p>Run it and catch all five.</p>
+      `
+    },
+    {
+      title: "A robot",
+      body: [
+        `
+        <p>Two robots patrol: one on the ground to the right, the other on the middle platform. Each one walks back and forth around the spot where it was created:</p>
+        `,
+        {
+          snip: `if self.center.x > self.mid + 90:
+    self.vel.x = -90
+...
+if self.center.x < self.mid - 90:
+    self.vel.x = 90`
+        },
+        `
+        <figure class="fig">
+          <svg viewBox="0 0 400 110" role="img" aria-label="A ground line with three marks: mid minus 90, mid and mid plus 90; the robot has passed the right mark, and an arrow shows it heading back left, with vel.x equal to minus 90">
+            <line class="ray" x1="40" y1="72" x2="360" y2="72"/>
+            <line class="guide" x1="80" y1="20" x2="80" y2="80"/>
+            <line class="guide" x1="320" y1="20" x2="320" y2="80"/>
+            <line class="ray" x1="200" y1="66" x2="200" y2="78"/>
+            <rect class="hot" x="324" y="40" width="18" height="32" rx="3"/>
+            <line class="ray" x1="300" y1="56" x2="240" y2="56"/>
+            <polygon class="dot" points="232,56 241,51 241,61"/>
+            <text x="270" y="36" text-anchor="middle">vel.x = −90</text>
+            <text x="80" y="96" text-anchor="middle">mid − 90</text>
+            <text x="200" y="96" text-anchor="middle">mid</text>
+            <text x="320" y="96" text-anchor="middle">mid + 90</text>
+          </svg>
+          <figcaption>The robot patrols 90 to each side of where it was created. Past <code>mid + 90</code>, it goes left: −90. Short of <code>mid − 90</code>, it goes right: 90.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="floor")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="floor")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+platform(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+st.stars = 0
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.mid = self.center.x
+        self.vel = Vec2(90, 0)
+
+    def on_update(self, dt):
+        if self.center.x > self.mid + 90:
+            self.vel.x = -90
+            self.flip_x = True
+        if self.center.x < self.mid - 90:
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == 5:
+            notice.text = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("robot")
+    def crashed(self, robot):
+        self.lose()
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+
+    def lose(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    star = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="star")
+    star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Robot(center=(840, 80))
+Robot(center=(720, 419))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "robot = Sheet(",
+          text: "A Sheet just for the robot, made like the ninja's. With only one clip on the Sheet, the robot starts out walking."
+        },
+        {
+          at: "offset=(0, -12)",
+          text: "<code>offset</code> shifts a clip's drawing, in pixels of the image: <code>(0, -12)</code> is 12 pixels down. The <code>\"bottom\"</code> anchor puts the bottom edge of the PNG on the ground, and the robot's PNGs have an empty strip under the feet: without the offset, it walks floating."
+        },
+        {
+          at: "self.mid = self.center.x",
+          text: "In <code>setup</code>, the robot remembers where it was created. Each robot patrols around its own middle, so one <code>Robot(center=…)</code> is enough to add another."
+        },
+        {
+          at: "self.move_by(self.vel.x * dt, 0)",
+          text: "Only x: the robot walks in a straight line, at the height where it was created, and never leaves the platform. It needs no gravity and no <code>resolve</code>."
+        },
+        {
+          at: "@collide_with(\"robot\")",
+          text: "Touching a robot calls the same <code>lose</code> as the hole: the ninja goes back to the start."
+        }
+      ],
+      after: `
+        <p>Run it and touch a robot, on purpose.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 150" role="img" aria-label="Two frames of the robot. On the left, without offset, the bottom edge of the PNG is on the ground and the feet are above it, over an empty strip. On the right, with offset equal to zero, minus twelve, the PNG moves down, the empty strip goes below the ground and the feet stand on it">
+            <line class="ray" x1="20" y1="110" x2="180" y2="110"/>
+            <rect class="guide" x="55" y="12" width="90" height="98"/>
+            <rect class="bar" x="80" y="20" width="40" height="74" rx="4"/>
+            <text x="100" y="105" text-anchor="middle">empty</text>
+            <text x="100" y="132" text-anchor="middle">no offset</text>
+            <line class="ray" x1="220" y1="110" x2="380" y2="110"/>
+            <rect class="guide" x="255" y="28" width="90" height="98"/>
+            <rect class="bar" x="280" y="36" width="40" height="74" rx="4"/>
+            <text x="300" y="140" text-anchor="middle">offset=(0, -12)</text>
+          </svg>
+          <figcaption>The dashed box is the PNG, with the anchor at the bottom. On the left, the bottom edge of the PNG is on the ground, and the feet are above it: the robot floats. With <code>offset=(0, -12)</code>, the drawing moves down 12 pixels and the feet stand on the ground.</figcaption>
+        </figure>
+        <details class="ask"><summary>Wouldn't it be shorter to flip the sign, <code>self.vel.x = -self.vel.x</code>, in a single line?</summary><p>Right after turning, the robot can stay past the mark for one frame. The flip would fire again, it would turn outward once more and get stuck there jittering, back and forth. With the side spelled out, asking again changes nothing: past <code>mid + 90</code>, the answer is always −90.</p></details>
+      `
+    },
+    {
+      title: "Kunai",
+      body: [
+        `
+        <p>Space throws a kunai. Three things happen together: the ninja makes the throwing motion, the kunai flies off, and a robot that gets hit breaks.</p>
+        <p>The motion is a new clip, <code>"playing"</code>, which plays once and goes back to idle. But the end of <code>on_update</code> picks a clip every frame, and would replace the throw on the very next frame. Two lines fix it:</p>
+        `,
+        {
+          snip: `self.play("playing", loops=1, next="idle")
+...
+if self.showing("playing"):
+    return`
+        },
+        `
+        <p><code>loops=1</code> plays the clip once, and <code>next</code> says what comes after. <code>self.showing("playing")</code> says whether the drawing on screen belongs to the throw: while it does, the <code>return</code> leaves <code>on_update</code> before the clip is picked.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="floor")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="floor")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+platform(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+st.stars = 0
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.mid = self.center.x
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.center.x > self.mid + 90:
+            self.vel.x = -90
+            self.flip_x = True
+        if self.center.x < self.mid - 90:
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("playing", loops=1, next="idle")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing("playing"):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == 5:
+            notice.text = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("robot")
+    def crashed(self, robot):
+        self.lose()
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+
+    def lose(self):
+        self.center = (100, 400)
+        self.vel = Vec2(0, 0)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    star = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="star")
+    star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Robot(center=(840, 80))
+Robot(center=(720, 419))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "offset=(0, -23)",
+          text: "The broken robot's clip has its own empty strip, a bigger one: 23 pixels. Each clip takes its own <code>offset</code>."
+        },
+        {
+          at: "art_angle=90",
+          text: "The kunai's drawing points up. <code>art_angle=90</code> tells Scena so, and from then on the kunai's angle is where it points in the world."
+        },
+        {
+          at: "vec_from_angle(self.angle, length=700)",
+          text: "The kunai moves where it points: an arrow of 700 at its angle, per second. Only the x part counts, and it flies straight."
+        },
+        {
+          at: "self.play(\"walking\")",
+          text: "With two clips on the Sheet, the robot plays neither on its own: <code>setup</code> asks for <code>\"walking\"</code>."
+        },
+        {
+          at: "self.untag(\"robot\")",
+          text: "<code>untag</code> takes the robot out of the <code>robot</code> group: once down, it no longer hurts the ninja."
+        },
+        {
+          at: "self.play(\"broken\", loops=1)",
+          text: "The robot stops and plays <code>\"broken\"</code> once. Without <code>next</code>, it stays on the last drawing, lying down."
+        },
+        {
+          at: "self.after(2, self.destroy)",
+          text: "<code>after</code>: 2 seconds later, the fallen robot disappears."
+        },
+        {
+          at: "ready(\"kunai\", 0.4)",
+          text: "<code>ready</code> lets you throw one kunai every 0.4 second, even with space held down."
+        },
+        {
+          at: "kunai.rotate_to(self.angle)",
+          text: "The kunai is created at the height of the ninja's chest and turns to the same angle as him: mirrored to the left, the ninja has angle 180; to the right, 0."
+        }
+      ],
+      after: `
+        <p>Run it and throw a kunai at each robot.</p>
+        <details class="ask"><summary><code>untag</code> already took the robot out of the group. What is the <code>if self.showing("broken")</code> at the start of <code>was_hit</code> for?</summary><p><code>untag</code> doesn't stop the kunais: the <code>@collide_with("kunai")</code> belongs to the robot itself. Without the <code>if</code>, a second kunai hitting a robot that is already falling would break it again, with another bang. If it is already breaking, the function leaves, and the kunai goes through it.</p></details>
+      `
+    },
+    {
+      title: "Three lives",
+      example: "ninja_2_world.py",
+      body: [
+        `
+        <p>Falling into the water or touching a robot now costs a life. There are three, and when they run out, the game is over. A ninja with no lives left no longer obeys the arrows, but still falls:</p>
+        `,
+        {
+          snip: `if st.lives == 0:
+    self.vel.y -= 2200 * dt
+    self.move_by(0, self.vel.y * dt)
+    if "bottom" in self.touching_sides and not self.showing("dead"):
+        self.play("dead", loops=1)
+    return`
+        },
+        `
+        <p>With <code>st.lives</code> at 0, <code>on_update</code> starts with this <code>if</code>, which ends in <code>return</code>: the arrows and space no longer do anything. Gravity goes on, so a ninja hit in the middle of a jump falls to the ground, and only then does the <code>"dead"</code> clip (the <code>Dead__</code> files) play, once.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+Sprite("tilesets/Object/Tree_2.png", height=230, center=(130, 195))
+Sprite("tilesets/Object/Bush (1).png", height=50, center=(300, 105))
+Sprite("tilesets/Object/Sign_2.png", height=60, center=(410, 110))
+Sprite("tilesets/Object/Mushroom_1.png", height=30, center=(770, 95))
+Sprite("tilesets/Object/Bush (3).png", height=40, center=(960, 100))
+
+for i in range(5):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+Sprite("tilesets/Tiles/3.png", height=80, center=(440, 40), group="floor")
+Sprite("tilesets/Tiles/1.png", height=80, center=(680, 40), group="floor")
+for i in range(9, 13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+platform(420, 560)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+st.stars = 0
+st.lives = 3
+
+scoreboard = Text(text="", top_left=(20, 735), font_size=24, color="dark green")
+scoreboard["text"] @= lambda: f"Stars {st.stars}"
+Sprite("ninja/Idle__000.png", height=40, center=(890, 715))
+lives = Text(text="", top_left=(915, 735), font_size=24, color="dark green")
+lives["text"] @= lambda: f"x {st.lives}"
+notice = Text(text="", center=(500, 680), font_size=36, color="dark green")
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+ninja.strip("playing", "ninja/Throw__*.png", fps=24)
+ninja.strip("dead", "ninja/Dead__*.png", fps=12, offset=(0, -19))
+
+robot = Sheet(anchor="bottom", pixel_size=0.16)
+robot.strip("walking", "robot/Run (*).png", fps=12, offset=(0, -12))
+robot.strip("broken", "robot/Dead (*).png", fps=12, offset=(0, -23))
+
+
+class Kunai(Sprite, source="ninja/Kunai.png", height=44, art_angle=90, group="kunai"):
+    def on_update(self, dt):
+        arrow = vec_from_angle(self.angle, length=700)
+        self.move_by(arrow.x * dt, 0)
+
+
+class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
+    def setup(self):
+        self.mid = self.center.x
+        self.vel = Vec2(90, 0)
+        self.play("walking")
+
+    def on_update(self, dt):
+        if self.center.x > self.mid + 90:
+            self.vel.x = -90
+            self.flip_x = True
+        if self.center.x < self.mid - 90:
+            self.vel.x = 90
+            self.flip_x = False
+        self.move_by(self.vel.x * dt, 0)
+
+    @collide_with("kunai")
+    def was_hit(self, kunai):
+        if self.showing("broken"):
+            return
+        kunai.destroy()
+        self.untag("robot")
+        self.vel.x = 0
+        self.play("broken", loops=1)
+        play_sound("audio/explosion02.wav")
+        self.after(2, self.destroy)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if st.lives == 0:
+            self.vel.y -= 2200 * dt
+            self.move_by(0, self.vel.y * dt)
+            if "bottom" in self.touching_sides and not self.showing("dead"):
+                self.play("dead", loops=1)
+            return
+
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        can_jump = recently("on_ground", on_ground, hold=0.12)
+        if keyp.once("UP") and can_jump:
+            self.vel.y = 900
+            recently.reset("on_ground")
+            play_sound("synth/jump.wav")
+
+        if keyp("SPACE") and ready("kunai", 0.4):
+            self.play("playing", loops=1, next="idle")
+            kunai = Kunai(center=(self.center.x, self.center.y + 50))
+            kunai.rotate_to(self.angle)
+            play_sound("synth/throw.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if self.showing("playing"):
+            return
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+    @collide_with("star")
+    def caught(self, star):
+        star.destroy()
+        st.stars += 1
+        play_sound("synth/coin.wav")
+        if st.stars == 5:
+            notice.text = "All the stars!"
+            play_sound("audio/Victory.mp3")
+
+    @collide_with("robot")
+    def crashed(self, robot):
+        self.lose()
+
+    @when(lambda self: self.center.y < 30)
+    def fell(self):
+        self.lose()
+
+    def lose(self):
+        if st.lives == 0:
+            return
+        st.lives -= 1
+        canvas.shake(6)
+        if st.lives > 0:
+            play_sound("audio/sfx-hit-2.wav")
+            self.center = (100, 400)
+            self.vel = Vec2(0, 0)
+            self.blink(1)
+        else:
+            play_sound("audio/gameover.wav")
+            notice.text = "GAME OVER"
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+for x, y in [(360, 300), (560, 220), (720, 470), (420, 640), (960, 150)]:
+    star = Sprite("k-rolling-ball/star.png", height=36, center=(x, y), group="star")
+    star.scale_to(1.2, time=0.5, loops="forever", yoyo=True)
+
+Robot(center=(840, 80))
+Robot(center=(720, 419))
+
+Sprite("tilesets/Tiles/17.png", width=80, center=(520, 31))
+Sprite("tilesets/Tiles/17.png", width=80, center=(600, 31))
+
+
+@leave_playfield("kunai")
+def gone(kunai):
+    kunai.destroy()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "offset=(0, -19)",
+          text: "The fallen ninja would float too: the <code>Dead__</code> PNGs have 19 empty pixels under the body."
+        },
+        {
+          at: "lives[\"text\"] @=",
+          text: "The HUD shows a small ninja and <code>x 3</code>, linked to <code>st.lives</code> with <code>@=</code>."
+        },
+        {
+          at: "not self.showing(\"dead\")",
+          text: "Calling <code>play</code> on a <code>loops=1</code> clip that has already finished plays it again, and the death would repeat endlessly. The question lets it play only once."
+        },
+        {
+          at: "st.lives -= 1",
+          text: "Now <code>lose</code> takes a life and shakes the screen. If any are left, the ninja goes back to the start; on the last one, the notice says the game is over."
+        },
+        {
+          at: "self.blink(1)",
+          text: "<code>blink</code>: the ninja comes back blinking for 1 second."
+        }
+      ],
+      after: `
+        <p>Run it and lose all three lives; the last one, if you can, by touching a robot in the middle of a jump.</p>
+        <details class="ask"><summary>What is the first line of <code>lose</code> for, the one that leaves if the lives have already run out?</summary><p>The fallen ninja stays in the game, and a patrolling robot can touch him. Without that line, each touch would take a life that doesn't exist: the HUD would show <code>x -1</code>, <code>x -2</code>…</p></details>
+      `,
+      closing: `
+        <p>The left and right arrows walk; the up arrow jumps, with some slack at the edge; space throws a kunai. Catch the five stars. Falling into the water or touching a robot costs a life; a kunai breaks a robot. With no lives left, the game is over (to play again, run it again).</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>@when(lambda self: …)</code> in <code>Hero</code> — the fall into the water is asked after collision, with the ninja already in place; a slow frame doesn't turn into a fall.</li>
+          <li><code>center =</code> — places: the ninja appears at the start without crossing the space between; <code>resolve</code> stops whoever travels through it.</li>
+          <li><code>recently</code> and <code>recently.reset</code> — remember for a moment that something was true (coyote time), and forget once the slack is used up.</li>
+          <li><code>Robot</code> with <code>self.mid</code> — each robot patrols around where it was created, turning at a spelled-out side, without gravity.</li>
+          <li><code>offset</code> in <code>strip</code> — moves down the drawing of a clip whose PNG has an empty strip under the feet: the robot and the fallen ninja stand on the ground.</li>
+          <li><code>play(…, loops=1, next=)</code> and <code>showing</code> — a clip that plays once and goes back, and the question that makes the clip choice wait.</li>
+          <li><code>art_angle</code> and <code>rotate_to(self.angle)</code> — the kunai points where the ninja faces.</li>
+          <li><code>untag</code> — takes an object out of a group: the fallen robot doesn't hurt.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#colisao-resolve">Make it solid (place × travel)</a> · <a href="../guide/index.html#agendar-recently">recently</a> · <a href="../guide/index.html#sprite-animar">Animating sprites</a> · <a href="../guide/index.html#sprite-orientar">Facing sprites</a> · <a href="../guide/index.html#mundo-grupos">Groups</a>.</p>
+        <p><strong>Next:</strong> a lab to see collision up close: the three phases of a touch and the questions you can ask on the spot. The ninja comes back in Ninja III · The level, in a level bigger than the screen, built in the level editor, with a camera that follows him.</p>
+      `,
+      explore: `
+        <ul>
+          <li>More robots, more stars, and a faster robot that patrols a longer stretch.</li>
+          <li>Can you make a robot that throws a kunai back when the ninja gets close?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

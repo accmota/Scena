@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The level editor — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  label: "Interlude",
+  title: "The level editor",
+  steps: [
+    {
+      title: "A new level",
+      body: [
+        `
+        <p>In Ninja III, the level came ready-made: the code only read the file. In this interlude you make a level from scratch, a minigolf course seen from above, and learn to read every kind of piece the editor can draw.</p>
+        <p>The level editor comes with Scena. In the terminal, in your game's folder, open a file that doesn't exist yet:</p>
+        <p><code>python -m scena_editor media/levels/my_golf.json</code></p>
+        <p>(or <code>scena-editor media/levels/my_golf.json</code>). The editor opens an empty level, and the file is created when you save: the <em>Save</em> button, or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 440 250" role="img" aria-label="The editor window: the top bar with New, Open, Save, Undo and Snap; the tools on the left, each with its key; the level's border in the middle, with a few shapes; the right panel with Level, Width and Height; the status bar at the bottom">
+            <rect class="bar" x="10" y="8" width="420" height="22" rx="4"/>
+            <text x="20" y="23">New · Open · Save │ Undo · Redo │ Snap to grid</text>
+            <rect class="bar" x="10" y="36" width="44" height="182" rx="4"/>
+            <text x="22" y="54">R</text><text x="22" y="70">E</text><text x="22" y="86">C</text><text x="22" y="102">L</text>
+            <text x="22" y="118">G</text><text x="22" y="134">D</text><text x="22" y="150">N</text><text x="22" y="166">A</text>
+            <text x="22" y="182">U</text><text x="22" y="198">P</text><text x="22" y="214">I</text>
+            <rect class="guide" x="76" y="52" width="210" height="140"/>
+            <text x="80" y="206">the border: the level's size</text>
+            <rect class="bar child" x="96" y="132" width="70" height="40" rx="2"/>
+            <circle class="dot" cx="226" cy="96" r="14"/>
+            <line class="ray" x1="186" y1="172" x2="266" y2="150"/>
+            <rect class="bar" x="300" y="36" width="130" height="182" rx="4"/>
+            <text x="310" y="56">Level</text>
+            <text x="310" y="80">Width   1000</text>
+            <text x="310" y="100">Height   640</text>
+            <text x="310" y="136">with an item:</text>
+            <text x="310" y="152">Name, Groups,</text>
+            <text x="310" y="168">X, Y, Width…</text>
+            <rect class="bar" x="10" y="224" width="420" height="20" rx="4"/>
+            <text x="20" y="238">the status bar: the pointer (x, y), the grid, the zoom</text>
+          </svg>
+          <figcaption>The tools are on the left, each with its key. The right panel shows the level when nothing is selected, and the item when one is.</figcaption>
+        </figure>
+        <p>With nothing selected, the right panel shows <em>Level</em>, with <em>Width</em> and <em>Height</em>: the size of the level, the border in the middle of the screen. Start there. Then pick a tool, drag inside the border, and give each piece a name and groups in the panel. The box at the end of this step lists the tools and the panel.</p>
+        <p>This interlude's level comes ready-made, in <code>media/levels/minigolf.json</code>. Open it in the editor to see how it was made. If you draw your own, save it under another name, like <code>my_golf.json</code>, and change the name on the <code>Level</code> line.</p>
+        `
+      ],
+      code: `from scena import *
+
+level_map = Level("levels/minigolf.json")
+width, height = level_map.size
+init(width=width, height=height, title="Minigolf")
+Wallpaper("#24331f")
+
+for item in level_map:
+    print(item.kind, item.name, item.groups)
+    item.make()
+
+run()
+`,
+      notes: [
+        {
+          at: "level_map = Level(",
+          text: "<code>Level</code> reads the file and creates nothing on screen. That is why it can come before <code>init</code>."
+        },
+        {
+          at: "width, height = level_map.size",
+          text: "<code>size</code> is the pair <em>Width</em> and <em>Height</em> from the panel. The comma splits the two numbers into two variables."
+        },
+        {
+          at: "init(width=width, height=height",
+          text: "A window the size of the level: one unit in the editor is one unit in the window, and the camera doesn't need to move."
+        },
+        {
+          at: "for item in level_map:",
+          text: "Goes through every item of the level, in file order, which is the drawing order: what comes later is drawn on top."
+        },
+        {
+          at: "print(item.kind, item.name, item.groups)",
+          text: "<code>kind</code> says which shape the item is. <code>name</code> and <code>groups</code> come from the editor's panel; an item with no name gives <code>None</code>."
+        },
+        {
+          at: "item.make()",
+          text: "<code>make()</code> creates the shape exactly as it was drawn: the same place, the same size, the same angle."
+        }
+      ],
+      after: `
+        <p>Run it and look at the console: one line per item, like <code>polygon course ('grass',)</code> or <code>circle None ('post',)</code>. Each item's kind decides what <code>make()</code> creates:</p>
+        <div class="tbl"><table>
+          <thead><tr><th><code>kind</code></th><th><code>make()</code> creates</th><th>on this course</th></tr></thead>
+          <tbody>
+            <tr><td><code>polygon</code></td><td><code>Polygon</code></td><td>the grass, the sand</td></tr>
+            <tr><td><code>line</code></td><td><code>Line</code></td><td>the walls</td></tr>
+            <tr><td><code>ellipse</code></td><td><code>Ellipse</code></td><td>the pond</td></tr>
+            <tr><td><code>circle</code></td><td><code>Circle</code></td><td>the posts, the hole</td></tr>
+            <tr><td><code>triangle</code> · <code>regular_polygon</code></td><td><code>Triangle</code> · <code>RegularPolygon</code></td><td>two more posts</td></tr>
+            <tr><td><code>rect</code></td><td><code>Rect</code></td><td>the bar, the flag</td></tr>
+            <tr><td><code>point</code></td><td><code>Point</code></td><td>the ball's tee</td></tr>
+            <tr><td><code>track</code></td><td><code>Track</code></td><td>the bar's path</td></tr>
+          </tbody>
+        </table></div>
+        <details class="ask"><summary>Does the track <code>back_and_forth</code> show on screen?</summary><p>No. A <code>Track</code> with no color is only a path to follow, and it isn't drawn. It will be useful in a moment, to make the bar move.</p></details>
+      `,
+      dive: [
+        {
+          title: "The level editor",
+          body: `
+            <p>The tools, on the left. With a tool picked, a click without dragging creates the shape 100 units on a side (or with radius 50).</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Key</th><th>Tool</th><th>How to draw</th></tr></thead>
+              <tbody>
+                <tr><td><kbd>R</kbd></td><td><em>Rect</em></td><td>drag from one corner to the other</td></tr>
+                <tr><td><kbd>E</kbd></td><td><em>Ellipse</em></td><td>drag, like the rectangle</td></tr>
+                <tr><td><kbd>C</kbd></td><td><em>Circle</em></td><td>drag from the center out</td></tr>
+                <tr><td><kbd>L</kbd></td><td><em>Line</em></td><td>drag from one end to the other</td></tr>
+                <tr><td><kbd>G</kbd></td><td><em>Polygon</em></td><td>click each corner; <kbd>Enter</kbd> or a double-click closes it</td></tr>
+                <tr><td><kbd>D</kbd></td><td><em>Triangle</em></td><td>drag from the center to the tip</td></tr>
+                <tr><td><kbd>N</kbd></td><td><em>Regular polygon</em></td><td>drag from the center out; the number of sides (<em>Sides</em>) is in the panel</td></tr>
+                <tr><td><kbd>A</kbd></td><td><em>Track</em></td><td>click each point; <kbd>Enter</kbd> or a double-click finishes it</td></tr>
+                <tr><td><kbd>U</kbd></td><td><em>Concave</em></td><td>drag a box; the scoop (<em>Scoop</em>) is in the panel</td></tr>
+                <tr><td><kbd>P</kbd></td><td><em>Point</em></td><td>one click: a place</td></tr>
+                <tr><td><kbd>I</kbd></td><td><em>Image</em></td><td>choose an image file</td></tr>
+              </tbody>
+            </table></div>
+            <p>To change what is already drawn, use <em>Select</em> (<kbd>V</kbd>): click a piece and drag it, or pull its handles. <kbd>Esc</kbd> also goes back to <em>Select</em>, and <kbd>Space</kbd> + drag moves the view.</p>
+            <p>With a piece selected, the right panel shows <em>Name</em> (unique in the level), <em>Groups</em> (separated by commas: <code>post, red</code>) and its numbers: <em>X</em> and <em>Y</em> of the center, <em>Width</em>, <em>Height</em>, <em>Angle</em>, <em>Radius</em>… They are the same numbers as in the code: y up, the center of each thing, the angle in degrees.</p>
+            <p>Pieces snap to a grid every 10 units (<em>Snap to grid</em>, in the top bar, where you also change the step). Hold <kbd>Shift</kbd> while dragging to leave the grid. <em>Undo</em> and <em>Redo</em> step back and forward through each change; <em>Fit</em> frames the whole level.</p>
+            <p>In the Guide: <a href="../guide/index.html#colocar-fase">Level and the level editor</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Each thing its own look",
+      body: [
+        `
+        <p>The file stores the geometry, the names and the groups, and no colors: the looks belong to the code. Instead of making everything the same way, ask for each piece by name or by group, and give each one its own look.</p>
+        `,
+        {
+          snip: `for item in level_map.group("wall"):
+    item.make(color="white", line_width=8)`
+        },
+        `
+        <p><code>make()</code> takes the same keywords as the shape's constructor: <code>color=</code>, <code>line_width=</code>, <code>visual=</code>, <code>layer=</code>. Not the geometry: <code>center=</code> or <code>width=</code> are refused, because the place and the size come from the level.</p>
+        `
+      ],
+      code: `from scena import *
+
+level_map = Level("levels/minigolf.json")
+width, height = level_map.size
+init(width=width, height=height, title="Minigolf")
+Wallpaper("#24331f")
+
+GRASS = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+WATER = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+SAND = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+field = level_map["course"].make()
+field.fill = GRASS
+pond = level_map["pond"].make()
+pond.fill = WATER
+for item in level_map.group("sand"):
+    sand = item.make()
+    sand.fill = SAND
+for item in level_map.group("wall"):
+    item.make(color="white", line_width=8)
+for item in level_map.group("post"):
+    item.make(color="tomato")
+hole = level_map["hole"].make(color="black")
+
+run()
+`,
+      notes: [
+        {
+          at: "GRASS = Texture(",
+          text: "<code>Texture</code> paints with a repeated image (<code>fit=\"tile\"</code>) instead of a flat color."
+        },
+        {
+          at: "field = level_map[\"course\"].make()",
+          text: "<code>level_map[\"course\"]</code> is the item with that name: the grass polygon. We keep the shape in a variable to paint its inside."
+        },
+        {
+          at: "field.fill = GRASS",
+          text: "<code>fill</code> is the inside of the shape. The texture goes after <code>make()</code>, on its own line, as with any shape."
+        },
+        {
+          at: "for item in level_map.group(\"post\"):",
+          text: "The <code>post</code> group has three circles, a triangle and a hexagon. Different kinds, the same <code>make()</code>: each one becomes its own shape."
+        },
+        {
+          at: "hole = level_map[\"hole\"].make(color=\"black\")",
+          text: "The hole is a named circle. Kept in a variable, it will answer the ball in a moment."
+        }
+      ],
+      after: `
+        <p>What the code doesn't ask for doesn't appear: the tee, the bar, the flag and the track stay in the file, waiting their turn.</p>
+        <p>Now, the way to work with a level. Open <code>minigolf.json</code> (or yours) in the editor, drag the pond somewhere else, save and run the game again: the pond moved, and the code didn't change. The editor takes care of where things are; the code, of what they are.</p>
+      `
+    },
+    {
+      title: "The ball",
+      body: `
+        <p>In the editor, a <em>Point</em> is only a place: it draws nothing, it has a name and a center. The ball's starting spot is a point named <code>tee</code>. The ball starts there, and a click takes the shot: the farther from the ball you click, the harder.</p>
+      `,
+      code: `from scena import *
+
+level_map = Level("levels/minigolf.json")
+width, height = level_map.size
+init(width=width, height=height, title="Minigolf")
+Wallpaper("#24331f")
+
+GRASS = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+WATER = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+SAND = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+field = level_map["course"].make()
+field.fill = GRASS
+pond = level_map["pond"].make()
+pond.fill = WATER
+for item in level_map.group("sand"):
+    sand = item.make()
+    sand.fill = SAND
+for item in level_map.group("wall"):
+    item.make(color="white", line_width=8)
+for item in level_map.group("post"):
+    item.make(color="tomato")
+hole = level_map["hole"].make(color="black")
+group["wall"].mass = STATIC
+group["post"].mass = STATIC
+
+ball = Circle(center=level_map["tee"].center, radius=9, color="white", group="ball")
+ball.vel = Vec2(0, 0)
+resolve("ball", ["wall", "post"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if ball.vel.length < 5:
+        ball.vel = vec_from_angle(heading(ball, (x, y)), length=distance(ball, (x, y)) * 2)
+
+
+def update(dt):
+    ball.vel = chase(ball.vel, Vec2(0, 0), 1.2)
+    ball.move_by(ball.vel * dt)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"post\"].mass = STATIC",
+          text: "<code>STATIC</code>: the walls and the posts stop the ball and are never pushed by it."
+        },
+        {
+          at: "center=level_map[\"tee\"].center",
+          text: "The center of the point <code>tee</code>: the ball starts where the point was placed in the editor."
+        },
+        {
+          at: "resolve(\"ball\", [\"wall\", \"post\"], bounce=0.8)",
+          text: "<code>resolve</code> pushes the ball out of the walls and the posts; <code>bounce=0.8</code> gives back 80% of the speed. The walls are lines from the editor, and a <code>Line</code> stops things like any other shape."
+        },
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "Scena calls <code>on_mouse_click</code> on every click, with the place of the click, <code>x</code> and <code>y</code>."
+        },
+        {
+          at: "if ball.vel.length < 5:",
+          text: "Only a ball at rest takes a shot. <code>vel.length</code> is the ball's speed."
+        },
+        {
+          at: "vec_from_angle(heading(ball, (x, y)), length=distance(ball, (x, y)) * 2)",
+          text: "An arrow that points from the ball to the click (<code>heading</code>, the direction) and is twice as long as the distance between them."
+        },
+        {
+          at: "ball.vel = chase(ball.vel, Vec2(0, 0), 1.2)",
+          text: "Friction: every frame, the velocity chases zero a little (<code>chase</code>). The ball glides and slowly stops."
+        }
+      ],
+      after: `
+        <p>Click near the ball for a soft shot and far away for a hard one. Aim at a wall: the ball bounces back. For now it rolls over the water and the sand, and over the hole too.</p>
+      `
+    },
+    {
+      title: "Water and sand",
+      body: [
+        `
+        <p>The ball doesn't bounce off the water or the sand: it goes in. The pond and the sand stop nothing; the game only needs to know whether the ball is on top of them.</p>
+        `,
+        {
+          snip: `    if collision.query_point(ball, group="water"):`
+        },
+        `
+        <p><code>collision.query_point</code> returns the list of the group's shapes that are under the ball's center. An empty list counts as “no” in the <code>if</code>. The question works for any kind: the pond is an ellipse, the sand is a polygon.</p>
+        `
+      ],
+      code: `from scena import *
+
+level_map = Level("levels/minigolf.json")
+width, height = level_map.size
+init(width=width, height=height, title="Minigolf")
+Wallpaper("#24331f")
+
+GRASS = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+WATER = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+SAND = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+field = level_map["course"].make()
+field.fill = GRASS
+pond = level_map["pond"].make()
+pond.fill = WATER
+for item in level_map.group("sand"):
+    sand = item.make()
+    sand.fill = SAND
+for item in level_map.group("wall"):
+    item.make(color="white", line_width=8)
+for item in level_map.group("post"):
+    item.make(color="tomato")
+hole = level_map["hole"].make(color="black")
+group["wall"].mass = STATIC
+group["post"].mass = STATIC
+
+ball = Circle(center=level_map["tee"].center, radius=9, color="white", group="ball")
+ball.vel = Vec2(0, 0)
+resolve("ball", ["wall", "post"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if ball.vel.length < 5:
+        ball.vel = vec_from_angle(heading(ball, (x, y)), length=distance(ball, (x, y)) * 2)
+
+
+def go_back():
+    ball.center = level_map["tee"].center
+    ball.vel = Vec2(0, 0)
+
+
+def update(dt):
+    friction = 1.2
+    if collision.query_point(ball, group="sand"):
+        friction = 4
+    ball.vel = chase(ball.vel, Vec2(0, 0), friction)
+    ball.move_by(ball.vel * dt)
+    if collision.query_point(ball, group="water"):
+        canvas.ripple_at(ball)
+        go_back()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "friction = 1.2",
+          text: "The usual friction, on the grass."
+        },
+        {
+          at: "if collision.query_point(ball, group=\"sand\"):",
+          text: "On the sand, friction is higher, and the ball stops soon."
+        },
+        {
+          at: "def go_back():",
+          text: "A function that puts the ball back on the tee, at rest. It will serve the hole too."
+        },
+        {
+          at: "canvas.ripple_at(ball)",
+          text: "A ripple on the screen, where the ball fell in."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>Why isn't the pond in the <code>resolve</code>, like the walls?</summary><p><code>resolve</code> keeps two shapes apart: the ball would bounce off the edge of the pond and never fall in. For the water, the game asks; it doesn't push apart.</p></details>
+      `
+    },
+    {
+      title: "The hole and the strokes",
+      body: `
+        <p>The ball drops into the hole when it passes close to its center, and slowly: too fast, and it rolls right over. And a scoreboard counts the strokes.</p>
+      `,
+      code: `from scena import *
+
+level_map = Level("levels/minigolf.json")
+width, height = level_map.size
+init(width=width, height=height, title="Minigolf")
+Wallpaper("#24331f")
+
+GRASS = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+WATER = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+SAND = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+field = level_map["course"].make()
+field.fill = GRASS
+pond = level_map["pond"].make()
+pond.fill = WATER
+for item in level_map.group("sand"):
+    sand = item.make()
+    sand.fill = SAND
+for item in level_map.group("wall"):
+    item.make(color="white", line_width=8)
+for item in level_map.group("post"):
+    item.make(color="tomato")
+hole = level_map["hole"].make(color="black")
+group["wall"].mass = STATIC
+group["post"].mass = STATIC
+
+st.strokes = 0
+scoreboard = Text(text="", top_left=(20, height - 16), font_size=24, color="white")
+scoreboard["text"] @= lambda: f"Strokes {st.strokes}"
+
+ball = Circle(center=level_map["tee"].center, radius=9, color="white", group="ball")
+ball.vel = Vec2(0, 0)
+resolve("ball", ["wall", "post"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if ball.vel.length < 5:
+        ball.vel = vec_from_angle(heading(ball, (x, y)), length=distance(ball, (x, y)) * 2)
+        st.strokes += 1
+
+
+def go_back():
+    ball.center = level_map["tee"].center
+    ball.vel = Vec2(0, 0)
+
+
+def update(dt):
+    friction = 1.2
+    if collision.query_point(ball, group="sand"):
+        friction = 4
+    ball.vel = chase(ball.vel, Vec2(0, 0), friction)
+    ball.move_by(ball.vel * dt)
+    if collision.query_point(ball, group="water"):
+        canvas.ripple_at(ball)
+        go_back()
+    if distance(ball, hole) < hole.radius and ball.vel.length < 200:
+        canvas.fireworks_at(hole)
+        go_back()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "scoreboard[\"text\"] @= lambda: f\"Strokes {st.strokes}\"",
+          text: "The scoreboard linked to <code>st.strokes</code>: when the number changes, the text changes."
+        },
+        {
+          at: "st.strokes += 1",
+          text: "Each shot taken counts one."
+        },
+        {
+          at: "if distance(ball, hole) < hole.radius and ball.vel.length < 200:",
+          text: "<code>hole.radius</code> is the radius drawn in the editor: the level's circle answers like any <code>Circle</code>. Change the hole in the editor, and the test changes with it."
+        },
+        {
+          at: "canvas.fireworks_at(hole)",
+          text: "Fireworks at the hole, and the ball goes back to the tee."
+        }
+      ],
+      after: `
+        <p>Get the ball to the hole: the sand and the pond are in the way, and the posts guard the bend.</p>
+      `
+    },
+    {
+      title: "The bar that goes back and forth",
+      body: `
+        <p>A bar crosses the top arm of the course, back and forth. Its path is in the level: a track named <code>back_and_forth</code>, drawn with the <em>Track</em> tool (<kbd>A</kbd>), one click per point. Here there are only two points, a straight path.</p>
+      `,
+      code: `from scena import *
+
+level_map = Level("levels/minigolf.json")
+width, height = level_map.size
+init(width=width, height=height, title="Minigolf")
+Wallpaper("#24331f")
+
+GRASS = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+WATER = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+SAND = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+field = level_map["course"].make()
+field.fill = GRASS
+pond = level_map["pond"].make()
+pond.fill = WATER
+for item in level_map.group("sand"):
+    sand = item.make()
+    sand.fill = SAND
+for item in level_map.group("wall"):
+    item.make(color="white", line_width=8)
+for item in level_map.group("post"):
+    item.make(color="tomato")
+hole = level_map["hole"].make(color="black")
+group["wall"].mass = STATIC
+group["post"].mass = STATIC
+
+bar = level_map["bar"].make(color="gold")
+bar.mass = STATIC
+track = level_map["back_and_forth"].make()
+bar.move_along(track, speed=140, loops="forever", yoyo=True)
+
+st.strokes = 0
+scoreboard = Text(text="", top_left=(20, height - 16), font_size=24, color="white")
+scoreboard["text"] @= lambda: f"Strokes {st.strokes}"
+
+ball = Circle(center=level_map["tee"].center, radius=9, color="white", group="ball")
+ball.vel = Vec2(0, 0)
+resolve("ball", ["wall", "post", "bar"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if ball.vel.length < 5:
+        ball.vel = vec_from_angle(heading(ball, (x, y)), length=distance(ball, (x, y)) * 2)
+        st.strokes += 1
+
+
+def go_back():
+    ball.center = level_map["tee"].center
+    ball.vel = Vec2(0, 0)
+
+
+def update(dt):
+    friction = 1.2
+    if collision.query_point(ball, group="sand"):
+        friction = 4
+    ball.vel = chase(ball.vel, Vec2(0, 0), friction)
+    ball.move_by(ball.vel * dt)
+    if collision.query_point(ball, group="water"):
+        canvas.ripple_at(ball)
+        go_back()
+    if distance(ball, hole) < hole.radius and ball.vel.length < 200:
+        canvas.fireworks_at(hole)
+        go_back()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "bar = level_map[\"bar\"].make(color=\"gold\")",
+          text: "The bar is a named rectangle, placed at the start of the track."
+        },
+        {
+          at: "track = level_map[\"back_and_forth\"].make()",
+          text: "The level's track becomes a <code>Track</code>: with no color it doesn't show, but it gives the path."
+        },
+        {
+          at: "bar.move_along(track, speed=140, loops=\"forever\", yoyo=True)",
+          text: "<code>move_along</code> carries the bar along the path at 140 units per second; <code>yoyo=True</code> comes back along the same path, and <code>loops=\"forever\"</code> repeats forever."
+        },
+        {
+          at: "resolve(\"ball\", [\"wall\", \"post\", \"bar\"], bounce=0.8)",
+          text: "The bar stops the ball too. It is <code>STATIC</code>: the ball doesn't push it, but <code>move_along</code> carries it."
+        }
+      ],
+      after: `
+        <p>In the editor, select the track and drag its points, or draw another one with more points and the same name: the bar follows the new path, without a single line of code changing.</p>
+      `
+    },
+    {
+      title: "The flag in a box",
+      body: [
+        `
+        <p>The hole still needs its flag. In the editor, it is a rectangle named <code>flag</code>, but the game doesn't want the rectangle: it wants an image inside it. For that, instead of <code>make()</code>, read the item's <code>box</code>, the region it covers.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="On the left, make creates the drawn rectangle. On the right, box is only the region, dashed, and the Sprite fits inside it">
+            <rect class="bar child" x="50" y="30" width="80" height="80"/>
+            <text x="20" y="135">level_map["flag"].make()</text>
+            <rect class="guide" x="270" y="30" width="80" height="80"/>
+            <line class="ray" x1="290" y1="40" x2="290" y2="104"/>
+            <rect class="bar" x="292" y="42" width="40" height="24"/>
+            <text x="232" y="135">Sprite(…, box=item.box)</text>
+          </svg>
+          <figcaption>On the left, the drawn shape. On the right, the same region as a box: the Sprite fits inside it, at its size.</figcaption>
+        </figure>
+        <p>Only regions have a <code>box</code>: rect, ellipse, concave, circle and image. A line, a polygon, a track or a point has none: Scena refuses and says what it has instead (the ends, the points, the center).</p>
+        `
+      ],
+      code: `from scena import *
+
+level_map = Level("levels/minigolf.json")
+width, height = level_map.size
+init(width=width, height=height, title="Minigolf")
+Wallpaper("#24331f")
+
+GRASS = Texture("k-textures/floor_ground_grass.png", fit="tile", tile_size=64)
+WATER = Texture("k-textures/floor_ground_water.png", fit="tile", tile_size=64)
+SAND = Texture("k-textures/floor_ground_sand.png", fit="tile", tile_size=64)
+
+field = level_map["course"].make()
+field.fill = GRASS
+pond = level_map["pond"].make()
+pond.fill = WATER
+for item in level_map.group("sand"):
+    sand = item.make()
+    sand.fill = SAND
+for item in level_map.group("wall"):
+    item.make(color="white", line_width=8)
+for item in level_map.group("post"):
+    item.make(color="tomato")
+hole = level_map["hole"].make(color="black")
+group["wall"].mass = STATIC
+group["post"].mass = STATIC
+
+bar = level_map["bar"].make(color="gold")
+bar.mass = STATIC
+track = level_map["back_and_forth"].make()
+bar.move_along(track, speed=140, loops="forever", yoyo=True)
+
+flag = Sheet("pixel_adv/Checkpoint (Flag Idle)(64x64).png", cell=(64, 64), fps=12)
+Sprite(flag, box=level_map["flag"].box)
+
+st.strokes = 0
+scoreboard = Text(text="", top_left=(20, height - 16), font_size=24, color="white")
+scoreboard["text"] @= lambda: f"Strokes {st.strokes}"
+
+ball = Circle(center=level_map["tee"].center, radius=9, color="white", group="ball")
+ball.vel = Vec2(0, 0)
+resolve("ball", ["wall", "post", "bar"], bounce=0.8)
+
+
+def on_mouse_click(x, y, button):
+    if ball.vel.length < 5:
+        ball.vel = vec_from_angle(heading(ball, (x, y)), length=distance(ball, (x, y)) * 2)
+        st.strokes += 1
+
+
+def go_back():
+    ball.center = level_map["tee"].center
+    ball.vel = Vec2(0, 0)
+
+
+def update(dt):
+    friction = 1.2
+    if collision.query_point(ball, group="sand"):
+        friction = 4
+    ball.vel = chase(ball.vel, Vec2(0, 0), friction)
+    ball.move_by(ball.vel * dt)
+    if collision.query_point(ball, group="water"):
+        canvas.ripple_at(ball)
+        go_back()
+    if distance(ball, hole) < hole.radius and ball.vel.length < 200:
+        canvas.fireworks_at(hole)
+        go_back()
+
+
+run()
+`,
+      notes: [
+        {
+          at: "flag = Sheet(",
+          text: "The animated flag: a strip of 64 × 64 frames (<code>cell</code>), playing at 12 frames per second."
+        },
+        {
+          at: "Sprite(flag, box=level_map[\"flag\"].box)",
+          text: "<code>box=</code> puts the Sprite inside the rectangle's box: at the place and the size it has in the editor. The image doesn't stretch; it fits."
+        }
+      ],
+      after: `
+        <p>Resize the <code>flag</code> rectangle in the editor and run: the flag follows. The same goes for any image in the game that should fill a region drawn in the level.</p>
+      `,
+      closing: `
+        <p>Click to take a shot: the farther from the ball, the harder. The ball only takes a shot at rest. The water sends the ball back to the tee, the sand slows it down, the bar and the posts bounce it back. At the hole, slowly, it drops in.</p>
+      `,
+      dive: [
+        {
+          title: "What each item knows",
+          body: `
+            <p>Every item has <code>kind</code>, <code>name</code>, <code>groups</code>, <code>center</code> and <code>make()</code>. The rest depends on the kind; asking for a field the kind doesn't have raises an error listing the ones it has.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Kind</th><th>Fields</th><th><code>.box</code></th></tr></thead>
+              <tbody>
+                <tr><td>rect · ellipse · image</td><td><code>width</code>, <code>height</code>, <code>angle</code></td><td>yes</td></tr>
+                <tr><td>circle</td><td><code>radius</code></td><td>yes (the square around it)</td></tr>
+                <tr><td>line</td><td><code>p1</code>, <code>p2</code> (the ends), <code>length</code>, <code>angle</code></td><td>no</td></tr>
+                <tr><td>polygon · track</td><td><code>points</code> (the list of points)</td><td>no</td></tr>
+                <tr><td>triangle · regular_polygon</td><td><code>radius</code>, <code>angle</code></td><td>no</td></tr>
+                <tr><td>point</td><td>only <code>center</code></td><td>no</td></tr>
+              </tbody>
+            </table></div>
+            <p>They are copies: changing <code>item.center</code> doesn't change the level. And <code>Level</code> creates nothing by itself: only <code>make()</code> does, or whatever your code does with the numbers.</p>
+          `
+        },
+        {
+          title: "Copy as code",
+          body: `
+            <p>Select pieces in the editor and press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>C</kbd>: they go to the editor's clipboard (<kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>V</kbd> pastes a copy next to them), and the code that creates them goes to the system clipboard. Paste it into your script, and the flag rectangle becomes the line <code>flag = Rect(center=(868, 552), width=48, height=48)</code>, with the item's name as the variable. The <em>Copy as code</em> button, in the panel, copies only the code.</p>
+            <p>It is handy for taking out of the level a piece that won't change anymore, or for seeing which constructor draws what you made. The numbers are the same on both sides: there is no conversion.</p>
+          `
+        },
+        {
+          title: "Guide images",
+          body: `
+            <p>To draw over a sketch (a map made on paper, a screenshot of another game), place the image with the <em>Image</em> tool (<kbd>I</kbd>) and check <em>Guide (editor only)</em> in the panel. It shows in the editor so you can trace over it, but it isn't part of the level: <code>for item in level_map</code> doesn't see it, and <code>len(level_map)</code> doesn't count it.</p>
+            <p>In the Guide: <a href="../guide/index.html#colocar-fase">Level</a> (the table of every kind, sprite sheets, the editor) · <a href="../guide/index.html#colocar-fit">box=</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#colisao-aux">query_point</a>.</p>
+          `
+        }
+      ],
+      explore: `
+        <ul>
+          <li>Draw another hole in the editor: more water, more sand, a new track with a bar.</li>
+          <li>Can you count the strokes and show, at the end, how many it took?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

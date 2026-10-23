@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ninja — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "18",
+  title: "Ninja",
+  steps: [
+    {
+      title: "The floor and the platforms",
+      body: `
+        <p>A new game: a ninja who walks, jumps and falls. It is a platform game, and this tutorial is about what every platform game needs: gravity and a floor. First, the scenery, and the ninja standing still.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+
+hero = Sprite("ninja/Idle__000.png", height=88, center=(100, 124))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "init(width=1000, height=750",
+          text: "The game space is the size of the background image, 1000 by 750. That way the <code>Wallpaper</code> with that file covers the whole screen without stretching."
+        },
+        {
+          at: "for i in range(13):",
+          text: "The floor art comes in pieces (<em>tiles</em>): squares drawn to fit side by side. The <code>for</code> lays 13 tiles of 80, one next to the other: the centers go from x = 40 to x = 1000, 80 apart."
+        },
+        {
+          at: "def platform(x, y):",
+          text: "A platform floating in the air has three tiles: the left end (<code>13.png</code>), the middle (<code>14.png</code>) and the right end (<code>15.png</code>). The function puts the three together around the point (x, y); two calls, two platforms."
+        },
+        {
+          at: "center=(100, 124)",
+          text: "The floor ends at y = 80. The ninja's center sits half his height (44) above it, at 124: standing on the floor."
+        }
+      ],
+      after: `
+        <p>The floor and the platforms are all in the <code>floor</code> group: for the ninja, all of it will be floor.</p>
+      `
+    },
+    {
+      title: "Gravity",
+      body: [
+        `
+        <p>Now the ninja falls. Scena has no built-in gravity: it takes two lines, and the number is yours.</p>
+        `,
+        {
+          snip: `self.vel.y -= 2200 * dt
+self.move_by(0, self.vel.y * dt)`
+        },
+        `
+        <p><code>vel</code> is the ninja's velocity: how far he moves per second, up if positive, down if negative. The first line is gravity: it takes 2200 off the velocity every second, a little each frame. The second moves him the share of the velocity that fits in that frame. Dropped from up high, the ninja starts at rest; half a second later, he is already falling at 1100 per second. That is why the fall starts slow and keeps speeding up.</p>
+        <p>The same math draws a whole jump. Launch the ninja upward at 900: gravity uses up that velocity bit by bit, it reaches zero at the top, and from there on it grows downward.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 410 235" role="img" aria-label="The points of a jump, one every tenth of a second, draw an arc; at each point, a vertical arrow: big and pointing up at the start, smaller and smaller, none at the top, and then pointing down, bigger and bigger">
+            <line class="ray" x1="20" y1="175" x2="400" y2="175"/>
+            <circle class="dot" cx="100" cy="175" r="3"/>
+            <line class="ray" x1="100" y1="175" x2="100" y2="126"/>
+            <line class="ray" x1="100" y1="126" x2="97" y2="130"/>
+            <line class="ray" x1="100" y1="126" x2="103" y2="130"/>
+            <circle class="dot" cx="128" cy="125" r="3"/>
+            <line class="ray" x1="128" y1="125" x2="128" y2="88"/>
+            <line class="ray" x1="128" y1="88" x2="125" y2="92"/>
+            <line class="ray" x1="128" y1="88" x2="131" y2="92"/>
+            <circle class="dot" cx="155" cy="89" r="3"/>
+            <line class="ray" x1="155" y1="89" x2="155" y2="64"/>
+            <line class="ray" x1="155" y1="64" x2="152" y2="68"/>
+            <line class="ray" x1="155" y1="64" x2="158" y2="68"/>
+            <circle class="dot" cx="182" cy="68" r="3"/>
+            <line class="ray" x1="182" y1="68" x2="182" y2="56"/>
+            <line class="ray" x1="182" y1="56" x2="179" y2="60"/>
+            <line class="ray" x1="182" y1="56" x2="185" y2="60"/>
+            <circle class="dot" cx="210" cy="61" r="3"/>
+            <circle class="dot" cx="238" cy="68" r="3"/>
+            <line class="ray" x1="238" y1="68" x2="238" y2="80"/>
+            <line class="ray" x1="238" y1="80" x2="235" y2="76"/>
+            <line class="ray" x1="238" y1="80" x2="241" y2="76"/>
+            <circle class="dot" cx="265" cy="89" r="3"/>
+            <line class="ray" x1="265" y1="89" x2="265" y2="114"/>
+            <line class="ray" x1="265" y1="114" x2="262" y2="110"/>
+            <line class="ray" x1="265" y1="114" x2="268" y2="110"/>
+            <circle class="dot" cx="292" cy="125" r="3"/>
+            <line class="ray" x1="292" y1="125" x2="292" y2="162"/>
+            <line class="ray" x1="292" y1="162" x2="289" y2="158"/>
+            <line class="ray" x1="292" y1="162" x2="295" y2="158"/>
+            <circle class="dot" cx="320" cy="175" r="3"/>
+            <line class="ray" x1="320" y1="175" x2="320" y2="224"/>
+            <line class="ray" x1="320" y1="224" x2="317" y2="220"/>
+            <line class="ray" x1="320" y1="224" x2="323" y2="220"/>
+
+            <text x="8" y="140">vel.y = 900</text>
+            <text x="182" y="48">vel.y = 0</text>
+            <text x="328" y="216">vel.y = −900</text>
+            <text x="24" y="192">floor</text>
+            <text x="262" y="72">−2200 per second</text>
+          </svg>
+          <figcaption>The ninja every tenth of a second during a jump, and his <code>vel.y</code> (the arrows). Gravity takes away 2200 per second: the arrow shrinks on the way up, vanishes at the top and grows on the way down.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+
+
+class Hero(Sprite, source="ninja/Idle__000.png", height=88):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        self.vel.y -= 2200 * dt
+        self.move_by(0, self.vel.y * dt)
+
+
+hero = Hero(center=(100, 400))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "class Hero(",
+          text: "The ninja is getting behavior, so he becomes a class. The image and the height go on the class line."
+        },
+        {
+          at: "self.vel = Vec2(0, 0)",
+          text: "<code>Vec2</code> is an arrow with two parts, x and y. The velocity starts at rest, in <code>setup</code>; gravity takes care of the rest."
+        },
+        {
+          at: "center=(100, 400)",
+          text: "The ninja starts up high, at y = 400, so you can see the fall."
+        }
+      ],
+      after: `
+        <p>Run it and watch the fall.</p>
+        <details class="ask"><summary>Where does the ninja stop?</summary><p>Nowhere: he goes right through the floor and disappears. The tiles are just drawings; nothing says they hold anyone up.</p></details>
+      `,
+      try: [
+          {
+            note: "One at a time, in place of the 2200. With 1000, the fall is slow, as on the Moon; with 4000, the ninja is heavy.",
+            replaces: ['self.vel.y -= 2200'],
+            code: `self.vel.y -= 1000 * dt
+self.vel.y -= 4000 * dt`
+          }
+        ]
+    },
+    {
+      title: "The floor holds",
+      body: [
+        `
+        <p>The floor has to hold the ninja up. One line, outside any function, makes that a rule:</p>
+        `,
+        {
+          snip: `resolve("hero", "floor", bounce=0)`
+        },
+        `
+        <p><code>resolve</code> says the two groups do not pass through each other: when the ninja reaches the floor, Scena stops him at the point where they touch. The rule keeps working on its own, for every ninja and every tile in those groups, with no line in <code>on_update</code>. That is why the ninja joins the <code>hero</code> group, on the class line: that is how the rule finds him.</p>
+        <p>And a game with gravity says that the world has a floor:</p>
+        `,
+        {
+          snip: `collision.floor = True`
+        },
+        `
+        <p>With <code>floor</code>, whatever rests on something below stands on it: the ninja stays firmly on the floor, frame after frame, without flickering between “on the ground” and “in the air” — which is what the jump will ask, two steps from now. Later, on a sloped plank and on an elevator, this same line keeps him standing. In a game seen from above, like a racing game, there is no floor, and the line is left out.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+group["floor"].mass = STATIC
+
+
+class Hero(Sprite, source="ninja/Idle__000.png", height=88, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        self.vel.y -= 2200 * dt
+        self.move_by(0, self.vel.y * dt)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "group[\"floor\"].mass = STATIC",
+          text: "<code>mass</code> <code>STATIC</code>: the floor does not give way. Without it, the ninja would push the tiles around."
+        },
+        {
+          at: "hitbox_shape=\"rect\"",
+          text: "<code>hitbox_shape</code> <code>\"rect\"</code> (rectangle): a box with a flat bottom, the shape for someone who walks on a floor."
+        },
+        {
+          at: "bounce=0)",
+          text: "<code>bounce</code> 0: the part of the velocity that goes into the floor becomes zero at every touch."
+        }
+      ],
+      after: `
+        <p>Run it: the ninja falls and stops on the floor. Press <kbd>Ctrl+Shift+7</kbd> to see the shapes that collide.</p>
+        <p>What collides is not the drawing but a shape computed from it, the <em>hitbox</em>. If you ask for nothing, Scena picks the shape by itself, and the automatic shape leaves the ninja's feet out: they would sink into the grass. With <code>"rect"</code>, the bottom of the box is at the feet, which stand on the grass; and a flat bottom does not slide off the edge of a platform.</p>
+        <details class="ask"><summary>Without <code>bounce=0</code>, the ninja would stop too. What is it for?</summary><p>Without it, <code>resolve</code> only fixes the position: the ninja stays on top of the floor, but his <code>vel.y</code> keeps growing downward, 2200 for every second he stands there. Walking off the edge of a platform, he would plummet all at once, with all that stored-up velocity. With <code>bounce=0</code>, standing on the floor, <code>vel.y</code> is 0. With <code>bounce=1</code>, he would bounce like a ball, as hard as he hit.</p></details>
+      `
+    },
+    {
+      title: "Walking",
+      body: `
+        <p>Now the arrow keys walk the ninja. Gravity changes the y part of the velocity; the arrows change the x part.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+
+class Hero(Sprite, source="ninja/Idle__000.png", height=88, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Rect(center=(-20, 375)",
+          text: "Walking, the ninja would leave the screen. Two walls keep him in: a tall <code>Rect</code> on each side, just past the edge (which is why you don't see them), also in the <code>floor</code> group. <code>resolve</code> holds the ninja against them just as it does on the floor."
+        },
+        {
+          at: "self.vel.x = -280",
+          text: "−280 to the left, 280 to the right, and 0 with no arrow: the ninja stops as soon as you let go."
+        },
+        {
+          at: "self.flip_x = True",
+          text: "The ninja's drawing faces right. <code>flip_x</code> (mirror along x) <code>True</code> turns him to the left; <code>False</code>, back again. With no arrow, nothing touches it, and the ninja keeps facing the way he last walked."
+        },
+        {
+          at: "self.move_by(self.vel.x * dt, self.vel.y * dt)",
+          text: "<code>move_by</code> now uses both parts of the velocity."
+        }
+      ],
+      after: `
+        <p>Walk under a platform: there is no way up yet.</p>
+      `
+    },
+    {
+      title: "Jumping",
+      body: [
+        `
+        <p>The jump is the gravity arc: <code>self.vel.y = 900</code>, and gravity does the rest. But only with his feet on the ground; otherwise, the ninja could jump in midair too, as many times as he liked, and climb all the way to the sky.</p>
+        `,
+        {
+          snip: `on_ground = "bottom" in self.touching_sides`
+        },
+        `
+        <p><code>self.touching_sides</code> tells which sides of the ninja are touching something solid, according to the <code>resolve</code> rules: <code>"bottom"</code>, <code>"top"</code>, <code>"left"</code> and <code>"right"</code>. Standing on the floor, it has <code>"bottom"</code>; in the air, none.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 215" role="img" aria-label="A box, the ninja, standing on a floor and against a wall on the right; the four sides of the box have names: top at the top, bottom at the bottom, left on the left, right on the right; the bottom and right sides are marked, because they touch something">
+            <rect class="bar child" x="20" y="160" width="320" height="22" rx="3"/>
+            <rect class="bar child" x="250" y="30" width="26" height="130" rx="3"/>
+            <rect class="bar" x="170" y="68" width="80" height="92" rx="3"/>
+            <text x="198" y="60">"top"</text>
+            <text x="120" y="118">"left"</text>
+            <text x="284" y="118">"right"</text>
+            <text x="186" y="176">"bottom"</text>
+            <circle class="hot" cx="210" cy="160" r="5"/>
+            <circle class="hot" cx="250" cy="114" r="5"/>
+            <text x="40" y="205">touching_sides: "bottom" and "right"</text>
+          </svg>
+          <figcaption>The ninja's four sides. Here he stands on the floor and leans against a wall: <code>touching_sides</code> has <code>"bottom"</code> and <code>"right"</code>. In the air, away from everything, it has none.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+
+class Hero(Sprite, source="ninja/Idle__000.png", height=88, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "\"bottom\" in self.touching_sides",
+          text: "<code>in</code> asks whether an item is in the list: true if <code>\"bottom\"</code> is one of the touching sides. The question is asked once and gets a name, <code>on_ground</code>."
+        },
+        {
+          at: "keyp.once(\"UP\")",
+          text: "<code>keyp.once</code> is true only on the frame the arrow is pressed: holding the arrow does not jump again."
+        },
+        {
+          at: "self.vel.y = 900",
+          text: "The whole jump is this line: an upward velocity that gravity uses up bit by bit."
+        }
+      ],
+      after: `
+        <p>Run it and jump under a platform: his head bumps (<code>"top"</code>) and the ninja falls back down. It is the same <code>bounce=0</code>: the part of the velocity going into the platform becomes zero.</p>
+        <details class="ask"><summary>Can you reach the highest platform?</summary><p>Yes, with little to spare. At 900, the jump reaches the first platform, and from there the second. Jump from a distance, while running: going up right under a platform, his head bumps.</p></details>
+      `,
+      try: [
+          {
+            note: "One at a time, in place of the 900. With 700, the jump does not reach the first platform; with 1100, there is height to spare.",
+            replaces: ['self.vel.y = 900'],
+            code: `self.vel.y = 700
+self.vel.y = 1100`
+          }
+        ]
+    },
+    {
+      title: "Really running and jumping",
+      example: "ninja_1_run.py",
+      body: [
+        `
+        <p>The ninja has ten drawings for each movement, each in its own file: <code>Idle__000.png</code> to <code>Idle__009.png</code> (standing still), <code>Run__000.png</code> to <code>Run__009.png</code> (running), <code>Jump__000.png</code> to <code>Jump__009.png</code> (jumping). That is thirty files, and each animation fits on one line:</p>
+        `,
+        {
+          snip: `ninja.strip("idle", "ninja/Idle__*.png", fps=8)`
+        },
+        `
+        <p><code>strip</code> adds an animation to the sheet: the clip name, the files and the <code>fps</code>. The <code>*</code> means “anything in this spot”: <code>"ninja/Idle__*.png"</code> takes every file that matches the rest of the name, in order, the ten idle ones.</p>
+        <p>The drawings are not all the same size: the jumping ninja is taller than the idle one, and the widths change even more. The sheet starts empty, with no file, and handles this with two settings:</p>
+        `,
+        {
+          snip: `ninja = Sheet(anchor="bottom", pixel_size=0.2)`
+        },
+        `
+        <div class="tbl"><table><thead><tr><th>On the line</th><th>What it does</th></tr></thead><tbody>
+          <tr><td><code>pixel_size=0.2</code></td><td>each pixel of the drawing is worth 0.2 in the game. Each drawing keeps its true size, a little bigger or smaller than the others.</td></tr>
+          <tr><td><code>anchor="bottom"</code></td><td>the ninja's <code>center</code> becomes the middle of the bottom of each drawing: his feet. Switching drawings does not lift the ninja off the floor.</td></tr>
+        </tbody></table></div>
+        <figure class="fig">
+          <svg viewBox="0 0 380 165" role="img" aria-label="Three rectangles of different sizes, the idle, the running and the jumping one, resting on the same line; a dot marks the middle of the bottom of each, which is the center">
+            <line class="guide" x1="20" y1="130" x2="360" y2="130"/>
+            <rect class="bar" x="57" y="42" width="46" height="88" rx="3"/>
+            <rect class="bar" x="153" y="38" width="73" height="92" rx="3"/>
+            <rect class="bar" x="264" y="33" width="72" height="97" rx="3"/>
+            <circle class="hot" cx="80" cy="130" r="4"/>
+            <circle class="hot" cx="190" cy="130" r="4"/>
+            <circle class="hot" cx="300" cy="130" r="4"/>
+            <text x="48" y="28">idle 88</text>
+            <text x="148" y="28">running 92</text>
+            <text x="262" y="24">jumping 97</text>
+            <text x="110" y="152">center = the feet, in all</text>
+          </svg>
+          <figcaption>With <code>pixel_size=0.2</code>, each drawing keeps its own size. With <code>anchor="bottom"</code>, they all rest on the same point: the <code>center</code> is the middle of the bottom.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=750, title="Ninja")
+Wallpaper("tilesets/BG/BG.png")
+
+for i in range(13):
+    Sprite("tilesets/Tiles/2.png", height=80, center=(40 + i * 80, 40), group="floor")
+
+
+def platform(x, y):
+    Sprite("tilesets/Tiles/13.png", width=80, center=(x - 80, y), group="floor")
+    Sprite("tilesets/Tiles/14.png", width=80, center=(x, y), group="floor")
+    Sprite("tilesets/Tiles/15.png", width=80, center=(x + 80, y), group="floor")
+
+
+platform(360, 220)
+platform(720, 390)
+Rect(center=(-20, 375), width=40, height=750, group="floor")
+Rect(center=(1020, 375), width=40, height=750, group="floor")
+group["floor"].mass = STATIC
+
+ninja = Sheet(anchor="bottom", pixel_size=0.2)
+ninja.strip("idle", "ninja/Idle__*.png", fps=8)
+ninja.strip("running", "ninja/Run__*.png", fps=12)
+ninja.strip("jumping", "ninja/Jump__*.png", fps=10)
+
+
+class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.vel.x = -280
+            self.flip_x = True
+        elif keyp("RIGHT"):
+            self.vel.x = 280
+            self.flip_x = False
+        else:
+            self.vel.x = 0
+
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+
+        self.vel.y -= 2200 * dt
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+        if not on_ground:
+            self.play("jumping")
+        elif self.vel.x != 0:
+            self.play("running")
+        else:
+            self.play("idle")
+
+
+collision.floor = True
+resolve("hero", "floor", bounce=0)
+
+hero = Hero(center=(100, 400))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "class Hero(Sprite, source=ninja,",
+          text: "The class uses the sheet, and the <code>height=</code> is gone: each drawing already has its own size."
+        },
+        {
+          at: "if not on_ground:",
+          text: "At the end of <code>on_update</code>, the state picks the clip: in the air, <code>\"jumping\"</code>; on the ground and walking, <code>\"running\"</code>; otherwise, <code>\"idle\"</code>. Asking for the clip that is already playing does not restart it, so you can ask every frame."
+        },
+        {
+          at: "self.vel.x != 0",
+          text: "<code>!=</code> means “not equal to”: walking means the sideways velocity is not zero."
+        }
+      ],
+      after: `
+        <p>Run, dash and jump. With <kbd>Ctrl+Shift+7</kbd>, watch the hitbox while the drawing changes: it does not change with the clip. The ninja does not grow when he jumps, nor get wider when he runs.</p>
+      `,
+      try: [
+          {
+            note: "In the air, the ninja glides instead of jumping: the files Glide_000.png to Glide_009.png (the name has only one underscore). In place of the jumping line:",
+            replaces: ['ninja.strip("jumping"'],
+            code: `ninja.strip("jumping", "ninja/Glide_*.png", fps=10)`
+          }
+        ],
+      closing: `
+        <p>Left and right arrows walk; the up arrow jumps, only with his feet on the ground. The ninja runs, jumps and falls with gravity, stands on the floor and the platforms, and bumps his head under them.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>vel.y -= 2200 * dt</code> — gravity by hand: the downward velocity grows every frame. A jump is an upward velocity that it uses up.</li>
+          <li><code>resolve</code> with <code>bounce=0</code> and <code>STATIC</code> — the floor holds the ninja up and zeroes the velocity going into it.</li>
+          <li><code>hitbox_shape="rect"</code> — a hitbox with a flat bottom, for someone who walks on a floor.</li>
+          <li><code>touching_sides</code> — which sides touch something solid; <code>"bottom"</code> means being on the ground.</li>
+          <li><code>flip_x</code> — mirrors the drawing: the ninja faces the way he walks.</li>
+          <li><code>strip</code> with <code>*</code>, <code>pixel_size</code> and <code>anchor="bottom"</code> — one animation per line, from files of different sizes, each at its own size and with his feet on the ground.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#colisao-resolve">Make it solid</a> · <a href="../guide/index.html#colisao-touching">Touching</a> · <a href="../guide/index.html#spr-hit">Sprite hitbox</a> · <a href="../guide/index.html#sprite-carregar">Loading sprites</a> · <a href="../guide/index.html#sprite-animar">Animating sprites</a> · <a href="../guide/index.html#sprite-orientar">Facing sprites</a>.</p>
+        <p><strong>Next:</strong> the ninja gets a world to live in: a pit with water, stars to collect, robots on patrol and kunai to throw.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Build another level with the platforms: a staircase, a well, a zigzag path.</li>
+          <li>Change the gravity and the jump: what would the ninja be like on the Moon?</li>
+          <li>Can you make a double jump: one second jump in midair, and only one?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
