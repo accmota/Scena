@@ -2,4 +2,4 @@
 # (``[tool.setuptools.dynamic]``), so ``scena.__version__`` stays right in a
 # source checkout and in an editable install whose metadata is stale.
 # Bumping it: design/Scena Design.md, "Compatibility and versions".
-__version__ = "0.9.0"
+__version__ = "0.9.1"
