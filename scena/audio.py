@@ -28,6 +28,7 @@ from .audio_mixer import (
 )
 from . import audio_mixer as _audio_mixer
 from . import audio_effects as _audio_effects  # registers the mixer effect processor
+from . import stall as _stall
 from .closed import ClosedSurface
 from .process import (
     SCOPE_ENTITY,
@@ -606,21 +607,23 @@ class Sound(ClosedSurface):
             }
             clones.append(cls(**knobs))
 
-        src = self._pcm().copy()
-        if abs(st) >= 1e-9:
-            src = _transpose_pcm(src, st)
-        if abs(rate - 1.0) >= 1e-12:
-            src = _rate_pcm(src, rate)
+        names = ", ".join(type(fx).__name__ for fx in clones) or "transpose / pitch"
+        with _stall.busy(f"baking {os.path.basename(str(self.path))} ({names})"):
+            src = self._pcm().copy()
+            if abs(st) >= 1e-9:
+                src = _transpose_pcm(src, st)
+            if abs(rate - 1.0) >= 1e-12:
+                src = _rate_pcm(src, rate)
 
-        for fx in clones:
-            fx._reset_state()
-        wet = apply_effects(src, clones, SAMPLE_RATE)
-        tail = max_tail_seconds(clones)
-        if tail > 0.0:
-            pad = int(math.ceil(tail * SAMPLE_RATE))
-            silence = np.zeros((pad, wet.shape[1]), dtype=np.float32)
-            silence = apply_effects(silence, clones, SAMPLE_RATE)
-            wet = np.concatenate([wet, silence], axis=0)
+            for fx in clones:
+                fx._reset_state()
+            wet = apply_effects(src, clones, SAMPLE_RATE)
+            tail = max_tail_seconds(clones)
+            if tail > 0.0:
+                pad = int(math.ceil(tail * SAMPLE_RATE))
+                silence = np.zeros((pad, wet.shape[1]), dtype=np.float32)
+                silence = apply_effects(silence, clones, SAMPLE_RATE)
+                wet = np.concatenate([wet, silence], axis=0)
 
         baked = Sound._from_pcm(wet, volume=vol, path=f"{self.path}#bake")
         _BAKE_CACHE[key] = baked

@@ -312,5 +312,152 @@ class TestEffectGuards(unittest.TestCase):
         self.assertEqual(baked.duration, 0.0)
 
 
+# The 0.9.0 effects, one sample at a time: the sound authors have heard. The
+# effects now run a block (or a channel of Python floats) per step (WP32); they
+# must give these bytes, block after block, whatever the block sizes.
+
+def _ref_delay(buf, idx, x, step):
+    out = np.empty_like(x)
+    for i in range(x.shape[0]):
+        out[i], buf[idx] = step(buf[idx], x[i])
+        idx = (idx + 1) % buf.shape[0]
+    return out, idx
+
+
+class _Ref:
+    def __init__(self, kind, **kw):
+        self.kind, self.kw, self.st = kind, kw, None
+
+    def _process(self, x, sr):
+        return getattr(self, "_" + self.kind)(x, sr, **self.kw)
+
+    def _onepole(self, x, sr, cutoff, high):
+        a = float(1.0 - np.exp(-2.0 * np.pi * cutoff / sr))
+        lp = np.zeros(x.shape[1]) if self.st is None else self.st.astype(np.float64)
+        y = np.empty_like(x)
+        for i in range(x.shape[0]):
+            lp += a * (x[i].astype(np.float64) - lp)
+            y[i] = x[i] - lp if high else lp
+        self.st = lp.astype(np.float32)
+        return y.astype(np.float32)
+
+    def _LowPass(self, x, sr, cutoff):
+        return self._onepole(x, sr, cutoff, False)
+
+    def _HighPass(self, x, sr, cutoff):
+        return self._onepole(x, sr, cutoff, True)
+
+    def _Echo(self, x, sr, delay, decay):
+        if self.st is None:
+            self.st = [np.zeros((max(1, int(round(delay * sr))), x.shape[1]), np.float32), 0]
+        buf, idx = self.st
+
+        def step(read, s):
+            mixed = s + read * decay
+            return mixed, mixed
+        out, self.st[1] = _ref_delay(buf, idx, x, step)
+        return out
+
+    def _Reverb(self, x, sr, size, mix):
+        if self.st is None:
+            ms = [29.7, 37.1, 41.1, 43.7, 5.0, 1.7]
+            self.st = [[np.zeros((max(1, int(round(m * size * 0.001 * sr))), x.shape[1]),
+                                 np.float32), 0] for m in ms]
+        src = x.astype(np.float32)
+        wet = np.zeros_like(src)
+        for line in self.st[:4]:   # combs: the output is the value written
+            acc, line[1] = _ref_delay(line[0], line[1], src,
+                                      lambda read, s: (s + read * 0.84,) * 2)
+            wet += acc
+        wet *= (1.0 - 0.84) / 4.0
+
+        def allpass(read, s):
+            y = read - 0.7 * s
+            return y, s + 0.7 * y
+        for line in self.st[4:]:
+            wet, line[1] = _ref_delay(line[0], line[1], wet, allpass)
+        return (src * (1.0 - mix) + wet * mix).astype(np.float32)
+
+    def _Distortion(self, x, sr, drive):
+        src = x.astype(np.float64)
+        a = 1.0 - np.exp(-2.0 * np.pi * 3000.0 / sr)
+        nch = src.shape[1]
+        lp_pre, lp_de, e_in, e_out = self.st or (np.zeros(nch), np.zeros(nch), 0.0, 0.0)
+        lp_pre, lp_de = lp_pre.astype(np.float64), lp_de.astype(np.float64)
+        pre = np.empty_like(src)
+        for i in range(src.shape[0]):
+            lp_pre += a * (src[i] - lp_pre)
+            pre[i] = src[i] + 0.55 * (src[i] - lp_pre)
+        shaped = np.tanh((pre + 0.08) * drive) / max(math.tanh(drive), 1e-12)
+        out = np.empty_like(shaped)
+        for i in range(shaped.shape[0]):
+            lp_de += a * (shaped[i] - lp_de)
+            out[i] = shaped[i] - 0.35 * (shaped[i] - lp_de)
+        rel = math.exp(-1.0 / (sr * 0.03))
+        for i in range(out.shape[0]):
+            e_in = max(float(np.max(np.abs(src[i]))), e_in * rel)
+            e_out = max(float(np.max(np.abs(out[i]))), e_out * rel)
+            out[i] *= (e_in * 1.1) / max(e_out, 1e-12)
+        self.st = (lp_pre.astype(np.float32), lp_de.astype(np.float32), e_in, e_out)
+        return out.astype(np.float32)
+
+
+class TestEffectsMatchTheSampleLoop(unittest.TestCase):
+    """WP32: each effect gives the 0.9.0 per-sample bytes, mono and stereo,
+    in one block, in mixer-size blocks and in ragged ones (a block shorter
+    than a delay line, one longer)."""
+
+    CASES = (
+        [("Reverb", dict(size=s, mix=m)) for s in (0.05, 1.0, 1.5) for m in (0.6, 1.0)]
+        + [("Echo", dict(delay=d, decay=0.6)) for d in (1 / SAMPLE_RATE, 3 / SAMPLE_RATE, 0.01)]
+        + [("LowPass", dict(cutoff=300.0)), ("HighPass", dict(cutoff=2000.0))]
+        + [("Distortion", dict(drive=d)) for d in (0.1, 8.0)]
+    )
+
+    def test_same_bytes_in_any_blocks(self):
+        rng = np.random.default_rng(7)
+        new = {"Reverb": Reverb, "Echo": Echo, "LowPass": LowPass,
+               "HighPass": HighPass, "Distortion": Distortion}
+        for nch in (1, 2):
+            x = (rng.standard_normal((6000, nch)) * 0.4).astype(np.float32)
+            x[1000:2500] = 0.0
+            for blocks in ([6000], [512] * 11 + [368], [7, 3000, 1, 1300, 1692]):
+                for kind, kw in self.CASES:
+                    with self.subTest(kind=kind, kw=kw, nch=nch, blocks=len(blocks)):
+                        ref, fx = _Ref(kind, **kw), new[kind](**kw)
+                        got, want, pos = [], [], 0
+                        for n in blocks:
+                            seg = x[pos:pos + n]
+                            pos += n
+                            want.append(ref._process(seg.copy(), SAMPLE_RATE))
+                            got.append(fx._process(seg.copy(), SAMPLE_RATE))
+                        self.assertEqual(np.concatenate(got).tobytes(),
+                                         np.concatenate(want).tobytes())
+
+
+class TestNoSampleLoopOverRows(unittest.TestCase):
+    """The class of WP32: an effect that steps through a numpy array a row at a
+    time (``for i in range(x.shape[0])``) pays numpy's call cost per sample, on
+    the mixer's thread for a live voice. Delay lines take a run per step
+    (``_delay_line``); one-pole filters loop over Python floats."""
+
+    def test_no_range_over_rows_in_the_effects(self):
+        import ast
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "scena", "audio_effects.py")
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        found = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.For) and isinstance(node.iter, ast.Call) \
+                    and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "range":
+                for arg in node.iter.args:
+                    if any(isinstance(n, ast.Attribute) and n.attr in ("shape", "size")
+                           or isinstance(n, ast.Call) and getattr(n.func, "id", "") == "len"
+                           for n in ast.walk(arg)):
+                        found.append(node.lineno)
+        self.assertEqual(found, [], "a per-sample loop over array rows")
+
+
 if __name__ == "__main__":
     unittest.main()
