@@ -29,7 +29,7 @@ from laws import families, model  # noqa: E402
 from laws.known import KNOWN  # noqa: E402
 from program_support import load_spec  # noqa: E402
 from test_prog_invariance import PROGRAMS  # noqa: E402
-from test_scripts_run import scripts  # noqa: E402
+from test_scripts_run import law_scripts  # noqa: E402
 
 FULL = hypothesis_support.PROFILE in ("ci", "deep")
 DEEP = hypothesis_support.PROFILE == "deep"
@@ -99,7 +99,7 @@ def _script_reports(paths):
 
 class TestExamples(unittest.TestCase):
     def test_every_example_keeps_the_laws(self):
-        paths = scripts()
+        paths = law_scripts(hypothesis_support.PROFILE)   # one of a translated pair (WP33)
         self.assertGreater(len(paths), 20)
         _check(self, _script_reports(paths), "examples")
 

@@ -26,7 +26,7 @@ from hypothesis_support import require_canaries  # noqa: E402
 from laws import neutrality, trace  # noqa: E402
 from program_support import load_spec  # noqa: E402
 from test_prog_invariance import PROGRAMS  # noqa: E402
-from test_scripts_run import scripts  # noqa: E402
+from test_scripts_run import law_scripts  # noqa: E402
 
 FULL = hypothesis_support.PROFILE in ("ci", "deep")
 EXAMPLE_FRAMES = 120
@@ -59,7 +59,7 @@ class TestGames(unittest.TestCase):
 
 class TestExamples(unittest.TestCase):
     def test_every_example_is_the_same_with_the_recorder(self):
-        paths = scripts()
+        paths = law_scripts(hypothesis_support.PROFILE)   # one of a translated pair (WP33)
         self.assertGreater(len(paths), 20)
         workers = max(2, min(8, (os.cpu_count() or 4) - 1))
 

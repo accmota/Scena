@@ -34,7 +34,7 @@ from laws.known import KNOWN  # noqa: E402
 from laws.neutrality import run_script as plain_script  # noqa: E402
 from program_support import load_spec  # noqa: E402
 from test_prog_invariance import PROGRAMS  # noqa: E402
-from test_scripts_run import scripts  # noqa: E402
+from test_scripts_run import law_scripts  # noqa: E402
 
 PROFILE = hypothesis_support.PROFILE
 FULL = PROFILE in ("ci", "deep")
@@ -168,7 +168,7 @@ def _script_findings(path: str, frames: int):
 
 class TestExamples(unittest.TestCase):
     def test_the_examples_keep_the_snapshot_rule(self):
-        paths = scripts()
+        paths = law_scripts(hypothesis_support.PROFILE)   # one of a translated pair (WP33)
         self.assertGreater(len(paths), 20)
         with ThreadPoolExecutor(WORKERS) as pool:
             out = [line for lines in pool.map(lambda p: _script_findings(p, SCRIPT_FRAMES), paths)

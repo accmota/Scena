@@ -23,7 +23,10 @@ Canaries (gate): the old S8-2 "stop once a side died" rule (E3), a dropped
 contact rule (E15).
 
 ``dev``: the twins, the first scenario of each program, one swap per
-example; ``ci`` / ``deep``: every scenario and swap. SLOW + SPLIT.
+example; ``ci`` / ``deep``: every scenario and swap. SLOW + SPLIT. The
+examples' E3 and E15 checks are classes of at most ``RUNS_PER_JOB`` runs
+(``TestSpawnOrderExamples1``, …), one gate job each; below ``deep`` an
+English example whose Portuguese twin is here is left out (WP33).
 
     python -m unittest tests.test_laws_equations -v
 """
@@ -44,9 +47,10 @@ from laws import equations as eq  # noqa: E402
 from laws.plants import col  # noqa: E402
 from program_support import ProgramRun, Scenario, load_spec  # noqa: E402
 from test_prog_invariance import PROGRAMS  # noqa: E402
-from test_scripts_run import scripts  # noqa: E402
+from test_scripts_run import law_scripts, scripts  # noqa: E402
 
 FULL = hypothesis_support.PROFILE in ("ci", "deep")
+LAW_SCRIPTS = law_scripts(hypothesis_support.PROFILE)
 TWINS = "tests/laws/twins"
 WAIT = {"SCENARIOS": {"wait": Scenario(steps=[("wait", 150)])}, "PROBES": {}}
 ANGLE_BUDGET = 2.0           # degrees (design/Laws.md, budgets)
@@ -127,6 +131,79 @@ class TestSpreadRuns(unittest.TestCase):
                                "bad_run.py: ValueError: twin broke"])
 
 
+# A gate job's work is a count, sized for a machine much slower than the Mac,
+# not a time measured on it (WP33). A 600-frame example run: ~8 s on the Mac,
+# ~25 s on a machine 3× slower; a job's pool gets ~2 cores' worth in a busy
+# gate. 48 runs × 25 s / 2 = 600 s, a third of the gate's 1 800 s per job.
+RUNS_PER_JOB = 48
+
+
+def _shard_plan(make_runs, paths, limit, cap=RUNS_PER_JOB):
+    """``[[path, …], …]``: the scripts in as few jobs as hold at most ``cap``
+    runs each, the largest script first into the lightest job (a script's runs
+    stay in one job: its judge needs them all). A script whose plan fails
+    counts one run: its job reports the error."""
+    sized = []
+    for path in paths:
+        try:
+            n = len(make_runs(path, 600, limit=limit)[0])
+        except Exception:  # noqa: BLE001
+            n = 1
+        if n:
+            sized.append((n, path))
+    jobs = max(1, -(-sum(n for n, _p in sized) // cap))
+    load, plan = [0] * jobs, [[] for _ in range(jobs)]
+    for n, path in sorted(sized, key=lambda s: (-s[0], s[1])):
+        k = load.index(min(load))
+        load[k] += n
+        plan[k].append(path)
+    return [sorted(p) for p in plan if p]
+
+
+def _shard_classes(prefix, make_runs, doc):
+    """One TestCase per job of ``_shard_plan`` (``prefix1``, ``prefix2``, …):
+    the runner gives each class of this SPLIT module its own job, so the
+    number of jobs follows the examples folder."""
+    limit = None if FULL else 1
+    for k, paths in enumerate(_shard_plan(make_runs, LAW_SCRIPTS, limit), 1):
+        def test_examples(self, paths=paths):
+            out = _spread_runs(make_runs, paths, limit)
+            self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+        name = f"{prefix}{k}"
+        globals()[name] = type(name, (unittest.TestCase,), {
+            "__doc__": doc, "__module__": __name__, "test_examples": test_examples})
+
+
+class TestShardPlan(unittest.TestCase):
+    """``_shard_plan``: every script once, no job past the cap, the jobs
+    balanced; at the ``ci`` count, no single example outgrows a job."""
+
+    def test_every_script_once_and_no_job_past_the_cap(self):
+        sizes = {"a.py": 30, "b.py": 25, "c.py": 20, "d.py": 10, "e.py": 0, "f.py": 5}
+
+        def make(path, frames, limit=None):
+            return [None] * sizes[path], None
+
+        plan = _shard_plan(make, sorted(sizes), None, cap=40)
+        flat = [p for job in plan for p in job]
+        self.assertEqual(sorted(flat), ["a.py", "b.py", "c.py", "d.py", "f.py"])
+        self.assertEqual(len(plan), 3)                       # ceil(90 / 40)
+        self.assertTrue(all(sum(sizes[p] for p in job) <= 40 for job in plan))
+
+    def test_a_failing_plan_still_has_a_job(self):
+        def make(path, frames, limit=None):
+            raise OSError("no folder")
+        self.assertEqual(_shard_plan(make, ["x.py"], None), [["x.py"]])
+
+    def test_no_example_alone_outgrows_a_job(self):
+        # A script's runs share one job; past the cap it needs its runs split.
+        for make in (eq.e3_script_runs, eq.e15_script_runs):
+            for path in LAW_SCRIPTS:
+                n = len(make(path, 600, limit=None)[0])
+                with self.subTest(law=make.__name__, script=os.path.basename(path)):
+                    self.assertLessEqual(n, RUNS_PER_JOB)
+
+
 class TestSpawnOrder(unittest.TestCase):
     def test_shooter_twin(self):
         self.assertEqual(eq.e3_program(f"{TWINS}/shooter_order", WAIT, "wait"), [])
@@ -139,9 +216,10 @@ class TestSpawnOrder(unittest.TestCase):
                 out += eq.e3_program(program, ns, scenario, limit=None if FULL else 2)
         self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
-    def test_examples(self):
-        out = _spread_runs(eq.e3_script_runs, scripts(), None if FULL else 1)
-        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+
+
+_shard_classes("TestSpawnOrderExamples", eq.e3_script_runs,
+               """E3 on the examples, one job of at most ``RUNS_PER_JOB`` runs.""")
 
 
 # -- E15 ------------------------------------------------------------------------
@@ -160,9 +238,10 @@ class TestRuleNeutrality(unittest.TestCase):
                 out += eq.e15_program(program, ns, scenario, limit=None if FULL else 2)
         self.assertEqual(out, [], "\n".join(m[:800] for m in out))
 
-    def test_examples(self):
-        out = _spread_runs(eq.e15_script_runs, scripts(), None if FULL else 1)
-        self.assertEqual(out, [], "\n".join(m[:800] for m in out))
+
+
+_shard_classes("TestRuleNeutralityExamples", eq.e15_script_runs,
+               """E15 on the examples, one job of at most ``RUNS_PER_JOB`` runs.""")
 
 
 # -- E4 -------------------------------------------------------------------------
@@ -278,7 +357,7 @@ class TestPacing(unittest.TestCase):
         self.assertEqual(eq.e1_script(path, 600), [])
 
     def test_examples(self):
-        paths = [p for p in scripts() if os.path.basename(p) not in E1_EXCLUDED
+        paths = [p for p in LAW_SCRIPTS if os.path.basename(p) not in E1_EXCLUDED
                  and (FULL or os.path.basename(p) in E1_DEV)]
         self.assertTrue(paths)
 
@@ -322,7 +401,7 @@ class TestBoundOrClosure(unittest.TestCase):
         ns = load_spec("galaga_acts", "a")
         for scenario in (list(ns["SCENARIOS"]) if FULL else list(ns["SCENARIOS"])[:2]):
             out += eq.e6_program("galaga_acts", ns, scenario)
-        for p in scripts():
+        for p in LAW_SCRIPTS:
             with open(p, encoding="utf-8") as fh:
                 has = eq.bound_to_closure(fh.read())[1]
             if has:

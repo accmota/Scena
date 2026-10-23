@@ -76,6 +76,30 @@ def scripts(smoke: bool = False):
     return sorted(found)
 
 
+def translation_pairs():
+    """``(Portuguese example, its English twin)`` for each pair of the
+    tutorials' glossary (``tools/tutorial/names_en.json``) with both files in
+    ``examples/``."""
+    import json
+    with open(os.path.join(ROOT, "tools", "tutorial", "names_en.json"), encoding="utf-8") as fh:
+        names = json.load(fh).get("examples") or {}
+    folder = os.path.join(ROOT, "examples")
+    pairs = [(os.path.join(folder, pt), os.path.join(folder, en)) for pt, en in names.items()]
+    return sorted((pt, en) for pt, en in pairs if os.path.isfile(pt) and os.path.isfile(en))
+
+
+def law_scripts(profile: str):
+    """The examples a laws check runs. Below ``deep``, an English twin is left
+    out: it is its Portuguese example with every name renamed one to one
+    (``test_example_translations``), so the same program, and each law ran it
+    twice (WP33). ``deep`` runs both."""
+    found = scripts()
+    if profile == "deep":
+        return found
+    twins = {os.path.normpath(en) for _pt, en in translation_pairs()}
+    return [p for p in found if os.path.normpath(p) not in twins]
+
+
 def run_one(path):
     try:
         p = subprocess.run(
