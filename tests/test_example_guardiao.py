@@ -4,11 +4,13 @@ The claims of ``examples/guardiao.py``, played headless.
 The example says: the ship flies around the ring (one angle that is never
 wrapped, so the two lights that chase it never take the long way past
 360); it shoots outward, and a narrow radar pulls a shot onto an enemy almost
-in front; a Seta dies in one shot, a Mandala in three, a Cristal in five; an
+in front; a Seta dies in one shot, a Mandala in three, a Cristal in five; a
+shot Mina blows up the enemies around it, other mines in a chain; an
 enemy shot costs the ship (or the ring) one life, an enemy that reaches the
 ring costs the ring one; pills give double, fast and strong shots and a
 Portal shield for DURACAO seconds; the waves run one after the other to "O
-ANEL ESTÁ SALVO"; losing either life ends the game and R starts a fresh one.
+ANEL ESTÁ SALVO", and the camera turns only on the waves marked virar;
+losing either life ends the game and R starts a fresh one.
 
 Bug classes guarded: **an example that stops doing what its docstring says**
 while it still builds and runs, and **a power-up that never ends** (the
@@ -129,6 +131,22 @@ class TestGuardiaoShip(unittest.TestCase):
         self.assertTrue(hit[None], "the radar did not pull the shot")
 
 
+    def test_a_mine_takes_its_neighbours_and_the_next_mine(self):
+        with ProgramRun(PATH) as run:
+            ns, nave = quiet(run)
+            still(ns, "Mina", 90, 330)
+            still(ns, "Mina", 104, 360)          # inside the first blast
+            still(ns, "Seta", 80, 350)
+            still(ns, "Cristal", 96, 400)        # inside the second blast only
+            far = still(ns, "Mandala", 150, 330)
+            run.key_down("SPACE")
+            run.step(30)
+            run.key_up("SPACE")
+            run.step(30)
+            self.assertEqual(list(ns["group"]["inimigos"]), [far])
+            self.assertEqual(ns["st"].pontos, 20 + 20 + 10 + 50)
+
+
 class TestGuardiaoLives(unittest.TestCase):
     def test_an_enemy_shot_costs_the_ship_and_an_invader_costs_the_ring(self):
         with ProgramRun(PATH) as run:
@@ -137,7 +155,7 @@ class TestGuardiaoLives(unittest.TestCase):
             ns["Bala"](center=ns["no_anel"](90, 420), angle=-90)
             run.step(SECOND)
             self.assertEqual(st.vida, ns["VIDA_NAVE"] - 1)
-            ns["Seta"](center=ns["no_anel"](270, 420))
+            still(ns, "Seta", 270, 420)         # no shot of its own
             run.step(4 * SECOND)
             self.assertEqual(st.anel, ns["VIDA_ANEL"] - 1)
 
@@ -188,7 +206,7 @@ class TestGuardiaoPowers(unittest.TestCase):
         with ProgramRun(PATH) as run:
             ns, nave = quiet(run)
             st = ns["st"]
-            pilula = ns["Pilula"](ns["PILULAS"]["escudo"], center=ns["no_anel"](90, 380))
+            pilula = ns["Pilula"](ns["PILULAS"]["escudo"], center=ns["no_anel"](90, 260))
             pilula.poder = "escudo"
             run.step(3 * SECOND)
             self.assertIsNotNone(nave.escudo, "the pill was not picked up")
@@ -225,7 +243,7 @@ class TestGuardiaoWaves(unittest.TestCase):
                     held.discard(key)
 
             hold("SPACE", True)
-            turned = None
+            first = None
             for frame in range(150 * SECOND):
                 enemies = list(ns["group"]["inimigos"])
                 turn = 0
@@ -240,7 +258,7 @@ class TestGuardiaoWaves(unittest.TestCase):
                 hold("RIGHT", turn < 0)
                 run.step(1)
                 if frame == 4 * SECOND:
-                    turned = ns["canvas"].rotation
+                    first = ns["canvas"].rotation
                 if act().acabou:
                     break
             hold("SPACE", False)
@@ -248,8 +266,11 @@ class TestGuardiaoWaves(unittest.TestCase):
             hold("RIGHT", False)
             self.assertTrue(act().acabou, "the waves never ended")
             self.assertGreater(ns["st"].anel, 0, "vacuous: the ring fell")
-            self.assertAlmostEqual(turned, 90 - ns["ONDAS"][0][1], delta=1,
-                                   msg="the camera did not turn to the first attack")
+            turns = [onda[1] for onda in ns["ONDAS"] if onda[-1]]
+            self.assertEqual(len(turns), 2, "the table should turn the camera twice")
+            self.assertAlmostEqual(first, 0, delta=0.01, msg="the camera turned on wave 1")
+            self.assertAlmostEqual(ns["canvas"].rotation, 90 - turns[-1], delta=1,
+                                   msg="the camera did not turn to the last marked wave")
             self.assertGreater(ns["st"].pontos, 500)
             run.step(3 * SECOND)
             self.assertEqual(count(ns, "inimigos"), 0)

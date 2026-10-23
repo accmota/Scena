@@ -2,13 +2,18 @@
 
 Um anel de luz flutua no espaço, com uma luz viva no meio. A nave do
 guardião voa em volta do anel e atira para fora; ondas de inimigos
-geométricos saem de portais, e a câmera vira para o lado do ataque.
+geométricos saem de portais. Duas vezes no jogo a câmera vira para o lado
+do ataque; as marcas em volta, como num relógio, mostram para onde ela virou.
 
 Duas vidas: a da nave e a do anel. Se uma delas acaba, o jogo acaba.
 
 Os ataques vêm em ondas, escritas numa tabela (ONDAS): de que lado vem,
-que inimigo, quantos, o zoom da câmera, o brilho da tela e quando a
-próxima onda começa. Para inventar uma onda, escreva mais uma linha.
+que inimigo, quantos, o zoom da câmera, o brilho da tela, quando a
+próxima onda começa e se a câmera vira. Para inventar uma onda, escreva
+mais uma linha.
+
+A mina não atira: só desce devagar. Um tiro nela faz uma grande explosão
+que destrói os inimigos em volta, e outras minas explodem em cadeia.
 
 Às vezes um inimigo destruído solta uma pílula. Ela desce para o anel;
 passe com a nave por cima dela para pegar um poder por alguns segundos:
@@ -50,23 +55,24 @@ from scena import *
 init(width=1280, height=800, title="Guardião do Anel")
 
 CENTRO = Vec2(640, 400)
-RAIO = 230          # o meio do anel
-LARGURA = 26        # a largura do anel
-ORBITA = RAIO + 36  # a nave voa por fora do anel, logo acima da borda
-PORTA = 560         # a distância do centro de onde os inimigos saem
+RAIO = 115          # o meio do anel
+LARGURA = 16        # a largura do anel
+ORBITA = RAIO + 26  # a nave voa por fora do anel, logo acima da borda
+PORTA = 440         # a distância do centro de onde os inimigos saem
 VIDA_NAVE = 12
 VIDA_ANEL = 20
 GIRO = 160          # graus por segundo
-AFASTAMENTO = 16    # graus entre a nave e cada luz
+AFASTAMENTO = 24    # graus entre a nave e cada luz
 CADENCIA = 0.2      # segundos entre dois tiros
 DURACAO = 12        # segundos que um poder dura
 MIRA = 5            # a abertura do radar de cada tiro, em graus
+ESTOURO = 130       # o raio da explosão de uma mina
 
-# O céu: nuvens que giram devagar e filamentos por cima. Os dois viram um
-# pouco com a câmera, e o fundo parece estar longe.
+# O céu: nuvens que giram devagar e filamentos por cima. Os dois viram com
+# a câmera, como o resto do mundo.
 ChurningClouds(color="royal blue", color2="dark magenta", alpha=0.7,
-               speed=0.25, rotation_response=0.3)
-FilamentField(color="teal", alpha=0.45, rotation_response=0.5)
+               speed=0.25, rotation_response=1)
+FilamentField(color="teal", alpha=0.45, rotation_response=1)
 brilho = Bloom(intensity=0.6)
 Vignette()
 
@@ -82,18 +88,26 @@ for r in (RAIO - LARGURA / 2, RAIO + LARGURA / 2):
     Circle(center=CENTRO, radius=r, visual=Halo("cyan", style="line"))
 
 
+# Marcas fixas em volta, como as horas de um relógio: quando a câmera vira,
+# elas viram junto e mostram para onde.
+for hora in range(12):
+    tamanho = 6 if hora % 3 == 0 else 3
+    Circle(center=CENTRO + vec_from_angle(30 * hora, 330), radius=tamanho,
+           color=Color("white").with_alpha(0.35))
+
+
 # O núcleo: quatro luzes dançam em oitos que se cruzam no centro. Onde
 # elas se encontram, as cores somam e a luz fica branca.
 CORES = ["magenta", "cyan", "gold", "lime"]
 LUZES = []
 for i in range(4):
-    oito = Track.eight(width=260, height=90, center=CENTRO, angle=45 * i)
+    oito = Track.eight(width=130, height=45, center=CENTRO, angle=45 * i)
     guia = Point(CENTRO.x, CENTRO.y)
     guia.move_along(oito, time=4 + 1.3 * i, loops="forever")
-    LUZES.append(GlowSpot(center=lambda guia=guia: guia.center, radius=54,
+    LUZES.append(GlowSpot(center=lambda guia=guia: guia.center, radius=32,
                           color=CORES[i]))
-nucleo = Orb(center=CENTRO, radius=16, color="white", glow=1.4)
-tween(nucleo["radius"], 20, time=3, loops="forever", yoyo=True, ease="ease_in_out")
+nucleo = Orb(center=CENTRO, radius=10, color="white", glow=1.4)
+tween(nucleo["radius"], 12, time=3, loops="forever", yoyo=True, ease="ease_in_out")
 
 
 # O núcleo mostra a vida do anel: as luzes apagam e o centro avermelha.
@@ -201,12 +215,12 @@ class Nave(Triangle, group="nave"):
         self["color"] @= lambda: cor_da_nave(0.85)
         self.glow = True
         self.asa = Triangle(center=lambda: self, angle=lambda: self.angle,
-                            radius=19, base_ratio=1.35)
+                            radius=16, base_ratio=1.35)
         self.asa["color"] @= lambda: cor_da_nave(0.45, alpha=0.6)
         # as duas luzes seguem a nave, uma de cada lado, com atraso
         self.luz_a = self.luz_b = self.angulo
-        self.luzes = [GlowSpot(radius=22, color="aqua"),
-                      GlowSpot(radius=22, color="aqua")]
+        self.luzes = [GlowSpot(radius=18, color="aqua"),
+                      GlowSpot(radius=18, color="aqua")]
         self.faiscas = None
         # quantos segundos falta para cada poder acabar (0 = desligado)
         self.poderes = {"duplo": 0, "rapido": 0, "forte": 0, "escudo": 0}
@@ -242,7 +256,7 @@ class Nave(Triangle, group="nave"):
                 self.recarga = CADENCIA
 
     def atirar(self, angulo):
-        origem = no_anel(angulo, ORBITA + 40)
+        origem = no_anel(angulo, ORBITA + 34)
         # a mira ajuda: um radar estreito na frente do tiro (2,5 graus para
         # cada lado); se pega um inimigo, o tiro vai no mais perto
         alvos = collision.query_sector(origem, angle=angulo, radius=800,
@@ -259,7 +273,7 @@ class Nave(Triangle, group="nave"):
         self.pop(scale=1.4)
         if poder == "escudo" and self.escudo is None:
             # o escudo é um portal em volta do anel e da nave
-            self.escudo = Portal(center=CENTRO, radius=ORBITA + 60,
+            self.escudo = Portal(center=CENTRO, radius=ORBITA + 55,
                                  color="orange red", amount=1.2, group="escudo")
 
     def ferir(self):
@@ -271,7 +285,7 @@ class Nave(Triangle, group="nave"):
 
     @when(lambda self: st.vida <= 3)
     def avariada(self):
-        self.faiscas = Sparks(center=lambda: self.center, radius=22, rate=60,
+        self.faiscas = Sparks(center=lambda: self.center, radius=18, rate=60,
                               amount=1.5, color="orange")
 
     @when(lambda self: st.vida <= 0)
@@ -299,7 +313,7 @@ class Bala(Sprite, source="space/laserRed01.png", height=26, art_angle=90,
 class Raio(Sprite, source="space/laserGreen02.png", height=34, art_angle=90,
            group="balas"):
     def on_update(self, dt):
-        self.move_by(distance=420 * dt)
+        self.move_by(distance=480 * dt)
 
 
 @collide("balas", "nave")
@@ -323,10 +337,12 @@ def acertou(tiro, inimigo):
     if not tiro.atravessa:
         tiro.destroy()
     inimigo.vida -= tiro.dano
-    inimigo.flash()
-    inimigo.scale_by(0.92)          # cada tiro encolhe um pouco
     if inimigo.vida <= 0:
         destruir(inimigo)
+    else:
+        canvas.hit_at(tiro, color="white")
+        inimigo.flash()
+        inimigo.scale_by(0.92)      # cada tiro encolhe um pouco
 
 
 def destruir(inimigo):
@@ -341,6 +357,7 @@ def destruir(inimigo):
 @collide("balas", "escudo")
 def bala_no_escudo(bala, escudo):
     bala.destroy()
+    canvas.hit_at(bala, style="disc", color="orange")
 
 
 @collide("inimigos", "escudo")
@@ -362,7 +379,7 @@ def trombou(inimigo, nave):
 
 # Seta: um triângulo fino com outro dentro, ao contrário. Voa reto para o
 # anel, atira uma vez no caminho e se joga no anel.
-class Seta(Triangle, radius=18, base_ratio=0.75, color="tomato",
+class Seta(Triangle, radius=26, base_ratio=0.8, color="tomato",
            group="inimigos"):
     vida = 1
     pontos = 10
@@ -370,12 +387,12 @@ class Seta(Triangle, radius=18, base_ratio=0.75, color="tomato",
     def setup(self):
         self.angle = heading(self, CENTRO)
         self.miolo = Triangle(center=lambda: self, angle=lambda: self.angle + 180,
-                              radius=7, color="gold")
-        if chance(0.5):                  # só metade das setas atira
+                              radius=10, color="gold")
+        if chance(0.7):                  # nem toda seta atira
             self.after(uniform(1.2, 2), self.atirar)
 
     def on_update(self, dt):
-        self.move_by(distance=110 * dt)
+        self.move_by(distance=140 * dt)
 
     def atirar(self):
         Bala(center=self.center, angle=self.angle)
@@ -402,8 +419,8 @@ class Mandala(RegularPolygon, n=5, radius=30, group="inimigos"):
         self.luz = GlowSpot(center=lambda: self.center, radius=46,
                             color="medium purple", amount=0.4)
         lado = heading(CENTRO, self) + uniform(-30, 30)   # cada uma num lugar
-        self.move_to(no_anel(lado, 400), time=3, ease="ease_out")
-        self.every(2.2, self.atirar)
+        self.move_to(no_anel(lado, 300), time=3, ease="ease_out")
+        self.every(1.8, self.atirar)
         self.after(12, lambda: self.move_to(CENTRO, speed=40))   # depois, desce
 
     def on_update(self, dt):
@@ -414,7 +431,8 @@ class Mandala(RegularPolygon, n=5, radius=30, group="inimigos"):
             Bala(center=self.center, angle=self.angle + 72 * i)
 
     def explodir(self):
-        canvas.fireworks_at(self, color="violet", radius=70)
+        canvas.burst_at(self, radius=60, amount=6)
+        canvas.fireworks_at(self, color="violet", radius=80)
         self.destroy()
 
     def on_destroy(self):
@@ -433,7 +451,7 @@ class Cristal(RegularPolygon, n=6, radius=30, group="inimigos"):
         self.miolo = Triangle(center=lambda: self, angle=lambda: -self.angle,
                               radius=13, color="aquamarine")
         self.move_to(CENTRO, speed=30)
-        self.every(2.5, self.atirar)
+        self.every(2.0, self.atirar)
 
     def on_update(self, dt):
         self.rotate_by(30 * dt)
@@ -445,34 +463,65 @@ class Cristal(RegularPolygon, n=6, radius=30, group="inimigos"):
 
     def explodir(self):
         canvas.debris_at(self, color="turquoise", radius=60)
-        canvas.burst_at(self, radius=40)
+        canvas.burst_at(self, radius=60, amount=6)
         self.destroy()
 
     def on_destroy(self):
         self.miolo.destroy()
 
 
+# Mina: um círculo com anéis que pulsam devagar. Não atira; só desce. Um
+# tiro nela faz uma grande explosão que destrói os inimigos em volta, e as
+# outras minas no caminho explodem também, em cadeia.
+class Mina(Circle, radius=20, color="dark red", group="inimigos"):
+    vida = 1
+    pontos = 20
+
+    def setup(self):
+        self.visual = Halo("orange red", style="pulse", rings=2, speed=0.5)
+        self.move_to(CENTRO, speed=22)
+
+    def explodir(self):
+        onde = (self.center.x, self.center.y)
+        self.destroy()      # sai antes, para a explosão em cadeia não voltar nela
+        canvas.burst_at(onde, radius=ESTOURO, amount=6)
+        canvas.ripple_at(onde, amount=0.6, radius=2 * ESTOURO)
+        for vizinho in collision.query_circle(onde, radius=ESTOURO, group="inimigos"):
+            if not vizinho.active:          # outra mina da cadeia já levou
+                continue
+            st.pontos += vizinho.pontos
+            if isinstance(vizinho, Mina):
+                vizinho.explodir()
+            else:
+                canvas.debris_at(vizinho, color="silver", radius=50)
+                vizinho.destroy()
+
+
 # As ondas. lado: de onde vêm (o ângulo no anel); None = de todos os lados.
 # cada: segundos entre um inimigo e outro. claridade: a força do Bloom.
 # fim: "limpar" espera todos morrerem; um número espera esses segundos (ou
-# todos morrerem); 0 emenda a próxima onda nesta.
+# todos morrerem); 0 emenda a próxima onda nesta. virar: a câmera vira o
+# lado do ataque para cima (aqui, duas vezes no jogo todo).
 ONDAS = [
-    # nome               lado  tipo   quantos  cada  zoom claridade fim
-    ("Setas do norte",     90, Seta,        8, 0.5,  0.8,  0.5, "limpar"),
-    ("Mandalas",          210, Mandala,     3, 1.5,  0.72, 0.9, 12),
-    ("Setas do sul",      270, Seta,       10, 0.35, 0.8,  0.6, 0),
-    ("Cristais",          330, Cristal,     3, 2.5,  0.75, 0.7, "limpar"),
-    ("Cerco",            None, Seta,       16, 0.3,  0.65, 0.8, 10),
-    ("Coroa",            None, Mandala,     5, 1.0,  0.65, 1.0, "limpar"),
-    ("Cristais do leste",   0, Cristal,     4, 1.5,  0.72, 1.2, 0),
-    ("E mais setas",      180, Seta,       12, 0.3,  0.72, 1.2, "limpar"),
+    # nome               lado  tipo   quantos cada  zoom claridade fim  virar
+    ("Setas do norte",     90, Seta,      14, 0.4,  0.95, 0.5, "limpar", False),
+    ("Mandalas",          210, Mandala,    5, 1.2,  0.9,  0.9, 12,       False),
+    ("Setas do sul",      270, Seta,      16, 0.3,  0.95, 0.6, 0,        False),
+    ("Cristais",          330, Cristal,    5, 2.0,  0.9,  0.7, "limpar", True),
+    ("Campo minado",       30, Mina,       7, 0.5,  0.9,  0.6, 0,        False),
+    ("Setas no campo",     30, Seta,      16, 0.3,  0.9,  0.8, "limpar", False),
+    ("Cerco",            None, Seta,      28, 0.2,  0.8,  0.8, 10,       False),
+    ("Coroa",            None, Mandala,    8, 0.8,  0.8,  1.0, "limpar", False),
+    ("Cristais do leste",   0, Cristal,    6, 1.2,  0.85, 1.2, 0,        True),
+    ("Minas e setas",     180, Mina,       5, 0.6,  0.85, 1.0, 0,        False),
+    ("E mais setas",      180, Seta,      20, 0.25, 0.85, 1.2, "limpar", False),
 ]
 
 
 def chegar(tipo, lado):
     if lado is None:
         lado = uniform(0, 360)
-    tipo(center=no_anel(lado + uniform(-5, 5), PORTA))
+    tipo(center=no_anel(lado + uniform(-15, 15), PORTA))
 
 
 def anunciar(texto):
@@ -485,14 +534,14 @@ def anunciar(texto):
 def abrir_portal(lado):
     if lado is None:
         return Portal(center=CENTRO, radius=PORTA, color="medium purple", amount=0.7)
-    return Portal(center=no_anel(lado, PORTA), radius=70, tilt=60, angle=lado + 90,
+    return Portal(center=no_anel(lado, PORTA), radius=120, tilt=60, angle=lado + 90,
                   color="magenta")
 
 
 class Jogo(Act):
     def setup(self):
-        canvas.zoom_to(0.8)
-        self.nave = Nave(radius=34, base_ratio=0.55)
+        canvas.zoom_to(0.95)
+        self.nave = Nave(radius=28, base_ratio=0.55)
         self.placar = Text("", top_left=(24, 780), color="white")
         self.placar["text"] @= lambda: (
             f"NAVE {st.vida}     ANEL {st.anel}     PONTOS {st.pontos}")
@@ -504,22 +553,25 @@ class Jogo(Act):
     async def diretor(self):
         await wait(1.5)
         for numero, onda in enumerate(ONDAS):
-            nome, lado, tipo, quantos, cada, zoom, claridade, fim = onda
+            nome, lado, tipo, quantos, cada, zoom, claridade, fim, virar = onda
             anunciar(f"ONDA {numero + 1}   {nome}")
             st.brilho = claridade
-            # a câmera vira o lado do ataque para cima e aproxima ou afasta
+            # a câmera aproxima ou afasta, e anda um pouco para o lado do ataque
             canvas.zoom_to(zoom, time=2, ease="ease_in_out")
             if lado is None:
                 canvas.pan_to(CENTRO, time=2, ease="ease_in_out")
-                canvas.rotate_by(45, time=2, ease="ease_in_out")
             else:
-                canvas.pan_to(no_anel(lado, 120), time=2, ease="ease_in_out")
+                canvas.pan_to(no_anel(lado, 80), time=2, ease="ease_in_out")
+            if virar:
                 canvas.rotate_to(90 - lado, time=2, ease="ease_in_out")
-            # um vento de cima para baixo avisa que o ataque vem
-            vento = WindStreaks(angle=-90, density=0.9, alpha=0.6)
-            self.after(2.5, vento.remove)
             await wait(2)
 
+            # um vento sopra do lado do ataque para o anel (na tela, o ângulo
+            # inclui o giro da câmera)
+            if lado is not None:
+                vento = WindStreaks(angle=lado + 180 + canvas.rotation,
+                                    density=0.9, alpha=0.6)
+                self.after(2.5, vento.remove)
             portal = abrir_portal(lado)
             for i in range(quantos):
                 chegar(tipo, lado)
@@ -534,7 +586,7 @@ class Jogo(Act):
             else:
                 await race(wait(fim), until_empty("inimigos"))
         await until_empty("inimigos")
-        canvas.fireworks_at(CENTRO, color="cyan", radius=200)
+        canvas.fireworks_at(CENTRO, color="cyan", radius=160)
         Embers(color="gold", density=1.5)
         self.terminar("O ANEL ESTÁ SALVO")
 
