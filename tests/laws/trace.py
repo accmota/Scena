@@ -216,7 +216,14 @@ class Recorder:
         try:
             self._refs[id(obj)] = weakref.ref(obj)
         except TypeError:
+            # Without a weak reference a freed object's id passes its label to
+            # the next object of the type at that address: a cancel of a
+            # Handle the probe never labelled read as an old handle's, in one
+            # run of a pair and not the other (WP35).
             self._refs.pop(id(obj), None)
+            msg = f"labels a {t.__qualname__}, which has no weak reference: add __weakref__"
+            if msg not in self.errors:
+                self.errors.append(msg)
         return label
 
     def dump(self, path: str) -> None:

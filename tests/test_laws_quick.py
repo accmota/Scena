@@ -154,6 +154,36 @@ class TestLabelsFollowTheObject(unittest.TestCase):
             self.skipTest("the allocator never reused the id")
         self.assertIsNone(rec.label_of(other))
 
+    def test_a_reused_handle_id_does_not_inherit_a_label(self):
+        # WP35: Handle had no weak reference, so the check above passed it by;
+        # a timer on a destroyed actor (cancelled inside Scheduler.add, before
+        # the probe labels it) read as a freed handle's cancel when it landed
+        # at its address: an idle-rewrite diff in some processes only.
+        from scena.process import Handle
+        rec = trace.Recorder()
+        first = object.__new__(Handle)
+        rec._new_label(first, "Handle:after", "g.py:1")
+        old = id(first)
+        del first
+        for _ in range(10000):
+            other = object.__new__(Handle)
+            if id(other) == old:
+                break
+            del other
+        else:
+            self.skipTest("the allocator never reused the id")
+        self.assertIsNone(rec.label_of(other))
+        self.assertEqual(rec.errors, [])
+
+    def test_a_label_on_a_type_without_a_weak_reference_is_an_error(self):
+        class Slotted:
+            __slots__ = ("x",)
+        rec = trace.Recorder()
+        rec._new_label(Slotted(), "Slotted", "g.py:1")
+        rec._new_label(Slotted(), "Slotted", "g.py:2")
+        self.assertEqual(len(rec.errors), 1)
+        self.assertIn("Slotted", rec.errors[0])
+
     def test_a_live_object_keeps_its_label(self):
         class Thing:
             pass
