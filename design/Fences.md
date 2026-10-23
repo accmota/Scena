@@ -11,6 +11,10 @@ API a row below forbids without evidence that matches the **Revisit** bar.
 
 | Don't | Revisit | Where |
 | --- | --- | --- |
+| `SpatialFx.fade_in` / `fade_out` verbs | A fade `tween(fx["amount"], 0, time=1)` cannot express (the knobs are fields since 2026-10-23) | [Testing — SH](Testing%20Design.md#sh--showcase-builds-2026-10-23) |
+| `@=` / `tween` on post effects and backgrounds (`bloom["intensity"]`); `.after()` on a post | A taught effect that assigning in `update(dt)` / `after(1, bloom.remove)` cannot express; the bracket refuses naming the spelling | [Testing — SH](Testing%20Design.md#sh--showcase-builds-2026-10-23) |
+| `Polygon(angle=)` in the constructor; `Circle(fill=None)` / `line=None` keywords; Rect bottom anchors at construction | A taught shape that `.angle = …` after it, `visual=Stroke(…)` or `p1=` / `p2=` cannot express | [Testing — SH](Testing%20Design.md#sh--showcase-builds-2026-10-23) |
+| `line_cap="project"` as an alias of `"butt"` | Never before 1.0 (the retired spelling raises with the fix) | [Scena — Compatibility](Scena%20Design.md#compatibility-and-versions) |
 | `Text.flip_x` / `flip_y = True` (mirrored text) | A use where mirrored text reads — none known; each flip would need its own frame convention on Text | [Canvas — Text placement](Canvas%20Design.md) |
 | `group["…"].every` / `.on_update` / `every(..., group=)` | A script-level `every` + Director cannot express | [Actors — Group fences](Actors%20Design.md#group-fences) |
 | `every(0)` / `EVERY_FRAME` as a per-frame hook | A script needs per-frame work that is cancellable, mode-scoped, or named, and `on_update` + `update(dt)` cannot express it | [Actors — every is seconds](Actors%20Design.md#every-is-seconds-not-frames) |

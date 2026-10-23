@@ -3868,6 +3868,55 @@ made thick (`line_width=112`, `group="asfalto"`) and hidden, asked with
 | EX4 | A `SpriteButton` with `.glow` or `.shadow` on the `ui` layer (the default) drew no label and no hover / press feel: the chosen track's button glowed with no name on it | `b = SpriteButton(art, label="OK"); b.glow = True` → the button glows, the label is gone | `_draw_ui_objects` (orchestration) sent every object with a fill / line ImageFilter to `_draw_fill_only`, which paints the body alone; the world layers ask `_must_solo_draw` first and call `obj.draw` | `TestDrawRoutes.test_glow_takes_the_filtered_route` drove `_draw_layer_batched` (a world pass) only; no test drew a filtered button through the ui pass | The ui pass sends a `_must_solo_draw` object with filters to `o.draw` (with the engine's canvas pointed at the ui canvas, so `_draw_filtered_one` still renders the glow). Guard: `test_sprite_button.TestDrawRoutes.test_ui_layer_draws_a_glowing_or_shadowed_button_whole` |
 | EX1 | A hidden styled Track was collected: its group emptied and every query missed, so every car drove at grass speed on the asphalt. A hidden `Rect` / `Circle` / `Line` stays. When it went depended on the collector (the track sits in a reference cycle), so the same game worked in one run and not in another | `t = Track(points=[(0, 0), (500, 0)], line_width=50, group="g"); t.visible = False; del t; gc.collect()` → `group["g"]` empty | `Track.visible = False` took a track built on a layer off it ("so the idle overlay does not scan it"), and the constructor put a styled `visible=False` track on no layer: off its layer, nothing holds a Track (the bare motion path rule) | The reclaim tests covered bare tracks and shown styled ones, never a hidden styled one; a game that keeps the track in a variable never sees it | A styled track keeps its layer while hidden (the setter only undoes a `visible = True` promotion; the constructor counts styling for the layer). Guards: `test_track.TestHiddenStyledTrackIsKept` (both ways of hiding; a forced `gc.collect()`; the query still hits), `test_example_corrida` (the asphalt, after a `gc.collect()`) |
 
+### SH — showcase builds (2026-10-23)
+
+Found while building fourteen showcase programs (the twelve in `examples/`,
+plus `guardiao.py` and one draft); every item was verified headless or in a
+GL window (interleaved A/B, no perf regression) before a
+change. Bug classes: **a value the bracket cannot reach**, **a world point used
+on the picture without the camera's map**, **a draw cost that only a turned or
+moving picture pays**, **a refusal that names no fix**. Commits on main
+2026-10-23 ("Showcase findings, batch 1" … "Guia: Track points copy a Point").
+
+| ID | Finding | Outcome | Cause / reason | Guard |
+| --- | --- | --- | --- | --- |
+| SH-A1 | A Track styled after construction stays invisible | By design; Guia `color` row says `visible = True` | Only constructor styling puts a track on a layer (its lifetime, [Tracks](Tracks%20Design.md)) | Guia |
+| SH-A2 | Post `target=` / `center=` / `origin=` and the mouse ignored the camera and the letterbox | Fixed | Design coords mapped straight to the framebuffer (`_world_to_view`, `_view_to_fb`) | `test_post_targets_camera` |
+| SH-A3 | `Track.wave(start=, angle=)` turned about its middle | Fixed | `start=` ignored the angle (`_line_center_from_p1`); a test had pinned the bug | `test_track.TestRotationCtor` |
+| SH-A4 | `Track(points=callable)` said "needs at least 2 points" | Refused like Polygon; Guia row reworded | The list is fixed; each point links | `test_track` |
+| SH-A5 | Shapes without `center=` ignore `set_origin("center")` | By design; Guia says "centre of the world" | The default is the design centre, in world coords ([Shapes](Shapes%20Design.md)) | Guia |
+| SH-A6 | `fill_filter=Blur` dropped `.blend` | Fixed | The filter layer composited with srcOver | `test_filter_blend` |
+| SH-A7 | Leak warning on parts that grow (a polygon given a side each wave) | Fixed | Graph counted parts, objects did not; now the live roster, and a roster-only climb warns only off screen ([Scena Design](Scena%20Design.md)) | `test_leak_detector` |
+| SH-A8 | Scrolling / parallax layers never culled | Fixed | Exempt; now culled against `layer.view` | `test_cull.TestParallaxAndScrollLayers`, `test_diff_draw.TestCullIsConservative` |
+| SH-A9 | A camera verb retargeted in flight warned (and a second `fade_to`) | Fixed | `_camera_tween` and sound fades never preempted their keys | `test_canvas.TestTimedCamera`, `test_audio.TestFades` |
+| SH-A10 | Objects a pre-`run()` task makes survive `change_act` | By design (F2, L6); Guia and [Actors — Tasks](Actors%20Design.md#tasks) say so | | Guia |
+| SH-A11 | A sound Handle's `.level` ignored `.volume` | Fixed | The voice meter read the source before its gains | `test_audio.TestAnalysis` |
+| SH-A12 | Neon on two closed Tracks filled the disks | Fixed | The grouped pass filled every non-Line host | `test_look_group_body` |
+| SH-B1 | `fx["amount"] @=` silently dead; `tween` raised "the field itself" (tutorial 23) | Fixed: SpatialFx float knobs and `Portal.angle` are ScalarSlots; a bracket moves a plain pre-construction value into ink | [Reactive — the bracket reaches the value](Reactive%20Design.md) | `test_fx_knobs` |
+| SH-B2–B8 | Post / background brackets, `lerp` tuple vs Vec2, `Fire(color=)`, a read after a call in a formula, `await canvas.fade_out`, `change_act` in a pre-run task | Fixed (messages; `lerp` and the formula walk now work) | | `test_showcase_messages`, `test_lerp`, `test_formula_functions`, `test_act` |
+| SH-B5 | A formula reading its own object gave the generic circular message | Fixed: parts and built-in fields get the AC14 limit with the right way out | | `test_fieldref.TestOwnSizeReadIsAKnownLimit` |
+| SH-C | `line_cap="project"` drew butt | Breaking: `round` / `butt` / `square`, `"project"` raises | Reverse of Processing's PROJECT | `test_showcase_messages.TestLineCapNames` |
+| SH-C | `Contrail(layer=)`, `mic.available` | Added | Parked until a sample needed it | `test_history.TestContrailLayer`, `test_audio_capture` |
+| SH-C | `Plasma(res_scale=)` | Not added; the Guia note scoped to the backgrounds that take it | | Guia |
+| SH-C | Declined requests (see [Fences](Fences.md)) | Track `visible @=`, shape `alpha` link, `Polygon(angle=)`, `fill=None` / `line=None` keywords, posts and backgrounds as fields, `.after()` on posts, `SpatialFx.fade_in`, Rect / Text bottom anchors, a `move_along` handle's `.u` as a source, a Track window reading its own `u` (AC14) | Each refusal names the spelling that works | `test_showcase_messages` |
+| SH-C | `Track.star` radius link, `Contrail.visible` | Deferred until a program needs them | | |
+| SH-D1, D2, D3 | Turned concave / thick paths slow (pose or camera); rotating Polygon ~10× | Fixed for paths ≥ 200 px on screen (`entity._draw_path` bakes the matrix); Polygon's vertex turn inlined; spinning thick strokes stay Skia's cost (MSAA parked) | Skia's slow route under a non-axis-aligned matrix ([Shapes](Shapes%20Design.md)) | `test_rotated_path_draw`, `test_polygon_turn` |
+| SH-D4, D5 | A colour formula rebuilt both paints a frame; a resized gradient rebuilt its paint | Fixed: recolour / reshade in place (19 % a frame for 126 triangles) | [Effect System](Effect%20System%20Design.md) | `test_color_link_paint`, `test_gradient` |
+| SH-D6 | Glowing captions off screen built a Glow a cull | Fixed (memo per glow); on-screen glyph glow ~20 µs a letter in GL, not the 1 ms reported | | `test_text.TestGlowMetricsFollowTheGlow` |
+| SH-D7 | Track windows / lambda points | Windowed circles not reproduced (0.26 ms for 12 moving); window span by bisection; a Track built from Points cost 3× a tuple one (fixed: unlinked vertices keep their read cache). A growing `end` redraws a new path each frame (Skia's cost); lambda points re-read their formula every read (~3.5 µs a point a frame), by design: it catches fast-path moves, and a cache would need a write epoch on every write path | | `test_track` |
+| SH-D8 | Track modifiers re-baked on the same values | Fixed | | `test_track.TestModifiers` |
+| SH-D9 | Internal `getattr` probes took the slow ink path | Fixed (`state.probe_private`) | [Actors — Ink](Actors%20Design.md) | |
+| SH-D10 | "Function-call formulas re-pulled every frame; a live Point in `points=` links" | Not reproduced: no re-run while still; a Point / Vec2 in `points=` is a snapshot (Guia row says so) | | |
+| SH-D11 | Looks: Tracer on 16 big circles 4.6 ms (7.2 at zoom 2), ElectricBolt on one big circle 3.4 ms, ElectricField on a long track 2.3 ms; Rim / Gel cheap | Documented cost | A new path effect every frame (dash phase, jitter): Skia re-dashes and re-tessellates the outline; cost ∝ outline length on screen. Candidate fixes change the look (a cached dashed circle turned instead of a moving phase) | |
+| SH-D12 | Other costs (a post ~1–2 ms at 2×, full-screen multiply, Rain, `.tail`, Starburst, hover while the camera moves, link creation ~130 µs a link) | Documented cost | Hover must re-test while the camera moves (what is under the pointer changes); link creation parses the formula once | |
+| SH-E | GodRays defaults washed the picture out | Defaults 0.08 / 0.9 / 0.8 | 8 taps over the whole way to the light repeat bright objects ([Effect System](Effect%20System%20Design.md)) | |
+| SH-E | Large `orbit` / `zigzag` faceted | Fixed: samples a loop by chord tolerance | | `test_track.TestModifiers` |
+| SH-E | `wave_at` grey line, `zap_at` corona, gold under Bloom | Open: look decisions for the author | | |
+| SH-F | `Track.eight` drew height / 2 | Fixed: spans `width` × `height`; showcase eights halved | | `test_track.TestPresetSizes` |
+| SH-F | `"x" in st` | Refuses naming `st.exists("x")` | One spelling | `test_showcase_messages` |
+| SH-F | Transients only hide; the watchdog trips on a long building step; an `st` tween from a game task outlives `change_act`; a Text anchor read adds a Point | By design; Guia notes; the watchdog message names "build in pieces" | | Guia |
+| SH-L | `Lamp(radius=, range=)` were post-image pixels (changed with screen and `post_fx_scale`); `Spotlight(range=)` ignored zoom | Fixed: design units mapped like positions (`_length_to_fb`) | | `test_post_targets_camera` |
+
 ### Open (found, not yet fixed)
 
 | Found in | Issue | Planned |
