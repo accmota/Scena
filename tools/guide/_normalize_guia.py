@@ -471,7 +471,7 @@ def main() -> None:
     html = open_signature_details(html)
     html = add_more_links(html)
     html = search_empty_focus(html)
-    HTML.write_text(html, encoding="utf-8")
+    HTML.write_text(html, encoding="utf-8", newline="\n")
     print("gravado", HTML.name, "chars", len(html))
 
 

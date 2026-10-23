@@ -1202,7 +1202,7 @@ def main() -> None:
         "<code>visible=False</code> esconde e o objeto continua. <code>destroy()</code> remove — a referência que você guarda deixa de ser um objeto vivo.",
     )
 
-    HTML.write_text(text, encoding="utf-8")
+    HTML.write_text(text, encoding="utf-8", newline="\n")
     print(f"wrote {HTML.name}: {orig_len} → {len(text)} chars")
 
 
