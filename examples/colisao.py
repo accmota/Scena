@@ -82,7 +82,7 @@ visao = Line(p1=vigia.center, p2=heroi.center, color="gold")
 
 def olhar():
     vigia.rotate_to(heading(vigia.center, heroi.center))
-    batida = collision.raycast(vigia, p2=heroi)
+    batida = collision.raycast(vigia, p2=heroi, group=["heroi", "caixa"])
     if batida:
         coisa, t, ponto = batida
         visao.p2 = ponto

@@ -1,0 +1,3536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duel — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "31",
+  title: "Duel",
+  steps: [
+    {
+      title: "The arena",
+      body: `
+        <p>A new game, for two people on the same keyboard: two ships, one on each side of a closed arena, trading laser shots. The screen does not scroll; everything happens inside it.</p>
+        <p>The arena comes from a level file, as in Ninja III (26): <code>media/levels/duel.json</code>, made in the level editor. It holds the four walls, the curved corners, two rocks and a few named points. The code decides what each item becomes. In the middle, a <code>Warp</code>: a whirlpool that, a few steps from now, will pull the shots.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "Stardust(",
+          text: "The background: <code>Stardust</code>, a two-color space dust that drifts slowly."
+        },
+        {
+          at: "ColorWash(",
+          text: "A screen effect: <code>ColorWash</code> passes patches of color, very faint (<code>amount=0.25</code>), over everything. It belongs to no object; it applies to the whole screen."
+        },
+        {
+          at: "level = Level(",
+          text: "<code>Level</code> only reads the file; it creates nothing on the screen. You ask for things by the names they have in the editor: <code>level[\"hole\"]</code> is the point with that name, <code>level.group(\"wall\")</code> is the list of the items in that group."
+        },
+        {
+          at: "EDGE = 60",
+          text: "A name for the radius of the <code>Warp</code>. It comes back in the step where the Warp starts to pull."
+        },
+        {
+          at: "item.make(color=\"#2b3a55\")",
+          text: "<code>make()</code> creates the shape as it was drawn in the editor. The <code>wall</code> group holds four rectangles and four <code>Concave</code> shapes: a box with a piece of a circle cut out of it. In the corners, they round the arena off from the inside."
+        },
+        {
+          at: "rock.fill =",
+          text: "The rocks are smooth closed tracks (<code>Track</code>) with a thick line. A <code>fill</code> paints the inside, and the line becomes the edge of the rock."
+        },
+        {
+          at: "Warp(center=HOLE",
+          text: "An effect that lives in the world, at a point and with a radius, like the <code>Jet</code> in Ships II (06). <code>spin</code> makes the whirlpool turn."
+        }
+      ],
+      after: `
+        <p>Run it. The arena appears, still empty. If you want to see how the level was drawn, open the file in the editor (in the terminal: <code>python -m scena_editor media/levels/duel.json</code>).</p>
+      `,
+      try: [
+        {
+          note: "Other dust backgrounds, one at a time, in place of <code>Stardust</code>. More in the Guide: <a href=\"../guide/index.html#mundo-background\">Background</a>.",
+          replaces: ['Stardust('],
+          code: `Nebuladust(color="violet", color2="teal", color3="navy")
+Chromadust("plasma")`
+        }
+      ]
+    },
+    {
+      title: "A ship on a rail",
+      body: [
+        `
+        <p>The ship in this game does not fly free. It runs on a rail, a curve that passes through the place where it starts, and it can only go up and down along it. The rail is in the level too: a <code>Track</code> called <code>blue_rail</code>, with three points, curved toward the middle of the arena.</p>
+        <p>How do you say where the ship is on the rail? With a single number, <code>u</code>. It is 0 at one end, 1 at the other, and 0.5 halfway along. The rail itself turns <code>u</code> into a point on the screen:</p>
+        `,
+        {
+          snip: `self.center = self.rail.at(self.u)`
+        },
+        `
+        <figure class="fig">
+          <svg viewBox="0 0 320 220" role="img" aria-label="A curved rail, standing upright. At the bottom end, u equals 0; in the middle, u equals 0.5, where the ship starts; at the top end, u equals 1. A point above the middle marks u equals 0.75.">
+            <path class="ray" fill="none" d="M 140 200 Q 60 110 140 20"/>
+            <circle class="dot" cx="140" cy="200" r="5"/>
+            <circle class="dot" cx="100" cy="110" r="5"/>
+            <circle class="dot" cx="140" cy="20" r="5"/>
+            <circle class="hot" cx="110" cy="65" r="7"/>
+            <text x="152" y="204">u = 0</text>
+            <text x="114" y="114">u = 0.5 (the start)</text>
+            <text x="124" y="69">u = 0.75</text>
+            <text x="152" y="24">u = 1</text>
+            <text x="190" y="150">W: u grows</text>
+            <text x="190" y="170">S: u shrinks</text>
+          </svg>
+          <figcaption><code>rail.at(u)</code> returns the place on the curve: 0 at one end, 1 at the other, and everything else in between, in proportion to the distance along it. The ship moves by changing <code>u</code>, never its position directly.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.step = 0
+        self.u = 0.5
+
+    def on_update(self, dt):
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp("W"):
+            goal = 260
+        if keyp("S"):
+            goal = -260
+        self.step = goal
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "self.u = 0.5",
+          text: "The ship starts in the middle of the rail. The level's <code>blue</code> point, where it is born, sits right there."
+        },
+        {
+          at: "goal = 260",
+          text: "<code>goal</code> is the speed the key asks for, in units per second: 260 up with <kbd>W</kbd>, −260 down with <kbd>S</kbd>, 0 with no key."
+        },
+        {
+          at: "self.rail.length",
+          text: "<code>u</code> measures the way in fractions, and the speed is in units. Dividing by the rail's <code>length</code> converts one into the other: on a rail of 480, moving 260 per second adds 0.54 to <code>u</code> every second."
+        },
+        {
+          at: "if self.u > 1:",
+          text: "The rail ends. Past 1 (or past 0, just below), the ship stays at the end and its step drops to zero."
+        },
+        {
+          at: "level[\"blue_rail\"].make()",
+          text: "The rail is made without a color: it is only for travel, invisible. To see it while you test, press <kbd>Ctrl+Shift+7</kbd> (it shows tracks and colliders; Appendix A)."
+        }
+      ],
+      after: `
+        <p>Run it and hold <kbd>W</kbd> and <kbd>S</kbd>. The ship moves up and down the curve and stops at the ends. It moves sideways and keeps facing the middle of the arena, like a railway car on its track.</p>
+        <details class="ask"><summary>Why isn't the rail drawn in the code, with <code>Track(points=…)</code>?</summary><p>It could be. In the level, the curve lives in the same file as the walls and the rocks: you can adjust it in the editor, looking at the whole arena, without touching the code.</p></details>
+      `
+    },
+    {
+      title: "Inertia",
+      body: `
+        <p>The ship stops and starts instantly, like a cursor. Ships have weight: they take a moment to pick up speed and a moment to lose it. One line changes that.</p>
+        <p>Instead of copying <code>goal</code> into <code>step</code>, <code>step</code> moves toward <code>goal</code> gradually, with the <code>chase</code> that Plane (15) used to tilt the plane's nose.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.step = 0
+        self.u = 0.5
+
+    def on_update(self, dt):
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp("W"):
+            goal = 260
+        if keyp("S"):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "chase(self.step, goal, 5)",
+          text: "<code>chase</code> returns a value a little closer to the goal each frame: it moves fast when there is a long way to go and slowly when there is little left. With <code>5</code>, in half a second the step has already covered about 90% of the way. When you let go of the key, the goal becomes 0, and the ship slows to a stop the same way."
+        }
+      ],
+      after: `
+        <p>Run it. Change the <code>5</code> to <code>1</code> and run it again: the ship gets heavy, almost like a big boat. With <code>20</code>, it is a cursor again.</p>
+      `
+    },
+    {
+      title: "The steering wheel",
+      body: `
+        <p>Moving along the rail is not enough to aim. <kbd>A</kbd> and <kbd>D</kbd> will turn the ship, with the same weight: the turn also builds up slowly and dies down slowly, like a steering wheel.</p>
+        <p>It works like the rail, with other names: <code>goal</code> is the turn the key asks for, in degrees per second, and <code>self.turn</code> moves toward it with <code>chase</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp("A"):
+            goal = 200
+        if keyp("D"):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp("W"):
+            goal = 260
+        if keyp("S"):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "self.turn = 0",
+          text: "The current turn, in degrees per second. It starts at rest."
+        },
+        {
+          at: "goal = 200",
+          text: "To the left, the angle grows (counterclockwise): <kbd>A</kbd> asks for 200 degrees per second, <kbd>D</kbd> asks for −200."
+        },
+        {
+          at: "self.rotate_by(self.turn * dt)",
+          text: "<code>rotate_by</code> adds degrees to the ship's angle. Each frame, one frame's worth of turning: <code>self.turn * dt</code>."
+        }
+      ],
+      after: `
+        <p>Run it. Turn and let go: the ship keeps turning a little before it stops. The two movements are independent: you can slide down the rail while turning.</p>
+        <details class="ask"><summary><code>goal</code> appears twice in <code>on_update</code>. Doesn't that get mixed up?</summary><p>No: it is set again before each use. First it holds the turn asked for, and the turn's <code>chase</code> reads it; then it goes back to 0, becomes the step asked for, and the step's <code>chase</code> reads it.</p></details>
+      `
+    },
+    {
+      title: "The jet",
+      body: `
+        <p>A ship that moves sideways needs a sideways jet. A <code>Jet</code> will come out of the ship on the side opposite to the movement, pushing it along the rail, and grow with the speed.</p>
+        <p>Until now, a <code>Jet</code> was born attached to a point with a <code>lambda</code>. This one switches sides as the ship goes up or down; it is simpler to set its tip, direction and strength every frame, in <code>on_update</code>.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp("A"):
+            goal = 200
+        if keyp("D"):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp("W"):
+            goal = 260
+        if keyp("S"):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "self.jet = Jet(",
+          text: "The jet is born off (<code>amount=0</code>, zero intensity). <code>on_update</code> puts it in place."
+        },
+        {
+          at: "self.rail.angle_at(self.u)",
+          text: "<code>angle_at</code> is the rail's direction at that point, in degrees: the way <code>u</code> grows. Since the rail is curved, it changes a little along the way."
+        },
+        {
+          at: "direction += 180",
+          text: "Going down, the movement is the other way: a half turn."
+        },
+        {
+          at: "self.jet.origin =",
+          text: "The jet's tip sits 22 behind the center, against the movement, and it points backward (<code>direction + 180</code>)."
+        },
+        {
+          at: "abs(self.step) / 160",
+          text: "<code>abs</code> (absolute value) drops the sign: −260 becomes 260. The jet grows with the speed, in both directions; standing still, the ship has no jet."
+        }
+      ]
+    },
+    {
+      title: "Shooting",
+      body: `
+        <p><kbd>TAB</kbd> fires a laser where the ship's nose points. The laser is a class, like the shot in Ships: each one keeps its own velocity.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp("A"):
+            goal = 200
+        if keyp("D"):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp("W"):
+            goal = 260
+        if keyp("S"):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp("TAB") and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame="laserBlue01.png", center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "self.blend = \"add\"",
+          text: "<code>blend</code> set to <code>\"add\"</code> adds the laser's color to the background's, like a light: in dark space, the laser glows. Box below the code: why not <code>glow</code>."
+        },
+        {
+          at: "self.angle = self.vel.angle",
+          text: "The laser points where it is going. For now it flies straight, but soon it will bounce and curve."
+        },
+        {
+          at: "self.ready(\"shot\", 0.3)",
+          text: "<code>self.ready</code> is this ship's own <code>ready</code>: at most one shot every 0.3 s. With two ships, each will have its own."
+        },
+        {
+          at: "vec_from_angle(self.angle, 52)",
+          text: "The laser is born 52 ahead of the center, in the direction of the nose: outside the ship."
+        },
+        {
+          at: "@leave_playfield(\"shots\")",
+          text: "A laser that leaves the screen is destroyed. Soon they will bounce off the walls, and almost none will leave."
+        }
+      ],
+      dive: [
+        {
+          title: "Glow or blend?",
+          body: `
+            <p><code>glow</code> draws a halo around the object, and that halo has a cost: for each laser, Scena paints the image again, blurred. On a fast computer, with 30 lasers on screen, the game dropped from about 1270 to about 590 frames per second. <code>blend = "add"</code> only changes how the image mixes with the background, and costs nothing extra. At the size of a laser, the two are hard to tell apart.</p>
+            <p>The rule holds for every add-on: on a hero or a boss, go ahead. On things that show up by the dozen, such as shots, particles or coins, prefer what is free.</p>
+            <p>In the Guide: <a href="../guide/index.html#aparencia-blend">Blend</a> · <a href="../guide/index.html#aparencia-selos">Add-ons</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "Two players",
+      body: [
+        `
+        <p>Now the red ship, on the other side, for the other person. The class is the same; what changes are the keys, the laser's color and the rail. The left player uses <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> and <kbd>TAB</kbd>; the right player, the arrows and <kbd>ENTER</kbd>.</p>
+        <p>Each player's five keys go in a <strong>dictionary</strong>: a table that links names to values, written between curly braces:</p>
+        `,
+        {
+          snip: `LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}`
+        },
+        `
+        <p>Each pair is <code>name: value</code>. To read one, the name goes in square brackets: <code>LEFT_KEYS["shot"]</code> is <code>"TAB"</code>. A list could hold five keys too, but then <code>controls[4]</code> doesn't say what the key does; <code>controls["shot"]</code> does.</p>
+        <div class="tbl"><table><thead><tr><th>Name</th><th>Left</th><th>Right</th></tr></thead><tbody>
+          <tr><td><code>"up"</code> / <code>"down"</code></td><td><kbd>W</kbd> / <kbd>S</kbd></td><td><kbd>↑</kbd> / <kbd>↓</kbd></td></tr>
+          <tr><td><code>"left"</code> / <code>"right"</code></td><td><kbd>A</kbd> / <kbd>D</kbd></td><td><kbd>←</kbd> / <kbd>→</kbd></td></tr>
+          <tr><td><code>"shot"</code></td><td><kbd>TAB</kbd></td><td><kbd>ENTER</kbd></td></tr>
+        </tbody></table></div>
+        <p>Each ship gets its dictionary in a field, <code>self.controls</code>, and asks by name: <code>keyp(self.controls["up"])</code>.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "self.blue.controls = LEFT_KEYS",
+          text: "Each ship's fields are given after it is born, in the act, like each enemy's <code>wait_time</code> in Ships VI (25). <code>setup</code> runs inside <code>Ship(…)</code>, before this line: that is why it does not read the keys, and only <code>on_update</code> uses them."
+        },
+        {
+          at: "self.red.angle = 180",
+          text: "The red ship is born facing left, toward the blue one."
+        },
+        {
+          at: "frame=self.laser",
+          text: "Each ship's laser has the ship's color: <code>laserBlue01.png</code> or <code>laserRed01.png</code>."
+        }
+      ],
+      after: `
+        <p>Run it with someone. The lasers go through the ships and the walls: there is no collision at all yet.</p>
+      `
+    },
+    {
+      title: "Bouncing shots",
+      body: `
+        <p>A laser that hits a wall comes back, and a well-aimed laser scores after bouncing. Each one bounces at most three times; on the fourth hit, it vanishes.</p>
+        <p>Bouncing is a <code>resolve</code> with <code>bounce=1.0</code>, as in Balls (10). And, to give the shots something to do, two metal bars spin near the corners.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+resolve("shots", "wall", bounce=1.0)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        group["wall"].mass = STATIC
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "self.bounces = 0",
+          text: "How many times this laser has bounced."
+        },
+        {
+          at: "if self.bounces > 3:",
+          text: "On the fourth hit, a small flash where it touched, and the laser vanishes."
+        },
+        {
+          at: "bar.rotate_by(360,",
+          text: "One turn every 4 seconds, forever. A laser that hits the bar bounces off whichever way the bar faces at that instant."
+        },
+        {
+          at: "group[\"wall\"].mass = STATIC",
+          text: "Walls, rocks and bars stay put (<code>STATIC</code>): the laser is what bounces."
+        },
+        {
+          at: "resolve(\"shots\", \"wall\", bounce=1.0)",
+          text: "The rule holds for every laser born from now on: on contact, Scena pushes it out of the wall and mirrors its velocity (<code>bounce=1.0</code>: it leaves as fast as it came)."
+        }
+      ],
+      after: `
+        <p>Run it and shoot at the walls, the curved corners and the rocks. The laser follows the curve of the corner and comes back toward the middle.</p>
+        <details class="ask"><summary><code>@collide_with("wall")</code> counts the hit. But <code>resolve</code> is what makes the laser bounce. Which comes first?</summary><p>In the same frame, Scena first calls the collision functions and then resolves. On the fourth hit, <code>crashed</code> destroys the laser, and <code>resolve</code> has nothing left to bounce.</p></details>
+      `
+    },
+    {
+      title: "The Warp pulls",
+      body: [
+        `
+        <p>The whirlpool in the middle will pull the lasers. Hardly at all from far away, a lot up close: a laser that passes right by the Warp curves, and a good player uses that to aim around an obstacle.</p>
+        <p>The strength of the pull goes in a name, <code>PULL</code>: it is how much speed the laser gains per second at the edge of the Warp. Farther away, it drops, and it drops fast. The math uses the ratio between the edge and the distance:</p>
+        `,
+        {
+          snip: `near = EDGE / max(d, EDGE)
+self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)`
+        },
+        `
+        <p><code>near</code> is 1 at the edge, 1/2 at twice the distance, 1/3 at three times. <code>** 3</code> means cubed: three copies of the number multiplied together. At twice the distance, the pull is 1/2 × 1/2 × 1/2 = 1/8 of the pull at the edge; at three times, 1/27.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 200" role="img" aria-label="The Warp in the center, with three rings around it: at the edge, at 60, the pull is 400; at twice that, at 120, it is 50; at three times, at 180, it is 15. A laser passes close and curves.">
+            <circle class="bar" cx="110" cy="100" r="22"/>
+            <circle class="guide" fill="none" cx="110" cy="100" r="44"/>
+            <circle class="guide" fill="none" cx="110" cy="100" r="66"/>
+            <path class="ray" fill="none" d="M 400 40 L 230 46 Q 150 52 152 192"/>
+            <text x="110" y="104" text-anchor="middle">1</text>
+            <text x="110" y="158" text-anchor="middle">1/8</text>
+            <text x="110" y="182" text-anchor="middle">1/27</text>
+            <text x="250" y="110">edge (60): 400</text>
+            <text x="250" y="130">twice (120): 50</text>
+            <text x="250" y="150">3 times (180): 15</text>
+            <text x="250" y="170">300: 3</text>
+            <text x="236" y="30">a laser passes and curves</text>
+          </svg>
+          <figcaption>With <code>PULL = 400</code>, the edge pulls 400; twice the distance, 50; three times, 15. That is why a laser that passes far away barely feels the Warp, and one that passes close curves.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+
+resolve("shots", "wall", bounce=1.0)
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        group["wall"].mass = STATIC
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "PULL = 400",
+          text: "The strength setting: change this number to make the Warp pull more or less."
+        },
+        {
+          at: "d = distance(self, HOLE)",
+          text: "The laser's distance to the center of the Warp."
+        },
+        {
+          at: "if d < 300:",
+          text: "At 300, the pull is down to 3 per second: you can't even see it. Farther away, the laser skips the math."
+        },
+        {
+          at: "max(d, EDGE)",
+          text: "Inside the edge, the pull grows no more: <code>max</code> never lets the distance drop below 60."
+        },
+        {
+          at: "heading(self, HOLE)",
+          text: "<code>heading</code> is the direction from the laser to the center. <code>vec_from_angle</code> makes an arrow in that direction, as long as one frame's pull, and <code>+=</code> adds it to the velocity."
+        }
+      ],
+      after: `
+        <p>Run it and shoot close past the Warp. Try <code>PULL = 1500</code>: some lasers loop around the whirlpool.</p>
+      `,
+      try: [
+        {
+          note: "The exponent decides how fast the pull fades; one at a time, in place of the <code>+=</code> line. With <code>** 2</code>, twice the distance pulls 1/4: the Warp reaches farther. With <code>** 4</code>, 1/16: it only pulls what passes right by.",
+          replaces: ['self.vel += vec_from_angle('],
+          code: `self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 2 * dt)`
+        }
+      ]
+    },
+    {
+      title: "Energy",
+      body: `
+        <p>A laser that hits a ship takes 10 energy. Each ship starts with 100, and a bar at the top of the screen shows how much is left: blue on the left, red on the right. Almost out of energy, the ship catches fire.</p>
+        <p>The hit is a rule of the game, not of one ship: it goes at the top of the file, with <code>@collide("ships", "shots")</code>, and serves both ships.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+
+resolve("shots", "wall", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        group["wall"].mass = STATIC
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "self.fire = Fire(",
+          text: "A flame (<code>style=\"plume\"</code>) at the ship's tail, 22 behind the center. The two <code>lambda</code>s make it follow the ship: the place (<code>center</code>) and the direction (<code>angle</code>), always the ship's angle plus 180, pointing back. <code>width</code> and <code>length</code> set how wide and how long it is. It is born switched off (<code>active = False</code>)."
+        },
+        {
+          at: "@when(lambda self: self.energy < 30)",
+          text: "When the energy drops below 30, the fire lights up. The <code>@when</code> below puts it out if the energy comes back; a power-up will give energy back later on."
+        },
+        {
+          at: "def struck(ship, shot, info):",
+          text: "Both ships are in the <code>ships</code> group. <code>info</code> says where the contact was: <code>hit_at</code> lights a flash there, and the ship flashes white (<code>flash</code>)."
+        },
+        {
+          at: "self.blue.bar[\"width\"] @=",
+          text: "The bar's width linked to the energy: 3 wide per point, 300 when full. <code>max(…, 0)</code> holds the bar at zero if the energy goes below it."
+        }
+      ],
+      after: `
+        <p>Run it and hit the other ship a few times. A ship can also hit itself: a bouncing laser comes back to whoever fired it.</p>
+        <details class="ask"><summary>And when the energy reaches zero?</summary><p>Nothing: the bar stays empty and the ship carries on. The end of the duel is still missing.</p></details>
+      `
+    },
+    {
+      title: "End of the duel",
+      body: `
+        <p>Out of energy, the ship explodes, and three seconds later the screen says who won. <kbd>SPACE</kbd> starts another duel.</p>
+        <p>As in Endless Runner (29), the end is a change of act: a <code>Victory</code> act, with only the message, and back to <code>Duel</code>, which sets everything up again.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+st.winner = ""
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+    def on_destroy(self):
+        self.jet.destroy()
+        self.fire.destroy()
+        self.bar.destroy()
+
+
+resolve("shots", "wall", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        group["wall"].mass = STATIC
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+    @when(lambda self: self.blue.energy <= 0 or self.red.energy <= 0)
+    def finish(self):
+        if self.blue.energy <= 0:
+            lost = self.blue
+            st.winner = "RED"
+        else:
+            lost = self.red
+            st.winner = "BLUE"
+        canvas.explosion_at(lost, amount=1.6)
+        canvas.debris_at(lost, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        lost.destroy()
+        self.after(3, lambda: change_act(Victory))
+
+
+class Victory(Act):
+    def setup(self):
+        Text(text=f"{st.winner} WINS", center=(640, 420), font_size=64, color="gold")
+        Text(text="press SPACE", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duel)
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "st.winner = \"\"",
+          text: "The winner's name goes in <code>st</code>, which carries over from one act to the next."
+        },
+        {
+          at: "def on_destroy(self):",
+          text: "The jet, the fire and the bar are parts of the ship: they leave with it. Without this, the bar's formula would keep reading the energy of a ship that no longer exists."
+        },
+        {
+          at: "@when(lambda self: self.blue.energy <= 0 or",
+          text: "An <code>@when</code> of the act: it runs once, when the first of the two ships hits zero."
+        },
+        {
+          at: "canvas.explosion_at(lost",
+          text: "A big explosion, debris without fire (<code>debris_at</code>) and the screen shaking (<code>shake</code>). Then the ship leaves the game."
+        },
+        {
+          at: "self.after(3, lambda: change_act(Victory))",
+          text: "Three seconds to watch the explosion. The <code>after</code> belongs to the act: if the act ends first, the timer goes with it."
+        }
+      ]
+    },
+    {
+      title: "The barrier",
+      body: `
+        <p>At the start, each ship sits behind a barrier of five small crates, at a quarter and at three quarters of the arena's width. A laser smashes the crate it hits. The barrier gives a few seconds of breathing room, and blasting holes in it becomes part of the game.</p>
+        <p>The crates are in the level, in the <code>crate</code> group.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+st.winner = ""
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+    def on_destroy(self):
+        self.jet.destroy()
+        self.fire.destroy()
+        self.bar.destroy()
+
+
+resolve("shots", "wall", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@collide("shots", "crate")
+def smashed(shot, crate):
+    canvas.burst_at(crate, radius=24)
+    canvas.debris_at(crate, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    shot.destroy()
+    crate.destroy()
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        for item in level.group("crate"):
+            item.make(color="peru")
+        group["wall"].mass = STATIC
+        group["crate"].mass = STATIC
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+    @when(lambda self: self.blue.energy <= 0 or self.red.energy <= 0)
+    def finish(self):
+        if self.blue.energy <= 0:
+            lost = self.blue
+            st.winner = "RED"
+        else:
+            lost = self.red
+            st.winner = "BLUE"
+        canvas.explosion_at(lost, amount=1.6)
+        canvas.debris_at(lost, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        lost.destroy()
+        self.after(3, lambda: change_act(Victory))
+
+
+class Victory(Act):
+    def setup(self):
+        Text(text=f"{st.winner} WINS", center=(640, 420), font_size=64, color="gold")
+        Text(text="press SPACE", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duel)
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "item.make(color=\"peru\")",
+          text: "Ten squares of 20, five on each side, in the color <code>peru</code> (an orangey brown)."
+        },
+        {
+          at: "def smashed(shot, crate):",
+          text: "An explosion the size of the crate (<code>burst_at</code>) and its debris (<code>debris_at</code>, in the crate's color). The crate and the laser leave: the crate stops the shot instead of sending it back."
+        }
+      ]
+    },
+    {
+      title: "Asteroids",
+      body: `
+        <p>Three asteroids drift around the arena, bouncing off the walls, the crates and the ships. A laser splits a big asteroid into two small ones, which fly off to the sides of the shot; a laser destroys a small one. When none are left, three new ones arrive.</p>
+        <p>The small asteroid is the same class with another image and another size: the check <code>if self.height > 40</code> says whether this one still splits.</p>
+      `,
+      code: `from random import uniform
+from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+st.winner = ""
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        # Held to its rail, the ship does not give way: an asteroid bounces off it.
+        self.mass = STATIC
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+    def on_destroy(self):
+        self.jet.destroy()
+        self.fire.destroy()
+        self.bar.destroy()
+
+
+class Asteroid(Sprite, source=sheet, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroids"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.turn = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.turn * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # The big one splits in two small ones, which fly off to the sides of the shot.
+        if self.height > 40:
+            for side in [90, -90]:
+                chunk = Asteroid(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(shot.vel.angle + side, 18))
+                chunk.vel = vec_from_angle(shot.vel.angle + side, 110)
+        shot.destroy()
+        self.destroy()
+
+
+resolve("shots", "wall", bounce=1.0)
+resolve("asteroids", ["wall", "crate", "ships"], bounce=1.0)
+resolve("asteroids", "asteroids", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@collide("ships", "asteroids")
+def crashed(ship, asteroid, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    ship.energy -= 2
+
+
+@collide("shots", "crate")
+def smashed(shot, crate):
+    canvas.burst_at(crate, radius=24)
+    canvas.debris_at(crate, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    shot.destroy()
+    crate.destroy()
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+def make_asteroids():
+    for item in level.group("asteroid"):
+        Asteroid(center=item.center)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        for item in level.group("crate"):
+            item.make(color="peru")
+        group["wall"].mass = STATIC
+        group["crate"].mass = STATIC
+        make_asteroids()
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+    @every(15)
+    def more_asteroids(self):
+        if group["asteroids"].empty:
+            make_asteroids()
+
+    @when(lambda self: self.blue.energy <= 0 or self.red.energy <= 0)
+    def finish(self):
+        if self.blue.energy <= 0:
+            lost = self.blue
+            st.winner = "RED"
+        else:
+            lost = self.red
+            st.winner = "BLUE"
+        canvas.explosion_at(lost, amount=1.6)
+        canvas.debris_at(lost, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        lost.destroy()
+        self.after(3, lambda: change_act(Victory))
+
+
+class Victory(Act):
+    def setup(self):
+        Text(text=f"{st.winner} WINS", center=(640, 420), font_size=64, color="gold")
+        Text(text="press SPACE", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duel)
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "from random import uniform",
+          text: "<code>uniform</code> picks a random number between two others: each asteroid leaves in its own direction and at its own speed."
+        },
+        {
+          at: "self.mass = STATIC",
+          text: "The ship moves held to its rail. Standing still as far as <code>resolve</code> is concerned (<code>STATIC</code>), it is not pushed: the asteroid bounces off it."
+        },
+        {
+          at: "for side in [90, -90]:",
+          text: "Two pieces: one 90° to the left of the shot, the other 90° to the right. Each is born 18 toward its side and leaves at 110 per second."
+        },
+        {
+          at: "resolve(\"asteroids\", [\"wall\"",
+          text: "Asteroids bounce off what is solid, and off each other on the line below. The lasers are not in the list: <code>was_hit</code> takes care of them."
+        },
+        {
+          at: "def crashed(ship, asteroid, info):",
+          text: "An asteroid that hits the ship takes little, 2 energy, but it does take it."
+        },
+        {
+          at: "if group[\"asteroids\"].empty:",
+          text: "<code>empty</code>: the group has no one in it. Every 15 seconds, the act checks and, if so, sends three more to the level's <code>asteroid</code> points."
+        }
+      ],
+      after: `
+        <p>Run it and shoot a big asteroid, then the pieces. Asteroids also work as shields: an asteroid between you and the other ship stops its shots.</p>
+      `
+    },
+    {
+      title: "Electric bolts",
+      body: [
+        `
+        <p>Above and below the Warp, a pair of metal balls goes around an upright figure eight, one ball almost half a lap behind the other. At the crossing of the eight they pass close, and an electric bolt links them; at the ends, they are far apart, and the bolt vanishes. While it is on, the bolt burns the lasers that cross it.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 214" role="img" aria-label="Two upright figure eights. On the left one, the two balls are near the crossing, linked by a bolt. On the right one, one ball is at the top end and the other at the bottom end, far apart, with no bolt.">
+            <path class="guide" fill="none" d="M 90 105 C 40 65, 40 15, 90 15 C 140 15, 140 65, 90 105 C 40 145, 40 195, 90 195 C 140 195, 140 145, 90 105"/>
+            <path class="guide" fill="none" d="M 270 105 C 220 65, 220 15, 270 15 C 320 15, 320 65, 270 105 C 220 145, 220 195, 270 195 C 320 195, 320 145, 270 105"/>
+            <line class="ray" stroke-width="4" x1="78" y1="92" x2="102" y2="122"/>
+            <circle class="dot" cx="78" cy="92" r="7"/>
+            <circle class="dot" cx="102" cy="122" r="7"/>
+            <circle class="dot" cx="270" cy="15" r="7"/>
+            <circle class="dot" cx="270" cy="195" r="7"/>
+            <text x="90" y="208" text-anchor="middle">close: bolt</text>
+            <text x="270" y="208" text-anchor="middle">far: nothing</text>
+          </svg>
+          <figcaption>The two balls run on the same eight, with the same timing, but one starts 45% of a lap after the other (<code>phase=0.45</code>). So they cross in the middle of the eight and separate at the ends.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from random import uniform
+from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+st.winner = ""
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        # Held to its rail, the ship does not give way: an asteroid bounces off it.
+        self.mass = STATIC
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+    def on_destroy(self):
+        self.jet.destroy()
+        self.fire.destroy()
+        self.bar.destroy()
+
+
+class Asteroid(Sprite, source=sheet, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroids"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.turn = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.turn * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # The big one splits in two small ones, which fly off to the sides of the shot.
+        if self.height > 40:
+            for side in [90, -90]:
+                chunk = Asteroid(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(shot.vel.angle + side, 18))
+                chunk.vel = vec_from_angle(shot.vel.angle + side, 110)
+        shot.destroy()
+        self.destroy()
+
+
+def make_bolt(center):
+    # Two balls on the same (upright) figure eight, almost half a lap apart:
+    # in the middle of the eight they pass close, at the ends they are far apart.
+    track = Track.eight(width=160, height=50, center=center, angle=90)
+    ball1 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball2 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball1.move_along(track, time=6, loops="forever")
+    ball2.move_along(track, time=6, loops="forever", phase=0.45)
+    bolt = Line(p1=lambda: ball1.center, p2=lambda: ball2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="bolt")
+    bolt.ball1 = ball1
+    bolt.ball2 = ball2
+    return bolt
+
+
+resolve("shots", "wall", bounce=1.0)
+resolve("asteroids", ["wall", "crate", "ships"], bounce=1.0)
+resolve("asteroids", "asteroids", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@collide("ships", "asteroids")
+def crashed(ship, asteroid, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    ship.energy -= 2
+
+
+@collide("shots", "bolt")
+def burned(shot, bolt, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    shot.destroy()
+
+
+@collide("shots", "crate")
+def smashed(shot, crate):
+    canvas.burst_at(crate, radius=24)
+    canvas.debris_at(crate, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    shot.destroy()
+    crate.destroy()
+
+
+@leave_playfield("shots")
+def gone(shot):
+    shot.destroy()
+
+
+def make_asteroids():
+    for item in level.group("asteroid"):
+        Asteroid(center=item.center)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        for item in level.group("crate"):
+            item.make(color="peru")
+        self.bolts = []
+        for item in level.group("bolt"):
+            self.bolts.append(make_bolt(item.center))
+        group["wall"].mass = STATIC
+        group["crate"].mass = STATIC
+        make_asteroids()
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+    def on_update(self, dt):
+        # The bolt only exists while the two balls are close.
+        for bolt in self.bolts:
+            bolt.active = distance(bolt.ball1, bolt.ball2) < 90
+
+    @every(15)
+    def more_asteroids(self):
+        if group["asteroids"].empty:
+            make_asteroids()
+
+    @when(lambda self: self.blue.energy <= 0 or self.red.energy <= 0)
+    def finish(self):
+        if self.blue.energy <= 0:
+            lost = self.blue
+            st.winner = "RED"
+        else:
+            lost = self.red
+            st.winner = "BLUE"
+        canvas.explosion_at(lost, amount=1.6)
+        canvas.debris_at(lost, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        lost.destroy()
+        self.after(3, lambda: change_act(Victory))
+
+
+class Victory(Act):
+    def setup(self):
+        Text(text=f"{st.winner} WINS", center=(640, 420), font_size=64, color="gold")
+        Text(text="press SPACE", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duel)
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "def make_bolt(center):",
+          text: "A function builds a whole bolt: the eight, the two balls and the line. It is called twice, once per <code>bolt</code> point in the level. Inside the function, each <code>lambda</code> reads the balls of this call; in a <code>for</code> written straight in the act, both lines would read the balls of the last pass (the problem of a <code>lambda</code> in a <code>for</code>, Formulas, 09)."
+        },
+        {
+          at: "angle=90)",
+          text: "<code>Track.eight</code> makes an eight lying on its side, 160 by 50; <code>angle=90</code> stands it up."
+        },
+        {
+          at: "phase=0.45)",
+          text: "<code>phase</code> is where the trip starts, as a fraction of the lap: the second ball starts 45% ahead."
+        },
+        {
+          at: "visual=ElectricBolt(\"cyan\"), group=\"bolt\")",
+          text: "The line goes from one ball to the other (<code>p1</code> and <code>p2</code> follow the balls), with the <code>ElectricBolt</code> visual from Orbits (14)."
+        },
+        {
+          at: "bolt.ball1 = ball1",
+          text: "The bolt keeps its balls in fields: the act needs them to measure the distance."
+        },
+        {
+          at: "bolt.active = distance(",
+          text: "Close, the bolt is active; far, it is switched off. Switched off (<code>active = False</code>), it is not drawn and does not collide. Box below the code: why this line lives in the act."
+        },
+        {
+          at: "def burned(shot, bolt, info):",
+          text: "A spark (<code>zap_at</code>) where the laser crossed the bolt, and the laser vanishes. The balls are in the <code>wall</code> group: the laser bounces off them."
+        }
+      ],
+      dive: [
+        {
+          title: "Who switches the bolt on and off",
+          body: `
+            <p>It is tempting to write <code>bolt["active"] @= lambda: …</code>, linking the bolt to the distance. Scena refuses: <code>active</code> is not part of how the object looks; switching an object on and off is a command, which takes the object out of the game and puts it back.</p>
+            <p>And the bolt cannot handle this on its own, in an <code>on_update</code> of its own: a switched-off object does not run its own methods. Once off, it would never come back on. The decision belongs to something that is always on: the act, in its <code>on_update</code>.</p>
+            <p>In the Guide: <a href="../guide/index.html#shape-track">Track</a> · <a href="../guide/index.html#mover-move-along">move_along</a> · <a href="../guide/index.html#aparencia-visual">Visual</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "The star",
+      body: `
+        <p>Every now and then, a golden star crosses the arena, slowly, from top to bottom or from bottom to top. A laser breaks it, and it drops a power-up that flies to the ship that fired. Whoever catches the power-up gains 40 energy.</p>
+        <p>The power-up does not fly in a straight line. It curves to where the ship was at the moment of the shot, with a wave on top, and keeps going until it leaves the screen: the ship has to be in its path.</p>
+      `,
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+st.winner = ""
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        # Held to its rail, the ship does not give way: an asteroid bounces off it.
+        self.mass = STATIC
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        shot.shooter = self
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+    def on_destroy(self):
+        self.jet.destroy()
+        self.fire.destroy()
+        self.bar.destroy()
+
+
+class Asteroid(Sprite, source=sheet, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroids"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.turn = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.turn * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # The big one splits in two small ones, which fly off to the sides of the shot.
+        if self.height > 40:
+            for side in [90, -90]:
+                chunk = Asteroid(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(shot.vel.angle + side, 18))
+                chunk.vel = vec_from_angle(shot.vel.angle + side, 110)
+        shot.destroy()
+        self.destroy()
+
+
+class PowerUp(Sprite, source=sheet, height=30, group="powers"):
+    def setup(self):
+        self.variant = "energy"
+
+
+def drop_power(start, end):
+    # start and end are (x, y) copies taken at the moment of the shot: the star
+    # vanishes and the ship keeps moving. The power-up curves to where the ship was,
+    # with a wave on top, and goes straight on until it leaves the screen.
+    power = PowerUp(frame="pill_green.png", center=start)
+    direction = heading(start, end)
+    mx, my = middle_point(start, end)
+    detour = vec_from_angle(direction + choice([90, -90]), 100)
+    far = vec_from_angle(direction, 1500)
+    x, y = end
+    track = Track(points=[start, (mx + detour.x, my + detour.y), end, (x + far.x, y + far.y)])
+    track.zigzag(amount=16, waves=6)
+    power.move_along(track, speed=120)
+
+
+class Target(Circle, radius=16, visual=Sphere("gold"), group="target"):
+    def setup(self):
+        self.gold_star = Starburst(center=lambda: self.center, radius=34, color="gold")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="gold", radius=60)
+        play_sound("audio/explosion02.wav", volume=0.6)
+        if shot.shooter:
+            drop_power(tuple(self.center), tuple(shot.shooter.center))
+        shot.destroy()
+        self.destroy()
+
+    def on_destroy(self):
+        self.gold_star.destroy()
+
+
+def make_bolt(center):
+    # Two balls on the same (upright) figure eight, almost half a lap apart:
+    # in the middle of the eight they pass close, at the ends they are far apart.
+    track = Track.eight(width=160, height=50, center=center, angle=90)
+    ball1 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball2 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball1.move_along(track, time=6, loops="forever")
+    ball2.move_along(track, time=6, loops="forever", phase=0.45)
+    bolt = Line(p1=lambda: ball1.center, p2=lambda: ball2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="bolt")
+    bolt.ball1 = ball1
+    bolt.ball2 = ball2
+    return bolt
+
+
+resolve("shots", "wall", bounce=1.0)
+resolve("asteroids", ["wall", "crate", "ships"], bounce=1.0)
+resolve("asteroids", "asteroids", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@collide("ships", "asteroids")
+def crashed(ship, asteroid, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    ship.energy -= 2
+
+
+@collide("shots", "bolt")
+def burned(shot, bolt, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    shot.destroy()
+
+
+@collide("shots", "crate")
+def smashed(shot, crate):
+    canvas.burst_at(crate, radius=24)
+    canvas.debris_at(crate, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    shot.destroy()
+    crate.destroy()
+
+
+@collide("ships", "powers")
+def caught(ship, power):
+    ship.energy = min(100, ship.energy + 40)
+    ship.pop()
+    play_sound("audio/fx1.wav")
+    power.destroy()
+
+
+@leave_playfield("shots", "powers")
+def gone(thing):
+    thing.destroy()
+
+
+def make_asteroids():
+    for item in level.group("asteroid"):
+        Asteroid(center=item.center)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        for item in level.group("crate"):
+            item.make(color="peru")
+        self.bolts = []
+        for item in level.group("bolt"):
+            self.bolts.append(make_bolt(item.center))
+        group["wall"].mass = STATIC
+        group["crate"].mass = STATIC
+        make_asteroids()
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+    def on_update(self, dt):
+        # The bolt only exists while the two balls are close.
+        for bolt in self.bolts:
+            bolt.active = distance(bolt.ball1, bolt.ball2) < 90
+
+    @every(8)
+    def send_star(self):
+        if group["target"].empty:
+            y = choice([760, -40])
+            entry = (uniform(420, 860), y)
+            mid = (uniform(300, 980), 360)
+            finish = (uniform(420, 860), 720 - y)
+            gold_star = Target(center=entry)
+            gold_star.move_along(Track(points=[entry, mid, finish]), speed=60, on_done=gold_star.destroy)
+
+    @every(15)
+    def more_asteroids(self):
+        if group["asteroids"].empty:
+            make_asteroids()
+
+    @when(lambda self: self.blue.energy <= 0 or self.red.energy <= 0)
+    def finish(self):
+        if self.blue.energy <= 0:
+            lost = self.blue
+            st.winner = "RED"
+        else:
+            lost = self.red
+            st.winner = "BLUE"
+        canvas.explosion_at(lost, amount=1.6)
+        canvas.debris_at(lost, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        lost.destroy()
+        self.after(3, lambda: change_act(Victory))
+
+
+class Victory(Act):
+    def setup(self):
+        Text(text=f"{st.winner} WINS", center=(640, 420), font_size=64, color="gold")
+        Text(text="press SPACE", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duel)
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "shot.shooter = self",
+          text: "Each laser remembers who fired it."
+        },
+        {
+          at: "drop_power(tuple(self.center), tuple(shot.shooter.center))",
+          text: "<code>tuple</code> copies the point's two numbers right now. <code>self.center</code> is the star's live center, and the star is about to vanish; the ship will keep moving. The power-up needs the places at this instant."
+        },
+        {
+          at: "if shot.shooter:",
+          text: "The ship that fired may have exploded while the laser was flying. Then there is nowhere to send the power-up."
+        },
+        {
+          at: "mx, my = middle_point(start, end)",
+          text: "The midpoint of the way, pushed 100 to a random side (<code>detour</code>): the curve passes through there."
+        },
+        {
+          at: "far = vec_from_angle(direction, 1500)",
+          text: "One last point 1500 further on, in the same direction: after passing the ship, the power-up keeps going until it leaves the screen."
+        },
+        {
+          at: "track.zigzag(",
+          text: "<code>zigzag</code> makes the track wavy on the object itself: six waves of 16 to each side, on top of the curve."
+        },
+        {
+          at: "speed=120)",
+          text: "With <code>speed=</code>, the power-up moves 120 per second, however long or short the track. Whatever leaves the screen is removed by <code>gone</code>, now for power-ups too."
+        },
+        {
+          at: "@every(8)",
+          text: "Every 8 seconds, if there is no star in the arena, a new one is born off screen, crosses the arena through three random points at 60 per second, and vanishes on the other side (<code>on_done</code>, when it finishes)."
+        }
+      ],
+      after: `
+        <p>Run it and wait for the star. Break it and stand in the power-up's path; it passes through the place where the ship was.</p>
+      `
+    },
+    {
+      title: "The shield",
+      body: `
+        <p>Half of the power-ups will be a shield: a bubble around the ship that takes three blows, from lasers or asteroids. An asteroid that hits the shield shatters. On the third blow, the shield pops.</p>
+        <p>The shield is a part of the ship, as in Ships IV (08): it is born with the ship, switched off, and the power-up switches it on.</p>
+      `,
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+st.winner = ""
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class ShieldBubble(Circle, radius=44, visual=Shield(style="plasma")):
+    def setup(self):
+        self.charges = 0
+
+    @collide_with("shots")
+    def absorbed(self, shot, info):
+        shot.destroy()
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        self.spend()
+
+    # The shield shatters the whole asteroid: two pieces born
+    # touching it would use up the other charges at once.
+    @collide_with("asteroids")
+    def deflected(self, asteroid, info):
+        canvas.zap_at(info, color="sky blue")
+        canvas.debris_at(asteroid, color="sienna", radius=asteroid.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        asteroid.destroy()
+        self.spend()
+
+    def spend(self):
+        self.charges -= 1
+        if self.charges == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+            self.active = False
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        # Held to its rail, the ship does not give way: an asteroid bounces off it.
+        self.mass = STATIC
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        shot.shooter = self
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+    def on_destroy(self):
+        self.jet.destroy()
+        self.fire.destroy()
+        self.shield.destroy()
+        self.bar.destroy()
+
+
+class Asteroid(Sprite, source=sheet, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroids"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.turn = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.turn * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # The big one splits in two small ones, which fly off to the sides of the shot.
+        if self.height > 40:
+            for side in [90, -90]:
+                chunk = Asteroid(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(shot.vel.angle + side, 18))
+                chunk.vel = vec_from_angle(shot.vel.angle + side, 110)
+        shot.destroy()
+        self.destroy()
+
+
+class PowerUp(Sprite, source=sheet, height=30, group="powers"):
+    def setup(self):
+        self.variant = "energy"
+
+
+def drop_power(start, end):
+    # start and end are (x, y) copies taken at the moment of the shot: the star
+    # vanishes and the ship keeps moving. The power-up curves to where the ship was,
+    # with a wave on top, and goes straight on until it leaves the screen.
+    # The frame goes in the constructor: Scena takes the hitbox and the size from it.
+    if chance(0.5):
+        power = PowerUp(frame="powerupGreen_shield.png", center=start)
+        power.variant = "shield"
+    else:
+        power = PowerUp(frame="pill_green.png", center=start)
+    direction = heading(start, end)
+    mx, my = middle_point(start, end)
+    detour = vec_from_angle(direction + choice([90, -90]), 100)
+    far = vec_from_angle(direction, 1500)
+    x, y = end
+    track = Track(points=[start, (mx + detour.x, my + detour.y), end, (x + far.x, y + far.y)])
+    track.zigzag(amount=16, waves=6)
+    power.move_along(track, speed=120)
+
+
+class Target(Circle, radius=16, visual=Sphere("gold"), group="target"):
+    def setup(self):
+        self.gold_star = Starburst(center=lambda: self.center, radius=34, color="gold")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="gold", radius=60)
+        play_sound("audio/explosion02.wav", volume=0.6)
+        if shot.shooter:
+            drop_power(tuple(self.center), tuple(shot.shooter.center))
+        shot.destroy()
+        self.destroy()
+
+    def on_destroy(self):
+        self.gold_star.destroy()
+
+
+def make_bolt(center):
+    # Two balls on the same (upright) figure eight, almost half a lap apart:
+    # in the middle of the eight they pass close, at the ends they are far apart.
+    track = Track.eight(width=160, height=50, center=center, angle=90)
+    ball1 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball2 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball1.move_along(track, time=6, loops="forever")
+    ball2.move_along(track, time=6, loops="forever", phase=0.45)
+    bolt = Line(p1=lambda: ball1.center, p2=lambda: ball2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="bolt")
+    bolt.ball1 = ball1
+    bolt.ball2 = ball2
+    return bolt
+
+
+resolve("shots", "wall", bounce=1.0)
+resolve("asteroids", ["wall", "crate", "ships"], bounce=1.0)
+resolve("asteroids", "asteroids", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@collide("ships", "asteroids")
+def crashed(ship, asteroid, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    ship.energy -= 2
+
+
+@collide("shots", "bolt")
+def burned(shot, bolt, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    shot.destroy()
+
+
+@collide("shots", "crate")
+def smashed(shot, crate):
+    canvas.burst_at(crate, radius=24)
+    canvas.debris_at(crate, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    shot.destroy()
+    crate.destroy()
+
+
+@collide("ships", "powers")
+def caught(ship, power):
+    if power.variant == "shield":
+        ship.shield.charges = 3
+        ship.shield.active = True
+    else:
+        ship.energy = min(100, ship.energy + 40)
+    ship.pop()
+    play_sound("audio/fx1.wav")
+    power.destroy()
+
+
+@leave_playfield("shots", "powers")
+def gone(thing):
+    thing.destroy()
+
+
+def make_asteroids():
+    for item in level.group("asteroid"):
+        Asteroid(center=item.center)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        for item in level.group("crate"):
+            item.make(color="peru")
+        self.bolts = []
+        for item in level.group("bolt"):
+            self.bolts.append(make_bolt(item.center))
+        group["wall"].mass = STATIC
+        group["crate"].mass = STATIC
+        make_asteroids()
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = Ship(frame="playerShip1_blue.png", center=level["blue_start"].center)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = Ship(frame="playerShip1_red.png", center=level["red_start"].center)
+        self.red.angle = 180
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+    def on_update(self, dt):
+        # The bolt only exists while the two balls are close.
+        for bolt in self.bolts:
+            bolt.active = distance(bolt.ball1, bolt.ball2) < 90
+
+    @every(8)
+    def send_star(self):
+        if group["target"].empty:
+            y = choice([760, -40])
+            entry = (uniform(420, 860), y)
+            mid = (uniform(300, 980), 360)
+            finish = (uniform(420, 860), 720 - y)
+            gold_star = Target(center=entry)
+            gold_star.move_along(Track(points=[entry, mid, finish]), speed=60, on_done=gold_star.destroy)
+
+    @every(15)
+    def more_asteroids(self):
+        if group["asteroids"].empty:
+            make_asteroids()
+
+    @when(lambda self: self.blue.energy <= 0 or self.red.energy <= 0)
+    def finish(self):
+        if self.blue.energy <= 0:
+            lost = self.blue
+            st.winner = "RED"
+        else:
+            lost = self.red
+            st.winner = "BLUE"
+        canvas.explosion_at(lost, amount=1.6)
+        canvas.debris_at(lost, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        lost.destroy()
+        self.after(3, lambda: change_act(Victory))
+
+
+class Victory(Act):
+    def setup(self):
+        Text(text=f"{st.winner} WINS", center=(640, 420), font_size=64, color="gold")
+        Text(text="press SPACE", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Duel)
+
+
+run(Duel)
+`,
+      notes: [
+        {
+          at: "class ShieldBubble(Circle",
+          text: "A <code>Circle</code> with the <code>Shield</code> visual. It is bigger than the ship (radius 44): a blow touches the shield before it reaches the ship."
+        },
+        {
+          at: "def deflected(self, asteroid, info):",
+          text: "With the shield, the whole asteroid turns to debris, even a big one: the two pieces would be born touching the shield and use up the other charges at once."
+        },
+        {
+          at: "def spend(self):",
+          text: "A method for what the two kinds of blow have in common: one charge less and, on the last one, the pop."
+        },
+        {
+          at: "self.shield = ShieldBubble(center=lambda: self.center)",
+          text: "Held to the ship's center by a <code>lambda</code>, and switched off (<code>active = False</code>) until the power-up arrives."
+        },
+        {
+          at: "power = PowerUp(frame=\"powerupGreen_shield.png\", center=start)",
+          text: "The image goes in the constructor, not swapped in later: Scena takes the size and the collision shape from it. Swapped later, the collision would stay the pill's, small inside the square."
+        },
+        {
+          at: "if power.variant == \"shield\":",
+          text: "Three charges and the shield on. With the shield already on, the power-up recharges all three."
+        }
+      ]
+    },
+    {
+      title: "Pick your ship",
+      example: "duel.py",
+      body: `
+        <p>Last, the opening screen: each player picks one of two ships, I or II, with <kbd>A</kbd> / <kbd>D</kbd> or <kbd>←</kbd> / <kbd>→</kbd>, and confirms with <kbd>TAB</kbd> or <kbd>ENTER</kbd>. When both have confirmed, the duel starts. Both ships handle the same; the choice is about the looks.</p>
+        <p>The game now starts with the <code>Choice</code> act, and a victory goes back to it.</p>
+      `,
+      code: `from random import choice, uniform
+from scena import *
+
+init(width=1280, height=720, title="Duel")
+Stardust(color="violet", color2="teal")
+ColorWash("navy", "teal", "purple", amount=0.25)
+
+sheet = Sheet("shooter/sheet.png", atlas="shooter/sheet.xml")
+level = Level("levels/duel.json")
+HOLE = level["hole"].center
+EDGE = 60      # the Warp's radius
+PULL = 400     # the pull at the Warp's edge: how much speed a shot there gains per second
+
+LEFT_KEYS = {"up": "W", "down": "S", "left": "A", "right": "D", "shot": "TAB"}
+RIGHT_KEYS = {"up": "UP", "down": "DOWN", "left": "LEFT", "right": "RIGHT", "shot": "ENTER"}
+
+st.blue_variant = 1
+st.red_variant = 1
+st.winner = ""
+
+
+class Shot(Sprite, source=sheet, height=26, art_angle=90, hitbox_shape="circle", group="shots"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.bounces = 0
+        # "add" adds the laser's light to the background: it glows, at no cost.
+        self.blend = "add"
+
+    def on_update(self, dt):
+        # near is 1 at the Warp's edge, 1/2 at twice the distance, 1/3 at
+        # three times. Cubed, the pull falls fast: 1/8 at twice, 1/27 at three times.
+        # Inside the edge it grows no more; beyond 300 it is not worth the math.
+        d = distance(self, HOLE)
+        if d < 300:
+            near = EDGE / max(d, EDGE)
+            self.vel += vec_from_angle(heading(self, HOLE), PULL * near ** 3 * dt)
+        self.angle = self.vel.angle
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("wall")
+    def crashed(self, wall, info):
+        self.bounces += 1
+        if self.bounces > 3:
+            canvas.hit_at(info, style="disc", radius=10)
+            self.destroy()
+
+
+class ShieldBubble(Circle, radius=44, visual=Shield(style="plasma")):
+    def setup(self):
+        self.charges = 0
+
+    @collide_with("shots")
+    def absorbed(self, shot, info):
+        shot.destroy()
+        canvas.zap_at(info, color="sky blue")
+        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        self.spend()
+
+    # The shield shatters the whole asteroid: two pieces born
+    # touching it would use up the other charges at once.
+    @collide_with("asteroids")
+    def deflected(self, asteroid, info):
+        canvas.zap_at(info, color="sky blue")
+        canvas.debris_at(asteroid, color="sienna", radius=asteroid.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        asteroid.destroy()
+        self.spend()
+
+    def spend(self):
+        self.charges -= 1
+        if self.charges == 0:
+            canvas.burst_at(self, radius=70, rings=True)
+            play_sound("audio/impactBell_heavy_000.ogg")
+            self.active = False
+
+
+class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
+    def setup(self):
+        # Held to its rail, the ship does not give way: an asteroid bounces off it.
+        self.mass = STATIC
+        self.turn = 0
+        self.step = 0
+        self.u = 0.5
+        self.energy = 100
+        self.jet = Jet(origin=self.center, length=40, width=14, amount=0)
+        self.fire = Fire(center=lambda: self.center - vec_from_angle(self.angle, 22), angle=lambda: self.angle + 180, width=16, length=40, style="plume")
+        self.fire.active = False
+        self.shield = ShieldBubble(center=lambda: self.center)
+        self.shield.active = False
+
+    def on_update(self, dt):
+        # The steering wheel: the turn builds up slowly and dies down slowly.
+        goal = 0
+        if keyp(self.controls["left"]):
+            goal = 200
+        if keyp(self.controls["right"]):
+            goal = -200
+        self.turn = chase(self.turn, goal, 5)
+        self.rotate_by(self.turn * dt)
+
+        # u is the place on the rail: 0 at one end, 1 at the other.
+        goal = 0
+        if keyp(self.controls["up"]):
+            goal = 260
+        if keyp(self.controls["down"]):
+            goal = -260
+        self.step = chase(self.step, goal, 5)
+        self.u += self.step * dt / self.rail.length
+        if self.u > 1:
+            self.u = 1
+            self.step = 0
+        if self.u < 0:
+            self.u = 0
+            self.step = 0
+        self.center = self.rail.at(self.u)
+
+        # The jet comes out behind the movement, along the rail, and
+        # grows with the speed.
+        direction = self.rail.angle_at(self.u)
+        if self.step < 0:
+            direction += 180
+        self.jet.origin = self.center - vec_from_angle(direction, 22)
+        self.jet.angle = direction + 180
+        self.jet.amount = abs(self.step) / 160
+
+        if keyp(self.controls["shot"]) and self.ready("shot", 0.3):
+            self.shoot()
+
+    def shoot(self):
+        shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
+        shot.vel = vec_from_angle(self.angle, 700)
+        shot.shooter = self
+        play_sound("space/sfx_laser1.ogg", volume=0.6)
+
+    @when(lambda self: self.energy < 30)
+    def caught_fire(self):
+        self.fire.active = True
+
+    @when(lambda self: self.energy >= 30)
+    def faded(self):
+        self.fire.active = False
+
+    def on_destroy(self):
+        self.jet.destroy()
+        self.fire.destroy()
+        self.shield.destroy()
+        self.bar.destroy()
+
+
+class Asteroid(Sprite, source=sheet, frame="meteorBrown_big1.png", height=64,
+                hitbox_shape="circle", group="asteroids"):
+    def setup(self):
+        self.vel = vec_from_angle(uniform(0, 360), uniform(40, 90))
+        self.turn = uniform(-60, 60)
+
+    def on_update(self, dt):
+        self.rotate_by(self.turn * dt)
+        self.move_by(self.vel.x * dt, self.vel.y * dt)
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="sienna", radius=self.height)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        # The big one splits in two small ones, which fly off to the sides of the shot.
+        if self.height > 40:
+            for side in [90, -90]:
+                chunk = Asteroid(frame="meteorBrown_small1.png", height=30,
+                                   center=self.center + vec_from_angle(shot.vel.angle + side, 18))
+                chunk.vel = vec_from_angle(shot.vel.angle + side, 110)
+        shot.destroy()
+        self.destroy()
+
+
+class PowerUp(Sprite, source=sheet, height=30, group="powers"):
+    def setup(self):
+        self.variant = "energy"
+
+
+def drop_power(start, end):
+    # start and end are (x, y) copies taken at the moment of the shot: the star
+    # vanishes and the ship keeps moving. The power-up curves to where the ship was,
+    # with a wave on top, and goes straight on until it leaves the screen.
+    # The frame goes in the constructor: Scena takes the hitbox and the size from it.
+    if chance(0.5):
+        power = PowerUp(frame="powerupGreen_shield.png", center=start)
+        power.variant = "shield"
+    else:
+        power = PowerUp(frame="pill_green.png", center=start)
+    direction = heading(start, end)
+    mx, my = middle_point(start, end)
+    detour = vec_from_angle(direction + choice([90, -90]), 100)
+    far = vec_from_angle(direction, 1500)
+    x, y = end
+    track = Track(points=[start, (mx + detour.x, my + detour.y), end, (x + far.x, y + far.y)])
+    track.zigzag(amount=16, waves=6)
+    power.move_along(track, speed=120)
+
+
+class Target(Circle, radius=16, visual=Sphere("gold"), group="target"):
+    def setup(self):
+        self.gold_star = Starburst(center=lambda: self.center, radius=34, color="gold")
+
+    @collide_with("shots")
+    def was_hit(self, shot, info):
+        canvas.debris_at(self, color="gold", radius=60)
+        play_sound("audio/explosion02.wav", volume=0.6)
+        if shot.shooter:
+            drop_power(tuple(self.center), tuple(shot.shooter.center))
+        shot.destroy()
+        self.destroy()
+
+    def on_destroy(self):
+        self.gold_star.destroy()
+
+
+def make_bolt(center):
+    # Two balls on the same (upright) figure eight, almost half a lap apart:
+    # in the middle of the eight they pass close, at the ends they are far apart.
+    track = Track.eight(width=160, height=50, center=center, angle=90)
+    ball1 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball2 = Circle(center=center, radius=10, group="wall", visual=Metal("gold"))
+    ball1.move_along(track, time=6, loops="forever")
+    ball2.move_along(track, time=6, loops="forever", phase=0.45)
+    bolt = Line(p1=lambda: ball1.center, p2=lambda: ball2.center, line_width=8,
+                visual=ElectricBolt("cyan"), group="bolt")
+    bolt.ball1 = ball1
+    bolt.ball2 = ball2
+    return bolt
+
+
+resolve("shots", "wall", bounce=1.0)
+resolve("asteroids", ["wall", "crate", "ships"], bounce=1.0)
+resolve("asteroids", "asteroids", bounce=1.0)
+
+
+@collide("ships", "shots")
+def struck(ship, shot, info):
+    shot.destroy()
+    canvas.hit_at(info, color="orange")
+    play_sound("audio/sfx-hit-2.wav")
+    ship.flash(0.1)
+    ship.energy -= 10
+
+
+@collide("ships", "asteroids")
+def crashed(ship, asteroid, info):
+    canvas.hit_at(info, style="disc", radius=14)
+    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    ship.energy -= 2
+
+
+@collide("shots", "bolt")
+def burned(shot, bolt, info):
+    canvas.zap_at(info, color="cyan")
+    play_sound("audio/fx2.wav", volume=0.5)
+    shot.destroy()
+
+
+@collide("shots", "crate")
+def smashed(shot, crate):
+    canvas.burst_at(crate, radius=24)
+    canvas.debris_at(crate, color="peru", radius=24)
+    play_sound("audio/explosion01.wav", volume=0.4)
+    shot.destroy()
+    crate.destroy()
+
+
+@collide("ships", "powers")
+def caught(ship, power):
+    if power.variant == "shield":
+        ship.shield.charges = 3
+        ship.shield.active = True
+    else:
+        ship.energy = min(100, ship.energy + 40)
+    ship.pop()
+    play_sound("audio/fx1.wav")
+    power.destroy()
+
+
+@leave_playfield("shots", "powers")
+def gone(thing):
+    thing.destroy()
+
+
+class Choice(Act):
+    def setup(self):
+        st.blue_ready = False
+        st.red_ready = False
+        Text(text="DUEL", center=(640, 600), font_size=80)
+        self.blues = [Sprite(sheet, frame="playerShip1_blue.png", height=80, center=(230, 360)),
+                      Sprite(sheet, frame="playerShip2_blue.png", height=80, center=(430, 360))]
+        self.reds = [Sprite(sheet, frame="playerShip1_red.png", height=80, center=(850, 360)),
+                          Sprite(sheet, frame="playerShip2_red.png", height=80, center=(1050, 360))]
+        Text(text="I", center=(230, 270), font_size=28)
+        Text(text="II", center=(430, 270), font_size=28)
+        Text(text="I", center=(850, 270), font_size=28)
+        Text(text="II", center=(1050, 270), font_size=28)
+        Text(text="A / D choose · TAB confirm", center=(330, 180), font_size=20)
+        Text(text="LEFT / RIGHT choose · ENTER confirm", center=(950, 180), font_size=20)
+        self.blue_notice = Text(text="", center=(330, 130), font_size=24, color="deep sky blue")
+        self.red_notice = Text(text="", center=(950, 130), font_size=24, color="tomato")
+
+    def on_update(self, dt):
+        if keyp.once("A"):
+            st.blue_variant = 1
+        if keyp.once("D"):
+            st.blue_variant = 2
+        if keyp.once("LEFT"):
+            st.red_variant = 1
+        if keyp.once("RIGHT"):
+            st.red_variant = 2
+        if keyp.once("TAB"):
+            st.blue_ready = True
+            self.blue_notice.text = "READY"
+        if keyp.once("ENTER"):
+            st.red_ready = True
+            self.red_notice.text = "READY"
+
+        for i in range(2):
+            self.blues[i].alpha = 0.25
+            self.reds[i].alpha = 0.25
+        self.blues[st.blue_variant - 1].alpha = 1
+        self.reds[st.red_variant - 1].alpha = 1
+
+        if st.blue_ready and st.red_ready:
+            change_act(Duel)
+
+
+def make_ship(variant, color, spot, angle):
+    # The two types only change the picture: playerShip1 or playerShip2.
+    ship = Ship(frame=f"playerShip{variant}_{color}.png", center=spot)
+    ship.angle = angle
+    return ship
+
+
+def make_asteroids():
+    for item in level.group("asteroid"):
+        Asteroid(center=item.center)
+
+
+class Duel(Act):
+    def setup(self):
+        for item in level.group("wall"):
+            item.make(color="#2b3a55")
+        for item in level.group("rock"):
+            rock = item.make(group="wall", color="#3d5a80", line_width=6)
+            rock.fill = "#1d2d44"
+        for item in level.group("bar"):
+            bar = item.make(group="wall", visual=Metal())
+            bar.rotate_by(360, time=4, loops="forever")
+        for item in level.group("crate"):
+            item.make(color="peru")
+        self.bolts = []
+        for item in level.group("bolt"):
+            self.bolts.append(make_bolt(item.center))
+        group["wall"].mass = STATIC
+        group["crate"].mass = STATIC
+        make_asteroids()
+        Warp(center=HOLE, radius=EDGE, color="violet", spin=0.5)
+
+        self.blue = make_ship(st.blue_variant, "blue", level["blue_start"].center, 0)
+        self.blue.rail = level["blue_rail"].make()
+        self.blue.controls = LEFT_KEYS
+        self.blue.laser = "laserBlue01.png"
+        self.red = make_ship(st.red_variant, "red", level["red_start"].center, 180)
+        self.red.rail = level["red_rail"].make()
+        self.red.controls = RIGHT_KEYS
+        self.red.laser = "laserRed01.png"
+
+        self.blue.bar = Rect(top_left=(40, 714), width=300, height=8, color="deep sky blue")
+        self.blue.bar["width"] @= lambda: max(self.blue.energy, 0) * 3
+        self.red.bar = Rect(top_left=(940, 714), width=300, height=8, color="tomato")
+        self.red.bar["width"] @= lambda: max(self.red.energy, 0) * 3
+
+    def on_update(self, dt):
+        # The bolt only exists while the two balls are close.
+        for bolt in self.bolts:
+            bolt.active = distance(bolt.ball1, bolt.ball2) < 90
+
+    @every(8)
+    def send_star(self):
+        if group["target"].empty:
+            y = choice([760, -40])
+            entry = (uniform(420, 860), y)
+            mid = (uniform(300, 980), 360)
+            finish = (uniform(420, 860), 720 - y)
+            gold_star = Target(center=entry)
+            gold_star.move_along(Track(points=[entry, mid, finish]), speed=60, on_done=gold_star.destroy)
+
+    @every(15)
+    def more_asteroids(self):
+        if group["asteroids"].empty:
+            make_asteroids()
+
+    @when(lambda self: self.blue.energy <= 0 or self.red.energy <= 0)
+    def finish(self):
+        if self.blue.energy <= 0:
+            lost = self.blue
+            st.winner = "RED"
+        else:
+            lost = self.red
+            st.winner = "BLUE"
+        canvas.explosion_at(lost, amount=1.6)
+        canvas.debris_at(lost, color="gray", radius=70)
+        canvas.shake(14)
+        play_sound("audio/explosion04.wav")
+        lost.destroy()
+        self.after(3, lambda: change_act(Victory))
+
+
+class Victory(Act):
+    def setup(self):
+        Text(text=f"{st.winner} WINS", center=(640, 420), font_size=64, color="gold")
+        Text(text="press SPACE", center=(640, 320), font_size=22)
+
+    def on_update(self, dt):
+        if keyp.once("SPACE"):
+            change_act(Choice)
+
+
+run(Choice)
+`,
+      notes: [
+        {
+          at: "make_ship(st.blue_variant,",
+          text: "The choice stays in <code>st</code>, which carries over from one act to the next: <code>Duel</code> reads it here, and the next match starts with the same ship."
+        },
+        {
+          at: "self.blues = [",
+          text: "Each side's two ships in a list. <code>self.blues[0]</code> is I, <code>self.blues[1]</code> is II."
+        },
+        {
+          at: "self.blues[st.blue_variant - 1].alpha = 1",
+          text: "All of them are dimmed (<code>alpha</code> 0.25, almost transparent), and the chosen one lights up. The type goes from 1 to 2 and the list counts from 0: hence the <code>- 1</code>."
+        },
+        {
+          at: "ship = Ship(frame=f\"playerShip{variant}_{color}.png\"",
+          text: "The image name built from the type and the color: <code>playerShip2_red.png</code> is the red ship II."
+        },
+        {
+          at: "run(Choice)",
+          text: "The game starts with the choice."
+        }
+      ],
+      closing: `
+        <p>Two players on the same keyboard. The left ship (blue) moves along its rail with <kbd>W</kbd> / <kbd>S</kbd>, turns with <kbd>A</kbd> / <kbd>D</kbd> and fires with <kbd>TAB</kbd>; the right one (red), with <kbd>↑</kbd> / <kbd>↓</kbd>, <kbd>←</kbd> / <kbd>→</kbd> and <kbd>ENTER</kbd>. Lasers bounce three times and curve near the Warp. Break crates, asteroids and the star, catch the power-ups and drain the other ship's energy to zero. After a victory, <kbd>SPACE</kbd> goes back to the ship choice.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>rail.at(u)</code> — the point of the rail at place u, from 0 to 1; the ship moves by changing u, and <code>angle_at</code> gives the direction there.</li>
+          <li><code>chase</code> as weight — the speed and the turn move gradually toward what the key asks for, and come back the same way.</li>
+          <li>A dictionary — names linked to values (<code>controls["shot"]</code>); one class, two players, each with its own fields.</li>
+          <li><code>resolve(…, bounce=1.0)</code> with <code>@collide_with</code> — the laser bounces, and the function counts the hits before Scena resolves.</li>
+          <li><code>PULL * near ** 3</code> — a force that falls fast with distance, tuned by one number at the edge.</li>
+          <li><code>blend = "add"</code> — a glow that costs nothing, for things that show up by the dozen.</li>
+          <li><code>zigzag</code> and <code>speed=</code> — a track built on the spot, made wavy, traveled at a fixed speed.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#track-sample">Sampling and cursor</a> · <a href="../guide/index.html#track-mod">Modifiers</a> · <a href="../guide/index.html#util-chase">chase</a> · <a href="../guide/index.html#colisao-bounce">bounce</a> · <a href="../guide/index.html#desenhar-spatial">SpatialFx</a> · <a href="../guide/index.html#aparencia-blend">Blend</a> · <a href="../guide/index.html#colocar-fase">Level</a> · <a href="../guide/index.html#mundo-impactos">Impacts</a>.</p>
+        <p><strong>What now?</strong> For now the series ends here, but the Guide goes on: every feature you saw has its own section there, with everything it can do. Give the two ships different ways to move, or pick a game you like and make your own version.</p>
+      `,
+      explore: `
+        <ul>
+          <li>A new weapon: a shot that does not bounce but is faster, or a mine that sits still on the rail.</li>
+          <li>A round score: whoever wins two rounds takes the duel.</li>
+          <li>What else can you do with what you have learned? Invent a power-up and test it with a friend.</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

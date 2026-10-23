@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Collision — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "20",
+  title: "Collision",
+  steps: [
+    {
+      title: "The lab",
+      body: `
+        <p>This tutorial is not a game. It is a lab for a close look at what collision can do beyond what the games used. In the games, collision was a rule: something that fires when two things touch, or that keeps one from passing through the other. Here you see the three phases of a touch (it started, it goes on, it ended) and the questions: who is at this point, who is in this area, what this line hits first.</p>
+        <p>The setup is simple: a hero, a coral circle that walks with the arrow keys, and five crates.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=700, title="Collision")
+Wallpaper("#1b2330")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="crate")
+
+hero = Circle(center=(120, 560), radius=22, color="coral", group="hero")
+hero.pace = 260
+resolve("hero", "crate")
+
+
+def update(dt):
+    step = hero.pace * dt
+    if keyp("LEFT"):
+        hero.move_by(-step, 0)
+    if keyp("RIGHT"):
+        hero.move_by(step, 0)
+    if keyp("UP"):
+        hero.move_by(0, step)
+    if keyp("DOWN"):
+        hero.move_by(0, -step)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "hero.pace = 260",
+          text: "The speed lives in a field of the hero, not in a fixed number inside <code>update</code>: that way another part of the program can change it."
+        },
+        {
+          at: "resolve(\"hero\", \"crate\")",
+          text: "The crates are solid: the hero stops at them."
+        }
+      ],
+      after: `
+        <p>Run it and walk among the crates.</p>
+      `
+    },
+    {
+      title: "In and out",
+      body: [
+        `
+        <p>A blue puddle in the corner. Inside it, the hero walks slowly and turns bluish. That takes two rules, one for each moment of the touch:</p>
+        `,
+        {
+          snip: `@collide("hero", "water")
+def entered(hero, water, info):
+...
+@collide_exit("hero", "water")
+def exited(hero, water, info):`
+        },
+        `
+        <p><code>@collide</code> runs once, on the first frame the two touch. <code>@collide_exit</code> runs once, on the frame they stop touching. What one does, the other undoes: the entry sets the speed to 110 and changes the color; the exit puts both back.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Collision")
+Wallpaper("#1b2330")
+
+puddle = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="water")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="crate")
+
+hero = Circle(center=(120, 560), radius=22, color="coral", group="hero")
+hero.pace = 260
+resolve("hero", "crate")
+
+
+def update(dt):
+    step = hero.pace * dt
+    if keyp("LEFT"):
+        hero.move_by(-step, 0)
+    if keyp("RIGHT"):
+        hero.move_by(step, 0)
+    if keyp("UP"):
+        hero.move_by(0, step)
+    if keyp("DOWN"):
+        hero.move_by(0, -step)
+
+
+@collide("hero", "water")
+def entered(hero, water, info):
+    hero.pace = 110
+    hero.color = "light sky blue"
+
+
+@collide_exit("hero", "water")
+def exited(hero, water, info):
+    hero.pace = 260
+    hero.color = "coral"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "puddle = Rect(",
+          text: "The puddle is a rectangle in the <code>water</code> group. It is created before the crates and the hero, so it is drawn behind them."
+        },
+        {
+          at: "hero.pace = 110",
+          text: "<code>update</code> reads the field every frame, so the hero slows down on the very next frame."
+        }
+      ],
+      after: `
+        <p>Run it and cross the puddle.</p>
+        <details class="ask"><summary>Why does the hero walk into the puddle instead of stopping at it, like at the crates?</summary><p>The puddle is not in the <code>resolve</code>. A touch rule only tells you the touch happened; what keeps things from passing through is <code>resolve</code>.</p></details>
+      `
+    },
+    {
+      title: "While inside",
+      body: [
+        `
+        <p>Now, air. Under water, the hero uses up air, and out of it he gets it back. Using up air lasts as long as the touch lasts, and that is what the middle phase is for:</p>
+        `,
+        {
+          snip: `@collide_stay("hero", "water")
+def submerged(hero, water, info):
+    st.air = max(0, st.air - 30 * clock.dt)`
+        },
+        `
+        <p><code>@collide_stay</code> runs on every frame the two are still touching, from the second frame to the last one before the exit. Here, air drops 30 per second.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 118" role="img" aria-label="A timeline of frames; a bar marks the frames where the hero touches the puddle; on the first one @collide runs, on each of the following ones @collide_stay runs, and on the first frame without a touch @collide_exit runs">
+            <rect class="bar" x="104" y="30" width="172" height="12" rx="3"/>
+            <text x="190" y="22" text-anchor="middle">touching</text>
+            <line class="ray" x1="40" y1="64" x2="340" y2="64"/>
+            <line class="ray" x1="50" y1="59" x2="50" y2="69"/>
+            <line class="ray" x1="70" y1="59" x2="70" y2="69"/>
+            <line class="ray" x1="90" y1="59" x2="90" y2="69"/>
+            <line class="ray" x1="310" y1="59" x2="310" y2="69"/>
+            <line class="ray" x1="330" y1="59" x2="330" y2="69"/>
+            <circle class="hot" cx="110" cy="64" r="6"/>
+            <circle class="dot" cx="130" cy="64" r="4"/>
+            <circle class="dot" cx="150" cy="64" r="4"/>
+            <circle class="dot" cx="170" cy="64" r="4"/>
+            <circle class="dot" cx="190" cy="64" r="4"/>
+            <circle class="dot" cx="210" cy="64" r="4"/>
+            <circle class="dot" cx="230" cy="64" r="4"/>
+            <circle class="dot" cx="250" cy="64" r="4"/>
+            <circle class="dot" cx="270" cy="64" r="4"/>
+            <circle class="hot" cx="290" cy="64" r="6"/>
+            <text x="346" y="68">frame</text>
+            <text x="110" y="90" text-anchor="middle">@collide</text>
+            <text x="200" y="90" text-anchor="middle">@collide_stay</text>
+            <text x="290" y="90" text-anchor="middle">@collide_exit</text>
+            <text x="110" y="106" text-anchor="middle">started</text>
+            <text x="200" y="106" text-anchor="middle">goes on</text>
+            <text x="290" y="106" text-anchor="middle">ended</text>
+          </svg>
+          <figcaption>Each tick mark or dot is a frame. The entry runs on the first frame of the touch; the middle phase, on each following frame while the touch lasts; the exit, on the first frame without a touch.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Collision")
+Wallpaper("#1b2330")
+
+puddle = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="water")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="crate")
+
+hero = Circle(center=(120, 560), radius=22, color="coral", group="hero")
+hero.pace = 260
+resolve("hero", "crate")
+
+st.air = 100
+Text(lambda: f"Air: {round(st.air)}", top_left=(20, 680))
+
+
+def update(dt):
+    step = hero.pace * dt
+    if keyp("LEFT"):
+        hero.move_by(-step, 0)
+    if keyp("RIGHT"):
+        hero.move_by(step, 0)
+    if keyp("UP"):
+        hero.move_by(0, step)
+    if keyp("DOWN"):
+        hero.move_by(0, -step)
+    if st.air < 100:
+        st.air = min(100, st.air + 10 * dt)
+
+
+@collide("hero", "water")
+def entered(hero, water, info):
+    hero.pace = 110
+    hero.color = "light sky blue"
+
+
+@collide_stay("hero", "water")
+def submerged(hero, water, info):
+    st.air = max(0, st.air - 30 * clock.dt)
+
+
+@collide_exit("hero", "water")
+def exited(hero, water, info):
+    hero.pace = 260
+    hero.color = "coral"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "Text(lambda: f\"Air: {round(st.air)}\"",
+          text: "The counter is a formula: it shows <code>st.air</code> whenever it changes. <code>round</code> shows 87, not 87.4166."
+        },
+        {
+          at: "min(100, st.air + 10 * dt)",
+          text: "Out of the puddle, in <code>update</code>, air goes up 10 per second. <code>min</code> (the smaller of the two) holds it at 100: given 100 and 100.2, it stays 100."
+        },
+        {
+          at: "max(0, ",
+          text: "<code>max</code> (the larger of the two) holds air at 0: given 0 and −0.5, it stays 0."
+        },
+        {
+          at: "30 * clock.dt",
+          text: "Outside <code>update</code> there is no <code>dt</code>, so the rule takes it from <code>clock</code>: <code>clock.dt</code> is the time of this frame, the same <code>dt</code>. Multiplying by it makes the math per second, whatever the number of frames."
+        }
+      ],
+      after: `
+        <p>Run it, step into the puddle and watch the counter in the corner.</p>
+        <details class="ask"><summary>Inside the puddle, does air drop 30 per second?</summary><p>It drops 20. <code>update</code> keeps adding 10 per second, inside or out of the puddle, and inside the rule takes away 30. Both happen on the same frame.</p></details>
+      `,
+      try: [
+        {
+          note: "The three phases exist inside a class too: <code>@collide_with</code>, <code>@collide_with_stay</code> and <code>@collide_with_exit</code>. A bubble that rises on its own while it touches the water and stops at the edge. At the end of the program.",
+          code: `class Bubble(Circle, radius=8, color="white"):
+    @collide_with_stay("water")
+    def rise(self, water, info):
+        self.move_by(0, 40 * clock.dt)
+
+
+Bubble(center=(250, 150))`
+        }
+      ]
+    },
+    {
+      title: "What is here?",
+      body: [
+        `
+        <p>Rules wait for a touch to happen. Sometimes you want to ask, right now: who is at this point? A click will show it.</p>
+        `,
+        {
+          snip: `for thing in collision.query_point(x, y):
+    thing.flash(0.3)`
+        },
+        `
+        <p><code>collision.query_point(x, y)</code> returns a list of every object whose collision shape contains the point. <code>collision</code> already exists after <code>from scena import *</code>, like <code>canvas</code>. Each thing found flashes for 0.3 s.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Collision")
+Wallpaper("#1b2330")
+
+puddle = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="water")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="crate")
+
+hero = Circle(center=(120, 560), radius=22, color="coral", group="hero")
+hero.pace = 260
+resolve("hero", "crate")
+
+st.air = 100
+Text(lambda: f"Air: {round(st.air)}", top_left=(20, 680))
+
+
+def update(dt):
+    step = hero.pace * dt
+    if keyp("LEFT"):
+        hero.move_by(-step, 0)
+    if keyp("RIGHT"):
+        hero.move_by(step, 0)
+    if keyp("UP"):
+        hero.move_by(0, step)
+    if keyp("DOWN"):
+        hero.move_by(0, -step)
+    if st.air < 100:
+        st.air = min(100, st.air + 10 * dt)
+
+
+@collide("hero", "water")
+def entered(hero, water, info):
+    hero.pace = 110
+    hero.color = "light sky blue"
+
+
+@collide_stay("hero", "water")
+def submerged(hero, water, info):
+    st.air = max(0, st.air - 30 * clock.dt)
+
+
+@collide_exit("hero", "water")
+def exited(hero, water, info):
+    hero.pace = 260
+    hero.color = "coral"
+
+
+def on_mouse_click(x, y, button):
+    for thing in collision.query_point(x, y):
+        thing.flash(0.3)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "def on_mouse_click(x, y, button):",
+          text: "Scena calls <code>on_mouse_click</code> with the point of the click, <code>x</code> and <code>y</code>, and the button."
+        }
+      ],
+      after: `
+        <p>Click the puddle, a crate, the hero: each one flashes. Now click the air text.</p>
+        <details class="ask"><summary>Why doesn't the text flash?</summary><p>The collision system only knows the objects some rule names: the hero and the puddle are in the <code>@collide</code>, the crates in the <code>resolve</code>. The text is in no rule at all, so the question does not see it.</p></details>
+      `
+    },
+    {
+      title: "A burst",
+      body: [
+        `
+        <p>A right click bursts the crates near it. This time the question is about an area:</p>
+        `,
+        {
+          snip: `for crate in collision.query_circle(x, y, radius=90, group="crate"):
+    crate.destroy()`
+        },
+        `
+        <p><code>collision.query_circle</code> returns whoever overlaps a circle of radius 90 around the click. No circle is created: it is a question about an area, not a shape on the screen. And <code>group="crate"</code> limits the question to one group: the hero or the puddle, close by, do not make the list.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 150" role="img" aria-label="A dashed circle around the click; two crates touch the circle, one with just a corner, and burst; a third one stays outside; the hero is inside the circle, but belongs to another group">
+            <circle class="guide" cx="200" cy="75" r="55"/>
+            <circle class="dot" cx="200" cy="75" r="3"/>
+            <text x="194" y="72" text-anchor="end">click</text>
+            <rect class="hot" x="232" y="22" width="30" height="30"/>
+            <rect class="hot" x="128" y="92" width="30" height="30"/>
+            <rect class="bar" x="300" y="60" width="30" height="30"/>
+            <circle class="bar child" cx="215" cy="105" r="10"/>
+            <text x="315" y="106" text-anchor="middle">stays</text>
+            <text x="240" y="142">hero: other group</text>
+          </svg>
+          <figcaption>The two crates that touch the circle of radius 90 (in red) burst, even with just a corner inside. The one outside stays. The hero is inside, but the question only sees the <code>crate</code> group.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Collision")
+Wallpaper("#1b2330")
+
+puddle = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="water")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="crate")
+
+hero = Circle(center=(120, 560), radius=22, color="coral", group="hero")
+hero.pace = 260
+resolve("hero", "crate")
+
+st.air = 100
+Text(lambda: f"Air: {round(st.air)}", top_left=(20, 680))
+
+
+def update(dt):
+    step = hero.pace * dt
+    if keyp("LEFT"):
+        hero.move_by(-step, 0)
+    if keyp("RIGHT"):
+        hero.move_by(step, 0)
+    if keyp("UP"):
+        hero.move_by(0, step)
+    if keyp("DOWN"):
+        hero.move_by(0, -step)
+    if st.air < 100:
+        st.air = min(100, st.air + 10 * dt)
+
+
+@collide("hero", "water")
+def entered(hero, water, info):
+    hero.pace = 110
+    hero.color = "light sky blue"
+
+
+@collide_stay("hero", "water")
+def submerged(hero, water, info):
+    st.air = max(0, st.air - 30 * clock.dt)
+
+
+@collide_exit("hero", "water")
+def exited(hero, water, info):
+    hero.pace = 260
+    hero.color = "coral"
+
+
+def on_mouse_click(x, y, button):
+    if button == Mouse.BTN_RIGHT:
+        canvas.burst_at((x, y), radius=90)
+        for crate in collision.query_circle(x, y, radius=90, group="crate"):
+            crate.destroy()
+    else:
+        for thing in collision.query_point(x, y):
+            thing.flash(0.3)
+
+
+run()
+`,
+      notes: [
+        {
+          at: "if button == Mouse.BTN_RIGHT:",
+          text: "<code>button</code> says which button was clicked: <code>Mouse.BTN_RIGHT</code> is the right one. The left click still asks about the point, in the <code>else</code>."
+        },
+        {
+          at: "canvas.burst_at((x, y), radius=90)",
+          text: "Just to see it: a drawn burst the size of the question. What destroys the crates is the <code>for</code>."
+        }
+      ],
+      after: `
+        <p>Run it and burst the crates, one at a time or two at once.</p>
+      `
+    },
+    {
+      title: "The guard",
+      example: "collision.py",
+      body: [
+        `
+        <p>In the top corner, a golden guard looks at the hero. The line coming out of him turns red when he sees the hero, and gray when a crate is in the way: the hero can hide behind the crates. Seeing is a question about a line:</p>
+        `,
+        {
+          snip: `hit = collision.raycast(guard, p2=hero, group=["hero", "crate"])
+if hit:
+    thing, t, point = hit`
+        },
+        `
+        <p><code>collision.raycast</code> (cast a ray) traces a straight line from the guard to the hero and returns the first thing it hits, or <code>None</code> if it hits nothing. The answer is three things together: the object hit, how much of the way the ray traveled to reach it (<code>t</code>, from 0 to 1) and the point where it hit. <code>thing, t, point = hit</code> splits the three apart. <code>group=</code> limits the ray to the hero and the crates: without it, the puddle would also be in the way and hide the hero.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 170" role="img" aria-label="A guard on the right traces a line to the hero on the left; a crate in the way cuts the line at the point where it hits">
+            <polygon class="dot" points="345,30 330,22 330,38"/>
+            <circle class="hot" cx="40" cy="140" r="12"/>
+            <rect class="bar child" x="170" y="70" width="40" height="40"/>
+            <line class="guide" x1="335" y1="30" x2="40" y2="140"/>
+            <line class="ray" x1="335" y1="30" x2="210" y2="76.6"/>
+            <circle class="dot" cx="210" cy="76.6" r="4"/>
+            <text x="300" y="58">guard</text>
+            <text x="20" y="165">hero</text>
+            <text x="216" y="100">point</text>
+            <text x="150" y="62">crate</text>
+          </svg>
+          <figcaption>The ray leaves the guard toward the hero. The first thing it hits is the crate: <code>raycast</code> returns the crate and the point of the hit, and the hero stays hidden.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=700, title="Collision")
+Wallpaper("#1b2330")
+
+puddle = Rect(center=(250, 200), width=260, height=180, color="#2a6f97", group="water")
+
+for x, y in [(520, 420), (600, 420), (680, 300), (420, 180), (760, 560)]:
+    Rect(center=(x, y), width=70, height=70, color="peru", group="crate")
+
+hero = Circle(center=(120, 560), radius=22, color="coral", group="hero")
+hero.pace = 260
+resolve("hero", "crate")
+
+st.air = 100
+Text(lambda: f"Air: {round(st.air)}", top_left=(20, 680))
+
+
+def update(dt):
+    step = hero.pace * dt
+    if keyp("LEFT"):
+        hero.move_by(-step, 0)
+    if keyp("RIGHT"):
+        hero.move_by(step, 0)
+    if keyp("UP"):
+        hero.move_by(0, step)
+    if keyp("DOWN"):
+        hero.move_by(0, -step)
+    if st.air < 100:
+        st.air = min(100, st.air + 10 * dt)
+    face()
+
+
+@collide("hero", "water")
+def entered(hero, water, info):
+    hero.pace = 110
+    hero.color = "light sky blue"
+
+
+@collide_stay("hero", "water")
+def submerged(hero, water, info):
+    st.air = max(0, st.air - 30 * clock.dt)
+
+
+@collide_exit("hero", "water")
+def exited(hero, water, info):
+    hero.pace = 260
+    hero.color = "coral"
+
+
+def on_mouse_click(x, y, button):
+    if button == Mouse.BTN_RIGHT:
+        canvas.burst_at((x, y), radius=90)
+        for crate in collision.query_circle(x, y, radius=90, group="crate"):
+            crate.destroy()
+    else:
+        for thing in collision.query_point(x, y):
+            thing.flash(0.3)
+
+
+guard = Triangle(center=(900, 620), radius=24, color="gold")
+sight = Line(p1=guard.center, p2=hero.center, color="gold")
+
+
+def face():
+    guard.rotate_to(heading(guard.center, hero.center))
+    hit = collision.raycast(guard, p2=hero, group=["hero", "crate"])
+    if hit:
+        thing, t, point = hit
+        sight.p2 = point
+        if thing is hero:
+            sight.color = "red"
+        else:
+            sight.color = "gray"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "sight = Line(",
+          text: "A <code>Line</code>, from <code>p1</code> to <code>p2</code>: the guard's line of sight, which <code>face</code> updates."
+        },
+        {
+          at: "def face():",
+          text: "The function runs every frame: <code>update</code> calls it at the end."
+        },
+        {
+          at: "heading(guard.center, hero.center)",
+          text: "<code>heading</code> gives the angle from the guard to the hero, and <code>rotate_to</code> turns the triangle that way."
+        },
+        {
+          at: "sight.p2 = point",
+          text: "The line ends where the ray hit: on the hero, or on the crate that blocks the view."
+        },
+        {
+          at: "if thing is hero:",
+          text: "<code>is</code> asks whether it is the same object. If the first thing hit is the hero himself, nothing is in the way, and the line turns red. If it is a crate, gray."
+        }
+      ],
+      after: `
+        <p>Run it and hide the hero behind a crate; then burst the crate with the right button.</p>
+      `,
+      dive: [
+        {
+          title: "Rules and questions",
+          body: `
+            <p>There are two ways to find out about a collision.</p>
+            <p>A <strong>rule</strong> stays in force and calls your function when the touch happens: <code>@collide</code> (it started), <code>@collide_stay</code> (it goes on), <code>@collide_exit</code> (it ended), or <code>resolve</code>, which holds things apart. You write it once, at the top level of the file or in the class.</p>
+            <p>A <strong>question</strong> is asked on the spot, when your code wants to know: on a click, in an <code>update</code>, in an event.</p>
+            <div class="tbl"><table>
+              <thead><tr><th>Question</th><th>Answers</th></tr></thead>
+              <tbody>
+                <tr><td><code>collision.query_point(x, y)</code></td><td>Who is at this point (a list).</td></tr>
+                <tr><td><code>collision.query_circle(x, y, radius=)</code></td><td>Who is in this round area.</td></tr>
+                <tr><td><code>collision.query_sector(…)</code></td><td>Who is in a cone, like a guard's field of view.</td></tr>
+                <tr><td><code>collision.raycast(a, p2=b)</code></td><td>The first thing the line from <code>a</code> to <code>b</code> hits, and where.</td></tr>
+                <tr><td><code>shape.contains_point(p)</code></td><td>Whether the point falls inside this shape's drawing.</td></tr>
+              </tbody>
+            </table></div>
+            <p>Without <code>group=</code>, the questions see only the objects some rule names. With <code>group=</code>, they see the members of that group, whether or not they are in a rule.</p>
+            <p>In the Guide: <a href="../guide/index.html#colisao-collide">Detect</a> · <a href="../guide/index.html#colisao-aux">Queries</a>.</p>
+          `,
+          try: [
+            {
+              note: "A cone of sight: the guard sees only what is in front of him, within an opening of 60 degrees and up to 500 away. <code>query_sector</code> uses the triangle's angle. Inside <code>face</code>, at the end:",
+              code: `if hero in collision.query_sector(guard, radius=500, spread=60, group="hero"):
+    guard.color = "red"
+else:
+    guard.color = "gold"`
+            }
+          ]
+        }
+      ],
+      closing: `
+        <p>The arrow keys move the hero. In the puddle he walks slowly and uses up air. A click flashes whatever is under it; the right button bursts the crates around it. The guard, in the corner, sees the hero when no crate is in the way: the line turns red.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>@collide</code>, <code>@collide_stay</code>, <code>@collide_exit</code> — the three phases of a touch: it started, it goes on (every frame), it ended.</li>
+          <li><code>clock.dt</code> — the time of this frame, for per-second math outside <code>update</code>.</li>
+          <li><code>collision.query_point</code> — a question on the spot: who is at this point.</li>
+          <li><code>collision.query_circle</code> with <code>group=</code> — who is in an area, from one group only.</li>
+          <li><code>collision.raycast</code> — the first thing a line hits, and the point of the hit.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#colisao-collide">Detect</a> · <a href="../guide/index.html#colisao-aux">Queries</a> · <a href="../guide/index.html#colisao-info">CollisionInfo</a>.</p>
+        <p><strong>Next:</strong> a board game, Connect Four.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Add a second puddle, of mud, that makes the hero even slower.</li>
+          <li>Can you make the guard turn slowly, searching the room for the hero?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

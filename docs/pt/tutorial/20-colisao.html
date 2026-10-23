@@ -460,12 +460,12 @@ run()
         <p>No canto de cima, um vigia dourado olha para o herói. A linha que sai dele fica vermelha quando ele vê o herói, e cinza quando uma caixa está no caminho: o herói pode se esconder atrás das caixas. Ver é uma pergunta sobre uma linha:</p>
         `,
         {
-          snip: `batida = collision.raycast(vigia, p2=heroi)
+          snip: `batida = collision.raycast(vigia, p2=heroi, group=["heroi", "caixa"])
 if batida:
     coisa, t, ponto = batida`
         },
         `
-        <p><code>collision.raycast</code> (lançar um raio) traça uma linha reta do vigia até o herói e devolve a primeira coisa que ela atinge, ou <code>None</code> (nada) se não atinge nada. A resposta são três coisas juntas: o objeto atingido, quanto do caminho o raio andou até ele (<code>t</code>, de 0 a 1) e o ponto onde bateu. <code>coisa, t, ponto = batida</code> separa as três.</p>
+        <p><code>collision.raycast</code> (lançar um raio) traça uma linha reta do vigia até o herói e devolve a primeira coisa que ela atinge, ou <code>None</code> (nada) se não atinge nada. A resposta são três coisas juntas: o objeto atingido, quanto do caminho o raio andou até ele (<code>t</code>, de 0 a 1) e o ponto onde bateu. <code>coisa, t, ponto = batida</code> separa as três. <code>group=</code> limita o raio ao herói e às caixas: sem ele, a poça também ficaria no caminho e esconderia o herói.</p>
         <figure class="fig">
           <svg viewBox="0 0 380 170" role="img" aria-label="Um vigia à direita traça uma linha até o herói à esquerda; uma caixa no caminho interrompe a linha no ponto onde ela bate">
             <polygon class="dot" points="345,30 330,22 330,38"/>
@@ -549,7 +549,7 @@ visao = Line(p1=vigia.center, p2=heroi.center, color="gold")
 
 def olhar():
     vigia.rotate_to(heading(vigia.center, heroi.center))
-    batida = collision.raycast(vigia, p2=heroi)
+    batida = collision.raycast(vigia, p2=heroi, group=["heroi", "caixa"])
     if batida:
         coisa, t, ponto = batida
         visao.p2 = ponto

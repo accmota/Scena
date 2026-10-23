@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spins — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "30",
+  title: "Spins",
+  steps: [
+    {
+      title: "A spinning bar",
+      part: "Script 1 · Spinning bars",
+      fresh: true,
+      body: `
+        <p>This tutorial is about art, not games: spins that add up. In the first script, a bar spins; at each end of it a smaller bar is born, and it spins too; at the ends of those, more bars, and so on. Sixty-three bars draw loops that look complicated and come from a short rule.</p>
+        <p>We start with a single bar, spinning. How far it is turned is its <code>angle</code>, in degrees:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 210" role="img" aria-label="A bar turned 30 degrees at the center of a circle marked 0, 90, 180 and 270 degrees">
+            <circle class="guide" cx="180" cy="110" r="80"/>
+            <rect class="bar" x="-70" y="-6" width="140" height="12" transform="translate(180 110) rotate(-30)"/>
+            <line class="ray" x1="180" y1="110" x2="262" y2="110"/>
+            <path class="guide" d="M 222 110 A 42 42 0 0 0 216.4 89"/>
+            <circle class="dot" cx="180" cy="110" r="3"/>
+            <text x="268" y="114">0°</text>
+            <text x="180" y="22" text-anchor="middle">90°</text>
+            <text x="92" y="114" text-anchor="end">180°</text>
+            <text x="180" y="206" text-anchor="middle">270°</text>
+            <text x="230" y="104">30°</text>
+          </svg>
+          <figcaption>The angle in degrees. 0 is the bar lying flat; the angle grows counterclockwise, and 360 is a full turn.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+bar = Rect(center=(W / 2, H / 2), width=500, height=33)
+bar["angle"] @= lambda: (clock.time * 26) % 360
+
+run()
+`,
+      notes: [
+        {
+          at: "width=500, height=33",
+          text: "A <code>Rect</code> (a rectangle) at the center of the window, with <code>width</code> 500 and <code>height</code> 33: long and thin."
+        },
+        {
+          at: "bar[\"angle\"] @=",
+          text: "<code>@=</code> links the angle to a formula, and Scena redoes the math every frame. The field's name goes in square brackets: that is the field that receives the formula."
+        },
+        {
+          at: "clock.time * 26",
+          text: "<code>clock.time</code> is how many seconds have passed since the start. Times 26, the bar turns 26 degrees per second, and a full turn takes about 14 seconds."
+        }
+      ],
+      after: `
+        <p>Run it: the bar spins slowly around its center, the point it was placed by. The interlude <a href="14i-turn-and-grow.html">Turn and grow</a> shows what changes when it is another point.</p>
+        <p>At the end of the formula comes <code>% 360</code>. The <code>%</code> is the remainder of a division: <code>370 % 360</code> is 10, because 360 goes into 370 once with 10 left over.</p>
+        <details class="ask"><summary>After 20 seconds, what is the angle?</summary><p><code>clock.time * 26</code> gives 520, and <code>520 % 360</code> gives 160. It is the same position: 520 degrees is one full turn plus 160. The <code>%</code> keeps the number within one turn.</p></details>
+      `,
+      try: [
+        {
+          note: "In place of the formula. A negative number spins the other way, clockwise. 90 degrees per second is a quarter turn per second.",
+          replaces: ['bar["angle"] @='],
+          code: `bar["angle"] @= lambda: (clock.time * -90) % 360`
+        }
+      ]
+    },
+    {
+      title: "A recipe for bars",
+      body: [
+        `
+        <p>We will need many bars, all made the same way: only the size, the place and the spin change. Instead of copying the bar's lines over and over, we write a function, a recipe you can use as many times as you like. This one takes some information:</p>
+        `,
+        {
+          snip: `def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+...
+make_bar(1, (180, 150))`
+        },
+        `
+        <p><code>depth</code> and <code>center</code>, between the parentheses of the <code>def</code>, are the <strong>parameters</strong>: names that get a value only when the function is called. The call brings the values, in the same order:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 155" role="img" aria-label="At the top, the line def make_bar with the parameters depth and center in boxes. Below, the call make_bar with the values 1 and (180, 150) in boxes. One arrow takes the 1 up to depth, and another takes (180, 150) up to center.">
+            <text x="20" y="16">the function</text>
+            <text x="20" y="41">def make_bar(</text>
+            <rect class="bar" x="134" y="26" width="48" height="22" rx="3"/>
+            <text x="158" y="41" text-anchor="middle">depth</text>
+            <text x="186" y="41">,</text>
+            <rect class="bar" x="196" y="26" width="80" height="22" rx="3"/>
+            <text x="236" y="41" text-anchor="middle">center</text>
+            <text x="280" y="41">):</text>
+            <line class="ray" x1="158" y1="104" x2="158" y2="58"/>
+            <polygon class="dot" points="158,51 154,59 162,59"/>
+            <line class="ray" x1="236" y1="104" x2="236" y2="58"/>
+            <polygon class="dot" points="236,51 232,59 240,59"/>
+            <text x="150" y="84" text-anchor="end">depth = 1</text>
+            <text x="244" y="84">center = (180, 150)</text>
+            <text x="46" y="121">make_bar(</text>
+            <rect class="bar child" x="134" y="106" width="48" height="22" rx="3"/>
+            <text x="158" y="121" text-anchor="middle">1</text>
+            <text x="186" y="121">,</text>
+            <rect class="bar child" x="196" y="106" width="80" height="22" rx="3"/>
+            <text x="236" y="121" text-anchor="middle">(180, 150)</text>
+            <text x="280" y="121">)</text>
+            <text x="46" y="148">the call</text>
+          </svg>
+          <figcaption>The call hands the values to the parameters, in order: the first goes to <code>depth</code>, the second to <code>center</code>. The function runs the same lines with those values.</figcaption>
+        </figure>
+        <p>The level decides the size. The level 0 bar is the big one, with <code>LENGTH</code>, half the width of the window; each next level is half the size of the one before. The math is done by <code>**</code>, Python's <strong>power</strong>: <code>2 ** 3</code> is three 2s multiplied together, 2 × 2 × 2 = 8. With <code>SIZE_FACTOR = 2</code>:</p>
+        <div class="tbl"><table><thead><tr><th><code>depth</code></th><th><code>2 ** depth</code></th><th><code>length</code> (500 divided by it)</th></tr></thead><tbody>
+          <tr><td>0</td><td>1</td><td>500</td></tr>
+          <tr><td>1</td><td>2</td><td>250</td></tr>
+          <tr><td>2</td><td>4</td><td>125</td></tr>
+        </tbody></table></div>
+        `
+      ],
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+RATIO = 1 / 15  # height / length
+SIZE_FACTOR = 2
+LENGTH = W * 0.5
+
+SPEED = 26
+SPIN_FACTOR = -1.5
+
+
+def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+    height = length * RATIO
+
+    bar = Rect(
+        center=center,
+        width=length,
+        height=height,
+    )
+
+    bar["angle"] @= lambda: (clock.time * SPEED * (SPIN_FACTOR ** depth)) % 360
+
+
+make_bar(0, (W / 2, H / 2))
+make_bar(1, (180, 150))
+make_bar(2, (820, 150))
+run()
+`,
+      notes: [
+        {
+          at: "RATIO = 1 / 15",
+          text: "Names in capitals are constants: numbers that do not change while the program runs. They sit together at the top so you can try other values without hunting for them in the middle of the code. Capitals are Python's custom for saying “this does not change”."
+        },
+        {
+          at: "height = length * RATIO",
+          text: "The height is always 1/15 of the length: every bar has the same shape, and only the size changes."
+        },
+        {
+          at: "bar = Rect(",
+          text: "A long call, broken over several lines, one per parameter. Inside parentheses, Python lets you break the line wherever you like."
+        },
+        {
+          at: "(SPIN_FACTOR ** depth)",
+          text: "The same power, now in the spin: each level's speed is multiplied by <code>SPIN_FACTOR ** depth</code>, with <code>SPIN_FACTOR = -1.5</code>. At level 0, that is 1; at level 1, −1.5; at level 2, 2.25."
+        },
+        {
+          at: "make_bar(0, (W / 2, H / 2))",
+          text: "The old bar's line goes away: now the function makes the bars. Three calls, three bars, each with its own level and its own place."
+        }
+      ],
+      after: `
+        <p>Run it: the big bar spins as before, the medium one spins the other way, and the small one goes back to the big one's direction, faster.</p>
+        <details class="ask"><summary>Why does the small one go back to the big one's direction?</summary><p>At level 2, the factor is <code>SPIN_FACTOR ** 2</code>, that is, (−1.5) × (−1.5) = 2.25: a negative times a negative is positive. The sign flips at each level, so each level spins against the one before it, a little faster.</p></details>
+      `,
+      try: [
+        {
+          note: "Change <code>SPIN_FACTOR</code> at the top, one at a time. Positive: every level spins the same way. −1: all at the same speed, in alternating directions.",
+          code: `SPIN_FACTOR = 1.5
+SPIN_FACTOR = -1`
+        }
+      ]
+    },
+    {
+      title: "The function calls itself",
+      body: [
+        `
+        <p>Delete the two test calls at the end; only the level 0 bar stays. The children will be born another way: at the end of <code>make_bar</code> goes a call to <code>make_bar</code>.</p>
+        `,
+        {
+          snip: `    if depth < RECURSIONS:
+        make_bar(depth + 1, bar.right_square_center)`
+        },
+        `
+        <p>The function calls itself. This has a name: <strong>recursion</strong>. Python allows it: a function is a recipe, and inside it you may use any recipe, even itself.</p>
+        <p>Follow the calls. The line at the end of the script makes the level 0 bar. Before finishing, the function asks: <code>depth &lt; RECURSIONS</code>? 0 is less than 2, so it calls <code>make_bar</code> with level 1. That second call makes bar 1 and asks the same question: 1 is less than 2, so it calls the one for level 2. The third call makes bar 2 and asks again: 2 is not less than 2. This time the function calls no one and finishes. Each call, when it finishes, hands control back to whoever called it, all the way back to the line at the end. Result: three bars.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 440 190" role="img" aria-label="Three calls of make_bar in a staircase, from level 0 to level 2; the last one stops">
+            <rect class="bar" x="10" y="12" width="170" height="32" rx="4"/>
+            <rect class="bar" x="50" y="78" width="170" height="32" rx="4"/>
+            <rect class="bar child" x="90" y="144" width="170" height="32" rx="4"/>
+            <text x="95" y="32" text-anchor="middle">make_bar(0, …)</text>
+            <text x="135" y="98" text-anchor="middle">make_bar(1, …)</text>
+            <text x="175" y="164" text-anchor="middle">make_bar(2, …)</text>
+            <line class="ray" x1="40" y1="44" x2="64" y2="76"/>
+            <line class="ray" x1="64" y1="76" x2="56" y2="72"/>
+            <line class="ray" x1="64" y1="76" x2="63" y2="67"/>
+            <line class="ray" x1="80" y1="110" x2="104" y2="142"/>
+            <line class="ray" x1="104" y1="142" x2="96" y2="138"/>
+            <line class="ray" x1="104" y1="142" x2="103" y2="133"/>
+            <text x="194" y="32">bar 0 · 0 &lt; 2? yes</text>
+            <text x="234" y="98">bar 1 · 1 &lt; 2? yes</text>
+            <text x="274" y="164">bar 2 · 2 &lt; 2? no</text>
+            <text x="274" y="182">the chain stops</text>
+          </svg>
+          <figcaption>Each call makes its bar and asks whether it can still go down a level. The level 2 call answers no, and the chain stops.</figcaption>
+        </figure>
+        <p>That <code>if</code> is the recursion's brake. Without it, each call would make a bar and call the next one, forever. Python does not let it go that far: after about a thousand calls, it stops the program with an error, <code>RecursionError</code>. Every recursion needs a question that, at some point, answers “enough”. Here it gets there because the level grows by 1 with each call (<code>depth + 1</code>) and sooner or later reaches <code>RECURSIONS</code>.</p>
+        `
+      ],
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+RECURSIONS = 2
+RATIO = 1 / 15  # height / length
+SIZE_FACTOR = 2
+LENGTH = W * 0.5
+
+SPEED = 26
+SPIN_FACTOR = -1.5
+
+
+def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+    height = length * RATIO
+
+    bar = Rect(
+        center=center,
+        width=length,
+        height=height,
+    )
+
+    bar["angle"] @= lambda: (clock.time * SPEED * (SPIN_FACTOR ** depth)) % 360
+
+    if depth < RECURSIONS:
+        make_bar(depth + 1, bar.right_square_center)
+
+
+make_bar(0, (W / 2, H / 2))
+run()
+`,
+      notes: [
+        {
+          at: "RECURSIONS = 2",
+          text: "How many levels are born below the big bar."
+        },
+        {
+          at: "bar.right_square_center)",
+          text: "The second value of the call is the child's center: <code>right_square_center</code> (the center of the right square), a point near the parent's right end."
+        }
+      ],
+      after: `
+        <p>Run it and look closely: the children are born at the parent's end, but they do not follow it. The parent turns and moves away, and the children keep spinning where its end was at the start.</p>
+        <details class="ask"><summary>Why do the children stay behind?</summary><p><code>bar.right_square_center</code> is read only once, at the moment of the call. The child gets a copy of that point: a fixed place that no longer knows anything about the parent.</p></details>
+      `,
+      dive: [
+        {
+          title: "Recursion in miniature",
+          body: `
+            <p>A very small recursion, with no bars. <code>count_down(3)</code> shows 3 and calls <code>count_down(2)</code>, which shows 2 and calls <code>count_down(1)</code>, and so on down to 0, when the question <code>n &gt; 0</code> comes out false and nobody else is called. The three parts of every recursion are here: the work of this call (<code>print</code>), the question that brakes (<code>if</code>) and the call with a value that moves toward the brake (<code>n - 1</code>).</p>
+            <p>Paste it at the end of the script, before <code>run()</code>, and watch the numbers in the console.</p>
+          `,
+          try: [
+            {
+              code: `def count_down(n):
+    print(n)
+    if n > 0:
+        count_down(n - 1)
+
+
+count_down(3)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "Attached to the parent",
+      body: [
+        `
+        <p>The child needs to follow the parent's end. One word does it: <code>lambda</code>. Before, the child received a point:</p>
+        `,
+        {
+          snip: `make_bar(depth + 1, bar.right_square_center)`,
+          alt: true
+        },
+        `
+        <p>Now it receives a formula, which computes the point:</p>
+        `,
+        {
+          snip: `        make_bar(depth + 1, lambda: bar.right_square_center)`
+        },
+        `
+        <p>A <code>center</code> with <code>lambda</code> follows what it reads: Scena redoes the math every frame. The parent turns, its end moves, and the child goes along.</p>
+        <p>And what point is that? Imagine a square at each end of the bar, with a side equal to the bar's height. <code>left_square_center</code> and <code>right_square_center</code> are the centers of those squares: two points a little inside the ends, which turn with the bar.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="A bar with a dashed square at each end; a smaller bar is born at the center of each square">
+            <rect class="bar child" x="-60" y="-4" width="120" height="8" transform="translate(70 92) rotate(20)"/>
+            <rect class="bar child" x="-60" y="-4" width="120" height="8" transform="translate(350 92) rotate(20)"/>
+            <rect class="bar" x="60" y="82" width="300" height="20"/>
+            <rect class="guide" x="60" y="82" width="20" height="20"/>
+            <rect class="guide" x="340" y="82" width="20" height="20"/>
+            <circle class="dot" cx="70" cy="92" r="3.5"/>
+            <circle class="dot" cx="350" cy="92" r="3.5"/>
+            <line class="ray" x1="70" y1="86" x2="70" y2="34"/>
+            <line class="ray" x1="350" y1="86" x2="350" y2="34"/>
+            <text x="70" y="26" text-anchor="middle">left_square_center</text>
+            <text x="350" y="26" text-anchor="middle">right_square_center</text>
+            <text x="210" y="122" text-anchor="middle">parent</text>
+            <text x="22" y="134">child</text>
+            <text x="398" y="134" text-anchor="end">child</text>
+          </svg>
+          <figcaption>An imaginary square at each end, with a side equal to the bar's height. The child is born at the center of one of them and, with the <code>lambda</code>, stays there when the parent turns.</figcaption>
+        </figure>
+        <p>Since the child's center sits on the parent's body, the child looks pinned to it, like a part held on by an axle.</p>
+        `
+      ],
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+RECURSIONS = 2
+RATIO = 1 / 15  # height / length
+SIZE_FACTOR = 2
+LENGTH = W * 0.5
+
+SPEED = 26
+SPIN_FACTOR = -1.5
+
+
+def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+    height = length * RATIO
+
+    bar = Rect(
+        center=center,
+        width=length,
+        height=height,
+    )
+
+    bar["angle"] @= lambda: (clock.time * SPEED * (SPIN_FACTOR ** depth)) % 360
+
+    if depth < RECURSIONS:
+        make_bar(depth + 1, lambda: bar.right_square_center)
+
+
+make_bar(0, (W / 2, H / 2))
+run()
+`,
+      after: `
+        <p>Run it. Each child spins around its own center, by its own angle formula, and at the same time is carried by the parent's end. The small one does this twice: it spins and is carried by the medium one, which is carried by the big one. Added together, these spins make the arm fold and unfold.</p>
+        <details class="ask"><summary>In the formula, which bar is <code>bar</code>?</summary><p>The one from the call that made the formula. Each call of a function has its own variables: the <code>bar</code> of the level 0 call is the big bar; the one of the level 1 call is the medium bar. The <code>lambda</code> remembers the <code>bar</code> of its own call. That is why each child follows its own parent, and not the last bar made.</p></details>
+      `
+    },
+    {
+      title: "Two children",
+      body: `
+        <p>Now the second child, at the left end: one more call inside the <code>if</code>. Each bar that passes the <code>if</code> calls the function twice, and each child does the same with its own children.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+RECURSIONS = 2
+RATIO = 1 / 15  # height / length
+SIZE_FACTOR = 2
+LENGTH = W * 0.5
+
+SPEED = 26
+SPIN_FACTOR = -1.5
+
+
+def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+    height = length * RATIO
+
+    bar = Rect(
+        center=center,
+        width=length,
+        height=height,
+    )
+
+    bar["angle"] @= lambda: (clock.time * SPEED * (SPIN_FACTOR ** depth)) % 360
+
+    if depth < RECURSIONS:
+        make_bar(depth + 1, lambda: bar.left_square_center)
+        make_bar(depth + 1, lambda: bar.right_square_center)
+
+
+make_bar(0, (W / 2, H / 2))
+run()
+`,
+      notes: [
+        {
+          at: "lambda: bar.left_square_center",
+          text: "The left child is born in the square at the other end, <code>left_square_center</code>, also as a formula."
+        }
+      ],
+      after: `
+        <p>Run it: two children spin at the big bar's ends, and four grandchildren at theirs.</p>
+        <p>Let's count: level 0 has 1 bar. It has 2 children (level 1), and each child has 2 (level 2): 4. At each level, the number doubles. With <code>RECURSIONS = 2</code>, that makes 1 + 2 + 4 = 7 bars. The figure shows who calls whom.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 560 210" role="img" aria-label="Call tree: one bar at level 0, two at level 1, four at level 2, numbered in the order they are born">
+            <line class="ray" x1="355" y1="44" x2="245" y2="94"/>
+            <line class="ray" x1="355" y1="44" x2="465" y2="94"/>
+            <line class="ray" x1="245" y1="118" x2="190" y2="164"/>
+            <line class="ray" x1="245" y1="118" x2="300" y2="164"/>
+            <line class="ray" x1="465" y1="118" x2="410" y2="164"/>
+            <line class="ray" x1="465" y1="118" x2="520" y2="164"/>
+            <rect class="bar" x="315" y="20" width="80" height="24" rx="4"/>
+            <rect class="bar child" x="205" y="94" width="80" height="24" rx="4"/>
+            <rect class="bar child" x="425" y="94" width="80" height="24" rx="4"/>
+            <rect class="bar" x="155" y="164" width="70" height="24" rx="4"/>
+            <rect class="bar" x="265" y="164" width="70" height="24" rx="4"/>
+            <rect class="bar" x="375" y="164" width="70" height="24" rx="4"/>
+            <rect class="bar" x="485" y="164" width="70" height="24" rx="4"/>
+            <text x="355" y="36" text-anchor="middle">1</text>
+            <text x="245" y="110" text-anchor="middle">2</text>
+            <text x="190" y="180" text-anchor="middle">3</text>
+            <text x="300" y="180" text-anchor="middle">4</text>
+            <text x="465" y="110" text-anchor="middle">5</text>
+            <text x="410" y="180" text-anchor="middle">6</text>
+            <text x="520" y="180" text-anchor="middle">7</text>
+            <text x="282" y="64" text-anchor="end">left</text>
+            <text x="428" y="64">right</text>
+            <text x="8" y="36">level 0 · 1 bar</text>
+            <text x="8" y="110">level 1 · 2 bars</text>
+            <text x="8" y="180">level 2 · 4 bars</text>
+          </svg>
+          <figcaption>The calls with <code>RECURSIONS = 2</code>. Each bar that passes the <code>if</code> calls two children. The number is the order in which the bars are born.</figcaption>
+        </figure>
+        <details class="ask"><summary>Why is bar 5 born after bars 3 and 4?</summary><p>Python moves on to the next line only when the call on the current line has finished. Bar 1 calls the left child (2), and that call finishes only after making its own children (3 and 4). Only then does bar 1 reach the second line of the <code>if</code> and call the right child (5), which makes 6 and 7. Each branch goes all the way down before the next one starts.</p></details>
+      `,
+      try: [
+        {
+          note: "One more level: with 3, that makes 1 + 2 + 4 + 8 = 15 bars.",
+          code: `RECURSIONS = 3`
+        }
+      ]
+    },
+    {
+      title: "More levels, one color per level",
+      body: `
+        <p>More levels: with five, the count keeps doubling, and that makes 1 + 2 + 4 + 8 + 16 + 32 = 63 bars. With 63 bars of the same color, it is hard to see which bar belongs to which, so each level gets its own color.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+RECURSIONS = 5
+RATIO = 1 / 15  # height / length
+SIZE_FACTOR = 2
+LENGTH = W * 0.5
+
+SPEED = 26
+SPIN_FACTOR = -1.5
+
+PALETTE = Palette("lisboa")
+
+
+def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+    height = length * RATIO
+
+    bar = Rect(
+        center=center,
+        width=length,
+        height=height,
+        color=PALETTE[depth],
+    )
+
+    bar["angle"] @= lambda: (clock.time * SPEED * (SPIN_FACTOR ** depth)) % 360
+
+    if depth < RECURSIONS:
+        make_bar(depth + 1, lambda: bar.left_square_center)
+        make_bar(depth + 1, lambda: bar.right_square_center)
+
+
+make_bar(0, (W / 2, H / 2))
+run()
+`,
+      notes: [
+        {
+          at: "RECURSIONS = 5",
+          text: "The same two lines inside the <code>if</code> make all 63 bars. The smallest are 1/32 the length of the big one."
+        },
+        {
+          at: "PALETTE = Palette(\"lisboa\")",
+          text: "A <code>Palette</code> is a handful of colors taken, in equal steps, from a ready-made gradient. <code>\"lisboa\"</code> goes through cream, amber, light blue, dusty rose, teal and dark green. If you don't say how many, it takes six, one for each level, from 0 to 5."
+        },
+        {
+          at: "color=PALETTE[depth],",
+          text: "<code>PALETTE[depth]</code> picks the level's color, as in a list, and gives it to the bar's <code>color</code>. After the last color, the palette starts over from the first."
+        }
+      ],
+      after: `
+        <p>Run it: the cream bar in the middle, the amber ones at its ends, the blue ones at the ends of the amber ones. The smallest, dark green, draw the tightest loops: they spin fastest and are carried by five bars.</p>
+      `,
+      try: [
+        {
+          note: "Another gradient for <code>PALETTE</code>: <code>\"plasma\"</code>, <code>\"ocean\"</code>, <code>\"neon\"</code> or <code>\"rdyl\"</code> (from red to yellow). <code>steps</code> says how many colors to take: with <code>steps=3</code>, the colors repeat every three levels.",
+          code: `PALETTE = Palette("plasma", steps=3)`
+        }
+      ]
+    },
+    {
+      title: "Background, glow and trail",
+      body: `
+        <p>The motion is done. This step changes only how it looks: a background, a glow in each bar and a trail over the whole screen.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSIONS = 5
+RATIO = 1 / 15  # height / length
+SIZE_FACTOR = 2
+LENGTH = W * 0.5
+
+SPEED = 26
+SPIN_FACTOR = -1.5
+
+PALETTE = Palette("lisboa")
+
+
+def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+    height = length * RATIO
+
+    bar = Rect(
+        center=center,
+        width=length,
+        height=height,
+        color=PALETTE[depth],
+    )
+
+    bar.visual = Aurora()
+    bar["angle"] @= lambda: (clock.time * SPEED * (SPIN_FACTOR ** depth)) % 360
+
+    if depth < RECURSIONS:
+        make_bar(depth + 1, lambda: bar.left_square_center)
+        make_bar(depth + 1, lambda: bar.right_square_center)
+
+
+make_bar(0, (W / 2, H / 2))
+run()
+`,
+      notes: [
+        {
+          at: "type=\"radial\"",
+          text: "A <code>Wallpaper</code> with the ready-made gradient <code>\"ocean\"</code>. <code>type=\"radial\"</code> makes the colors spread out from the center in circles, instead of crossing the screen from one side to the other."
+        },
+        {
+          at: "Grain()",
+          text: "<code>Grain</code> scatters a faint, moving speckle over everything, like an old film."
+        },
+        {
+          at: "mt = MotionTrail()",
+          text: "<code>MotionTrail</code> draws nothing on its own: it blends each frame with the ones before, which fade out little by little. The effect is kept in <code>mt</code>, so it can be turned off later."
+        },
+        {
+          at: "bar.visual = Aurora()",
+          text: "<code>Aurora</code> is a light that ripples inside the bar, in the bar's color. The line is inside the function, so each bar gets its own."
+        }
+      ],
+      after: `
+        <p>Run it. Everything that moves leaves a ghost, and what stands still looks the same: the small bars, which move fast, turn into ribbons of light.</p>
+      `,
+      try: [
+        {
+          note: "Other backgrounds, one at a time: the same radial gradient with the <code>nebula</code> preset, or <code>ocean</code> without <code>type</code> (from one side to the other). The last line makes the trail longer: <code>fade</code> is how much of the ghost is left each frame. The default is 0.9; close to 1, it takes a long time to vanish.",
+          code: `Wallpaper(Gradient("nebula", type="radial", size=1000))
+Wallpaper(Gradient("ocean"))
+mt.fade = 0.97`
+        }
+      ]
+    },
+    {
+      title: "Panel and key",
+      example: "spinning_bars.py",
+      body: `
+        <p>Finally, controls to play with the drawing while it runs: two sliders, for the speed and the spin factor, and the <kbd>M</kbd> key, which turns the trail on and off.</p>
+      `,
+      code: `from scena import *
+
+W, H = 1000, 700
+init(width=W, height=H, title="Spinning bars")
+
+Wallpaper(Gradient("ocean", type="radial", size=1000))
+Grain()
+mt = MotionTrail()
+
+RECURSIONS = 5
+RATIO = 1 / 15  # height / length
+SIZE_FACTOR = 2
+LENGTH = W * 0.5
+
+st.speed = 26
+st.spin_factor = -1.5
+
+PALETTE = Palette("lisboa")
+
+Slider(st["speed"], label="Speed", min_value=0, max_value=80)
+Slider(st["spin_factor"], label="Spin", min_value=-3, max_value=3)
+
+
+@when(lambda: keyp("M"))
+def toggle_trail():
+    mt.enabled = not mt.enabled
+
+
+def make_bar(depth, center):
+    length = LENGTH / (SIZE_FACTOR ** depth)
+    height = length * RATIO
+
+    bar = Rect(
+        center=center,
+        width=length,
+        height=height,
+        color=PALETTE[depth],
+    )
+
+    bar.visual = Aurora()
+    bar["angle"] @= lambda: (clock.time * st.speed * (st.spin_factor ** depth)) % 360
+
+    if depth < RECURSIONS:
+        make_bar(depth + 1, lambda: bar.left_square_center)
+        make_bar(depth + 1, lambda: bar.right_square_center)
+
+
+make_bar(0, (W / 2, H / 2))
+run()
+`,
+      notes: [
+        {
+          at: "st.speed = 26",
+          text: "The constants <code>SPEED</code> and <code>SPIN_FACTOR</code> leave the top and become fields of <code>st</code>, which the sliders can change."
+        },
+        {
+          at: "Slider(st[\"speed\"]",
+          text: "A <code>Slider</code> writes to <code>st.speed</code> while you drag it. With the square brackets, it receives the value's place, not just the number 26."
+        },
+        {
+          at: "st.speed * (st.spin_factor ** depth)",
+          text: "The angle formula reads both fields of <code>st</code>. Since it is redone every frame, the drawing changes the instant you drag, with no apply button."
+        },
+        {
+          at: "@when(lambda: keyp(\"M\"))",
+          text: "<code>@when</code> runs the function at the moment the condition goes from false to true: once per press of <kbd>M</kbd>. Holding the key does not repeat it."
+        },
+        {
+          at: "mt.enabled = not mt.enabled",
+          text: "<code>enabled</code> turns the trail on and off, and <code>not</code> flips the value: what was true becomes false, and vice versa."
+        }
+      ],
+      after: `
+        <p>Run it, wait a little and drag <strong>Speed</strong>.</p>
+        <details class="ask"><summary>Why do the bars jump to a new place, instead of just speeding up?</summary><p>The angle is <code>clock.time</code> times the speed. After 100 seconds, changing the speed from 26 to 27 adds 100 degrees all at once.</p></details>
+      `,
+      closing: `
+        <p>Drag <strong>Speed</strong> down to 0: everything stops, and the trail fades away. Move <strong>Spin</strong> to 1: the levels spin together, the same way, as a single piece. Negative values alternate the directions. <code>M</code> turns the trail on and off.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>angle</code> with <code>@=</code> — the angle, in degrees, becomes a formula of <code>clock.time</code>, redone every frame; <code>%</code> keeps the number within one turn.</li>
+          <li>Parameters — <code>make_bar(depth, center)</code> is a recipe: the same lines, with each call's values; <code>**</code> makes each level half the size and spin the other way.</li>
+          <li>Recursion — the function calls itself until the <code>if</code> says “enough”; with two calls, the number of bars doubles at each level.</li>
+          <li><code>lambda: bar.right_square_center</code> — a center that is a formula follows the parent; without the <code>lambda</code>, the child stays where the end was.</li>
+          <li><code>Palette</code>, <code>Aurora</code>, <code>MotionTrail</code> — one color per level, a light inside the bar, a trail over the whole screen.</li>
+          <li>A <code>Slider</code> that writes to <code>st</code> changes the drawing live: the formula reads <code>st</code> every frame.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#reativo-liga">Link (@=)</a> · <a href="../guide/index.html#reativo-lambda">Lambda</a> · <a href="../guide/index.html#frame-clock">clock</a> · <a href="../guide/index.html#shape-rect">Rect</a> · <a href="../guide/index.html#aparencia-palette">Palette</a> · <a href="../guide/index.html#mundo-post">Post</a> · <a href="../guide/index.html#ui-slider">Slider</a>.</p>
+        <p><strong>Next script:</strong> the oscilloscope — a point with two spins added together and a trail that draws the figure.</p>
+      `
+    },
+    {
+      title: "A point on a circle",
+      part: "Script 2 · Oscilloscope",
+      fresh: true,
+      body: `
+        <p>Second script. Think of the Moon: it goes around the Earth, which goes around the Sun. Seen from the Sun, the Moon does not trace a circle; it traces a circle with waves in it. That is what we will build here: a point that makes a big turn around a ball and, at the same time, a small one, and a trail that shows the path. The name comes from the oscilloscope, the device that draws electrical signals on a screen, with figures like these. First, a single turn.</p>
+        <p>If you have not seen trigonometry yet (sine, cosine, radians), that is fine: you can skip the math explanations in this script. Copy the code, run it, change the numbers and watch what happens. The drawing teaches by itself: a bigger number spins faster, a smaller radius makes a smaller wave.</p>
+        <p>To put a point on a circle of radius 200 around the ball, at some angle <code>a</code>, you go a stretch to the side and a stretch up. Two math functions say how long those stretches are: <code>cos</code> (cosine) and <code>sin</code> (sine). For each angle, they give a number between −1 and 1. At angle 0, <code>cos</code> is 1 and <code>sin</code> is 0: the point is all the way to the right. At a quarter turn, <code>cos</code> is 0 and <code>sin</code> is 1: the point is at the top. At half a turn, <code>cos</code> is −1: on the left. Multiplying by the radius:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 360 250" role="img" aria-label="A circle around the ball; the tip at angle a; a horizontal stretch of 200 times cos of a and a vertical one of 200 times sin of a">
+            <circle class="guide" cx="130" cy="150" r="100"/>
+            <line class="ray" x1="130" y1="150" x2="206.6" y2="85.7"/>
+            <line class="guide" x1="130" y1="150" x2="206.6" y2="150"/>
+            <line class="guide" x1="206.6" y1="150" x2="206.6" y2="85.7"/>
+            <path class="guide" d="M 162 150 A 32 32 0 0 0 154.5 129.4"/>
+            <circle class="hot" cx="130" cy="150" r="8"/>
+            <circle class="dot" cx="206.6" cy="85.7" r="5"/>
+            <text x="116" y="154" text-anchor="end">ball</text>
+            <text x="168" y="145">a</text>
+            <text x="152" y="108" text-anchor="end">200</text>
+            <text x="168" y="168" text-anchor="middle">200 · cos(a)</text>
+            <text x="214" y="122">200 · sin(a)</text>
+            <text x="214" y="80">tip</text>
+          </svg>
+          <figcaption>The tip at angle <code>a</code>: starting from the ball, it goes 200 · cos(a) to the side and 200 · sin(a) up.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Oscilloscope")
+
+ball = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+tip = Point()
+tip @= lambda: (
+    ball.center.x + 200 * cos(clock.time),
+    ball.center.y + 200 * sin(clock.time),
+)
+
+beam = Line(p1=lambda: ball.center, p2=lambda: tip)
+
+run()
+`,
+      notes: [
+        {
+          at: "from math import cos, sin",
+          text: "<code>cos</code> and <code>sin</code> come from Python's <code>math</code>, not from Scena."
+        },
+        {
+          at: "tip = Point()",
+          text: "<code>Point</code> makes an invisible point."
+        },
+        {
+          at: "tip @= lambda: (",
+          text: "<code>@=</code> links the whole point to a formula that returns <code>(x, y)</code>. The formula reads <code>ball</code>: if the ball moves, the circle goes with it."
+        },
+        {
+          at: "200 * cos(clock.time)",
+          text: "<code>cos</code> and <code>sin</code> measure the angle in radians, not in degrees like the bars' <code>angle</code>. It is just another ruler: a full turn is 6.28 radians (twice π, which is 3.14). With the angle at <code>clock.time</code>, the tip moves 1 radian per second and makes a full turn in 6.28 seconds."
+        },
+        {
+          at: "beam = Line(",
+          text: "Since the point is invisible, a <code>Line</code> shows where it is. <code>p1</code> and <code>p2</code> (point 1 and point 2) are formulas: one end on the ball, the other on the <code>tip</code>."
+        }
+      ],
+      after: `
+        <p>Run it: a clock hand, turning backward.</p>
+      `,
+      dive: [
+        {
+          title: "cos, sin and vec_from_angle",
+          body: `
+            <p><code>vec_from_angle(angle, length)</code> makes an arrow from an angle, and inside it does the same math with <code>cos</code> and <code>sin</code>, with the angle in degrees. The box below puts the tip in the same place: <code>clock.time * 57.3</code> turns radians into degrees (1 radian is about 57.3 degrees), and the arrow of length 200, added to the ball's center, gives the point on the circle.</p>
+            <p>So why <code>cos</code> and <code>sin</code>? Because, in “Two spins added together”, x and y will get different small spins, each with its own size. With the two calculations apart, that only means changing one number on each line.</p>
+            <p>In the Guide: <a href="../guide/index.html#geo-vec2">Vec2 and vec_from_angle</a> · <a href="../guide/index.html#shape-point">Point</a>.</p>
+          `,
+          try: [
+            {
+              note: "In place of the tip's formula.",
+              replaces: ['tip @= lambda: (', 'ball.center.x + 200', 'ball.center.y + 200', ')'],
+              code: `tip @= lambda: ball.center + vec_from_angle(clock.time * 57.3, 200)`
+            }
+          ]
+        }
+      ]
+    },
+    {
+      title: "The tip's own time",
+      body: `
+        <p>The tip spins slowly, and a slider will control its speed. For that, the angle stops being <code>clock.time</code> and becomes a time of our own, <code>st.time</code>, which moves <code>st.n</code> radians per second.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Oscilloscope")
+
+st.n = 4
+
+
+ball = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+st.time = 0
+
+
+def update(dt):
+    st.time += dt * st.n
+
+
+tip = Point()
+tip @= lambda: (
+    ball.center.x + 200 * cos(st.time),
+    ball.center.y + 200 * sin(st.time),
+)
+
+beam = Line(p1=lambda: ball.center, p2=lambda: tip)
+
+run()
+`,
+      notes: [
+        {
+          at: "st.n = 4",
+          text: "In <code>st</code>, where the game keeps what changes: the slider will write here."
+        },
+        {
+          at: "st.time += dt * st.n",
+          text: "<code>dt</code> is how many seconds have passed since the previous frame. Adding <code>dt * st.n</code> every frame gives <code>st.n</code> per second. With <code>n</code> at 4, a turn (6.28) takes 6.28 / 4, a little over a second and a half."
+        }
+      ],
+      after: [
+        `
+        <p>Run it: the tip spins four times faster. Multiplying the clock, without <code>update</code>, looks shorter:</p>
+        `,
+        {
+          snip: `    ball.center.x + 200 * cos(clock.time * st.n),`,
+          alt: true
+        },
+        `
+        <p>But that is the same jump as with the bars: after 100 seconds, changing <code>n</code> from 4 to 5 would add 100 radians to the angle all at once. Adding a little every frame, changing <code>n</code> only changes how much gets added from then on: the tip speeds up without jumping.</p>
+        `
+      ]
+    },
+    {
+      title: "The trail",
+      body: [
+        `
+        <p>A clock hand does not show the path. To see where the tip goes, we add a trail, made of snapshots of the tip:</p>
+        `,
+        {
+          snip: `trail = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+tip.every(6.28 / (st.n * 100), lambda: trail.snapshot(tip))`
+        },
+        `
+        <p>A <code>Contrail</code> (like the trail a plane leaves in the sky) is a line through the points you give it. It does not follow anything on its own. <code>trail.snapshot(tip)</code> records where the tip is right now, and <code>every</code> calls that snapshot from time to time. The numbers:</p>
+        <div class="tbl"><table><thead><tr><th>In the line</th><th>What it does</th></tr></thead><tbody>
+          <tr><td><code>6.28 / (st.n * 100)</code></td><td>the time between snapshots: the time of one turn divided by 100, a hundred snapshots per turn</td></tr>
+          <tr><td><code>duration=6.28 / 4</code></td><td>how many seconds each snapshot stays in the line: one turn with <code>n</code> at 4, so the trail closes a circle</td></tr>
+          <tr><td><code>fade=True</code></td><td>fades the line little by little, from the head, the newest snapshot, to the tail, the oldest</td></tr>
+          <tr><td><code>visual=Neon("red")</code></td><td>a red neon tube</td></tr>
+          <tr><td><code>line_width=2.5</code></td><td>how thick the line is</td></tr>
+        </tbody></table></div>
+        `
+      ],
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Oscilloscope")
+
+st.n = 4
+
+
+ball = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+st.time = 0
+
+
+def update(dt):
+    st.time += dt * st.n
+
+
+tip = Point()
+tip @= lambda: (
+    ball.center.x + 200 * cos(st.time),
+    ball.center.y + 200 * sin(st.time),
+)
+
+beam = Line(p1=lambda: ball.center, p2=lambda: tip)
+
+trail = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+tip.every(6.28 / (st.n * 100), lambda: trail.snapshot(tip))
+
+run()
+`,
+      after: `
+        <p>Run it: the trail chases the hand and closes a red circle.</p>
+      `,
+      try: [
+        {
+          note: "Other trails, one at a time, in place of <code>trail</code>. The first keeps the last 80 snapshots, without fading. The second lasts 5 seconds, with <code>Laser</code> and straight segments instead of a curve (<code>smooth=0</code>); <code>ease</code> keeps the line strong almost the whole way and fades it only near the tail.",
+          replaces: ['trail = Contrail('],
+          code: `trail = Contrail(max_points=80, color="cyan", line_width=4)
+trail = Contrail(duration=5, fade=True, ease="ease_out", visual=Laser("lime"), smooth=0)`
+        }
+      ]
+    },
+    {
+      title: "Two spins added together",
+      body: [
+        `
+        <p>Now the second spin, on top of the first. Each line of the formula gets one more term:</p>
+        `,
+        {
+          snip: `    ball.center.x + 200 * cos(st.time) + st.x1 * cos(st.time * st.tx1),
+    ball.center.y + 200 * sin(st.time) + st.y1 * sin(st.time * st.ty1),`
+        },
+        `
+        <p>The old term, <code>200 * cos(st.time)</code>, is the big circle around the ball. The new one is a small circle, of radius <code>x1</code> (60), with an angle <code>tx1</code> times faster: it makes 6 turns for each big turn. Adding the two puts the small circle's center on the big circle's path, like the Moon going around the Earth while the Earth goes around the Sun.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 380 250" role="img" aria-label="A big circle around the ball and a small circle around a point of the big one; the tip is on the small circle">
+            <circle class="guide" cx="160" cy="135" r="100"/>
+            <circle class="guide" cx="246.6" cy="85" r="34"/>
+            <line class="ray" x1="160" y1="135" x2="246.6" y2="85"/>
+            <line class="ray" x1="246.6" y1="85" x2="263.6" y2="55.6"/>
+            <circle class="hot" cx="160" cy="135" r="8"/>
+            <circle class="dot" cx="246.6" cy="85" r="3"/>
+            <circle class="dot" cx="263.6" cy="55.6" r="5"/>
+            <text x="160" y="160" text-anchor="middle">ball</text>
+            <text x="196" y="102" text-anchor="middle">200</text>
+            <text x="268" y="76">x1</text>
+            <text x="272" y="50">tip</text>
+          </svg>
+          <figcaption>The big spin (radius 200) carries the center of the small spin (radius <code>x1</code>), which makes <code>tx1</code> turns for each big turn.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Oscilloscope")
+
+st.n = 4
+st.x1 = 60
+st.tx1 = 6
+st.y1 = 60
+st.ty1 = 6
+
+
+ball = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+
+st.time = 0
+
+
+def update(dt):
+    st.time += dt * st.n
+
+
+tip = Point()
+tip @= lambda: (
+    ball.center.x + 200 * cos(st.time) + st.x1 * cos(st.time * st.tx1),
+    ball.center.y + 200 * sin(st.time) + st.y1 * sin(st.time * st.ty1),
+)
+
+beam = Line(p1=lambda: ball.center, p2=lambda: tip)
+
+trail = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+tip.every(6.28 / (st.n * 100), lambda: trail.snapshot(tip))
+
+run()
+`,
+      notes: [
+        {
+          at: "st.x1 = 60",
+          text: "x uses <code>x1</code> and <code>tx1</code>; y uses <code>y1</code> and <code>ty1</code>. With the same values in both, the small spin is a circle. With different values, it becomes an ellipse or a lopsided figure. All four live in <code>st</code> so the panel can change them."
+        }
+      ],
+      after: `
+        <p>Run it: the trail draws a flower.</p>
+        <details class="ask"><summary>Why five petals, if the small spin makes six turns?</summary><p>The big spin goes the same way and “uses up” one of them: seen from the ball, the tip makes only five loops. With a negative <code>tx1</code>, the small spin goes the other way and adds a turn: with −3, you get four points.</p></details>
+      `,
+      try: [
+        {
+          note: "Other turn counts for the small spin: with both lines, −3 in x and in y, you get a four-pointed star. Then change one of the two to another number and watch the star go lopsided.",
+          code: `st.tx1 = -3
+st.ty1 = -3`
+        }
+      ]
+    },
+    {
+      title: "The click switches it on",
+      body: `
+        <p>Until now, everything starts on its own. Now the ball waits: it pulses, inviting a click, and only the click switches on the beam and the trail.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Oscilloscope")
+
+st.n = 4
+st.x1 = 60
+st.tx1 = 6
+st.y1 = 60
+st.ty1 = 6
+st.switched_on = False
+
+
+ball = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+ball.visual = Beat()
+
+st.time = 0
+
+
+def update(dt):
+    st.time += dt * st.n
+
+
+tip = Point()
+tip @= lambda: (
+    ball.center.x + 200 * cos(st.time) + st.x1 * cos(st.time * st.tx1),
+    ball.center.y + 200 * sin(st.time) + st.y1 * sin(st.time * st.ty1),
+)
+
+beam = Line(p1=lambda: ball.center, p2=lambda: tip)
+beam.visual = ElectricField("yellow")
+beam.visible = False
+
+trail = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+
+
+@click(ball)
+def switch_on():
+    if st.switched_on:
+        return
+    st.switched_on = True
+    beam.visible = True
+    ball.visual = None
+    tip.every(6.28 / (st.n * 100), lambda: trail.snapshot(tip))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ball.visual = Beat()",
+          text: "<code>Beat</code> is a visual that makes the ball grow and shrink, like a heartbeat. It keeps the color the ball already has."
+        },
+        {
+          at: "ElectricField(\"yellow\")",
+          text: "The hand gets the <code>ElectricField</code> visual: yellow sparks around the line."
+        },
+        {
+          at: "beam.visible = False",
+          text: "<code>visible</code> set to <code>False</code> hides the beam until the click."
+        },
+        {
+          at: "@click(ball)",
+          text: "<code>@click</code> runs <code>switch_on</code> when you click the ball."
+        },
+        {
+          at: "ball.visual = None",
+          text: "With no visual, the beat stops and the ball's plain red is left."
+        },
+        {
+          at: "tip.every(",
+          text: "The snapshot line moves down into <code>switch_on</code>: the trail starts only on the click."
+        }
+      ],
+      after: `
+        <p>Run it and click the ball.</p>
+        <details class="ask"><summary>What is <code>st.switched_on</code> for?</summary><p>Without it, a second click would start another <code>every</code>, and the trail would get twice as many snapshots. On the first click, <code>st.switched_on</code> becomes <code>True</code>; on the clicks after that, <code>return</code> leaves the function before anything else happens.</p></details>
+      `,
+      try: [
+        {
+          note: "Another beam and a stronger beat. In <code>Beat</code>, <code>amount</code> is how much the ball grows, and <code>speed</code> is the rhythm.",
+          code: `beam.visual = Laser("cyan")
+ball.visual = Beat(amount=0.3, speed=2)`
+        }
+      ]
+    },
+    {
+      title: "The panel",
+      example: "oscilloscope.py",
+      body: `
+        <p>Finally, a <code>Slider</code> for each value the tip's formula reads.</p>
+      `,
+      code: `from scena import *
+from math import cos, sin
+
+W, H = 1000, 720
+init(width=W, height=H, title="Oscilloscope")
+
+ui.scale = 0.9
+
+st.n = 4
+st.x1 = 60
+st.tx1 = 6
+st.y1 = 60
+st.ty1 = 6
+st.switched_on = False
+Slider(st["n"], label="n", min_value=1, max_value=6)
+Slider(st["x1"], label="x1", min_value=-100, max_value=100)
+Slider(st["tx1"], label="tx1", min_value=-10, max_value=10, only_int=True)
+Slider(st["y1"], label="y1", min_value=-100, max_value=100)
+Slider(st["ty1"], label="ty1", min_value=-10, max_value=10, only_int=True)
+
+
+ball = Circle(center=(W * 0.6, H * 0.5), radius=20, color="red")
+ball.visual = Beat()
+
+st.time = 0
+
+
+def update(dt):
+    st.time += dt * st.n
+
+
+tip = Point()
+tip @= lambda: (
+    ball.center.x + 200 * cos(st.time) + st.x1 * cos(st.time * st.tx1),
+    ball.center.y + 200 * sin(st.time) + st.y1 * sin(st.time * st.ty1),
+)
+
+beam = Line(p1=lambda: ball.center, p2=lambda: tip)
+beam.visual = ElectricField("yellow")
+beam.visible = False
+
+trail = Contrail(duration=6.28 / 4, fade=True, visual=Neon("red"), line_width=2.5)
+
+
+@click(ball)
+def switch_on():
+    if st.switched_on:
+        return
+    st.switched_on = True
+    beam.visible = True
+    ball.visual = None
+    tip.every(6.28 / (st.n * 100), lambda: trail.snapshot(tip))
+
+
+run()
+`,
+      notes: [
+        {
+          at: "ui.scale = 0.9",
+          text: "Five sliders take up room. <code>ui.scale</code> changes the size of every widget at once: 1 is normal, and 0.9 is a little smaller. The line has to come before the widgets are made."
+        },
+        {
+          at: "Slider(st[\"tx1\"]",
+          text: "<code>only_int=True</code> allows whole numbers only: with a whole number of turns, the figure closes at each big turn, and the trail redraws the same path every time. With 2.5 turns, it would not close, and the figure would keep turning."
+        }
+      ],
+      after: `
+        <p>As with the bars, there is no apply button: the slider writes to <code>st</code>, the <code>tip</code> reads <code>st</code>, and the <code>beam</code> and the <code>trail</code> read the <code>tip</code>. One gesture on the panel runs through the whole drawing. And, with <code>st.time</code> added up in <code>update</code>, changing <code>n</code> speeds up the tip without a jump.</p>
+      `,
+      closing: `
+        <p>Click the ball to switch it on. Then drag the sliders: <code>n</code> changes the speed; <code>x1</code> and <code>y1</code>, the size of the small spin; <code>tx1</code> and <code>ty1</code>, how many turns it makes.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>cos</code> and <code>sin</code> — put a point on a circle: x = radius · cos(a), y = radius · sin(a), with the angle in radians (one turn = 6.28).</li>
+          <li><code>Point</code> with <code>@=</code> — an invisible point linked to a formula; the <code>Line</code> and the trail follow it.</li>
+          <li><code>st.time</code> added up in <code>update</code> with <code>dt</code> — the speed can change without the tip jumping.</li>
+          <li>Two spins added together — the big one carries the small one's center; the number of turns of the small one decides the figure.</li>
+          <li><code>Contrail</code> + <code>snapshot</code> + <code>tip.every</code> — a line through the points you record, from time to time.</li>
+          <li><code>@click</code> with <code>st.switched_on</code> — the click switches it on only once; <code>ui.scale</code> shrinks the panel.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#shape-point">Point</a> · <a href="../guide/index.html#frame-clock">clock and dt</a> · <a href="../guide/index.html#contrail">Contrail</a> · <a href="../guide/index.html#agendar-timers">after / every</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#ui-slider">Slider</a> · <a href="../guide/index.html#ui-stack">Column</a>.</p>
+        <p><strong>Next:</strong> back to games, with a duel for two players on one screen: ships stuck on rails, lasers that bounce off the walls and a hole in the middle that bends the shots.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Change the recursion's rule: three children instead of two, another angle, another color per level.</li>
+          <li>Can you add a third spin to the oscilloscope and find out what flowers appear?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

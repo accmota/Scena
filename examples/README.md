@@ -35,8 +35,8 @@ Portuguese one, name for name.
 | 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` | `plane_landscape.py` |
 | 18 Ninja | `ninja_1.py` | `ninja_1_run.py` |
 | 19 Ninja II · O mundo | `ninja_2_mundo.py` | `ninja_2_world.py` |
-| 20 Colisão | `colisao.py` |  |
-| 21 Ligue 4 | `ligue4.py` |  |
+| 20 Colisão | `colisao.py` | `collision.py` |
+| 21 Ligue 4 | `ligue4.py` | `connect_four.py` |
 | 22 Estúdio · Piano | `piano.py` | `studio_piano.py` |
 | 23 Estúdio II · Voz | `estudio_voz.py` | `studio_voice.py` |
 | 24 Naves V · Capítulos e sequências | `naves_5_modos.py` | `ships_5_modes.py` |
@@ -44,10 +44,10 @@ Portuguese one, name for name.
 | 26 Ninja III · O nível | `ninja_3_nivel.py` | `ninja_3_level.py` |
 | 27 Ninja IV · Perigos | `ninja_4_perigos.py` | `ninja_4_hazards.py` |
 | 28 Ninja V · Espada | `ninja_5_espada.py` | `ninja_5_sword.py` |
-| 29 Corredor infinito | `corredor.py` |  |
-| 30 Giros | `barras_girando.py`, `osciloscopio.py` |  |
-| 31 Duelo | `duelo.py` |  |
-| 32 Corrida | `corrida.py` |  |
+| 29 Corredor infinito | `corredor.py` | `runner.py` |
+| 30 Giros | `barras_girando.py`, `osciloscopio.py` | `spinning_bars.py`, `oscilloscope.py` |
+| 31 Duelo | `duelo.py` | `duel.py` |
+| 32 Corrida | `corrida.py` | `race.py` |
 
 The appendices (`A-…` to `G-…` in the same folder) are reference pages made of
 short programs; they end in no file here.

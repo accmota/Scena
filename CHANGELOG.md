@@ -101,7 +101,10 @@ left out.
   `glow` and `visual` cannot), and its step is now "Fórmula ou evento";
   12 no longer says a new `move_to` warns when it replaces a trip (it
   replaces it quietly); 01 says over a hundred color names, not seventy;
-  04 and 10 lose two small inaccuracies.
+  20's guard no longer counts the puddle as cover (its sight ray is
+  limited to the hero and the crates, in `colisao.py` too); 21 says
+  `@drag_over` runs on each mouse movement, not every frame; 04, 10, 17,
+  29 and 30 lose small inaccuracies.
 - Guia: the error catalog moved from Começar to the end of Debug (same
   anchor, `#erros-catalogo`), and the Reativo chapter now comes after
   Aparência, before Mundo.

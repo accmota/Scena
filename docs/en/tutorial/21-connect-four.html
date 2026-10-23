@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Four — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "21",
+  title: "Connect Four",
+  steps: [
+    {
+      title: "The board",
+      body: `
+        <p>A new script, and a board game: <strong>Connect Four</strong>. Two players, red and blue, take turns dropping a ball into a grid of 7 columns and 6 rows, and the ball falls down its column to the lowest free cell. The first to get four balls in a row wins.</p>
+        <p>We start with the board: a light border with 42 holes. It is measured before it is drawn, from a single rectangle, the zone of the cells:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 200" role="img" aria-label="The zone of the cells, a dashed rectangle of 560 by 480, cut into 7 columns and 6 rows; around it, a little larger, the border with round corners; one of the cells, 80 by 80, is marked">
+            <rect class="ray" fill="none" x="110" y="24" width="180" height="156" rx="10"/>
+            <rect class="guide" fill="none" x="116" y="30" width="168" height="144"/>
+            <line class="guide" x1="140" y1="30" x2="140" y2="174"/>
+            <line class="guide" x1="164" y1="30" x2="164" y2="174"/>
+            <line class="guide" x1="188" y1="30" x2="188" y2="174"/>
+            <line class="guide" x1="212" y1="30" x2="212" y2="174"/>
+            <line class="guide" x1="236" y1="30" x2="236" y2="174"/>
+            <line class="guide" x1="260" y1="30" x2="260" y2="174"/>
+            <line class="guide" x1="116" y1="54" x2="284" y2="54"/>
+            <line class="guide" x1="116" y1="78" x2="284" y2="78"/>
+            <line class="guide" x1="116" y1="102" x2="284" y2="102"/>
+            <line class="guide" x1="116" y1="126" x2="284" y2="126"/>
+            <line class="guide" x1="116" y1="150" x2="284" y2="150"/>
+            <rect class="hot" x="237" y="55" width="22" height="22"/>
+            <line class="ray" x1="262" y1="66" x2="300" y2="66"/>
+            <text x="304" y="70">cell</text>
+            <text x="304" y="84">80 × 80</text>
+            <line class="ray" x1="98" y1="17" x2="112" y2="26"/>
+            <text x="94" y="18" text-anchor="end">border</text>
+            <text x="102" y="100" text-anchor="end">zone</text>
+            <text x="102" y="114" text-anchor="end">560 × 480</text>
+            <text x="200" y="196" text-anchor="middle">7 columns × 6 rows</text>
+          </svg>
+          <figcaption>The zone is not drawn: it measures. The border is the zone grown outward, and the grid slices the zone into 42 equal cells.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+run()
+`,
+      notes: [
+        {
+          at: "pieces = Sheet(",
+          text: "A <code>Sheet</code> holds many images: holes, balls of several colors. <code>frame=</code> picks one of them by name."
+        },
+        {
+          at: "zone = Box(",
+          text: "A <code>Box</code> is a rectangle that is not drawn: it is for measuring and placing. You write it like a <code>Rect</code>, with a center, a width and a height."
+        },
+        {
+          at: "zone.outset(14)",
+          text: "<code>outset</code> gives the zone grown by 14 units on each side, and <code>corner_radius=24</code> rounds the corners of the border. Change the zone, and the border goes with it."
+        },
+        {
+          at: "zone.grid(7, 6)",
+          text: "<code>grid</code> slices the zone into 7 equal columns and 6 equal rows. Each cell is a <code>Box</code> too: 560 ÷ 7 = 80 wide, 480 ÷ 6 = 80 tall."
+        },
+        {
+          at: "box=cell",
+          text: "<code>box=cell</code> fits the sprite into the cell: at its center, at its size. The <code>for</code> does this for all 42 cells."
+        }
+      ],
+      try: [
+          {
+            note: "Without the sheet, the holes can be shapes: a dark circle at the center of each cell. In place of the hole's <code>Sprite</code>:",
+            replaces: ['Sprite(pieces, frame="hole_large.png"'],
+            code: `Circle(center=cell.center, radius=32, color="#20222a")`
+          },
+          {
+            note: "<code>gap=</code> leaves a space between the cells, and they shrink to fit in the zone:",
+            replaces: ['board = zone.grid('],
+            code: `board = zone.grid(7, 6, gap=10)`
+          }
+        ]
+    },
+    {
+      title: "A ball to drag",
+      body: `
+        <p>The player's ball waits beside the board, and you carry it with the mouse to a column.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+START = (110, 520)
+next_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=START)
+next_ball.draggable = True
+
+run()
+`,
+      notes: [
+        {
+          at: "START = (110, 520)",
+          text: "The place where the ball waits, to the left of the board. The name in capitals says that this value does not change during the game."
+        },
+        {
+          at: "next_ball.draggable = True",
+          text: "<code>draggable</code>: you can grab the ball with the mouse and take it anywhere. It is called <code>next_ball</code> because it is always the next ball to play."
+        }
+      ],
+      after: `
+        <p>Run it and drag the ball to the board.</p>
+        <details class="ask"><summary>What happens when you let go of it?</summary><p>Nothing: it stays where you left it, on top of the holes or off the board. Letting go does not mean anything yet.</p></details>
+      `
+    },
+    {
+      title: "Dropping on a cell",
+      body: [
+        `
+        <p>Now letting go means something. Drop the ball on a cell, and a new ball appears there; drop it off the board, and the ball goes back to its place. A new hook tells you that the drag is over:</p>
+        `,
+        {
+          snip: `@drag_to(next_ball)
+def dropped(ball, goal, pos):`
+        },
+        `
+        <p><code>@drag_to</code> tells Scena: when the drag of this ball ends, call the function. It receives three things: the dragged ball; the <code>goal</code>, which here is <code>None</code> (nothing); and <code>pos</code>, the point where the mouse let go.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+START = (110, 520)
+next_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=START, layer="top")
+next_ball.draggable = True
+
+
+@drag_to(next_ball)
+def dropped(ball, goal, pos):
+    cell = board.cell_at(pos)
+    if cell is None:
+        ball.move_to(START, time=0.3)
+        return
+    Sprite(pieces, frame="ball_red_large.png", height=64, center=cell.center)
+    ball.center = START
+
+
+run()
+`,
+      notes: [
+        {
+          at: "layer=\"top\"",
+          text: "The new balls are created after <code>next_ball</code>, and whatever is created later is drawn in front: dragged over one of them, <code>next_ball</code> would pass underneath. <code>layer=\"top\"</code> puts it on the top layer, above the game's layer."
+        },
+        {
+          at: "board.cell_at(pos)",
+          text: "<code>cell_at</code> does the grid's math in reverse: it takes a point and returns the cell under it, or <code>None</code> if the point falls off the board."
+        },
+        {
+          at: "ball.move_to(START, time=0.3)",
+          text: "<code>move_to</code> with <code>time=</code> does not jump: the ball slides back in 0.3 s. The <code>return</code> on the next line ends the function right there."
+        },
+        {
+          at: "ball.center = START",
+          text: "Dropped on a cell, <code>next_ball</code> comes back at once, without sliding, ready for another move. The ball that stays in the cell is a different one, a new one."
+        }
+      ],
+      after: `
+        <p>Run it and drop the ball on several cells, and once off the board.</p>
+        <details class="ask"><summary>Where does the new ball stay?</summary><p>Exactly on the cell where you let go, even in the middle of an empty column, as in tic-tac-toe. Gravity is missing.</p></details>
+      `,
+      dive: [
+        {
+          title: "Drag and drop",
+          body: `
+            <p>Scena has three hooks for dragging, and each one answers a question. All three receive the same three values: what was dragged, the target and the point.</p>
+            <div class="tbl"><table><thead><tr><th>Hook</th><th>Goes on</th><th>Runs</th><th>Question</th></tr></thead><tbody>
+              <tr><td><code>@drag_to(ball)</code></td><td>the dragged thing</td><td>once, when it is let go</td><td>where was this ball dropped?</td></tr>
+              <tr><td><code>@drag_over(ball)</code></td><td>the dragged thing</td><td>on each mouse movement, during the drag</td><td>where is it passing over?</td></tr>
+              <tr><td><code>@drop_by(basket)</code></td><td>the target, which receives the dropped thing</td><td>when something is dropped on it</td><td>what was dropped here?</td></tr>
+            </tbody></table></div>
+            <p>Here, <code>@drag_to</code> is all it takes: the ball needs an answer wherever it is dropped, off the board too, so that it can go back. With a <code>@drop_by</code> on the board, dropping it outside would call nobody, and the ball would be left lying there.</p>
+            <p>In the Guide: <a href="../guide/index.html#ptr-drag">Drag / drop</a> · <a href="../guide/index.html#colocar-grid">Grid</a>.</p>
+          `
+        }
+      ]
+    },
+    {
+      title: "The columns",
+      body: `
+        <p>In Connect Four, the ball does not stay where you drop it: it goes to the lowest free cell of the column. To find that cell, the game has to remember what is already in each column, and it remembers with one list per column. Each ball that comes in goes to the end of its list, so the list grows from the bottom up, like the stack of balls.</p>
+        <p>But the grid counts the rows the other way, from the top down. The two counts meet in one calculation:</p>
+
+        <figure class="fig">
+          <svg viewBox="-2 0 402 206" role="img" aria-label="On the left, the grid of 7 columns by 6 rows, with the rows numbered from 0, at the top, to 5, at the bottom; column 2 has two balls at the bottom, and the cell just above them, in row 3, is marked as the next one. On the right, the list of column 2, with two items stacked from the bottom up, 0 and 1, lined up with the two balls, and a free space on top">
+            <text x="2" y="26">row</text>
+            <circle class="guide" cx="51" cy="45" r="7"/>
+            <circle class="guide" cx="51" cy="67" r="7"/>
+            <circle class="guide" cx="51" cy="89" r="7"/>
+            <circle class="guide" cx="51" cy="111" r="7"/>
+            <circle class="guide" cx="51" cy="133" r="7"/>
+            <circle class="guide" cx="51" cy="155" r="7"/>
+            <circle class="guide" cx="73" cy="45" r="7"/>
+            <circle class="guide" cx="73" cy="67" r="7"/>
+            <circle class="guide" cx="73" cy="89" r="7"/>
+            <circle class="guide" cx="73" cy="111" r="7"/>
+            <circle class="guide" cx="73" cy="133" r="7"/>
+            <circle class="guide" cx="73" cy="155" r="7"/>
+            <circle class="guide" cx="95" cy="45" r="7"/>
+            <circle class="guide" cx="95" cy="67" r="7"/>
+            <circle class="guide" cx="95" cy="89" r="7"/>
+            <circle class="bar child" cx="95" cy="111" r="9"/>
+            <circle class="bar" cx="95" cy="133" r="9"/>
+            <circle class="bar" cx="95" cy="155" r="9"/>
+            <circle class="guide" cx="117" cy="45" r="7"/>
+            <circle class="guide" cx="117" cy="67" r="7"/>
+            <circle class="guide" cx="117" cy="89" r="7"/>
+            <circle class="guide" cx="117" cy="111" r="7"/>
+            <circle class="guide" cx="117" cy="133" r="7"/>
+            <circle class="guide" cx="117" cy="155" r="7"/>
+            <circle class="guide" cx="139" cy="45" r="7"/>
+            <circle class="guide" cx="139" cy="67" r="7"/>
+            <circle class="guide" cx="139" cy="89" r="7"/>
+            <circle class="guide" cx="139" cy="111" r="7"/>
+            <circle class="guide" cx="139" cy="133" r="7"/>
+            <circle class="guide" cx="139" cy="155" r="7"/>
+            <circle class="guide" cx="161" cy="45" r="7"/>
+            <circle class="guide" cx="161" cy="67" r="7"/>
+            <circle class="guide" cx="161" cy="89" r="7"/>
+            <circle class="guide" cx="161" cy="111" r="7"/>
+            <circle class="guide" cx="161" cy="133" r="7"/>
+            <circle class="guide" cx="161" cy="155" r="7"/>
+            <circle class="guide" cx="183" cy="45" r="7"/>
+            <circle class="guide" cx="183" cy="67" r="7"/>
+            <circle class="guide" cx="183" cy="89" r="7"/>
+            <circle class="guide" cx="183" cy="111" r="7"/>
+            <circle class="guide" cx="183" cy="133" r="7"/>
+            <circle class="guide" cx="183" cy="155" r="7"/>
+            <text x="24" y="49">0</text>
+            <text x="24" y="71">1</text>
+            <text x="24" y="93">2</text>
+            <text x="24" y="115">3</text>
+            <text x="24" y="137">4</text>
+            <text x="24" y="159">5</text>
+            <text x="48" y="182">0</text>
+            <text x="70" y="182">1</text>
+            <text x="92" y="182">2</text>
+            <text x="114" y="182">3</text>
+            <text x="136" y="182">4</text>
+            <text x="158" y="182">5</text>
+            <text x="180" y="182">6</text>
+            <text x="80" y="198">column</text>
+            <line class="ray" x1="95" y1="6" x2="95" y2="96"/>
+            <line class="ray" x1="95" y1="98" x2="90" y2="89"/>
+            <line class="ray" x1="95" y1="98" x2="100" y2="89"/>
+            <line class="guide" x1="200" y1="111" x2="248" y2="111"/>
+            <line class="guide" x1="200" y1="133" x2="248" y2="133"/>
+            <line class="guide" x1="200" y1="155" x2="248" y2="155"/>
+            <rect class="guide" x="250" y="100" width="44" height="22" rx="3"/>
+            <rect class="bar" x="250" y="122" width="44" height="22" rx="3"/>
+            <rect class="bar" x="250" y="144" width="44" height="22" rx="3"/>
+            <text x="300" y="115">free</text>
+            <text x="300" y="137">[1]</text>
+            <text x="300" y="159">[0]</text>
+            <text x="238" y="90">columns[2]</text>
+            <text x="214" y="36">len(columns[2]) = 2</text>
+            <text x="214" y="54">row = 5 - 2 = 3</text>
+          </svg>
+          <figcaption>Column 2 has two balls, and so does its list: <code>[0]</code> is the one at the bottom. The grid counts the rows from the top down, so the free cell is row 5 − 2 = 3.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+START = (110, 520)
+next_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=START, layer="top")
+next_ball.draggable = True
+
+columns = [[], [], [], [], [], [], []]
+
+
+@drag_to(next_ball)
+def dropped(ball, goal, pos):
+    cell = board.cell_at(pos)
+    if cell is None or len(columns[cell.col_index]) == 6:
+        ball.move_to(START, time=0.3)
+        return
+    column = columns[cell.col_index]
+    destination = board.cell(cell.col_index, 5 - len(column))
+    new_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=destination.center)
+    column.append(new_ball)
+    ball.center = START
+
+
+run()
+`,
+      notes: [
+        {
+          at: "columns = [[], [], [], [], [], [], []]",
+          text: "Seven empty lists, one for each column. <code>columns[2]</code> is the list of the third column, and its <code>len</code> says how many balls the column already has."
+        },
+        {
+          at: "len(columns[cell.col_index]) == 6",
+          text: "With six balls, the column is full, and the ball goes back, as when it is dropped off the board. The order around <code>or</code> matters: if the cell is <code>None</code>, Python does not even read the second part, which would raise an error (<code>None</code> has no column)."
+        },
+        {
+          at: "column = columns[cell.col_index]",
+          text: "Each cell knows its column: <code>col_index</code>, the column's number, goes from 0 to 6, left to right."
+        },
+        {
+          at: "5 - len(column)",
+          text: "<code>board.cell(col, row)</code> returns the cell at a column and a row, in that order. The row is the calculation in the figure: with two balls, 5 − 2 = 3."
+        },
+        {
+          at: "column.append(new_ball)",
+          text: "<code>append</code> puts the new ball at the end of the list: <code>[0]</code> is still the one at the bottom."
+        }
+      ],
+      after: `
+        <p>Run it and drop several balls on the same column, even up high: they stack up from the bottom.</p>
+        <details class="ask"><summary>And the seventh ball in a column?</summary><p>It slides back to its place. The column is full, and the <code>if</code> sends the ball back before creating anything.</p></details>
+      `
+    },
+    {
+      title: "Falling",
+      body: `
+        <p>The ball already goes to the right cell, but it appears there all at once. Now it is created at the mouth of the column, just above the board, and falls to the cell.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+START = (110, 520)
+next_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=START, layer="top")
+next_ball.draggable = True
+
+columns = [[], [], [], [], [], [], []]
+
+
+@drag_to(next_ball)
+def dropped(ball, goal, pos):
+    cell = board.cell_at(pos)
+    if cell is None or len(columns[cell.col_index]) == 6:
+        ball.move_to(START, time=0.3)
+        return
+    column = columns[cell.col_index]
+    destination = board.cell(cell.col_index, 5 - len(column))
+    new_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=(destination.center.x, 630))
+    new_ball.move_to(destination.center, time=0.5, ease="bounce", on_done=landed)
+    column.append(new_ball)
+    ball.center = START
+
+
+def landed():
+    play_sound("audio/impactPlank_medium_002.ogg")
+
+
+run()
+`,
+      notes: [
+        {
+          at: "center=(destination.center.x, 630)",
+          text: "The new ball is created at the mouth of the column: the x of the destination cell, and y 630, just above the border."
+        },
+        {
+          at: "ease=\"bounce\"",
+          text: "<code>ease=</code> picks a curve that changes the way it moves: instead of the same speed from start to finish, the ball speeds up, slows down or bounces. With <code>\"bounce\"</code>, it hits the bottom and bounces a little before it stops."
+        },
+        {
+          at: "on_done=landed",
+          text: "<code>on_done</code> hands a function to <code>move_to</code>, which calls it when the trip ends. <code>landed</code> goes without parentheses: it is the function itself, not a call right now."
+        }
+      ],
+      after: `
+        <p>Run it and drop a ball high on the board: it falls, bounces at the bottom and, when it stops, knocks. The sound comes from <code>landed</code>, which runs only at the end of the fall. Everything that happens after a move lives in it.</p>
+      `,
+      try: [
+          {
+            note: "Another curve: <code>ease_in</code> (starts slow and speeds up) is a real fall, without the bounce. <code>ease_out</code> and <code>elastic</code> work too, one at a time. In place of the new ball's <code>move_to</code>:",
+            replaces: ['new_ball.move_to('],
+            code: `new_ball.move_to(destination.center, time=0.4, ease="ease_in", on_done=landed)`
+          }
+        ]
+    },
+    {
+      title: "Taking turns",
+      body: `
+        <p>Two players, one ball at a time. Whose turn it is goes in <code>st.turn</code>, <code>"red"</code> or <code>"blue"</code>, and a notice above the board shows it.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+START = (110, 520)
+next_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=START, layer="top")
+next_ball.draggable = True
+
+columns = [[], [], [], [], [], [], []]
+st.turn = "red"
+
+notice = Text(text="", center=(500, 712), font_size=36, color="white")
+notice["text"] @= lambda: f"Turn: {st.turn}"
+
+
+@drag_to(next_ball)
+def dropped(ball, goal, pos):
+    cell = board.cell_at(pos)
+    if cell is None or len(columns[cell.col_index]) == 6:
+        ball.move_to(START, time=0.3)
+        return
+    column = columns[cell.col_index]
+    destination = board.cell(cell.col_index, 5 - len(column))
+    new_ball = Sprite(pieces, frame=ball.frame, height=64, center=(destination.center.x, 630))
+    new_ball.move_to(destination.center, time=0.5, ease="bounce", on_done=landed)
+    column.append(new_ball)
+    ball.visible = False
+    ball.center = START
+
+
+def landed():
+    play_sound("audio/impactPlank_medium_002.ogg")
+    switch_turn()
+    next_ball.visible = True
+
+
+def switch_turn():
+    if st.turn == "red":
+        st.turn = "blue"
+        next_ball.frame = "ball_blue_large.png"
+    else:
+        st.turn = "red"
+        next_ball.frame = "ball_red_large.png"
+
+
+run()
+`,
+      notes: [
+        {
+          at: "notice[\"text\"] @= lambda: f\"Turn: {st.turn}\"",
+          text: "<code>@=</code> links the text to this formula: when <code>st.turn</code> changes, the notice changes by itself."
+        },
+        {
+          at: "frame=ball.frame",
+          text: "The new ball copies the frame of the one you dragged: red on red's turn, blue on blue's turn."
+        },
+        {
+          at: "ball.visible = False",
+          text: "While the new ball falls, <code>next_ball</code> disappears (<code>visible</code>). An invisible object does not get the mouse: you cannot play again in the middle of the fall."
+        },
+        {
+          at: "next_ball.visible = True",
+          text: "At the end of the fall, the turn switches and <code>next_ball</code> reappears in its place, already in the other player's color."
+        },
+        {
+          at: "next_ball.frame = \"ball_blue_large.png\"",
+          text: "<code>frame</code> can also be changed after the sprite exists: the same <code>next_ball</code> now shows the blue ball."
+        }
+      ],
+      after: `
+        <p>Run it and play both colors, one at a time.</p>
+        <details class="ask"><summary>Why does the turn switch in <code>landed</code>, and not in <code>dropped</code>?</summary><p>Because in <code>dropped</code> the move is not over yet: the ball is falling. Switching in <code>landed</code>, the notice and the color change when the ball arrives, and the hidden <code>next_ball</code> makes sure nobody plays before that.</p></details>
+      `
+    },
+    {
+      title: "Four in a row",
+      body: [
+        `
+        <p>The rule that ends the game is missing: four balls of the same color in a row. Everything it needs is already in the lists, and the rule is plain Python. At its heart is a function that walks across the board:</p>
+        `,
+        {
+          snip: `def four(x, y, dx, dy):
+    balls = []
+    for step in range(4):
+        c = x + step * dx
+        r = y + step * dy`
+        },
+        `
+        <p><code>four</code> starts at a cell and takes four steps of <code>(dx, dy)</code>, like a <code>move_by</code> from cell to cell. <code>x</code> is the column and <code>y</code> is the place in the list, counted from the bottom up, like the screen's y. At each step, <code>c</code> and <code>r</code> are the column and the place of that cell. Starting at <code>(2, 0)</code> with <code>(1, 1)</code>, the cells are <code>(2, 0)</code>, <code>(3, 1)</code>, <code>(4, 2)</code> and <code>(5, 3)</code>: a diagonal that rises to the right.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+START = (110, 520)
+next_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=START, layer="top")
+next_ball.draggable = True
+
+columns = [[], [], [], [], [], [], []]
+st.turn = "red"
+st.finish = False
+
+
+def message():
+    if st.finish:
+        return f"Winner: {st.turn}!"
+    return f"Turn: {st.turn}"
+
+
+notice = Text(text="", center=(500, 712), font_size=36, color="white")
+notice["text"] @= message
+
+
+@drag_to(next_ball)
+def dropped(ball, goal, pos):
+    cell = board.cell_at(pos)
+    if st.finish or cell is None or len(columns[cell.col_index]) == 6:
+        ball.move_to(START, time=0.3)
+        return
+    column = columns[cell.col_index]
+    destination = board.cell(cell.col_index, 5 - len(column))
+    new_ball = Sprite(pieces, frame=ball.frame, height=64, center=(destination.center.x, 630))
+    new_ball.player = st.turn
+    new_ball.move_to(destination.center, time=0.5, ease="bounce", on_done=landed)
+    column.append(new_ball)
+    ball.visible = False
+    ball.center = START
+
+
+def landed():
+    play_sound("audio/impactPlank_medium_002.ogg")
+    check()
+    if st.finish:
+        play_sound("audio/Victory.mp3")
+    else:
+        switch_turn()
+    next_ball.visible = True
+
+
+def switch_turn():
+    if st.turn == "red":
+        st.turn = "blue"
+        next_ball.frame = "ball_blue_large.png"
+    else:
+        st.turn = "red"
+        next_ball.frame = "ball_red_large.png"
+
+
+def four(x, y, dx, dy):
+    balls = []
+    for step in range(4):
+        c = x + step * dx
+        r = y + step * dy
+        if c > 6 or r < 0 or r >= len(columns[c]) or columns[c][r].player != st.turn:
+            return False
+        balls.append(columns[c][r])
+    for ball in balls:
+        ball.glow = "gold"
+    return True
+
+
+def check():
+    for x in range(7):
+        for y in range(6):
+            if four(x, y, 1, 0) or four(x, y, 0, 1):
+                st.finish = True
+            if four(x, y, 1, 1) or four(x, y, 1, -1):
+                st.finish = True
+
+
+run()
+`,
+      notes: [
+        {
+          at: "notice[\"text\"] @= message",
+          text: "The notice now has two sentences, and choosing between them takes an <code>if</code>: the formula becomes a function with a name, <code>message</code>. <code>@=</code> calls it again when <code>st.turn</code> or <code>st.finish</code> changes."
+        },
+        {
+          at: "if st.finish or cell is None",
+          text: "Once the game is over, any ball you drop goes back to its place."
+        },
+        {
+          at: "new_ball.player = st.turn",
+          text: "A new field on the ball: <code>player</code> keeps whose ball it is. That is what the rule compares."
+        },
+        {
+          at: "play_sound(\"audio/Victory.mp3\")",
+          text: "<code>landed</code> checks before switching the turn, because only the player who just moved can have made a new line. With four in a row, the victory sound plays, and the turn does not switch: the notice says who won."
+        },
+        {
+          at: "columns[c][r].player != st.turn",
+          text: "If the cell is off the board, empty (the place is past the end of the list) or belongs to the other player, it is not four: the function returns <code>False</code> and stops there."
+        },
+        {
+          at: "ball.glow = \"gold\"",
+          text: "All four steps worked: the four balls light up with a gold <code>glow</code>, and the function returns <code>True</code>."
+        },
+        {
+          at: "for y in range(6):",
+          text: "<code>check</code> tries every cell of the board as a start, in four directions."
+        }
+      ],
+      after: [
+        `
+        <p>Run it and make four in a row in all four ways. They are the four directions that <code>check</code> tries:</p>
+        <div class="tbl"><table><thead><tr><th><code>(dx, dy)</code></th><th>Walks</th><th>The four balls</th></tr></thead><tbody>
+          <tr><td><code>(1, 0)</code></td><td>to the right</td><td>lying down, in a row</td></tr>
+          <tr><td><code>(0, 1)</code></td><td>up</td><td>standing, in a column</td></tr>
+          <tr><td><code>(1, 1)</code></td><td>right and up</td><td>on the rising diagonal</td></tr>
+          <tr><td><code>(1, -1)</code></td><td>right and down</td><td>on the falling diagonal</td></tr>
+        </tbody></table></div>
+        <p>There is no need to walk to the left: the same line, read from its other end, has already been checked.</p>
+        <p>The <code>r &lt; 0</code> in the <code>if</code> looks unnecessary, since the list has no negative place. Without it, the line would read:</p>
+        `,
+        {
+          snip: `if c > 6 or r >= len(columns[c]) or columns[c][r].player != st.turn:`,
+          alt: true
+        },
+        `
+        <p>And no error would show up, which is the danger. In Python, a negative place counts from the end of the list: <code>column[-1]</code> is the top ball, not “none”. The falling diagonal, the only one that leaves the board through the bottom, would find four balls where there are none.</p>
+        `
+      ]
+    },
+    {
+      title: "New game",
+      example: "connect_four.py",
+      body: `
+        <p>A game is over; now you need to start another. A button calls <code>new_game</code>, which puts everything back as it was at the start, one thing per line.</p>
+      `,
+      code: `from scena import *
+
+init(width=1000, height=760, title="Connect Four")
+Wallpaper("#2b3550")
+
+pieces = Sheet("k-rolling-ball/rollingBall_sheet@2.png", atlas="k-rolling-ball/rollingBall_sheet@2.xml")
+
+zone = Box(center=(500, 340), width=560, height=480)
+Rect(box=zone.outset(14), color="#d8dce4", corner_radius=24)
+board = zone.grid(7, 6)
+for cell in board:
+    Sprite(pieces, frame="hole_large.png", box=cell)
+
+START = (110, 520)
+next_ball = Sprite(pieces, frame="ball_red_large.png", height=64, center=START, layer="top")
+next_ball.draggable = True
+
+columns = [[], [], [], [], [], [], []]
+st.turn = "red"
+st.finish = False
+
+
+def message():
+    if st.finish:
+        return f"Winner: {st.turn}!"
+    return f"Turn: {st.turn}"
+
+
+notice = Text(text="", center=(500, 712), font_size=36, color="white")
+notice["text"] @= message
+
+
+@drag_to(next_ball)
+def dropped(ball, goal, pos):
+    cell = board.cell_at(pos)
+    if st.finish or cell is None or len(columns[cell.col_index]) == 6:
+        ball.move_to(START, time=0.3)
+        return
+    column = columns[cell.col_index]
+    destination = board.cell(cell.col_index, 5 - len(column))
+    new_ball = Sprite(pieces, frame=ball.frame, height=64, center=(destination.center.x, 630), group="moves")
+    new_ball.player = st.turn
+    new_ball.move_to(destination.center, time=0.5, ease="bounce", on_done=landed)
+    column.append(new_ball)
+    ball.visible = False
+    ball.center = START
+
+
+def landed():
+    play_sound("audio/impactPlank_medium_002.ogg")
+    check()
+    if st.finish:
+        play_sound("audio/Victory.mp3")
+    else:
+        switch_turn()
+    next_ball.visible = True
+
+
+def switch_turn():
+    if st.turn == "red":
+        st.turn = "blue"
+        next_ball.frame = "ball_blue_large.png"
+    else:
+        st.turn = "red"
+        next_ball.frame = "ball_red_large.png"
+
+
+def four(x, y, dx, dy):
+    balls = []
+    for step in range(4):
+        c = x + step * dx
+        r = y + step * dy
+        if c > 6 or r < 0 or r >= len(columns[c]) or columns[c][r].player != st.turn:
+            return False
+        balls.append(columns[c][r])
+    for ball in balls:
+        ball.glow = "gold"
+    return True
+
+
+def check():
+    for x in range(7):
+        for y in range(6):
+            if four(x, y, 1, 0) or four(x, y, 0, 1):
+                st.finish = True
+            if four(x, y, 1, 1) or four(x, y, 1, -1):
+                st.finish = True
+
+
+def new_game():
+    group["moves"].destroy()
+    for column in columns:
+        column.clear()
+    st.turn = "red"
+    st.finish = False
+    next_ball.frame = "ball_red_large.png"
+    next_ball.visible = True
+
+
+Button(label="New game", on_click=new_game)
+
+run()
+`,
+      notes: [
+        {
+          at: "group=\"moves\")",
+          text: "The played balls join a group, so they can all leave together."
+        },
+        {
+          at: "group[\"moves\"].destroy()",
+          text: "<code>destroy</code> on the group takes all the played balls out of the game at once."
+        },
+        {
+          at: "column.clear()",
+          text: "<code>clear</code> empties each list. The board and the lists agree again: nothing anywhere."
+        },
+        {
+          at: "Button(label=\"New game\", on_click=new_game)",
+          text: "A <code>Button</code> with <code>on_click</code>: the function goes without parentheses, as with <code>on_done</code>."
+        }
+      ],
+      after: `
+        <p>Play until someone wins and click <strong>New game</strong>. Then click it while a ball is still falling.</p>
+        <details class="ask"><summary>Why does <code>new_game</code> show <code>next_ball</code>, if it is already in view?</summary><p>It is not always: during the fall it is hidden, and <code>landed</code> is what shows it again. If you click in the middle of the fall, the ball is destroyed before it arrives, <code>landed</code> never runs, and without the last line of <code>new_game</code>, <code>next_ball</code> would stay hidden forever.</p></details>
+      `,
+      try: [
+          {
+            note: "While you drag, a light strip shows the column where the ball will fall: <code>@drag_over</code> runs on each mouse movement during the drag. To make the strip go away when you let go, put <code>strip.visible = False</code> on the first line of <code>dropped</code>. The color <code>\"#ffffff33\"</code> is white with transparency: the last two digits say how much of it shows (<code>00</code> none, <code>ff</code> all of it). At the end of the script, before <code>run()</code>:",
+            code: `strip = Rect(center=(500, 340), width=80, height=480, color="#ffffff33")
+strip.visible = False
+
+
+@drag_over(next_ball)
+def dragging(ball, goal, pos):
+    cell = board.cell_at(pos)
+    if cell is None:
+        strip.visible = False
+    else:
+        strip.visible = True
+        strip.center = (cell.center.x, 340)`
+          }
+        ],
+      closing: `
+        <p>Drag the ball on the left and drop it over a column: it falls to the lowest free cell, and the turn passes to the other player. Four balls of the same color in a row, lying down, standing or on a diagonal, win the game and light up. <strong>New game</strong> clears the board.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Box</code> — a rectangle that is not drawn: it measures and places; <code>outset</code> grows it.</li>
+          <li><code>grid</code> — slices the box into equal cells; <code>board.cell(col, row)</code> picks one, and row 0 is the top one.</li>
+          <li><code>cell_at</code> — the reverse path: from the point to the cell, or <code>None</code> outside the grid.</li>
+          <li><code>box=</code> — fits a sprite or a shape into a cell.</li>
+          <li><code>@drag_to</code> — runs when the drag ends, with the dragged thing, the target and the point where it was let go.</li>
+          <li><code>on_done=</code> — the function that a <code>move_to</code> with <code>time=</code> calls when the trip ends.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#colocar-box">Box</a> · <a href="../guide/index.html#colocar-grid">Grid</a> · <a href="../guide/index.html#ptr-drag">Drag / drop</a> · <a href="../guide/index.html#mover-pose">move / rotate / scale</a> · <a href="../guide/index.html#agendar-fim">When it ends</a>.</p>
+        <p><strong>Next:</strong> sound becomes input: a piano played from the keyboard.</p>
+      `,
+      explore: `
+        <ul>
+          <li>A draw: all seven columns full and nobody with four. In <code>landed</code>, 42 balls means the board is full.</li>
+          <li>A scoreboard with each player's wins, kept in <code>st</code>, which <code>new_game</code> does not reset.</li>
+          <li>Can you make an opponent that plays by itself on blue's turn? The <code>dropped</code> function is yours, and you can call it by hand.</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Endless Runner — Scena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "29",
+  title: "Endless Runner",
+  steps: [
+    {
+      title: "A robot that runs",
+      body: `
+        <p>A new game: an endless runner. The robot runs to the right on its own, faster and faster, and all you decide is when it jumps. The ground will have holes, coins and crates, and it never ends.</p>
+        <p>This first step puts together pieces you already know: a sheet of animations, gravity with a jump, an act and a camera that follows the robot. What is new is that there is no key to walk.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "floor", bounce=0)
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        floor = Rect(top_left=(0, 150), width=2400, height=150, color="sienna", group="floor")
+        floor.mass = STATIC
+        self.robot = Robot(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "sheet.strip(\"running\"",
+          text: "One animation per line. <code>strip</code> joins into one animation the numbered files that the <code>*</code> finds: <code>Run (1).png</code>, <code>Run (2).png</code>, and so on."
+        },
+        {
+          at: "collision.floor = True",
+          text: "A world with gravity has a floor: with <code>floor</code>, whatever touches something below it stands on it, as in Ninja."
+        },
+        {
+          at: "self.vel.y -= 2200 * dt",
+          text: "Gravity: every second, the vertical speed loses 2200. The jump, two lines up, gives 900 all at once, and only with the feet on the ground."
+        },
+        {
+          at: "st.pace * dt",
+          text: "Instead of a key to walk, the robot moves <code>st.pace</code> per second, always forward."
+        },
+        {
+          at: "class Race(Act):",
+          text: "The game lives in an act: <code>setup</code> builds the race, and <code>run(Race)</code> starts it. With everything inside the act, restarting the race will just be changing acts. <code>self.robot</code> keeps the robot for the act's <code>on_update</code>."
+        },
+        {
+          at: "canvas.pan_to(",
+          text: "The camera follows, every frame: the center of the screen stays 250 ahead of the robot, and the height stays fixed at 270, the middle of the screen."
+        }
+      ],
+      after: `
+        <p>Run it and jump a few times. The robot stays still on the screen, and the world goes past it.</p>
+        <details class="ask"><summary>What happens after about seven seconds?</summary><p>The ground is a rectangle 2400 wide. It ends, and the robot falls out of the world.</p></details>
+      `
+    },
+    {
+      title: "An endless track",
+      body: [
+        `
+        <p>A longer rectangle only puts off the fall. The ground has to be made while the robot runs: a new piece ahead, while the pieces left behind go away. <code>Endless</code> does that, with a function of ours that builds one piece:</p>
+        `,
+        {
+          snip: `def stretch(slot):
+    floor = Rect(top_left=(slot.left, 150), width=384, height=150, color="sienna", group="floor")
+    floor.mass = STATIC
+    return floor
+...
+        Endless("track", stretch, step=384)`
+        },
+        `
+        <p><code>Endless("track", stretch, step=384)</code> cuts the world into slots 384 wide and calls <code>stretch(slot)</code> for each one. The <code>slot</code> tells where that slot is: <code>slot.left</code> is its left edge. The function makes a rectangle of ground that starts there and is as wide as the slot, and returns it. The rectangles of neighboring slots touch, and the ground looks like one piece.</p>
+        <p><code>Endless</code> never moves a piece. What moves is the camera, behind the robot. Every frame, <code>Endless</code> looks at the camera's window: it builds each slot a little before it comes on screen and destroys the ones left far behind.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 200" role="img" aria-label="A row of slots in the world, numbered from left to right. The screen is a dashed rectangle over some of them, with the robot near its left edge. The slots under the screen and just ahead of it have ground; the last one, on the right, has just been built; the ones on the left, far behind the screen, have already been destroyed. An arrow says the camera moves to the right.">
+            <rect class="guide" x="120" y="30" width="180" height="112"/>
+            <text x="180" y="22">the screen</text>
+            <text x="200" y="62">the camera moves →</text>
+            <line class="guide" x1="10" y1="142" x2="410" y2="142"/>
+            <rect class="guide" x="12" y="112" width="46" height="30"/>
+            <rect class="guide" x="62" y="112" width="46" height="30"/>
+            <rect class="bar" x="112" y="112" width="46" height="30"/>
+            <rect class="bar" x="162" y="112" width="46" height="30"/>
+            <rect class="bar" x="212" y="112" width="46" height="30"/>
+            <rect class="bar" x="262" y="112" width="46" height="30"/>
+            <rect class="bar" x="312" y="112" width="46" height="30"/>
+            <rect class="bar child" x="362" y="112" width="46" height="30"/>
+            <circle class="dot" cx="150" cy="100" r="7"/>
+            <text x="28" y="158">0</text>
+            <text x="78" y="158">1</text>
+            <text x="128" y="158">2</text>
+            <text x="178" y="158">3</text>
+            <text x="228" y="158">4</text>
+            <text x="278" y="158">5</text>
+            <text x="328" y="158">6</text>
+            <text x="378" y="158">7</text>
+            <text x="10" y="180">destroyed</text>
+            <text x="194" y="180">live</text>
+            <text x="330" y="180">just built</text>
+          </svg>
+          <figcaption>The track is cut into slots of 384. The camera moves with the robot; a little before a slot comes on screen, <code>Endless</code> calls <code>stretch(slot)</code> for it. The slots left far behind are destroyed, along with everything the function returned.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+
+
+def stretch(slot):
+    floor = Rect(top_left=(slot.left, 150), width=384, height=150, color="sienna", group="floor")
+    floor.mass = STATIC
+    return floor
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "floor", bounce=0)
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        canvas.layers.create("track", below="default")
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "floor.mass = STATIC",
+          text: "What the function returns is a real piece: in the <code>floor</code> group and still (<code>STATIC</code>), it holds the robot up through the robot's <code>resolve</code>, like a floor made by hand."
+        },
+        {
+          at: "return floor",
+          text: "What the function returns belongs to <code>Endless</code>: it destroys it along with the slot. A piece the function creates and does not return stays in the world forever. That is why everything the slot builds goes in the <code>return</code>."
+        },
+        {
+          at: "canvas.layers.create(\"track\", below=\"default\")",
+          text: "A layer just for the track, below <code>default</code>: the pieces are born mid-game and, on <code>default</code>, would be painted over the robot. It is neutral (no <code>pan_response</code>) and moves with the world. On a parallax layer, a piece does not collide, and the robot would fall through the ground."
+        }
+      ],
+      after: `
+        <p>Run it and open the system panel (<kbd>Ctrl+Shift+1</kbd>). Watch <code>objs</code>, the number of live objects.</p>
+        <details class="ask"><summary>Does the number keep growing?</summary><p>No. It rises at first and then stops, however far the robot runs: for every new slot that comes in ahead, an old one goes out behind.</p></details>
+        <p>Notice also the thin, light lines on the ground. Each one is the seam between two slots.</p>
+      `
+    },
+    {
+      title: "Dirt and grass",
+      body: `
+        <p>A brown rectangle is ground, but it does not look like it. Two touches of appearance, without changing the game: dirt inside and grass on top.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+
+DIRT = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def stretch(slot):
+    floor = Rect(top_left=(slot.left, 150), width=384, height=150, group="floor")
+    floor.fill = DIRT
+    floor.line = DIRT
+    floor.mass = STATIC
+    grass = Line(p1=(slot.left, 146), p2=(slot.right, 146), color="#6fa124", line_width=16)
+    sprout = Line(p1=(slot.left, 150), p2=(slot.right, 150), color="#b3d02a", line_width=8)
+    return [floor, grass, sprout]
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "floor", bounce=0)
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        canvas.layers.create("track", below="default")
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "DIRT = Texture(",
+          text: "A <code>Texture</code> is an image that paints the inside of a shape. With <code>fit=\"tile\"</code>, it repeats in squares of <code>tile_size=64</code>: the 384 by 150 ground gets six dirt tiles per row. <code>DIRT</code> is made once, at the top, and every slot uses the same one."
+        },
+        {
+          at: "floor.line = DIRT",
+          text: "The texture goes in the <code>fill</code> and also in the <code>line</code> (the outline). Without the dirt outline, the light line between two slots would remain."
+        },
+        {
+          at: "grass = Line(",
+          text: "The grass is two thick <code>Line</code>s: a dark green one 16 wide and, 4 higher, a light green one 8 wide. They are not in the <code>floor</code> group: they are only drawing, and the robot stands on the rectangle."
+        },
+        {
+          at: "return [floor, grass, sprout]",
+          text: "The function returns a list with the three pieces, and <code>Endless</code> destroys all three together when the slot is left behind."
+        }
+      ],
+      try: [
+        {
+          note: "Other grounds, one at a time, in place of <code>DIRT</code>: a brick pavement, dark rock, the drawn dirt from the <code>tilesets/</code> folder.",
+          replaces: ['DIRT = Texture('],
+          code: `DIRT = Texture("textures/Brick_04.png", fit="tile", tile_size=96)
+DIRT = Texture("k-textures/wall_rock.png", fit="tile", tile_size=64)
+DIRT = Texture("tilesets/Tiles/5.png", fit="tile", tile_size=64)`
+        }
+      ]
+    },
+    {
+      title: "Holes",
+      body: [
+        `
+        <p>Endless ground with no danger is not a game. Some slots will end early.</p>
+        <p>Think of the 384 slot as six columns of 64, the tile size. Normally the ground fills all six; in a slot picked by chance, only three, and the rest stays empty:</p>
+        `,
+        {
+          snip: `    columns = 6
+    if slot.i > 1 and slot.chance(0.4):
+        columns = 3`
+        },
+        `
+        <p><code>slot.chance(0.4)</code> is the slot's own draw: it says yes in 40% of the slots. In those, the ground and the grass go up to <code>slot.left + 64 * columns</code>, three columns, and the 192 left over in the slot stay empty: a hole.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 150" role="img" aria-label="Three slots side by side. The first and the third have ground in all six columns. The middle one has ground only in the first three columns and a hole at the end; the next slot starts with ground.">
+            <line class="guide" x1="30" y1="34" x2="30" y2="118"/>
+            <line class="guide" x1="150" y1="34" x2="150" y2="118"/>
+            <line class="guide" x1="270" y1="34" x2="270" y2="118"/>
+            <line class="guide" x1="390" y1="34" x2="390" y2="118"/>
+            <rect class="bar" x="30" y="70" width="120" height="40"/>
+            <rect class="bar child" x="150" y="70" width="60" height="40"/>
+            <rect class="bar" x="270" y="70" width="120" height="40"/>
+            <text x="90" y="24" text-anchor="middle">full slot</text>
+            <text x="210" y="24" text-anchor="middle">picked slot</text>
+            <text x="330" y="24" text-anchor="middle">full slot</text>
+            <text x="240" y="94" text-anchor="middle">hole</text>
+            <text x="90" y="136" text-anchor="middle">6 × 64</text>
+            <text x="180" y="136" text-anchor="middle">3 × 64</text>
+            <text x="240" y="136" text-anchor="middle">192</text>
+            <text x="330" y="136" text-anchor="middle">6 × 64</text>
+          </svg>
+          <figcaption>The hole is at the end of the slot, and the next slot always starts with ground. That is why two holes never join into one too wide for the jump: between them there are at least three columns of ground.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+
+DIRT = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def stretch(slot):
+    columns = 6
+    if slot.i > 1 and slot.chance(0.4):
+        columns = 3
+    floor = Rect(top_left=(slot.left, 150), width=64 * columns, height=150, group="floor")
+    floor.fill = DIRT
+    floor.line = DIRT
+    floor.mass = STATIC
+    grass = Line(p1=(slot.left, 146), p2=(slot.left + 64 * columns, 146), color="#6fa124", line_width=16)
+    sprout = Line(p1=(slot.left, 150), p2=(slot.left + 64 * columns, 150), color="#b3d02a", line_width=8)
+    return [floor, grass, sprout]
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "floor", bounce=0)
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        canvas.layers.create("track", below="default")
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "if slot.i > 1 and",
+          text: "<code>slot.i</code> is the slot's number, counting from 0. The first two are always full, so the race does not start in a hole."
+        },
+        {
+          at: "width=64 * columns",
+          text: "The ground is as wide as the columns, no longer as wide as the slot. The grass, in the two lines below, ends at the same point."
+        }
+      ],
+      after: `
+        <p>Run it. With the up arrow at the right moment, the robot gets across the hole.</p>
+        <details class="ask"><summary>And when it does not jump in time?</summary><p>It falls forever, and the camera keeps following it. The race still needs an end.</p></details>
+      `
+    },
+    {
+      title: "End of the race",
+      body: `
+        <p>Falling into the hole ends the race, and the space bar starts another one. Falling means leaving the play area through the bottom, and Scena tells you when an object leaves it.</p>
+      `,
+      code: `from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+
+DIRT = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def stretch(slot):
+    columns = 6
+    if slot.i > 1 and slot.chance(0.4):
+        columns = 3
+    floor = Rect(top_left=(slot.left, 150), width=64 * columns, height=150, group="floor")
+    floor.fill = DIRT
+    floor.line = DIRT
+    floor.mass = STATIC
+    grass = Line(p1=(slot.left, 146), p2=(slot.left + 64 * columns, 146), color="#6fa124", line_width=16)
+    sprout = Line(p1=(slot.left, 150), p2=(slot.left + 64 * columns, 150), color="#b3d02a", line_width=8)
+    return [floor, grass, sprout]
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        resolve(self, "floor", bounce=0)
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+    @leave_playfield
+    def fell(self):
+        st.running = False
+        st.pace = 0
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        st.running = True
+        canvas.layers.create("track", below="default")
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+        self.notice = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if not st.running and keyp.once("SPACE"):
+            change_act(Race)
+
+    @when(lambda self: not st.running)
+    def ended(self):
+        self.notice.text = "press SPACE"
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "@leave_playfield",
+          text: "On top of a method of the class, <code>@leave_playfield</code> applies to the robot itself: when its center leaves <code>canvas.playfield</code>, the play area, Scena calls <code>fell</code>."
+        },
+        {
+          at: "st.pace = 0",
+          text: "With the speed at zero, the robot stops moving forward, and the camera, which follows it, stops too."
+        },
+        {
+          at: "canvas.playfield.set(",
+          text: "The play area, remade every frame: the camera's window (<code>canvas.game_view</code>) with a margin of 100 on each side (<code>outset</code>). Just below the code, what happens without it."
+        },
+        {
+          at: "change_act(Race)",
+          text: "The act leaves with everything it created (the layer, the <code>Endless</code>, the pieces, the robot, the notice), and a new act starts, with a new track. After this line, the old act's <code>self.robot</code> no longer exists; that is why it comes last."
+        },
+        {
+          at: "@when(lambda self: not st.running)",
+          text: "<code>@when</code> runs <code>ended</code> the moment the race stops, only once."
+        },
+        {
+          at: "layer=\"ui\"",
+          text: "The notice is on the <code>ui</code> layer, which does not move with the camera: it stays on the screen, wherever the robot is."
+        }
+      ],
+      after: [
+        `
+        <p>Run it, fall into a hole and press space. Then delete the line <code>canvas.playfield.set(…)</code> and run it again.</p>
+        <details class="ask"><summary>Without the line, what happens?</summary><p>About three seconds after the start, at x = 1200, the race ends for no reason, with the robot standing on solid ground.</p></details>
+        <p>The <code>playfield</code> is a rectangle fixed in the world: the screen with a margin around it, where the camera started. It does not follow the camera. The robot runs out of it without falling:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 145" role="img" aria-label="On the left, the dashed playfield, still where the camera started. On the right, the screen now, already outside it, with the robot standing on the ground.">
+            <line class="ray" x1="10" y1="110" x2="410" y2="110"/>
+            <rect class="guide" x="20" y="24" width="160" height="96"/>
+            <rect class="ray" fill="none" x="250" y="34" width="140" height="76"/>
+            <circle class="hot" cx="280" cy="102" r="6"/>
+            <text x="100" y="16" text-anchor="middle">playfield stays here</text>
+            <text x="320" y="26" text-anchor="middle">the screen now</text>
+            <text x="215" y="70" text-anchor="middle">camera →</text>
+            <text x="280" y="132" text-anchor="middle">robot</text>
+          </svg>
+          <figcaption>Without the new line, the <code>playfield</code> stays where the camera started, and the robot runs out of it. Remade every frame around the camera's window, it moves along, and the robot only leaves it by falling into a hole.</figcaption>
+        </figure>
+        `
+      ]
+    },
+    {
+      title: "Hill and valley",
+      body: [
+        `
+        <p>Flat ground gets boring. The track will go up and down. The question is: where does the height of the ground come from?</p>
+        <p>It comes from a function that takes any x in the world and returns the height of the ground there:</p>
+        `,
+        {
+          snip: `def ground_height(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)`
+        },
+        `
+        <p><code>sin</code> (sine) comes from Python's <code>math</code>. As the number grows, it goes up and down between −1 and 1, forever; times 55, it becomes a wave from −55 to 55. The height is 130, plus a long wave of 55 (<code>x / 400</code> grows slowly), plus a short one of 25. Added together, the two make hills that do not repeat any time soon.</p>
+        <p>Why a function, and not a random draw? Each slot is built on its own, and its draw (<code>slot.rng</code>) knows nothing about its neighbor. The right edge of one slot and the left edge of the next are the same x: asking the same function, both get the same answer.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 420 230" role="img" aria-label="Top: two neighboring slots, 4 and 5, with the ground of each drawn by a function of x; at the seam both ask for the height of the same x and the ground goes on without a step. Bottom: the same two slots, each with a randomly drawn height; at the seam the ground has a step.">
+            <polygon class="bar" points="30,100 210,100 210,52 180,46 150,44 120,46 90,52 60,60 30,68"/>
+            <polygon class="bar" points="210,100 390,100 390,40 360,36 330,38 300,42 270,46 240,50 210,52"/>
+            <line class="guide" x1="210" y1="14" x2="210" y2="108"/>
+            <circle class="dot" cx="210" cy="52" r="5"/>
+            <text x="218" y="24">ground_height(x) at the seam</text>
+            <text x="92" y="92">slot 4</text>
+            <text x="276" y="92">slot 5</text>
+            <polygon class="bar" points="30,212 210,212 210,160 30,160"/>
+            <polygon class="bar" points="210,212 390,212 390,184 210,184"/>
+            <rect class="hot" x="206" y="160" width="8" height="24"/>
+            <line class="guide" x1="210" y1="126" x2="210" y2="218"/>
+            <text x="218" y="140">one draw per slot: a step</text>
+            <text x="92" y="204">slot 4</text>
+            <text x="276" y="204">slot 5</text>
+          </svg>
+          <figcaption>At the top, each slot asks <code>ground_height(x)</code>: at the seam, both ask about the same x and get the same answer. At the bottom, each slot draws its own height with <code>slot.rng</code>: one draw knows nothing of the other, and the seam becomes a step.</figcaption>
+        </figure>
+        <p>The rule holds for every endless game: whatever has to match between slots is a function of x; the slot's draw is for what stays inside it.</p>
+        `
+      ],
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+
+DIRT = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+
+
+def ground_height(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def column(x):
+    floor = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, ground_height(x + 64)), (x, ground_height(x))], group="floor")
+    floor.fill = DIRT
+    floor.line = DIRT
+    floor.mass = STATIC
+    grass = Line(p1=(x, ground_height(x) - 4), p2=(x + 64, ground_height(x + 64) - 4), color="#6fa124", line_width=16)
+    sprout = Line(p1=(x, ground_height(x)), p2=(x + 64, ground_height(x + 64)), color="#b3d02a", line_width=8)
+    return [floor, grass, sprout]
+
+
+def stretch(slot):
+    columns = 6
+    if slot.i > 1 and slot.chance(0.4):
+        columns = 3
+    pieces = []
+    for k in range(columns):
+        pieces += column(slot.left + 64 * k)
+    return pieces
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "floor", bounce=0)
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+    @leave_playfield
+    def fell(self):
+        st.running = False
+        st.pace = 0
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        st.running = True
+        canvas.layers.create("track", below="default")
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+        self.notice = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if not st.running and keyp.once("SPACE"):
+            change_act(Race)
+
+    @when(lambda self: not st.running)
+    def ended(self):
+        self.notice.text = "press SPACE"
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "floor = Polygon(",
+          text: "A hill does not fit in a rectangle. Each column is a four-cornered <code>Polygon</code>: the base at y = 0 and the top going from <code>ground_height(x)</code> to <code>ground_height(x + 64)</code>, a short ramp. The grass follows the same ramp."
+        },
+        {
+          at: "pieces += column(",
+          text: "<code>stretch</code> calls <code>column</code> for each column of the slot, and <code>+=</code> joins the lists of three pieces into one. The hole is still at the end of the slot."
+        },
+        {
+          at: "self.tilt = \"ground\"",
+          text: "<code>tilt</code> set to <code>\"ground\"</code> tilts the robot's picture with the ramp, around its feet (<code>hitbox_anchor=\"bottom\"</code>). The collision box stays upright."
+        }
+      ],
+      after: `
+        <p>Run it: the robot goes up and down the hills, tilted with the ground, without tripping on any step between one slot and the next.</p>
+      `,
+      try: [
+        {
+          note: "Other mountains, one at a time, in place of the math in <code>ground_height</code>: shorter, taller waves; a sawtooth that climbs little by little; a deep valley now and then (<code>** 8</code> raises to the eighth power: the wave stays near zero almost all the time and only sometimes dips). A ramp steeper than 45° becomes a wall.",
+          replaces: ['return 130 + 55'],
+          code: `return 130 + 40 * sin(x / 200) + 30 * sin(x / 90)
+return 100 + x / 200 % 150
+return 160 - 90 * sin(x / 900) ** 8`
+        }
+      ]
+    },
+    {
+      title: "What goes in the slot",
+      body: `
+        <p>Now the slot gets what stands on the ground: sometimes a platform over the hole, and always one thing drawn from three. Everything comes from the slot's draw:</p>
+        <div class="tbl"><table><thead><tr><th>What</th><th>When</th><th>Where</th></tr></thead><tbody>
+          <tr><td>a plank with three coins</td><td>in a slot with a hole, 60% of the time</td><td>in the middle of the hole, 100 above the ground there</td></tr>
+          <tr><td>three coins</td><td>in 40% of the slots</td><td>120 above the ground: you only get them by jumping</td></tr>
+          <tr><td>a crate</td><td>from the fourth slot on, in half of the others</td><td>standing on the ground, in the way</td></tr>
+          <tr><td>a decoration</td><td>in the rest</td><td>standing on the ground: a bush, a mushroom or a sign</td></tr>
+        </tbody></table></div>
+        <p>The robot catches the coins, dies on the crate and stands on the plank.</p>
+      `,
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+sheet.strip("falling", "robot/Dead (*).png", fps=20)
+
+DIRT = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+WOOD = Texture("textures/236.jpg", fit="tile", tile_size=64)
+STONE = Texture("k-textures/wall_stone.png", fit="tile", tile_size=40)
+BUSHES = ["tilesets/Object/Bush (1).png", "tilesets/Object/Bush (3).png", "tilesets/Object/Mushroom_1.png",
+          "tilesets/Object/Mushroom_2.png", "tilesets/Object/Sign_2.png"]
+
+
+def ground_height(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def column(x):
+    floor = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, ground_height(x + 64)), (x, ground_height(x))], group="floor")
+    floor.fill = DIRT
+    floor.line = DIRT
+    floor.mass = STATIC
+    grass = Line(p1=(x, ground_height(x) - 4), p2=(x + 64, ground_height(x + 64) - 4), color="#6fa124", line_width=16)
+    sprout = Line(p1=(x, ground_height(x)), p2=(x + 64, ground_height(x + 64)), color="#b3d02a", line_width=8)
+    return [floor, grass, sprout]
+
+
+def coins(x, y):
+    row = []
+    for k in range(3):
+        row.append(Circle(center=(x - 36 + 36 * k, y), radius=11, visual=Sphere("orange"), group="coin"))
+    return row
+
+
+def platform(slot, x, y):
+    plank = Rect(center=(x, y), width=128, height=24, group="plank")
+    plank.mass = STATIC
+    if slot.chance(0.5):
+        plank.fill = WOOD
+        plank.visual = Extrude(depth=20, angle=270)
+    else:
+        plank.fill = STONE
+        plank.visual = Ink()
+    return plank
+
+
+def stretch(slot):
+    columns = 6
+    if slot.i > 1 and slot.chance(0.4):
+        columns = 3
+    pieces = []
+    for k in range(columns):
+        pieces += column(slot.left + 64 * k)
+    if columns == 3 and slot.chance(0.6):
+        mid = slot.left + 288
+        pieces.append(platform(slot, mid, ground_height(mid) + 100))
+        pieces += coins(mid, ground_height(mid) + 150)
+    x = slot.rng.uniform(slot.left + 40, slot.left + 64 * columns - 40)
+    if slot.chance(0.4):
+        pieces += coins(x, ground_height(x) + 120)
+    elif slot.i > 2 and slot.chance(0.5):
+        pieces.append(Sprite("tilesets/Object/Crate.png", height=50, center=(x, ground_height(x) + 22), group="crate"))
+    else:
+        pieces.append(Sprite(slot.rng.choice(BUSHES), height=40, center=(x, ground_height(x) + 16)))
+    return pieces
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "floor", bounce=0)
+        resolve(self, "plank", bounce=0, only="bottom")
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if not st.running:
+            if not self.showing("falling"):
+                self.play("falling", loops=1)
+        elif on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+    @collide_with("coin")
+    def caught(self, coin):
+        coin.destroy()
+        st.coins += 1
+        play_sound("synth/coin.wav")
+
+    @collide_with("crate")
+    def crashed(self, crate):
+        if st.running:
+            st.running = False
+            st.pace = 0
+            canvas.shake(6)
+            play_sound("audio/impactPlank_medium_002.ogg")
+
+    @leave_playfield
+    def fell(self):
+        st.running = False
+        st.pace = 0
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        st.running = True
+        st.coins = 0
+        canvas.layers.create("track", below="default")
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+        scoreboard = Text(text="", top_left=(16, 524), font_size=20, color="navy")
+        scoreboard["text"] @= lambda: f"Coins {st.coins}"
+        self.notice = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if not st.running and keyp.once("SPACE"):
+            change_act(Race)
+
+    @when(lambda self: not st.running)
+    def ended(self):
+        self.notice.text = "press SPACE"
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "visual=Sphere(\"orange\")",
+          text: "Each coin is a <code>Circle</code> with the orange <code>Sphere</code> visual, which gives it volume and a gold shine. The same <code>coins</code> function makes the loose row and the one above the plank."
+        },
+        {
+          at: "Extrude(depth=20, angle=270)",
+          text: "The plank has two looks, drawn by the slot. Wood with <code>Extrude</code>, which gives it a 3D thickness. The texture paints the inside; the visual gives the volume."
+        },
+        {
+          at: "plank.visual = Ink()",
+          text: "Or stone with <code>Ink</code>: an uneven pen outline, like a chipped slab."
+        },
+        {
+          at: "x = slot.rng.uniform(",
+          text: "<code>uniform</code> draws any number between two: here, between the edges of the slot's ground, 40 in from each side, so the hole stays out. The height comes from <code>ground_height(x)</code>: the function that made the ground says where it is at that x."
+        },
+        {
+          at: "slot.rng.choice(BUSHES)",
+          text: "<code>choice</code> draws one item from the list <code>BUSHES</code>. The decoration has no group: nothing collides with it."
+        },
+        {
+          at: "only=\"bottom\"",
+          text: "The plank is one-way: <code>only=\"bottom\"</code> holds only the feet. The jump from the edge of the hole goes through the plank from below; on the way down, the robot lands on it. Solid on all four sides, it would stop the robot from the side, mid-jump, and drop it into the hole. That is why the plank has a group of its own."
+        },
+        {
+          at: "if not self.showing(\"falling\"):",
+          text: "<code>on_update</code> passes here every frame, and a clip with <code>loops=1</code> (one loop) that has already finished starts over if it is asked for again. <code>showing</code> asks first: if the robot is already falling, nothing changes, and it collapses once and stays on the ground."
+        },
+        {
+          at: "@collide_with(\"crate\")",
+          text: "Hitting a crate ends the race, with a screen <code>shake</code>. The crate is not in the <code>resolve</code>: it does not hold the robot up, it only knocks it down."
+        },
+        {
+          at: "scoreboard[\"text\"] @=",
+          text: "<code>@=</code> links the text to that function: when <code>st.coins</code> changes, the text changes."
+        }
+      ],
+      after: `
+        <p>Run it and hit a crate on purpose: the robot collapses and stays on the ground.</p>
+        <details class="ask"><summary>Two races with the same <code>seed=</code> (the box below) have the same track. Why?</summary><p>All the draws (<code>slot.chance</code>, <code>slot.rng</code>) belong to the slot itself, and each slot has its own. With the same seed, each slot draws the same numbers as the last time: the same hole, the same crate, the same coin in the same place.</p></details>
+      `,
+      try: [
+        {
+          note: "The same track in every race, for practice: <code>seed=</code> with a number. Change the number for another track. In place of the track's <code>Endless</code>:",
+          replaces: ['Endless("track"'],
+          code: `Endless("track", stretch, step=384, seed=7)`
+        },
+        {
+          note: "Another look for the stone, one at a time, in place of <code>Ink</code>: an outline that wobbles slowly, a rim of light, a frame with a gap. More in the Guide: Visual.",
+          replaces: ['plank.visual = Ink()'],
+          code: `plank.visual = OrganicOutline()
+plank.visual = Rim()
+plank.visual = InsetRim()`
+        }
+      ]
+    },
+    {
+      title: "Faster and faster",
+      body: `
+        <p>The race needs urgency and a score: the robot speeds up little by little, and the scoreboard shows the meters run and the high score.</p>
+      `,
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+sheet.strip("falling", "robot/Dead (*).png", fps=20)
+
+DIRT = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+WOOD = Texture("textures/236.jpg", fit="tile", tile_size=64)
+STONE = Texture("k-textures/wall_stone.png", fit="tile", tile_size=40)
+BUSHES = ["tilesets/Object/Bush (1).png", "tilesets/Object/Bush (3).png", "tilesets/Object/Mushroom_1.png",
+          "tilesets/Object/Mushroom_2.png", "tilesets/Object/Sign_2.png"]
+
+
+def ground_height(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def column(x):
+    floor = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, ground_height(x + 64)), (x, ground_height(x))], group="floor")
+    floor.fill = DIRT
+    floor.line = DIRT
+    floor.mass = STATIC
+    grass = Line(p1=(x, ground_height(x) - 4), p2=(x + 64, ground_height(x + 64) - 4), color="#6fa124", line_width=16)
+    sprout = Line(p1=(x, ground_height(x)), p2=(x + 64, ground_height(x + 64)), color="#b3d02a", line_width=8)
+    return [floor, grass, sprout]
+
+
+def coins(x, y):
+    row = []
+    for k in range(3):
+        row.append(Circle(center=(x - 36 + 36 * k, y), radius=11, visual=Sphere("orange"), group="coin"))
+    return row
+
+
+def platform(slot, x, y):
+    plank = Rect(center=(x, y), width=128, height=24, group="plank")
+    plank.mass = STATIC
+    if slot.chance(0.5):
+        plank.fill = WOOD
+        plank.visual = Extrude(depth=20, angle=270)
+    else:
+        plank.fill = STONE
+        plank.visual = Ink()
+    return plank
+
+
+def stretch(slot):
+    columns = 6
+    if slot.i > 1 and slot.chance(0.4):
+        columns = 3
+    pieces = []
+    for k in range(columns):
+        pieces += column(slot.left + 64 * k)
+    if columns == 3 and slot.chance(0.6):
+        mid = slot.left + 288
+        pieces.append(platform(slot, mid, ground_height(mid) + 100))
+        pieces += coins(mid, ground_height(mid) + 150)
+    x = slot.rng.uniform(slot.left + 40, slot.left + 64 * columns - 40)
+    if slot.chance(0.4):
+        pieces += coins(x, ground_height(x) + 120)
+    elif slot.i > 2 and slot.chance(0.5):
+        pieces.append(Sprite("tilesets/Object/Crate.png", height=50, center=(x, ground_height(x) + 22), group="crate"))
+    else:
+        pieces.append(Sprite(slot.rng.choice(BUSHES), height=40, center=(x, ground_height(x) + 16)))
+    return pieces
+
+
+st.record = 0
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "floor", bounce=0)
+        resolve(self, "plank", bounce=0, only="bottom")
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if not st.running:
+            if not self.showing("falling"):
+                self.play("falling", loops=1)
+        elif on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+    @collide_with("coin")
+    def caught(self, coin):
+        coin.destroy()
+        st.coins += 1
+        play_sound("synth/coin.wav")
+
+    @collide_with("crate")
+    def crashed(self, crate):
+        if st.running:
+            st.running = False
+            st.pace = 0
+            canvas.shake(6)
+            play_sound("audio/impactPlank_medium_002.ogg")
+
+    @leave_playfield
+    def fell(self):
+        st.running = False
+        st.pace = 0
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        st.running = True
+        st.coins = 0
+        st.meters = 0
+        canvas.layers.create("track", below="default")
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+        scoreboard = Text(text="", top_left=(16, 524), font_size=20, color="navy")
+        scoreboard["text"] @= lambda: f"{st.meters} m   Coins {st.coins}   High score {st.record} m"
+        self.notice = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if st.running:
+            st.pace += 6 * dt
+            st.meters = int(self.robot.center.x / 64)
+        elif keyp.once("SPACE"):
+            change_act(Race)
+
+    @when(lambda self: not st.running)
+    def ended(self):
+        st.record = max(st.record, st.meters)
+        self.notice.text = "press SPACE"
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "st.pace += 6 * dt",
+          text: "While the robot runs, its speed grows by 6 per second: 320 at the start, 500 after half a minute, 680 after a minute. The jump stays the same, so it carries farther; but the crates come sooner, and the window for jumping gets shorter."
+        },
+        {
+          at: "int(self.robot.center.x / 64)",
+          text: "The distance is the robot's x, one column of ground per meter. <code>int</code> (short for <em>integer</em>) cuts off the part after the point: 12.7 becomes 12."
+        },
+        {
+          at: "max(st.record, st.meters)",
+          text: "<code>max</code> returns the larger of the two: at the end of each race, the high score only changes if this race went farther."
+        }
+      ],
+      after: `
+        <p>Run it, fall, and start again with space. The meters go back to zero; the high score stays.</p>
+        <details class="ask"><summary>Why does <code>st.record = 0</code> sit at the top of the file, and not in the act's <code>setup</code>?</summary><p><code>setup</code> runs again for every race and resets whatever is in it: there, the high score would go back to 0 every time you press space. Outside the act, the line runs only once, and <code>st</code> survives the act change: the high score carries over from one race to the next.</p></details>
+      `
+    },
+    {
+      title: "Far away",
+      example: "runner.py",
+      body: `
+        <p>Behind the track, only sky. Two strips of scenery will add depth: a mountain range far away and, closer, hills with castles, towers and trees, in a very light blue, like things seen from afar.</p>
+        <p>The trick is parallax: what is far away goes past the screen slowly. Each strip lives on a layer that moves only part of what the camera moves:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 125" role="img" aria-label="Three strips and how far each one moves across the screen when the camera moves 100: the mountain range, 10; the hills, 30; the track, 100.">
+            <text x="200" y="14" text-anchor="middle">the camera moves 100 →</text>
+            <line class="ray" x1="360" y1="40" x2="346" y2="40"/>
+            <polygon class="dot" points="340,40 348,36 348,44"/>
+            <line class="ray" x1="360" y1="72" x2="306" y2="72"/>
+            <polygon class="dot" points="300,72 308,68 308,76"/>
+            <line class="ray" x1="360" y1="104" x2="166" y2="104"/>
+            <polygon class="dot" points="160,104 168,100 168,108"/>
+            <text x="10" y="44">far · 0.1</text>
+            <text x="10" y="76">hills · 0.3</text>
+            <text x="10" y="108">track · neutral</text>
+            <text x="368" y="44">10</text>
+            <text x="368" y="76">30</text>
+            <text x="368" y="108">100</text>
+          </svg>
+          <figcaption>When the camera moves 100, the track moves 100 across the screen; the layer with <code>pan_response=0.3</code>, only 30; the one with <code>0.1</code>, only 10. What goes by slowly looks far away.</figcaption>
+        </figure>
+      `,
+      code: `from math import sin
+from scena import *
+
+init(width=960, height=540, title="Runner")
+Wallpaper(Gradient("#3d97d6", "#9fd4f0", angle=90))
+collision.floor = True
+
+sheet = Sheet(anchor="bottom", pixel_size=0.16)
+sheet.strip("running", "robot/Run (*).png", fps=14)
+sheet.strip("jumping", "robot/Jump (*).png", fps=14)
+sheet.strip("falling", "robot/Dead (*).png", fps=20)
+scenery = Sheet("backgrounds/kn/bgElements_spritesheet.png", atlas="backgrounds/kn/bgElements_spritesheet.xml")
+
+DIRT = Texture("k-textures/floor_ground_dirt.png", fit="tile", tile_size=64)
+WOOD = Texture("textures/236.jpg", fit="tile", tile_size=64)
+STONE = Texture("k-textures/wall_stone.png", fit="tile", tile_size=40)
+BUSHES = ["tilesets/Object/Bush (1).png", "tilesets/Object/Bush (3).png", "tilesets/Object/Mushroom_1.png",
+          "tilesets/Object/Mushroom_2.png", "tilesets/Object/Sign_2.png"]
+SILHOUETTES = ["castle.png", "tower.png", "tree01.png", "tree08.png", "tree11.png", "tree12.png", "house_side_tall.png"]
+
+
+def ground_height(x):
+    return 130 + 55 * sin(x / 400) + 25 * sin(x / 150)
+
+
+def column(x):
+    floor = Polygon(points=[(x, 0), (x + 64, 0), (x + 64, ground_height(x + 64)), (x, ground_height(x))], group="floor")
+    floor.fill = DIRT
+    floor.line = DIRT
+    floor.mass = STATIC
+    grass = Line(p1=(x, ground_height(x) - 4), p2=(x + 64, ground_height(x + 64) - 4), color="#6fa124", line_width=16)
+    sprout = Line(p1=(x, ground_height(x)), p2=(x + 64, ground_height(x + 64)), color="#b3d02a", line_width=8)
+    return [floor, grass, sprout]
+
+
+def coins(x, y):
+    row = []
+    for k in range(3):
+        row.append(Circle(center=(x - 36 + 36 * k, y), radius=11, visual=Sphere("orange"), group="coin"))
+    return row
+
+
+def platform(slot, x, y):
+    plank = Rect(center=(x, y), width=128, height=24, group="plank")
+    plank.mass = STATIC
+    if slot.chance(0.5):
+        plank.fill = WOOD
+        plank.visual = Extrude(depth=20, angle=270)
+    else:
+        plank.fill = STONE
+        plank.visual = Ink()
+    return plank
+
+
+def stretch(slot):
+    columns = 6
+    if slot.i > 1 and slot.chance(0.4):
+        columns = 3
+    pieces = []
+    for k in range(columns):
+        pieces += column(slot.left + 64 * k)
+    if columns == 3 and slot.chance(0.6):
+        mid = slot.left + 288
+        pieces.append(platform(slot, mid, ground_height(mid) + 100))
+        pieces += coins(mid, ground_height(mid) + 150)
+    x = slot.rng.uniform(slot.left + 40, slot.left + 64 * columns - 40)
+    if slot.chance(0.4):
+        pieces += coins(x, ground_height(x) + 120)
+    elif slot.i > 2 and slot.chance(0.5):
+        pieces.append(Sprite("tilesets/Object/Crate.png", height=50, center=(x, ground_height(x) + 22), group="crate"))
+    else:
+        pieces.append(Sprite(slot.rng.choice(BUSHES), height=40, center=(x, ground_height(x) + 16)))
+    return pieces
+
+
+def far(slot):
+    ridge = Sprite(scenery, frame="pointy_mountains.png", width=1400, center=(slot.left + 700, 170))
+    ridge.set_alpha(0.6)
+    cloud = Sprite(scenery, frame=f"cloud{slot.rng.randint(1, 9)}.png", height=slot.rng.uniform(50, 80),
+                   center=(slot.rng.uniform(slot.left, slot.right), slot.rng.uniform(400, 480)))
+    return [ridge, cloud]
+
+
+def hills(slot):
+    pieces = []
+    for k in range(3):
+        x = slot.rng.uniform(slot.left, slot.right)
+        tall = slot.rng.uniform(120, 200)
+        pieces.append(Sprite(scenery, frame=slot.rng.choice(SILHOUETTES), height=tall, center=(x, 110 + tall / 2)))
+    pieces.append(Sprite(scenery, frame="hills1.png", width=1000, center=(slot.left + 500, 64)))
+    return pieces
+
+
+st.record = 0
+
+
+class Robot(Sprite, source=sheet, hitbox_shape="rect", hitbox_anchor="bottom"):
+    def setup(self):
+        self.vel = Vec2(0, 0)
+        self.tilt = "ground"
+        resolve(self, "floor", bounce=0)
+        resolve(self, "plank", bounce=0, only="bottom")
+
+    def on_update(self, dt):
+        on_ground = "bottom" in self.touching_sides
+        if keyp.once("UP") and on_ground:
+            self.vel.y = 900
+            play_sound("synth/jump.wav")
+        self.vel.y -= 2200 * dt
+        if not st.running:
+            if not self.showing("falling"):
+                self.play("falling", loops=1)
+        elif on_ground:
+            self.play("running")
+        else:
+            self.play("jumping")
+        self.move_by(st.pace * dt, self.vel.y * dt)
+
+    @collide_with("coin")
+    def caught(self, coin):
+        coin.destroy()
+        st.coins += 1
+        play_sound("synth/coin.wav")
+
+    @collide_with("crate")
+    def crashed(self, crate):
+        if st.running:
+            st.running = False
+            st.pace = 0
+            canvas.shake(6)
+            play_sound("audio/impactPlank_medium_002.ogg")
+
+    @leave_playfield
+    def fell(self):
+        st.running = False
+        st.pace = 0
+
+
+class Race(Act):
+    def setup(self):
+        st.pace = 320
+        st.running = True
+        st.coins = 0
+        st.meters = 0
+        canvas.layers.create("far", pan_response=0.1, below="default")
+        canvas.layers.create("hills", pan_response=0.3, below="default")
+        canvas.layers.create("track", below="default")
+        Endless("far", far, step=1400)
+        Endless("hills", hills, step=1000)
+        Endless("track", stretch, step=384)
+        self.robot = Robot(center=(200, 300))
+        scoreboard = Text(text="", top_left=(16, 524), font_size=20, color="navy")
+        scoreboard["text"] @= lambda: f"{st.meters} m   Coins {st.coins}   High score {st.record} m"
+        self.notice = Text(text="", center=(480, 400), font_size=32, color="navy", layer="ui")
+
+    def on_update(self, dt):
+        canvas.pan_to(self.robot.center.x + 250, 270)
+        canvas.playfield.set(canvas.game_view.outset(100))
+        if st.running:
+            st.pace += 6 * dt
+            st.meters = int(self.robot.center.x / 64)
+        elif keyp.once("SPACE"):
+            change_act(Race)
+
+    @when(lambda self: not st.running)
+    def ended(self):
+        st.record = max(st.record, st.meters)
+        self.notice.text = "press SPACE"
+
+
+run(Race)
+`,
+      notes: [
+        {
+          at: "scenery = Sheet(",
+          text: "A sheet with many scenery drawings, each with its own name in the <code>atlas</code> (the map of the sheet): <code>pointy_mountains.png</code>, <code>hills1.png</code>, <code>castle.png</code>…"
+        },
+        {
+          at: "def far(slot):",
+          text: "Each slot of the mountain range is 1400 wide and gets a range 1400 wide, each joined to the next, and a random cloud, from <code>cloud1.png</code> to <code>cloud9.png</code>. On a parallax layer, <code>slot.left</code> is measured on the layer itself: its slots go by slowly too."
+        },
+        {
+          at: "ridge.set_alpha(0.6)",
+          text: "<code>set_alpha</code> changes the transparency: at 0.6, the sky shows through the range, and it looks even farther away."
+        },
+        {
+          at: "def hills(slot):",
+          text: "The hills: three random silhouettes, of random heights, standing behind a strip of <code>hills1.png</code>."
+        },
+        {
+          at: "pan_response=0.1",
+          text: "<code>pan_response</code> (how the layer responds to the camera's movement): the layer moves a tenth of what the camera moves. The hills layer, just below, three tenths."
+        },
+        {
+          at: "canvas.layers.create(\"track\"",
+          text: "The layers are created from back to front: the order of <code>create</code> is the drawing order. The track, the last one, is in front of the range and the hills."
+        }
+      ],
+      after: `
+        <p>Run it: the range barely moves, the hills go by slowly, the track goes by at full speed.</p>
+        <p>On the back strips, everything is just decoration: nothing there goes into a <code>resolve</code> or a <code>@collide_with</code>. On a parallax layer, pieces do not collide.</p>
+      `,
+      try: [
+        {
+          note: "Another background: the forest from the <code>tilesets/BG/</code> folder, a single image that <code>Endless</code> repeats side by side. In place of the range's <code>Endless</code>:",
+          replaces: ['Endless("far"'],
+          code: `Endless("far", "tilesets/BG/BG.png", height=540)`
+        }
+      ],
+      dive: [
+        {
+          title: "Two frames of reference",
+          body: `
+            <p>Every endless game has two frames of reference: the world (the ground, the holes, the coins) and the screen (the scoreboard, the notice). In this game, the camera moves and the world stays still: each piece is built once, where it stays, and whatever belongs to the screen goes on the <code>ui</code> layer. In Plane (15 to 17) it was the other way around: the camera stood still, the layers moved with <code>scroll=</code>, and the pillars were pushed every frame with <code>move_by</code>.</p>
+            <p>With the camera moving, the rest comes cheap. The parallax is each layer's <code>pan_response</code>. The play area is one line per frame (<code>playfield.set</code>). And ending the race is stopping the robot: the camera stops with it.</p>
+            <p>In the Guide: <a href="../guide/index.html#mundo-sem-fim">Endless world</a> (the table "Two ways to make an endless game") · <a href="../guide/index.html#mundo-camadas">Layers</a> · <a href="../guide/index.html#mundo-camera">Camera</a>.</p>
+          `
+        }
+      ],
+      closing: `
+        <p>The up arrow jumps, only with the feet on the ground. The robot runs on its own, faster and faster: jump over the holes and the crates and catch the coins in the air. Falling into a hole or hitting a crate ends the race; space starts again, on a new track. The scoreboard shows the meters, the coins and the high score.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>Endless</code> with a moving camera — builds each slot a little before it comes on screen and destroys the ones left behind; on a neutral layer, the pieces are the world itself, and they collide.</li>
+          <li><code>Texture</code> — an image that paints a shape, in the <code>fill</code> and the <code>line</code>; <code>fit="tile"</code> repeats it in tiles; a visual on top (<code>Extrude</code>, <code>Ink</code>) adds volume or an outline.</li>
+          <li><code>canvas.playfield.set(canvas.game_view.outset(100))</code> — the play area remade every frame around the camera's window, so <code>@leave_playfield</code> moves along with it.</li>
+          <li><code>ground_height(x)</code> — whatever has to match between slots is a function of x; <code>slot.rng</code> is for what stays inside the slot.</li>
+          <li><code>tilt</code> — tilts only the picture, to follow the ramp.</li>
+          <li><code>pan_response</code> with <code>Endless</code> — decoration strips that move less than the world, built slot by slot like the track.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#mundo-sem-fim">Endless world</a> · <a href="../guide/index.html#reagir-bounds">@leave_playfield</a> · <a href="../guide/index.html#aparencia-cor">Color / Gradient / Texture</a> · <a href="../guide/index.html#aparencia-visual">Visual</a> · <a href="../guide/index.html#sprite-orientar">Facing sprites</a> · <a href="../guide/index.html#mundo-camadas">Layers</a> · <a href="../guide/index.html#atos-trocar">change_act</a>.</p>
+        <p><strong>Next:</strong> an art tutorial, not a game: spins that add up, in a bar that creates bars and in a point that draws flowers.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Invent a new obstacle: a low-flying bird that you must not jump into.</li>
+          <li>Can you make a magnet, a power-up that pulls in the coins for a few seconds?</li>
+          <li>Sometimes the draw puts a crate right next to a hole, and no jump clears both. Can you change <code>stretch</code> so the track never builds a spot like that?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>

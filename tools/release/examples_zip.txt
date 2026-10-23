@@ -18,11 +18,14 @@ examples/cadeia_de_bolas.py
 examples/catch_stars.py
 examples/ceu_estrelado.py
 examples/colisao.py
+examples/collision.py
+examples/connect_four.py
 examples/constelacao.py
 examples/corredor.py
 examples/corrida.py
 examples/desenho.py
 examples/drawing.py
+examples/duel.py
 examples/duelo.py
 examples/entropia.py
 examples/estudio_voz.py
@@ -139,6 +142,7 @@ examples/media/k-textures/wall_rock.png
 examples/media/k-textures/wall_stone.png
 examples/media/levels/corrida.json
 examples/media/levels/corrida_relampago.json
+examples/media/levels/duel.json
 examples/media/levels/duelo.json
 examples/media/levels/license.txt
 examples/media/levels/minigolf.json
@@ -147,6 +151,8 @@ examples/media/levels/ninja.json
 examples/media/levels/ninja_hazards.json
 examples/media/levels/ninja_perigos.json
 examples/media/levels/ninja_world.json
+examples/media/levels/race.json
+examples/media/levels/race_lightning.json
 examples/media/ninja/Attack__000.png
 examples/media/ninja/Attack__001.png
 examples/media/ninja/Attack__002.png
@@ -327,6 +333,7 @@ examples/ninja_5_espada.py
 examples/ninja_5_sword.py
 examples/orbitas.py
 examples/orbits.py
+examples/oscilloscope.py
 examples/osciloscopio.py
 examples/pegar_estrelas.py
 examples/piano.py
@@ -335,13 +342,16 @@ examples/plane_depth.py
 examples/plane_landscape.py
 examples/ponto_medio.py
 examples/primeiro_script.py
+examples/race.py
 examples/revoada.py
+examples/runner.py
 examples/ships_1.py
 examples/ships_2_classes.py
 examples/ships_3_lives.py
 examples/ships_4_shield.py
 examples/ships_5_modes.py
 examples/ships_6_acts.py
+examples/spinning_bars.py
 examples/starry_sky.py
 examples/studio_piano.py
 examples/studio_voice.py

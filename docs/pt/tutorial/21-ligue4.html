@@ -212,7 +212,7 @@ run()
             <p>O Scena tem três ganchos para o arraste, e cada um responde a uma pergunta. Os três recebem os mesmos três valores: quem foi arrastado, o alvo e o ponto.</p>
             <div class="tbl"><table><thead><tr><th>Gancho</th><th>Fica em</th><th>Roda</th><th>Pergunta</th></tr></thead><tbody>
               <tr><td><code>@drag_to(bola)</code></td><td>na coisa arrastada</td><td>uma vez, quando ela é solta</td><td>onde soltaram esta bola?</td></tr>
-              <tr><td><code>@drag_over(bola)</code></td><td>na coisa arrastada</td><td>a cada quadro, durante o arraste</td><td>por onde ela está passando?</td></tr>
+              <tr><td><code>@drag_over(bola)</code></td><td>na coisa arrastada</td><td>a cada movimento do mouse, durante o arraste</td><td>por onde ela está passando?</td></tr>
               <tr><td><code>@drop_by(cesto)</code></td><td>no alvo, que recebe a coisa solta</td><td>quando algo é solto em cima dele</td><td>o que soltaram aqui?</td></tr>
             </tbody></table></div>
             <p><code>drag_over</code> quer dizer arrastando sobre; <code>drop_by</code>, solto por. Aqui, o <code>@drag_to</code> é o que basta: a bola precisa de uma resposta onde quer que seja solta, inclusive fora do tabuleiro, para voltar. Com um <code>@drop_by</code> no tabuleiro, soltar fora não chamaria ninguém, e a bola ficaria largada lá.</p>
