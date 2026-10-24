@@ -294,7 +294,7 @@ Scena's own level editor is built with them.
 parallax; `Endless` worlds that build themselves as the camera moves and rebuild
 the same piece when you walk back; tracks to follow; platform helpers (the floor
 ahead, which sides touch, leaning on slopes); acts for menus and levels; sound
-effects, music, filters and the microphone.
+effects, many color helpers, sound playing with effects and microphone.
 
 ## Level editor
 

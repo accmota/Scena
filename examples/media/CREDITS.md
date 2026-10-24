@@ -133,6 +133,7 @@ lines and sources are in `fonts/license.txt`.
 | `fonts/Quantico-*.ttf` | Matthew Desmond (MADtype) | OFL 1.1 |
 | `fonts/Rye-Regular.ttf` | Sorkin Type Co (Nicole Fally) | OFL 1.1 |
 | `fonts/VastShadow-Regular.ttf` | Sorkin Type Co (Nicole Fally) | OFL 1.1 |
+| `fonts/JetBrainsMonoNLNerdFontMono-*.ttf` | JetBrains Mono NL authors, patched by Nerd Fonts | OFL 1.1 |
 | `fonts/Kranky-Regular.ttf` | Font Diner / Sideshow (Squid) | Apache 2.0 |
 
 `fonts/kenvector_future.ttf` is CC0: see the table below.

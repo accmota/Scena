@@ -31,6 +31,19 @@ VastShadow-Regular.ttf
 Source: Google Fonts (https://fonts.google.com). A modified version of one of
 these fonts must stay under the OFL and must not use its Reserved Font Name.
 
+SIL Open Font License 1.1 (Licenses/OFL-JetBrainsMono.txt)
+
+JetBrainsMonoNLNerdFontMono-Regular.ttf, JetBrainsMonoNLNerdFontMono-Bold.ttf,
+JetBrainsMonoNLNerdFontMono-Italic.ttf
+  Copyright 2020 The JetBrains Mono NL Project Authors
+  (https://github.com/JetBrains/JetBrainsMonoNL). Design: Philipp Nurullin,
+  Konstantin Bulenkov. JetBrains Mono is a trademark of JetBrains s.r.o.
+  No Reserved Font Name.
+
+Source: Nerd Fonts 3.4.0 (https://www.nerdfonts.com), "JetBrainsMonoNL Nerd
+Font Mono": JetBrains Mono NL 2.304 with icon glyphs added. Nerd Fonts keeps
+the original font's license on a patched font.
+
 ---
 
 Apache License 2.0 (Licenses/LICENSE-Kranky.txt)
