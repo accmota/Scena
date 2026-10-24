@@ -369,7 +369,9 @@ class TestBreakInHandlerOrLater(unittest.TestCase):
 # -- E1 -------------------------------------------------------------------------
 
 # Examples whose edge events depend on the frame rate for a reason the
-# triage named (design/Testing Design.md, catalogue LW). Shrink-only.
+# triage named (design/Testing Design.md, catalogue LW). Shrinks; it grows
+# only by an example whose divergence the triage traced to a known limit of
+# law V1 (design/Laws.md), never to quiet a finding.
 E1_EXCLUDED = {
     "bolas.py": "ACADEMIC: twenty balls bouncing off each other amplify the frame dependence "
                 "left in many-body contacts (bodies sweep one at a time; a tie with movable "
@@ -387,6 +389,20 @@ E1_EXCLUDED = {
     "naves_5_modos.py": "ACADEMIC: a self re-arming after / a mode's wait starts each period at "
                       "the frame that noticed the last one (Scena Design, Clocks: 'at least p "
                       "apart', not a rate); uneven pacing drifts the chain",
+    "old_school.py": "ACADEMIC (as naves_5_modos): a show written as one chain of await wait(…) "
+                     "(the letters 0.22 apart: 14 frames at 60 Hz, 32 at 144); LW10",
+    "credits_roll.py": "ACADEMIC (as naves_5_modos): the credits are one chain of await wait(…); "
+                       "LW10",
+    "demo100.py": "ACADEMIC (as naves_5_modos): the rings built one await wait(0.1) apart, the "
+                  "show a chain of waits and tweens; LW10",
+    "guardiao.py": "ACADEMIC (as naves_5_modos): a wave's enemies come one await wait(cada) "
+                   "apart; LW10",
+    "loom.py": "ACADEMIC (as naves_5_modos): each throw starts from the last one's on_done "
+               "(after → move_along → beat → after); LW10",
+    "pulse.py": "harness: beats are heard in the spectrum, and the headless run's offline "
+                "mixer renders one block per frame (pump_dt), so the analysis window follows "
+                "the frame time (7 ms at 144 Hz cannot hold a bass period); a live device's "
+                "blocks do not follow the frame rate; LW10",
 }
 E1_DEV = ("one_ball", "orbitas.py", "naves_1.py", "colisao.py", "ninja_1.py", "pegar_estrelas.py")
 

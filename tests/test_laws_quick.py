@@ -193,6 +193,40 @@ class TestLabelsFollowTheObject(unittest.TestCase):
         self.assertEqual(rec.label_of(obj), label)
 
 
+def _lazy_part_lines():
+    """``{line: Points registered there}`` for a shuttle and a follower that
+    links to its ``center`` (which fills the shuttle's ``fp1`` / ``fp2``)."""
+    import inspect
+    from scena import Ellipse
+    from system_support import system_world
+    rec = trace.Recorder()
+    with system_world(draw=False):
+        trace.install(rec)
+        try:
+            here = inspect.currentframe().f_lineno
+            shuttle = Ellipse(center=(100, 100), width=58, height=12)
+            Ellipse(center=lambda: shuttle.center, width=24, height=5)
+        finally:
+            trace.uninstall()
+    lines = {}
+    for e in rec.events:
+        if e[0] == "N" and e[2] == "Point" and e[3].startswith("test_laws_quick.py:"):
+            line = int(e[3].rsplit(":", 1)[1]) - here
+            lines[line] = lines.get(line, 0) + 1
+    return lines
+
+
+class TestLazyPartsAreTheirShapes(unittest.TestCase):
+    """A part filled on first access (an Ellipse's foci, when another shape
+    first links to its ``center``) is labelled at its shape's line, not at the
+    line that read it: E3 swapped two readers of loom.py's shuttle and the
+    shuttle's foci changed lines."""
+
+    def test_the_foci_are_labelled_at_the_shuttle(self):
+        # the shuttle's center and foci at its line; the follower's center at its own
+        self.assertEqual(_lazy_part_lines(), {1: 3, 2: 1})
+
+
 class TestNeutrality(unittest.TestCase):
     """E0: the run with the recorder is the run without it."""
 
@@ -237,6 +271,11 @@ class TestCanaries(unittest.TestCase):
         finally:
             kept.clear()
         self.assertTrue(any("survivors" in m for m in msgs), msgs)
+
+    def test_foci_labelled_at_their_reader_are_caught(self):
+        # the plant: the part's own _site, the line that read it first
+        with mock.patch.object(trace, "_materializing_site", lambda frame: None):
+            self.assertEqual(_lazy_part_lines(), {1: 1, 2: 3})
 
 
 if __name__ == "__main__":

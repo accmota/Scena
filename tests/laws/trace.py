@@ -365,12 +365,28 @@ def _update_end(frame, retval):
         _rec.events.append(("p", "update"))
 
 
+def _materializing_site(frame):
+    """The site of the shape filling a Derivate part on first access (an
+    Ellipse's ``fp1`` when another shape first links to its ``center``), or
+    None. The part's own ``_site`` is the line that read it first: swap two
+    readers and the shape's parts change lines (E3 on loom.py). The engine
+    names a part through its owner (``made_at``), so the label does too."""
+    f = frame.f_back
+    for _ in range(24):
+        if f is None:
+            return None
+        if f.f_code.co_name == "_materialize_derivate_part":
+            return _field(f.f_locals.get("self"), "_site")
+        f = f.f_back
+    return None
+
+
 def _register_end(frame, retval):
     obj = retval
     if obj is None:
         return
     owner = _field(obj, "_owner")
-    site = _site_text(_field(obj, "_site"))
+    site = _site_text(_materializing_site(frame) or _field(obj, "_site"))
     label = _rec._new_label(obj, type(obj).__name__, site)
     _rec.events.append(("N", label, type(obj).__name__, site,
                         _rec.label_of(owner) if owner is not None else None))
