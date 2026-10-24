@@ -122,6 +122,7 @@ examples/media/explosions/fireball/license.txt
 examples/media/explosions/license.txt
 examples/media/fonts/Licenses/LICENSE-Kranky.txt
 examples/media/fonts/Licenses/OFL-HennyPenny.txt
+examples/media/fonts/Licenses/OFL-JetBrainsMono.txt
 examples/media/fonts/Licenses/OFL-Metamorphous.txt
 examples/media/fonts/Licenses/OFL-Quantico.txt
 examples/media/fonts/Licenses/OFL-Rye.txt
