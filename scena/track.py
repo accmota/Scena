@@ -1165,9 +1165,9 @@ class Track(Shape):
         value = float(local) * abs(float(self._scale))
         if getattr(self, "_destroyed", False):
             # A read on a dead track (``at``, ``length``) builds its tables too;
-            # the public write would refuse through the dead route map (DV2).
-            # Nothing listens to a dead track: store the value, notify nobody.
-            self.__dict__["length"] = value
+            # the public write would refuse through the dead route map (DV2):
+            # take the slot's own write path, past its dead check.
+            self._write_field("length", value)
             return
         self.length = value
 
