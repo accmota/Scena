@@ -33,7 +33,7 @@ import numpy as np  # noqa: E402
 import skia  # noqa: E402
 
 from program_support import FRAME  # noqa: E402
-from system_support import boot, system_world  # noqa: E402
+from system_support import boot, frame_report, system_world  # noqa: E402
 
 import scena.entity as entity_mod  # noqa: E402
 import scena.shapes as shapes_mod  # noqa: E402
@@ -103,15 +103,16 @@ def scenes():
 
 
 def render(make, fast: bool):
+    """``(pixels, shapes, what the frame was drawn under)``."""
     with system_world(draw=True) as w:
         try:
             if fast:
                 shapes = make()
-                return pixels(w), shapes
+                return pixels(w), shapes, frame_report(w, *shapes)
             with mock.patch.object(shapes_mod, "_draw_path", plain), \
                     mock.patch.object(track_mod, "_draw_path", plain):
                 shapes = make()
-                return pixels(w), shapes
+                return pixels(w), shapes, frame_report(w, *shapes)
         finally:
             canvas.reset_view()
 
@@ -128,10 +129,12 @@ class TestSameLook(_AnySize):
     def test_fast_route_draws_what_drawpath_draws(self):
         for name, make in scenes().items():
             with self.subTest(scene=name):
-                a, _ = render(make, fast=True)
-                b, _ = render(make, fast=False)
+                a, _, _seen = render(make, fast=True)
+                b, _, seen = render(make, fast=False)
                 lit = (b.sum(axis=2) > 60).sum()
-                self.assertGreater(lit, 200, f"{name}: nothing drawn")
+                # The report: the deep serial pass drew this blank now and then (WP44).
+                self.assertGreater(lit, 200, f"{name}: nothing drawn (fast route lit "
+                                             f"{(a.sum(axis=2) > 60).sum()}; {seen})")
                 off = (np.abs(a - b).max(axis=2) > 48).sum()
                 # Antialiasing may move an edge pixel: a handful, never a
                 # stroke width or a fill (hundreds).
