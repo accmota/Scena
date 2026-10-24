@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import math
 import random
-import weakref
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ._weakset import OrderedWeakSet
 from .entity import Entity, Graphic
 
 # Live Endless instances, for the fill after the process tick.
-_LIVE_ENDLESS: "weakref.WeakSet" = weakref.WeakSet()
+_LIVE_ENDLESS = OrderedWeakSet()    # filled in creation order (RA3)
 
 
 def refill_after_tick() -> None:

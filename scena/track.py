@@ -1445,8 +1445,8 @@ class Track(Shape):
         anchors a moved center. No check on a clean tick."""
         rides = self.__dict__.get("_floating_rides")
         if rides is None:
-            from weakref import WeakSet
-            rides = self._floating_rides = WeakSet()
+            from ._weakset import OrderedWeakSet
+            rides = self._floating_rides = OrderedWeakSet()
         rides.add(ride)
         if self._float_mark is not None:
             self._flag_pull_consumers()

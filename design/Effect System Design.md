@@ -513,7 +513,7 @@ Halo **high** keeps a soft-band structure at about half the old MaskFilter cost:
 
 ### 3.1c Shape Transients (`scena/transients.py`)
 
-**Orthogonal to visuals and sticky style.** Timed one-shots never assign `.visual` / paints / filters. Progress is **draw-composed** into a pure `DrawMods` envelope; completion side effects run only in `tick_all_transients()` (after link `flush`, **before** `draw`).
+**Orthogonal to visuals and sticky style.** Timed one-shots never assign `.visual` / paints / filters. Progress is **draw-composed** into a pure `DrawMods` envelope; completion side effects run only in `tick_all_transients()` (after link `flush`, **before** `draw`). Transients that end in the same tick run their `on_done` in the order they started: the shapes are walked in insertion order (`scena._weakset.OrderedWeakSet`), never in address order, which changed from run to run and, through the destroys an `on_done` makes, the order of the collision list (RA3; `tests/test_weak_set_order.py`). SpatialFx tick in the order they started, likewise.
 
 #### Channels
 

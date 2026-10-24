@@ -28,6 +28,7 @@ import weakref
 from collections.abc import Sequence
 from typing import List, Optional, Tuple
 
+from ._weakset import OrderedWeakSet
 from .atlas import boxes_to_local, circle_to_local
 from .entity import _author_site, _bump_collision_epoch
 from .state import (
@@ -57,7 +58,7 @@ _LIVE_PARTS: "weakref.WeakSet[Hitbox]" = weakref.WeakSet()
 # Parts whose ``active`` is linked (``hb["active"] @= fn``). Module-level so a
 # ``reset_collision_system()`` does not drop the links; ``step()`` refreshes
 # every entry before its proxies (``_refresh_linked_parts``).
-_LINKED_PARTS: "weakref.WeakSet[Hitbox]" = weakref.WeakSet()
+_LINKED_PARTS = OrderedWeakSet()    # pulled in link order (RA3)
 
 # ``add_hitbox`` art-knob default: tells "left out" from "passed", so a px
 # shape can refuse an explicit ``hitbox_from="each"`` too.

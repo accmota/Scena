@@ -21,6 +21,7 @@ import inspect
 import weakref
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
+from ._weakset import OrderedWeakSet
 from ._pkg import RetiredClassMeta
 from .entity import Entity
 
@@ -115,7 +116,7 @@ class ActManager:
         # ``id()`` of every entity torn down in the current batch.
         self.dying_ids: set = set()
         # --- the sealed game record ---
-        self._game_entities: "weakref.WeakSet" = weakref.WeakSet()
+        self._game_entities = OrderedWeakSet()
         # World settings at the seal (``WORLD_SETTINGS`` name → value).
         self._settings: Dict[str, Any] = {}
         self._game_leave: dict = {}
@@ -140,7 +141,7 @@ class ActManager:
         """Record the game. Everything created after this belongs to an act."""
         from .bounds import get_bounds_system
         registry = _registry()
-        self._game_entities = weakref.WeakSet(
+        self._game_entities = OrderedWeakSet(
             obj for obj in registry.live_objects() if _is_live(obj)
         )
         self._settings = {w.name: w.snapshot() for w in WORLD_SETTINGS}

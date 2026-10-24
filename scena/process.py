@@ -25,8 +25,9 @@ import warnings
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
-from weakref import WeakSet, ref
+from weakref import ref
 
+from ._weakset import OrderedWeakSet as _OrderedWeakSet
 from .easing import Ease, TWEEN_EASES, resolve_ease
 from types import CoroutineType as _CoroutineType
 
@@ -2491,50 +2492,6 @@ def _rings_out(handle: Handle) -> bool:
         return False  # loops="forever"
     # A live source (Microphone) has no clip duration: it never ends.
     return handle._clip_duration > 0.0
-
-
-class _OrderedWeakSet:
-    """A weak set that iterates in insertion order (``WeakSet`` iterates in
-    hash order, which is the object's address: the ``on_update`` fleet ran in
-    a different order on every run)."""
-
-    __slots__ = ("_refs",)
-
-    def __init__(self) -> None:
-        self._refs: Dict[int, "weakref.ref"] = {}
-
-    def add(self, item) -> None:
-        key = id(item)
-        if key in self._refs:
-            return
-        refs = self._refs
-
-        def _gone(ref, key=key, refs=refs):
-            if refs.get(key) is ref:
-                del refs[key]
-
-        refs[key] = ref(item, _gone)
-
-    def discard(self, item) -> None:
-        ref = self._refs.get(id(item))
-        if ref is not None and ref() is item:
-            del self._refs[id(item)]
-
-    def __contains__(self, item) -> bool:
-        ref = self._refs.get(id(item))
-        return ref is not None and ref() is item
-
-    def __iter__(self):
-        for ref in list(self._refs.values()):
-            obj = ref()
-            if obj is not None:
-                yield obj
-
-    def __len__(self) -> int:
-        return len(self._refs)
-
-    def __bool__(self) -> bool:
-        return bool(self._refs)
 
 
 class Scheduler:

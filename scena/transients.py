@@ -13,12 +13,12 @@ import math
 import time
 import traceback
 import warnings
-import weakref
 from dataclasses import dataclass
 from typing import Any, Callable, Literal, Optional, Set, TYPE_CHECKING
 
 import skia
 
+from ._weakset import OrderedWeakSet
 from .entity import scena_kind
 from .color import resolve_rgba
 from .validate import call_truncated, expect_callable, expect_choice, payload_arity
@@ -647,7 +647,8 @@ class SparkBurst(TransientChannel):
 
 _CHANNEL_NAMES = ("life", "flash", "pulse", "pop", "knock", "spark", "text")
 
-_active_shapes: "weakref.WeakSet[Any]" = weakref.WeakSet()
+# Insertion order: on_done callbacks run while it is walked (RA3).
+_active_shapes = OrderedWeakSet()
 
 
 @dataclass

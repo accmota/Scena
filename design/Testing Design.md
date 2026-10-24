@@ -3494,6 +3494,35 @@ the program harness did not. Fix: `ProgramRun` lifts the default budget to
 rule as the gate's job sizes: **a frame-stepped test's outcome is a count,
 never a wall-clock time.**
 
+The deep tier then failed the chaos idle twin of `platformer` (spec b,
+`shoot`): about one run in three, the program and its idle-rewrite twin
+disagreed on a ball's contact with the floor, a frame apart; v0.9.1 never did
+(bisect: aeb75fa, which only changed the memory layout). Mechanism, traced
+through the recorder's motion events: two dissolves ended in the same tick
+(a ball's and a "tchau" sprite's) and `tick_all_transients` walked
+`_active_shapes`, a `weakref.WeakSet`, in address order, so their
+`on_done=destroy` ran in a different order per run; the swap-remove of the
+collision list then left the two balls in a different order, and the solver,
+which takes bodies in list order, split a ball-on-ball correction differently
+(10 px apart). Fix: every engine weak set that is walked iterates in
+insertion order (`scena._weakset.OrderedWeakSet`, the scheduler's class moved
+and made cheaper: one shared callback, a list built in one pass; the
+transients tick with 200 shapes measured 349 vs 343 µs, within noise): the
+transients, SpatialFx, Endless fill, linked hitbox parts and appearance
+channels, an act's game entities, pointer managers, track rides. Guard:
+`test_weak_set_order` (every `WeakSet(...)` in `scena/` is listed with why it
+is never walked; transients ending in one tick call `on_done` in start order
+under shifted addresses; canary: the plain WeakSet fails all six trials). Same
+class as S2-9 (the `on_update` fleet), which had fixed one site. Lesson:
+**iteration over an id-hashed container is a source of run-to-run
+difference; a container that is walked keeps insertion order.**
+
+Open (seen while tracing, not changed): with the list order fixed, which body
+the solver takes first still decides how a ball-on-ball overlap is split
+(in the traced step one order moved both balls 10 px, the other moved one
+ball 20 px). Deterministic now; whether the split should be order-free is a
+solver question (Collision Design, "Mass split between two movable bodies").
+
 ### AH — async functions where Scena calls one (2026-10-10, 2026-10-12)
 
 | ID | Bug | Root cause | Guard |
@@ -3969,6 +3998,7 @@ moving picture pays**, **a refusal that names no fix**. Commits on main
 | Found in | Issue | Planned |
 | --- | --- | --- |
 | Showcase review | SH-E: three look notes (`wave_at` on line art, `zap_at(style="corona")` on black, warm colours under Bloom) | The author's look decision |
+| RA3 (0.10.0 deep) | The solver's split of a ball-on-ball overlap depends on which body it takes first (10 px each, or 20 px for one) | Solver question; deterministic since the ordered weak sets |
 
 ### HD — holders (interaction campaign, class 2; 2026-10-09)
 

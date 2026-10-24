@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import math
 import time
-import weakref
 from enum import Enum
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import skia
 
+from ._weakset import OrderedWeakSet
 from ._pkg import is_framework_module
 from .color import resolve_rgb
 from .fx_quality import particle_scale, fidelity_is_lite
@@ -29,7 +29,7 @@ from .entity import (
 from .shapes import Point, get_xy
 from .validate import expect_bool
 
-_active_fx: "weakref.WeakSet[SpatialFx]" = weakref.WeakSet()
+_active_fx = OrderedWeakSet()       # ticked in the order they started (RA3)
 _now_fn = None  # optional test clock
 
 

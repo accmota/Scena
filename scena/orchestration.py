@@ -1022,7 +1022,8 @@ class ShapeInteractionManager:
         self._resolved_sig = None
         managers = getattr(registry, "_pointer_managers", None)
         if managers is None:
-            managers = weakref.WeakSet()
+            from ._weakset import OrderedWeakSet
+            managers = OrderedWeakSet()       # pointer hooks in creation order (RA3)
             registry._pointer_managers = managers
         managers.add(self)
         self._press_x = 0.0

@@ -20,6 +20,7 @@ from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
 import skia
 
+from ._weakset import OrderedWeakSet
 from ._defaults import Unset
 from .closed import transposed as _transposed
 from ._pkg import is_framework_module
@@ -1582,7 +1583,7 @@ def _part_is_linked(part) -> bool:
 # Graphics with a linked appearance field or flag: the draw-head refresh
 # (``refresh_linked_channels``) pulls them once per frame, before culling and
 # look grouping read them. Pruned when a host has none left.
-_LINKED_CHANNEL_HOSTS = weakref.WeakSet()
+_LINKED_CHANNEL_HOSTS = OrderedWeakSet()     # formulas pulled in link order (RA3)
 
 
 def refresh_linked_channels() -> None:

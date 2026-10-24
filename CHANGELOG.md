@@ -210,6 +210,12 @@ left out.
   destroyed object still raises). `move_along` on a track fixed in the
   world also jumped a destroyed shape to the track's start; it no longer
   moves it.
+- Effects that end in the same frame (`fade_out`, `dissolve_out` … with
+  `on_done=`) ran their `on_done` in an order that changed from run to run,
+  so the same game with the same input could differ: in a platformer two
+  balls bounced off each other 10 px apart. They now run in the order the
+  effects started, and so do the other engine lists walked each frame
+  (SpatialFx, `Endless`, linked fields).
 - Reading a destroyed `Track` (`at`, `local_at`, `tangent_at`, `angle_at`,
   `sample_span`, `spaced_points`, `length`) raised `DestroyedError` when its
   length had not been worked out since its last change (a new track, one
