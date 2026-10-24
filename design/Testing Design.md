@@ -3911,7 +3911,7 @@ moving picture pays**, **a refusal that names no fix**. Commits on main
 | SH-D12 | Other costs (a post ~1–2 ms at 2×, full-screen multiply, Rain, `.tail`, Starburst, hover while the camera moves, link creation ~130 µs a link) | Documented cost | Hover must re-test while the camera moves (what is under the pointer changes); link creation parses the formula once | |
 | SH-E | GodRays defaults washed the picture out | Defaults 0.08 / 0.9 / 0.8 | 8 taps over the whole way to the light repeat bright objects ([Effect System](Effect%20System%20Design.md)) | |
 | SH-E | Large `orbit` / `zigzag` faceted | Fixed: samples a loop by chord tolerance | | `test_track.TestModifiers` |
-| SH-E | `wave_at` grey line, `zap_at` corona, gold under Bloom | Open: look decisions for the author | | |
+| SH-E | Look notes, not yet checked by eye: `wave_at` draws a straight grey line that reads as a glitch on line art; `zap_at(style="corona")` reads as a grey jagged disk on black; under Bloom, `"gold"` / `"orange"` read as near-pure yellow | Open: look decisions for the author | Bloom is additive and clips the colour channels, so a warm hue climbs to yellow; only tone mapping would keep it (recommendation: decline) | |
 | SH-F | `Track.eight` drew height / 2 | Fixed: spans `width` × `height`; showcase eights halved | | `test_track.TestPresetSizes` |
 | SH-F | `"x" in st` | Refuses naming `st.exists("x")` | One spelling | `test_showcase_messages` |
 | SH-F | Transients only hide; the watchdog trips on a long building step; an `st` tween from a game task outlives `change_act`; a Text anchor read adds a Point | By design; Guia notes; the watchdog message names "build in pieces" | | Guia |
