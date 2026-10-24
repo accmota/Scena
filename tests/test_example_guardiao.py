@@ -7,8 +7,9 @@ wrapped, so the two lights that chase it never take the long way past
 in front; a Seta dies in one shot, a Mandala in three, a Cristal in five; a
 shot Mina (one that crosses the screen, apart from the wave) blows up the
 enemies around it, other mines in a chain; an
-enemy shot costs the ship (or the ring) one life, an enemy that reaches the
-ring costs the ring one; pills give double, fast and strong shots and a
+enemy shot costs the ship one life and only sparks on the ring, an enemy that
+reaches the ring costs the ring one; with DUPLO the lights shoot ABERTURA
+degrees off the ship's line; pills give double, fast and strong shots and a
 Portal shield for DURACAO seconds; the waves run one after the other to "O
 ANEL ESTÁ SALVO", and the camera turns only on the waves marked virar;
 losing either life ends the game and R starts a fresh one.
@@ -138,7 +139,7 @@ class TestGuardiaoShip(unittest.TestCase):
             still(ns, "Mina", 90, 330)
             still(ns, "Mina", 104, 360)          # inside the first blast
             still(ns, "Seta", 80, 350)
-            still(ns, "Cristal", 96, 400)        # inside the second blast only
+            still(ns, "Cristal", 100, 450)       # in the blast, out of the aim cone
             far = still(ns, "Mandala", 150, 330)
             run.key_down("SPACE")
             run.step(30)
@@ -175,6 +176,10 @@ class TestGuardiaoLives(unittest.TestCase):
             ns["Bala"](center=ns["no_anel"](90, 420), angle=-90)
             run.step(2 * SECOND)
             self.assertEqual(st.vida, ns["VIDA_NAVE"] - 1)
+            ns["Bala"](center=ns["no_anel"](270, 420), angle=90)   # at the ring
+            run.step(3 * SECOND)
+            self.assertEqual(count(ns, "balas"), 0)
+            self.assertEqual(st.anel, ns["VIDA_ANEL"], "an enemy shot hurt the ring")
             still(ns, "Seta", 270, 420)         # no shot of its own
             run.step(4 * SECOND)
             self.assertEqual(st.anel, ns["VIDA_ANEL"] - 1)
@@ -209,6 +214,14 @@ class TestGuardiaoPowers(unittest.TestCase):
             double = shots_fired(run, ns, nave)
             self.assertGreaterEqual(fast, 2 * normal - 1)
             self.assertEqual(double, 3 * normal)
+            nave.recarga = 0
+            run.key_down("SPACE")
+            run.step(1)
+            run.key_up("SPACE")
+            run.step(1)
+            new = sorted(round(t.angle - nave.angulo, 3) for t in ns["group"]["tiros"]
+                         if abs(t.angle - nave.angulo) < 20 and t.center.y > 400)
+            self.assertEqual(new[:1] + new[-1:], [-ns["ABERTURA"], ns["ABERTURA"]])
 
     def test_strong_shots_go_through(self):
         with ProgramRun(PATH) as run:

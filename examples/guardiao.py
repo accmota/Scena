@@ -5,7 +5,9 @@ guardião voa em volta do anel e atira para fora; ondas de inimigos
 geométricos saem de portais. Duas vezes no jogo a câmera vira para o lado
 do ataque; as marcas em volta, como num relógio, mostram para onde ela virou.
 
-Duas vidas: a da nave e a do anel. Se uma delas acaba, o jogo acaba.
+Duas vidas: a da nave e a do anel. Se uma delas acaba, o jogo acaba. Os
+tiros dos inimigos só ferem a nave (no anel, viram faísca); o anel perde
+vida quando um inimigo chega nele.
 
 Os ataques vêm em ondas, escritas numa tabela (ONDAS): de que lado vem,
 que inimigos, quantos, como a câmera mostra o anel (longe, normal, perto),
@@ -67,8 +69,10 @@ GIRO = 160          # graus por segundo
 AFASTAMENTO = 24    # graus entre a nave e cada luz
 CADENCIA = 0.2      # segundos entre dois tiros
 DURACAO = 12        # segundos que um poder dura
-MIRA = 5            # a abertura do radar de cada tiro, em graus
-ESTOURO = 130       # o raio da explosão de uma mina
+MIRA = 9            # a abertura do radar de cada tiro, em graus
+ABERTURA = 5        # graus entre o tiro da nave e o de cada luz (DUPLO)
+ESTOURO = 208       # o raio da explosão de uma mina
+FONTE = "fonts/Quantico-Bold.ttf"
 
 # O céu: nuvens que giram devagar e filamentos por cima. Os dois viram com
 # a câmera, como o resto do mundo.
@@ -248,19 +252,19 @@ class Nave(Triangle, group="nave"):
 
         self.recarga -= dt
         if keyp("SPACE") and self.recarga <= 0:
-            self.atirar(self.angulo)
+            self.atirar(no_anel(self.angulo, ORBITA + 34), self.angulo)
             if self.poderes["duplo"] > 0:
-                self.atirar(self.luz_a)
-                self.atirar(self.luz_b)
+                # as luzes atiram quase paralelo à nave, um pouco abertas
+                self.atirar(no_anel(self.luz_a), self.angulo + ABERTURA)
+                self.atirar(no_anel(self.luz_b), self.angulo - ABERTURA)
             if self.poderes["rapido"] > 0:
                 self.recarga = CADENCIA / 2
             else:
                 self.recarga = CADENCIA
 
-    def atirar(self, angulo):
-        origem = no_anel(angulo, ORBITA + 34)
-        # a mira ajuda: um radar estreito na frente do tiro (2,5 graus para
-        # cada lado); se pega um inimigo, o tiro vai no mais perto
+    def atirar(self, origem, angulo):
+        # a mira ajuda: um radar estreito na frente do tiro (4,5 graus para
+        # cada lado); se pega um inimigo, o tiro vai certo no mais perto
         alvos = collision.query_sector(origem, angle=angulo, radius=800,
                                        spread=MIRA, group="inimigos")
         if alvos:
@@ -327,9 +331,8 @@ def bala_na_nave(bala, nave):
 
 @collide("balas", "anel")
 def bala_no_anel(bala, anel):
-    bala.destroy()
-    canvas.hit_at(bala, style="disc", color="magenta")
-    ferir_anel()
+    bala.destroy()          # o anel aguenta: um tiro nele só solta faísca
+    canvas.zap_at(bala, color="cyan", radius=18)
 
 
 # As regras de todos os inimigos. Cada inimigo tem a sua vida, os seus
@@ -555,8 +558,17 @@ def chegar(tipo, lado):
     tipo(center=no_anel(lado + uniform(-15, 15), PORTA))
 
 
+# Os letreiros: a fonte do jogo, letras num degradê com as cores do anel e
+# um contorno escuro.
+def letreiro(letras, cor="cyan", cor2="magenta"):
+    letras.fill = Gradient(cor, cor2, angle=-90)
+    letras.line = "black"
+    return letras
+
+
 def anunciar(texto):
-    aviso = Text(texto, center=(640, 70), font_size=40, color="white", layer="ui")
+    aviso = letreiro(Text(texto, center=(640, 70), font=FONTE, font_size=44,
+                          layer="ui"))
     aviso.after(2, lambda: aviso.fade_out(1, on_done=aviso.destroy))
 
 
@@ -573,10 +585,12 @@ class Jogo(Act):
     def setup(self):
         canvas.zoom_to(0.75)
         self.nave = Nave(radius=28, base_ratio=0.55)
-        self.placar = Text("", top_left=(24, 780), color="white")
+        self.placar = letreiro(Text("", top_left=(24, 784), font=FONTE,
+                                    font_size=24))
         self.placar["text"] @= lambda: (
             f"NAVE {st.vida}     ANEL {st.anel}     PONTOS {st.pontos}")
-        self.painel = Text("", top_right=(1256, 780), color="gold")
+        self.painel = letreiro(Text("", top_right=(1256, 784), font=FONTE,
+                                    font_size=24), "gold", "orange red")
         self.acabou = False
         self.ondas = self.run_task(self.diretor)
 
@@ -647,7 +661,8 @@ class Jogo(Act):
 
     def terminar(self, titulo):
         self.acabou = True
-        self.after(1.5, lambda: Text(titulo + "\nR para recomeçar", center=CENTRO,
-                                     font_size=44, color="white", layer="ui"))
+        self.after(1.5, lambda: letreiro(Text(titulo + "\nR para recomeçar",
+                                              center=CENTRO, font=FONTE,
+                                              font_size=56, layer="ui")))
 
 run(Jogo)
