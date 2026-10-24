@@ -31,14 +31,14 @@ const WORDS = {
     copied: "copiado", step: "passo", same: (n) => `${n} linhas iguais`,
     copyAll: "script inteiro", copyNew: "copiar trecho novo", copy: "copiar",
     tryAlso: "Experimente também", dive: "Para entender melhor", tutorials: "Tutoriais",
-    recap: "O que vimos", explore: "Agora é com você",
+    recap: "O que vimos", explore: "Agora é com você", otherLang: "English",
     stepOf: (i, n) => `Passo ${i} de ${n}`, prev: "← Anterior", next: "Próximo →",
   },
   en: {
     copied: "copied", step: "step", same: (n) => `${n} same lines`,
     copyAll: "whole script", copyNew: "copy the new lines", copy: "copy",
     tryAlso: "Try this too", dive: "A closer look", tutorials: "Tutorials",
-    recap: "What we covered", explore: "Your turn",
+    recap: "What we covered", explore: "Your turn", otherLang: "Português",
     stepOf: (i, n) => `Step ${i} of ${n}`, prev: "← Previous", next: "Next →",
   },
 };
@@ -424,6 +424,13 @@ const Tutorial = {
     const start = hashIndex(steps);
 
     document.title = `${cfg.title} — Scena`;
+    // The twin page in the other language (tools/tutorial/tutorial_parity.py
+    // writes the head link once the English page is published).
+    const twin = document.querySelector('link[rel="alternate"][hreflang]');
+    const twinLang = twin ? twin.getAttribute("hreflang") : "";
+    const langSwitch = twin
+      ? `<a class="lang-switch" href="${esc(twin.getAttribute("href"))}" hreflang="${esc(twinLang)}" lang="${esc(twinLang)}">${T.otherLang}</a>`
+      : "";
 
     app.innerHTML = `
       <button class="menu-btn" type="button">menu</button>
@@ -432,6 +439,7 @@ const Tutorial = {
           <div class="brand">
             <a href="index.html">Scena</a>
             <span class="sub">${T.tutorials}</span>
+            ${langSwitch}
           </div>
           <div class="tut-label">${esc(cfg.label || "Tutorial")} ${cfg.n || ""}</div>
           <div class="tut-title">${esc(cfg.title)}</div>
@@ -447,6 +455,9 @@ const Tutorial = {
     menuBtn.addEventListener("click", () => document.body.classList.toggle("nav-open"));
 
     let idx = start;
+    // The steps are the same in both languages: the switch keeps the step.
+    const switchLink = app.querySelector(".lang-switch");
+    if (switchLink) switchLink.addEventListener("click", () => { switchLink.hash = String(idx + 1); });
 
     function go(i, push) {
       idx = Math.max(0, Math.min(steps.length - 1, i));

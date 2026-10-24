@@ -90,6 +90,17 @@ code, kbd {
 
 .brand a:hover { color: var(--accent); text-decoration: none; }
 
+.brand a.lang-switch {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--dim);
+}
+
+.brand a.lang-switch:hover { color: var(--text); }
+
 .brand .sub {
   display: block;
   margin-top: 0.18rem;

@@ -349,10 +349,17 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   (`def atualiza` → `def update` would turn into a hook; `self.pontos` →
   `self.points` on a Sprite would hide a member). A field of `st` is free.
 - **Where.** Pages live in `docs/en/tutorial/`, paired by the key before the
-  first `-` of the file name (`05-naves.html` ↔ `05-ships.html`). While the
-  series is being written they carry `noindex` and list in `draft.html`
-  (`repo_layout.TUTORIAL_INDEX`); `index.html` keeps saying the English
-  tutorials are on their way. The English examples sit **next to the
+  first `-` of the file name (`05-naves.html` ↔ `05-ships.html`), and listed
+  in `docs/en/tutorial/index.html` (published 2026-10-24, 0.10.0). **The head
+  follows the state:** a page whose units are all translated has no
+  `noindex`, and the twins name each other with `<link rel="alternate"
+  hreflang=…>`, which `tutorial.js` draws as the language switch (it keeps
+  the step: `#n`); a page with a pending unit keeps `noindex` and its
+  Portuguese twin does not link to it; the two indexes name each other.
+  `--mark` and `--publish` write those lines (`sync_heads`), the check fails
+  when a page disagrees (`head_errors`), and the unit hashes leave them out,
+  so publishing changes no translation state. A new page goes through
+  `--draft` (pending, hidden) like the first 44. The English examples sit **next to the
   Portuguese ones in `examples/`** under English names (the engine finds media
   next to the script or in its `media/`, so an `examples/en/` folder would
   need a second search place, a link or a copy of the media); an English page

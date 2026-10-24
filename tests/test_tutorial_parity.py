@@ -280,6 +280,10 @@ class TestDraftAndCheck(unittest.TestCase):
                 .replace("uma forma.", "a shape.")
                 .replace('title: "Amostra"', 'title: "Sample"'))
         out.write_text(text, encoding="utf-8")
+        errs = self.check(state)
+        self.assertTrue(errs and all("--publish" in e for e in errs),
+                        f"a finished page is still hidden until --publish: {errs}")
+        tp.sync_heads(self.pt, self.en, state)
         self.assertEqual(self.check(state), [])
         (self.pt / "99-amostra.html").write_text(SAMPLE.replace("width=120", "width=150"), encoding="utf-8")
         errs = self.check(state)
@@ -330,6 +334,76 @@ class TestDraftAndCheck(unittest.TestCase):
         path = self.en / "99-sample.html"
         path.write_text(path.read_text(encoding="utf-8").replace('lang="en"', 'lang="pt-BR"'), encoding="utf-8")
         self.assertTrue(any('lang=\\"en\\"' in e or 'lang="en"' in e for e in self.check({})))
+
+
+class TestPublishedHeads(unittest.TestCase):
+    """The heads follow the translation state.
+
+    Bug class: a finished page stays hidden (it kept ``noindex``, and the
+    Portuguese twin had no link to it: the 44 English pages sat unpublished
+    behind a stub index after their last unit was marked), or an unfinished
+    page goes live. ``--mark`` and ``--publish`` write the lines; the check
+    fails when a page disagrees; the lines never count as a change of the
+    Portuguese text.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.pt, self.en = base / "pt", base / "en"
+        self.pt.mkdir()
+        self.ppage = self.pt / "99-amostra.html"
+        self.ppage.write_text(SAMPLE, encoding="utf-8")
+        self.epage = tp.draft("99", self.pt, self.en, NAMES)
+        self.done = {n: tp.digest(t) for n, t in tp.units("99", SAMPLE)}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def heads(self):
+        return self.ppage.read_text(encoding="utf-8"), self.epage.read_text(encoding="utf-8")
+
+    def test_a_pending_page_is_hidden_and_its_twin_does_not_point_at_it(self):
+        pt, en = self.heads()
+        self.assertIn('content="noindex"', en)
+        self.assertIn('hreflang="pt-BR" href="../../pt/tutorial/99-amostra.html"', en)
+        self.assertNotIn("alternate", pt)
+        self.assertEqual(tp.head_errors(self.pt, self.en, {}), [])
+
+    def test_a_finished_page_is_published_both_ways(self):
+        self.assertEqual(len(tp.head_errors(self.pt, self.en, self.done)), 2, "both twins disagree")
+        tp.sync_heads(self.pt, self.en, self.done)
+        pt, en = self.heads()
+        self.assertNotIn("noindex", en)
+        self.assertIn('<link rel="alternate" hreflang="en" href="../../en/tutorial/99-sample.html">', pt)
+        self.assertEqual(tp.head_errors(self.pt, self.en, self.done), [])
+        # A unit unmarked again (a new step to translate) hides the page again.
+        partial = {k: v for k, v in self.done.items() if k != "99:2"}
+        self.assertEqual(len(tp.head_errors(self.pt, self.en, partial)), 2)
+        tp.sync_heads(self.pt, self.en, partial)
+        self.assertEqual(self.heads()[1].count("noindex"), 1)
+
+    def test_head_lines_change_no_unit(self):
+        tp.sync_heads(self.pt, self.en, self.done)
+        pt, _ = self.heads()
+        self.assertNotEqual(pt, SAMPLE)
+        self.assertEqual({n: tp.digest(t) for n, t in tp.units("99", pt)}, self.done)
+
+    def test_relink_keeps_the_twin_link(self):
+        tp.sync_heads(self.pt, self.en, self.done)
+        en = self.heads()[1]
+        self.assertEqual(tp.cross_links(en, NAMES, self.pt, self.en), en)
+
+    def test_indexes_name_each_other(self):
+        index = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n</head>\n</html>\n"
+        (self.pt / "index.html").write_text(index, encoding="utf-8")
+        (self.en / "index.html").write_text(index, encoding="utf-8")
+        self.assertEqual(len(tp.head_errors(self.pt, self.en, {})), 2)
+        tp.sync_heads(self.pt, self.en, {})
+        self.assertIn('hreflang="en" href="../../en/tutorial/index.html"',
+                      (self.pt / "index.html").read_text(encoding="utf-8"))
+        self.assertIn('hreflang="pt-BR" href="../../pt/tutorial/index.html"',
+                      (self.en / "index.html").read_text(encoding="utf-8"))
 
 
 class TestRealPages(unittest.TestCase):

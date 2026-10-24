@@ -230,8 +230,15 @@ left out.
   with the same anchors (a link to `…/pt/guide/index.html#mundo-grupos`
   works with `en` in place of `pt`). Example code reads English names
   (`ship`, `"enemy"`); the API is the same. A link at the top of the
-  sidebar switches language and keeps the section. The tutorials are still
-  Portuguese only; their English version is in progress.
+  sidebar switches language and keeps the section.
+- The tutorials in English: [docs/en/tutorial/](https://accmota.github.io/Scena/en/tutorial/),
+  all 32 tutorials, the interludes and the appendices, step for step with
+  the Portuguese ones. Their programs use English names (`ship`, `"enemy"`)
+  and sit beside the Portuguese ones in `examples/` (`ships_4_shield.py`
+  next to `naves_4_escudo.py`), with English level files in
+  `media/levels/`. A link under the sidebar's title switches to the same
+  step in the other language, and the two indexes link to each other. The
+  README's Tutorial link goes to them.
 - Tutorials, corrections found while translating them into English: 09
   no longer says a color cannot be linked with `@=` (it can since 0.9.0;
   `glow` and `visual` cannot), and its step is now "Fórmula ou evento";

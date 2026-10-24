@@ -27,9 +27,9 @@ GUIDE = os.path.join(DOCS, LANG, "guide")
 GUIDE_HTML = os.path.join(GUIDE, "index.html")
 GUIDE_CATALOGS = os.path.join(GUIDE, "guia-api-catalogs.js")
 TUTORIAL = os.path.join(DOCS, LANG, "tutorial")
-# The tutorial index each language's checks read: the English pages list in a
-# draft index (noindex) while the published ``index.html`` is a stub.
-TUTORIAL_INDEX = {"pt": "index.html", "en": "draft.html"}
+# The tutorial index each language's checks read (the English pages listed in
+# a noindex ``draft.html`` until they were published, 0.10.0).
+TUTORIAL_INDEX = {"pt": "index.html", "en": "index.html"}
 ASSETS = os.path.join(DOCS, "assets")
 THUMBS = os.path.join(ASSETS, "thumbs")
 GUIDE_TOOLS = os.path.join(ROOT, "tools", "guide")

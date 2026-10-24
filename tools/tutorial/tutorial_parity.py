@@ -29,7 +29,11 @@ Checks (no option; ``tests/test_tutorial_parity.py`` runs them):
     (``code_parity``), and the rename agrees with the glossary;
   - a translated unit's Portuguese text has not changed since it was
     translated (fix: translate the change — ``--diff U`` shows it — then
-    ``--mark U``), and it has no Portuguese left (prose, comments, docstrings).
+    ``--mark U``), and it has no Portuguese left (prose, comments, docstrings);
+  - the heads follow the state (``head_errors``): an English page with every
+    unit translated is published (no ``noindex``; its Portuguese twin links
+    to it), one with pending units keeps ``noindex``; each English page and
+    each index names its twin.
 
 Commands (run from the repository root)::
 
@@ -42,6 +46,7 @@ Commands (run from the repository root)::
     python tools/tutorial/tutorial_parity.py --diff U      # pt change since U was translated
     python tools/tutorial/tutorial_parity.py --levels      # write the English level files from the Portuguese
     python tools/tutorial/tutorial_parity.py --relink      # links to Portuguese pages that now have an English twin
+    python tools/tutorial/tutorial_parity.py --publish     # head lines: noindex while pending, twins name each other
 
 The English level files (``names_en.json`` "levels") are made, not written:
 the Portuguese file with its groups, item names and sheet names renamed by
@@ -111,7 +116,90 @@ def units(key: str, text: str) -> list[tuple[str, str]]:
 
 
 def digest(text: str) -> str:
-    return guia_parity.digest(text)
+    return guia_parity.digest(bare(text))
+
+
+# ── Publishing: the head lines this tool owns ──────────────────────────────
+#
+# An English page is published when every unit of its Portuguese twin is
+# marked translated. Then it has no ``noindex``, and the twins name each other
+# (``<link rel="alternate" hreflang=…>``, which tutorial.js draws as the
+# language switch); a page with pending units keeps ``noindex`` and its
+# Portuguese twin does not point at it. The two indexes name each other too.
+# These lines are written by ``sync_heads`` (``--mark``, ``--draft``,
+# ``--publish``) and left out of the unit hashes, so publishing changes no
+# translation state.
+
+_NOINDEX = '<meta name="robots" content="noindex">'
+_MANAGED = re.compile(r'^(?:<meta name="robots" content="noindex">|<link rel="alternate" hreflang="[^"]*" href="[^"]*">)\n',
+                      re.M)
+_LANG_TAG = {"pt": "pt-BR", "en": "en"}
+
+
+def bare(text: str) -> str:
+    """``text`` without the head lines ``sync_heads`` owns."""
+    return _MANAGED.sub("", text)
+
+
+def complete(key: str, pt_text: str, state: dict) -> bool:
+    """Every unit of the Portuguese page ``key`` is marked translated."""
+    return all(name in state for name, _ in units(key, pt_text))
+
+
+def with_head(text: str, *, noindex: bool, twin_lang: str | None, twin_href: str | None) -> str:
+    """``text`` with exactly the managed head lines asked for, right after
+    ``<meta charset="UTF-8">``."""
+    lines = (_NOINDEX + "\n" if noindex else "") + (
+        f'<link rel="alternate" hreflang="{_LANG_TAG[twin_lang]}" href="{twin_href}">\n'
+        if twin_href else "")
+    text = bare(text)
+    at = text.index('<meta charset="UTF-8">\n') + len('<meta charset="UTF-8">\n')
+    return text[:at] + lines + text[at:]
+
+
+def head_plan(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = None) -> dict:
+    """``{path: text with the right head}`` for every page and index whose
+    managed lines this tool decides."""
+    state = read_state() if state is None else state
+    pt, en = pages(pt_dir), pages(en_dir)
+    out = {}
+    for key, ppath in pt.items():
+        ptext = ppath.read_text(encoding="utf-8")
+        epath = en.get(key)
+        done = epath is not None and complete(key, ptext, state)
+        out[ppath] = with_head(ptext, noindex=False, twin_lang="en",
+                               twin_href=f"../../en/tutorial/{epath.name}" if done else None)
+        if epath is not None:
+            out[epath] = with_head(epath.read_text(encoding="utf-8"), noindex=not done,
+                                   twin_lang="pt", twin_href=f"../../pt/tutorial/{ppath.name}")
+    pi, ei = pt_dir / "index.html", en_dir / "index.html"
+    if pi.is_file() and ei.is_file():
+        out[pi] = with_head(pi.read_text(encoding="utf-8"), noindex=False, twin_lang="en",
+                            twin_href="../../en/tutorial/index.html")
+        out[ei] = with_head(ei.read_text(encoding="utf-8"), noindex=False, twin_lang="pt",
+                            twin_href="../../pt/tutorial/index.html")
+    return out
+
+
+def head_errors(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = None) -> list[str]:
+    """A finished English page still hidden, a pending one live, or twins that
+    do not name each other: the fix is ``--publish``."""
+    errors = []
+    for path, text in head_plan(pt_dir, en_dir, state).items():
+        if path.read_text(encoding="utf-8") != text:
+            errors.append(f"{path.parent.parent.name}/tutorial/{path.name}: o cabeçalho (noindex / "
+                          f"link para a outra língua) não corresponde ao estado — rode --publish")
+    return errors
+
+
+def sync_heads(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = None) -> list[Path]:
+    """Write the managed head lines; the paths that changed."""
+    changed = []
+    for path, text in head_plan(pt_dir, en_dir, state).items():
+        if path.read_text(encoding="utf-8") != text:
+            path.write_text(text, encoding="utf-8", newline="\n")
+            changed.append(path)
+    return changed
 
 
 def read_state(path: Path = STATE) -> dict:
@@ -563,7 +651,8 @@ def check_page(key: str, pt_text: str, en_text: str, state: dict, names: dict,
     for a, b in zip(pex, eex):
         if a == b:
             errors.append(f"{key}: o exemplo em inglês tem nome em inglês (não {b}: examples/ guarda os dois)")
-    for href in re.findall(r"""href=["']\.\./\.\./pt/tutorial/((?:\d\di?|[A-Z])-[^"'#/]*\.html)""", en_text):
+    # The body's links (the head's twin link names the Portuguese page on purpose).
+    for href in re.findall(r"""href=["']\.\./\.\./pt/tutorial/((?:\d\di?|[A-Z])-[^"'#/]*\.html)""", bare(en_text)):
         twin = pages(en_dir).get(page_key(href))
         if twin is not None:
             errors.append(f"{key}: o link para ../../pt/tutorial/{href} já tem página em inglês ({twin.name})")
@@ -575,7 +664,7 @@ def check_page(key: str, pt_text: str, en_text: str, state: dict, names: dict,
         if recorded != digest(ptext):
             errors.append(f"{name}: o pt mudou desde a tradução — traduza a mudança "
                           f"(tutorial_parity.py --diff {name}) e rode --mark {name}")
-        left = portuguese_left(eu.get(name, "")) + names_left(eu.get(name, ""), gn, gs)
+        left = portuguese_left(bare(eu.get(name, ""))) + names_left(bare(eu.get(name, "")), gn, gs)
         if left:
             errors.append(f"{name}: traduzida, mas ainda tem português: {', '.join(left[:8])}")
     return errors
@@ -600,6 +689,7 @@ def check(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = Non
     for name in sorted(set(state) & known):
         if name.split(":", 1)[0] not in en:
             errors.append(f"{name}: marcada como traduzida, mas a página em inglês não existe")
+    errors += head_errors(pt_dir, en_dir, state)
     if pt_dir == PT_DIR:                      # the repository's own level files
         errors += check_levels(names)
     return errors
@@ -691,7 +781,9 @@ def cross_links(text: str, names: dict, pt_dir: Path = PT_DIR, en_dir: Path = EN
         if m.group(2) == slugs.get(key):          # an English link whose page is not there yet
             return m.group(1) + "../../pt/tutorial/" + pages(pt_dir)[key].name
         return m.group(1) + "../../pt/tutorial/" + m.group(2)
-    return _CROSS.sub(fix, text)
+    # The head's twin link names the Portuguese page on purpose (sync_heads).
+    return "".join(line if _MANAGED.fullmatch(line) else _CROSS.sub(fix, line)
+                   for line in text.splitlines(keepends=True))
 
 
 def _escape(src: str) -> str:
@@ -715,10 +807,11 @@ def draft(key: str, pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, names: dict | 
     gn, gs = glossary_for(key, names)
     levels = {a: e["en"] for a, e in (names.get("levels") or {}).items()}
     gs = {**gs, **levels}                     # Level("levels/…")
-    text = pt[key].read_text(encoding="utf-8")
+    text = bare(pt[key].read_text(encoding="utf-8"))
     ren = lambda s: rename_code(s, gn, gs)  # noqa: E731
     text = re.sub(r'<html lang="[^"]*">', '<html lang="en">', text, count=1)
-    text = text.replace('<meta charset="UTF-8">', '<meta charset="UTF-8">\n<meta name="robots" content="noindex">', 1)
+    # Pending: hidden from search, and naming its Portuguese twin (sync_heads).
+    text = with_head(text, noindex=True, twin_lang="pt", twin_href=f"../../pt/tutorial/{pt[key].name}")
     text = re.sub(r"\b(code|snip):(\s*)`((?:\\.|[^`\\])*)`",
                   lambda m: f"{m.group(1)}:{m.group(2)}`{_escape(ren(_unescape(m.group(3))))}`", text, flags=re.S)
     text = re.sub(r'^(\s*at:\s*)"((?:[^"\\]|\\.)*)"',
@@ -830,6 +923,8 @@ def mark(items: list[str]) -> int:
         state[n] = digest(all_units[n])
     write_state(state)
     print(f"{len(chosen)} unidade(s) marcada(s) como traduzida(s)")
+    for path in sync_heads(state=state):     # a page whose last unit this marked goes live
+        print(f"{path.relative_to(REPO)}: cabeçalho atualizado")
     return 0
 
 
@@ -921,6 +1016,10 @@ def main(argv: list[str]) -> int:
             if new != text:
                 path.write_text(new, encoding="utf-8", newline="\n")
                 print(f"{path.relative_to(REPO)}: links atualizados")
+        return 0
+    if "--publish" in argv:
+        for path in sync_heads():
+            print(f"{path.relative_to(REPO)}: cabeçalho atualizado")
         return 0
     if "--levels" in argv:
         for path in write_levels():
