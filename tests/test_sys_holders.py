@@ -56,6 +56,7 @@ import scena.history as _history  # noqa: E402
 import scena.hitbox as _hitbox  # noqa: E402
 import scena.spatial_fx as _spatial_fx  # noqa: E402
 import scena.transients as _transients  # noqa: E402
+from scena._weakset import OrderedWeakSet  # noqa: E402  (walked like a WeakSet)
 from scena import (STATIC, Act, Button, Circle, Menu, Rect, TextInput, canvas, change_act,  # noqa: E402
                    collide, group, resolve, st)
 from scena.bounds import get_bounds_system  # noqa: E402
@@ -114,7 +115,7 @@ def _children(obj) -> Iterable[Tuple[str, Any, str]]:
         if child is not None:
             yield "()", child, "weak"
         return
-    if isinstance(obj, (weakref.WeakSet,)):
+    if isinstance(obj, (weakref.WeakSet, OrderedWeakSet)):
         for c in list(obj):
             yield "[*]", c, "weak"
         return
