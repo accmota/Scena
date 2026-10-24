@@ -3218,14 +3218,14 @@
           "pass": "kw",
           "type": "number",
           "def": "38% of the short side",
-          "doc": "Size of the well-lit area, in screen pixels (not design units)"
+          "doc": "Size of the well-lit area, in design units (follows the zoom)"
         },
         {
           "name": "range",
           "pass": "kw",
           "type": "number",
           "def": "55% of the short side",
-          "doc": "Distance, in screen pixels, beyond which no light reaches"
+          "doc": "Distance, in design units, beyond which no light reaches"
         },
         {
           "name": "ambient",
@@ -3347,21 +3347,21 @@
           "name": "weight",
           "pass": 1,
           "type": "number",
-          "def": "0.35",
+          "def": "0.08",
           "doc": "Ray strength (higher = brighter rays)"
         },
         {
           "name": "decay",
           "pass": "kw",
           "type": "number",
-          "def": "0.86",
+          "def": "0.9",
           "doc": "Falloff along the ray"
         },
         {
           "name": "exposure",
           "pass": "kw",
           "type": "number",
-          "def": "1.8",
+          "def": "0.8",
           "doc": "Exposure"
         },
         {

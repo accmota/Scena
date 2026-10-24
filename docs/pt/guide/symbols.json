@@ -3218,14 +3218,14 @@
           "pass": "kw",
           "type": "número",
           "def": "38% do lado curto",
-          "doc": "Tamanho da área bem iluminada, em pixels da tela (não unidades de design)"
+          "doc": "Tamanho da área bem iluminada, em unidades de design (acompanha o zoom)"
         },
         {
           "name": "range",
           "pass": "kw",
           "type": "número",
           "def": "55% do lado curto",
-          "doc": "Distância, em pixels da tela, a partir da qual não chega luz"
+          "doc": "Distância, em unidades de design, a partir da qual não chega luz"
         },
         {
           "name": "ambient",
@@ -3347,21 +3347,21 @@
           "name": "weight",
           "pass": 1,
           "type": "número",
-          "def": "0.35",
+          "def": "0.08",
           "doc": "Força dos raios (maior = raios mais claros)"
         },
         {
           "name": "decay",
           "pass": "kw",
           "type": "número",
-          "def": "0.86",
+          "def": "0.9",
           "doc": "Queda ao longo do raio"
         },
         {
           "name": "exposure",
           "pass": "kw",
           "type": "número",
-          "def": "1.8",
+          "def": "0.8",
           "doc": "Exposição"
         },
         {

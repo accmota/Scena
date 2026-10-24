@@ -320,6 +320,45 @@ class TestGuiaSymbolsAreDescribed(unittest.TestCase):
         self.assertEqual(sorted(set(scena.__all__) - names), [])
 
 
+class TestGuiaSymbolIndexIsCurrent(unittest.TestCase):
+    """The committed ``symbols.json`` / ``guia-api-symbols.js`` are what the
+    Guia renders, in both languages.
+
+    Bug class: a generated docs file lags its source. The Lamp units and the
+    GodRays default changed on the page (0.10.0) while both ``symbols.json``
+    kept the old text: only a run of ``validate_guia.py`` rewrites them, and
+    the release checklist ran it for ``pt`` alone.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        init(width=400, height=300)
+        sys.path.insert(0, layout.GUIDE_TOOLS)
+        import validate_guia  # type: ignore
+        cls.v = validate_guia
+
+    def _stale(self, lang):
+        self.v.set_lang(lang)
+        try:
+            return self.v.stale_symbol_files(self.v.index_symbols(self.v.load_catalogs()))
+        finally:
+            self.v.set_lang("pt")
+
+    def test_both_indexes_are_current(self):
+        for lang in self.v.LANGS:
+            with self.subTest(lang=lang):
+                self.assertEqual(self._stale(lang), [],
+                                 f"run python tools/guide/validate_guia.py --lang {lang}")
+
+    def test_canary_an_edited_entry_is_stale(self):
+        symbols = self.v.index_symbols(self.v.load_catalogs())
+        planted = [dict(s) for s in symbols]
+        planted[0]["oneLiner"] = (planted[0].get("oneLiner") or "") + " (edited)"
+        stale = self.v.stale_symbol_files(planted)
+        self.assertIn(self.v.SYMBOLS_JSON, stale)
+        self.assertIn(self.v.SYMBOLS_JS, stale)
+
+
 class TestEngineToolingIsNotExported(unittest.TestCase):
     def test_banner_helpers_live_in_process(self):
         # They read / clear the SCENA WARNING banner, not author errors
