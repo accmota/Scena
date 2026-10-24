@@ -108,6 +108,72 @@ class TestPostPointsFollowTheCamera(unittest.TestCase):
                 finally:
                     canvas.reset_view()
 
+    def test_lamp_and_spotlight_feed_their_lengths_through_the_mapping(self):
+        # The 0.10.0 release audit: only ``_length_to_fb`` was tested, so a
+        # lamp back on raw post-image pixels passed. The uniforms a draw sets
+        # are the mapped lengths, under zoom and at a smaller post image.
+        from scena import Lamp, Spotlight
+        caught = {}
+
+        class Spy:
+            def __init__(self, real):
+                self.real = real
+
+            def setUniform(self, k, v):
+                caught[k] = v
+                return self.real.setUniform(k, v)
+
+            def __getattr__(self, k):
+                return getattr(self.real, k)
+
+        saved = sk._lamp_builder, sk._spotlight_builder
+        sk._lamp_builder, sk._spotlight_builder = Spy(saved[0]), Spy(saved[1])
+        try:
+            with system_world(draw=True) as w:
+                try:
+                    canvas.zoom_to(2.0)
+                    frame(w)
+                    fw, fh = w.surface.width(), w.surface.height()
+                    lamp = Lamp(radius=50, range=100, target=(150.0, 110.0))
+                    spot = Spotlight(range=80, target=(150.0, 110.0))
+                    for scale in (1.0, 0.5):
+                        pw, ph = int(fw * scale), int(fh * scale)
+                        surf = skia.Surface(pw, ph)
+                        for effect, uniforms in ((lamp, {"u_radius": 50, "u_range": 100}),
+                                                 (spot, {"u_range": 80})):
+                            caught.clear()
+                            effect._draw_shader(surf.getCanvas(), surf.makeImageSnapshot(), pw, ph, 0.0, None)
+                            for name, design in uniforms.items():
+                                with self.subTest(effect=type(effect).__name__, uniform=name, scale=scale):
+                                    self.assertAlmostEqual(float(caught[name]),
+                                                           sk._length_to_fb(design, pw, ph), places=3)
+                finally:
+                    canvas.reset_view()
+        finally:
+            sk._lamp_builder, sk._spotlight_builder = saved
+
+    def test_the_mouse_default_maps_like_a_target(self):
+        # ``target=None`` aims at the mouse: the same mapping as a point there
+        # (it ignored the zoom before 0.10.0; the release audit found no test).
+        import builtins
+        import types
+        for name, set_camera in CAMERAS.items():
+            with self.subTest(camera=name), system_world(draw=True) as w:
+                try:
+                    set_camera()
+                    frame(w)
+                    fw, fh = w.surface.width(), w.surface.height()
+                    # ``mouse.x`` is read-only: a stand-in where the effect reads it.
+                    saved = builtins.mouse
+                    builtins.mouse = types.SimpleNamespace(x=150.0, y=110.0)
+                    try:
+                        self.assertEqual(sk._mouse_fb_xy(fw, fh),
+                                         sk._resolve_target_fb((150.0, 110.0), fw, fh))
+                    finally:
+                        builtins.mouse = saved
+                finally:
+                    canvas.reset_view()
+
     def test_view_to_fb_counts_the_letterbox(self):
         # A 400×300 design in a 2000×1200 framebuffer (maximized, Retina 2×:
         # a 1000×600 window): view_scale 2, pillars of 100 window px. The

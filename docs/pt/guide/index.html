@@ -6057,7 +6057,7 @@ canvas.cull_offscreen = False  # desenha tudo, até o que está fora da vista</p
             <tr><th>Propriedade</th><th>Tipo (valor típico)</th><th>Leitura/Escrita</th><th>Significado</th></tr>
           </thead>
           <tbody>
-<tr><td><code>True</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Padrão. Testa os objetos e pula os que estão fora da vista. Camadas com parallax (<code>pan_response</code> diferente de 1), widgets, o fundo e os efeitos de tela são sempre desenhados.</td></tr>
+<tr><td><code>True</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>lê / escreve</td><td>Padrão. Testa os objetos e pula os que estão fora da vista; uma camada com parallax (<code>pan_response</code> diferente de 1) ou rolagem é testada contra a própria vista (<code>layer.view</code>). Widgets, o fundo e os efeitos de tela são sempre desenhados.</td></tr>
 <tr><td><code>False</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>lê / escreve</td><td>Desenha todo objeto visível; o que fica fora da janela simplesmente não aparece.</td></tr>
           </tbody>
         </table>

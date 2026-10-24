@@ -255,6 +255,19 @@ class State:
     second bag does not pretend to be the global.
     """
 
+    def __copy__(self):
+        """``copy.copy(st)`` recursed through ``__getattr__`` until Python's
+        RecursionError (0.10.0 release audit): a bag of cells has one home, and
+        a copy would share every cell's links."""
+        label = self.__dict__.get("_name", "State")
+        raise TypeError(
+            f"copy.copy() / copy.deepcopy() cannot copy {label}: its fields are cells "
+            f"that formulas and widgets follow; copy the values you need instead "
+            f"(saved = {label}.score; copy.copy({label}.pos) for a Vec2).")
+
+    def __deepcopy__(self, memo):
+        return self.__copy__()
+
     def __init__(self, name: str = "State") -> None:
         if not isinstance(name, str):
             raise TypeError(f"State name must be a str, got {type(name).__name__}")

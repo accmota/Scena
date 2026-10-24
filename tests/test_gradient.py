@@ -148,6 +148,18 @@ class TestGradientFit(unittest.TestCase):
         # (it rebuilt the paint until showcase D5).
         self.assertNotEqual((c._tex_fill_hw, c._tex_fill_hh), fit)
         self.assertIsNotNone(p3.getShader())
+        self.assertIs(p3, p1, "a re-fit swaps the shader on the kept paint")
+
+    def test_a_growing_shape_keeps_one_paint(self):
+        # The 0.10.0 CHANGELOG ("no longer rebuilds its paint each frame"):
+        # 30 frames of growth gave 30 paints at v0.9.1 (release audit).
+        c = Circle(center=(0, 0), radius=40.0)
+        c.fill = Gradient("ocean", type="radial")
+        paints = []                    # held: a freed paint's id is reused
+        for i in range(30):
+            c.radius = 40.0 + 0.5 * i
+            paints.append(c._to_skia_fill_paint())
+        self.assertEqual(len({id(paint) for paint in paints}), 1)
 
     def test_sweep_ignores_size(self):
         g = Gradient("rainbow", type="sweep")

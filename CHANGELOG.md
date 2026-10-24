@@ -79,8 +79,9 @@ left out.
   was a different size on each screen and changed size whenever the effect
   quality moved (`post_fx_scale`). They are design units now, scaled like an
   object of that size (zoom included), as `Spotlight(range=)` already was.
-  A lamp tuned in pixels on a 2× screen needs its numbers divided by about
-  2 (more at a low `post_fx_scale`). `Spotlight(range=)` now follows the
+  A lamp tuned in pixels needs its numbers divided by the screen's pixel
+  ratio times `post_fx_scale` (about 2 on a 2× screen at full effect
+  quality, less when the quality is lower). `Spotlight(range=)` now follows the
   zoom and the window's letterbox too.
 - A SpatialFx's number knobs (`amount`, `speed`, `rate`, `glow`, `phase`,
   `twist`, `core`, `spin`, `tilt`) did not link: `luz["amount"] @= lambda: …`
@@ -118,8 +119,8 @@ left out.
   its `.blend`: a blurred `blend = "multiply"` painted as normal. It keeps
   its blend now.
 - The leak warning "reactive graph rising while objects stay ~9" fired on
-  scenes whose objects grow parts (a polygon given one more side each wave,
-  a History filling slowly). Parts of drawn objects no longer count as
+  scenes whose objects grow parts (a polygon given one more side each
+  wave). Parts of drawn objects no longer count as
   orphans; objects kept off screen in a list still warn.
 - With `canvas.cull_offscreen = True`, scrolling and parallax layers were
   never culled (everything on them drew, in view or not). They are culled
@@ -164,9 +165,6 @@ left out.
   `Spotlight`) raised `TypeError` at the first drawn frame when given an
   object instead of a point, though the Guia says "a point or an object".
   They now take either, and follow the object as it moves.
-- Guia cards: `GlowSpot` collides (a circle of 0.9 × `radius`), it is not
-  "without a hit"; `DropShadow`, `Dilate`, `Erode` and `Rain` show their real
-  defaults.
 - A decorator written without its parentheses (`@every`, `@after`, `@when`,
   `@on_change`, `@exit_mode`, `@collide_with`, `@collide_with_stay`,
   `@collide_with_exit`, `@click` and the other pointer verbs, and
@@ -182,10 +180,12 @@ left out.
   `force=True` unlinks the cell with a warning and the tween runs.
 - `copy.copy` and `copy.deepcopy` of a vector a cell held kept the cell's
   hook: `w = copy.copy(st.v); w.x = 5` changed `st.v`. A copy of a `Vec2`,
-  `Point` or `Box` is now a value of its own (no links, no holder). Every
-  other Scena object refuses with the spelling that makes a second one
-  (`shape.clone()`, `Entity(…)`): its copy shared the original's links and
-  its place in the formula graph.
+  `Point` or `Box` is now a value of its own (no links, no holder). The
+  objects of the world (shapes, Text, Track, Entity, SpatialFx, `canvas`,
+  `mouse`, `clock`) refuse with the spelling that makes a second one
+  (`shape.clone()`, `Entity(…)`): a copy shared the original's links and
+  its place in the formula graph. `copy.copy(st)`, which ended in Python's
+  `RecursionError`, refuses too and says to copy the values you need.
 - Three refusals named the wrong thing. `st.pos += (1, 1)` with a Point in
   the cell said `` `ship.center += …` would teleport past walls``; it now
   names `st.pos` and `st.pos.move_by(dx, dy)` (and `q = q + (dx, dy)` for a
@@ -200,21 +200,27 @@ left out.
   stopped, its sync mode ended, and `group["vespa"]` found nothing. It now
   lives until its `destroy()` or the end of its act, as a drawn shape does.
 - `rect.hitbox_scale = 0.5` (or `hitbox_anchor`, `hitbox_shape`,
-  `hitbox_source`, on any shape or Text) was taken as a field of the
+  `hitbox_source`, `hitbox_from`, on any shape or Text) was taken as a field of the
   object's own and changed nothing. It now raises: those are a Sprite's
   knobs, and a shape's hitbox is its own geometry.
 - A timed `scale_to` / `scale_by` on a destroyed object, and a timed
   `move_to` / `move_by` / `move_along` on a destroyed `Point`, raised
   `DestroyedError`. Like every other timed move and turn, they now return a
   Handle that is already cancelled and never runs (an instant change on a
-  destroyed object still raises).
-- Reading a destroyed `Track` (`at`, `tangent_at`, `angle_at`,
+  destroyed object still raises). `move_along` on a track fixed in the
+  world also jumped a destroyed shape to the track's start; it no longer
+  moves it.
+- Reading a destroyed `Track` (`at`, `local_at`, `tangent_at`, `angle_at`,
   `sample_span`, `spaced_points`, `length`) raised `DestroyedError` when its
-  shape had not been sampled since its last change. Reads work on a
+  length had not been worked out since its last change (a new track, one
+  changed since, or one whose `length` was never read). Reads work on a
   destroyed track, as on any destroyed object.
 
 ### Documentation
 
+- Guia cards: `GlowSpot` collides (a circle of 0.9 × `radius`), it is not
+  "without a hit"; `DropShadow`, `Dilate`, `Erode` and `Rain` show their real
+  defaults.
 - Guia: a style set on a Track after it is made (`t.color = …`) does not
   show an invisible track (write `t.visible = True`); shapes made without
   `center=` start at the world's centre, which is the middle of the screen

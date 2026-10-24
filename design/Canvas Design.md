@@ -927,8 +927,9 @@ headless raster bench (computing a Rect's AABB costs about one plain raster
 blit); 1000 `Text` labels draw 2.5× faster with culling on.
 
 Test hooks: `_cull_kept` / `_cull_skipped` (reset each `draw()`, same spirit as
-`_layer_ctm_swaps`). Trade-off: false skip (popping glow) is the failure mode —
-keep the default off; large worlds opt in. Residual: huge halos just off-screen
+`_layer_ctm_swaps`). Trade-off: false skip (popping glow) is the failure mode;
+the default is on since 2026-10-12 (a per-layer backoff turns it off where it
+does not pay). Residual: huge halos just off-screen
 may pop; canvas Bloom of culled heroes will not bleed in. A parallax or scroll
 layer is culled against the view window in its own coordinates (the inverse of
 its partial matrix and scroll accum, the window `layer.view` reports); it was

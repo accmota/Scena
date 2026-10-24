@@ -242,6 +242,21 @@ class TestCopyMakesAValueOrRefuses(_Case):
         self.track(twin)
         self.assertIsNot(twin, circle)
 
+    def test_a_state_bag_refuses_and_names_the_value_copy(self):
+        # The 0.10.0 release audit: copy.copy(st) recursed through
+        # __getattr__ to Python's RecursionError (State is no Container, so
+        # the refusal above did not reach it).
+        bag = State(name="st")
+        bag.pos = Vec2(1, 2)
+        for how in (copy.copy, copy.deepcopy):
+            with self.subTest(how=how.__name__):
+                with self.assertRaises(TypeError) as cm:
+                    how(bag)
+                self.assertIn("saved = st.score", str(cm.exception))
+        w = copy.copy(bag.pos)             # the fix works
+        w.x = 9
+        self.assertEqual(bag.pos.x, 1)
+
     def test_every_public_container_class_is_decided(self):
         """A new public Container kind must be a value kind (its own
         ``__copy__``) or keep the refusal: never Python's ``__dict__`` copy."""

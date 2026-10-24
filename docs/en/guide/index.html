@@ -6057,7 +6057,7 @@ canvas.cull_offscreen = False  # draws everything, even what is out of view</pre
             <tr><th>Property</th><th>Type (typical value)</th><th>Read/Write</th><th>Meaning</th></tr>
           </thead>
           <tbody>
-<tr><td><code>True</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>read / write</td><td>Default. Tests the objects and skips the ones out of view. Layers with parallax (<code>pan_response</code> other than 1), widgets, the background and screen effects are always drawn.</td></tr>
+<tr><td><code>True</code></td><td class="type"><span class="t">bool</span><span class="ex">True</span></td><td>read / write</td><td>Default. Tests the objects and skips the ones out of view; a layer with parallax (<code>pan_response</code> other than 1) or scroll is tested against its own view (<code>layer.view</code>). Widgets, the background and screen effects are always drawn.</td></tr>
 <tr><td><code>False</code></td><td class="type"><span class="t">bool</span><span class="ex">False</span></td><td>read / write</td><td>Draws every visible object; whatever is outside the window simply does not appear.</td></tr>
           </tbody>
         </table>

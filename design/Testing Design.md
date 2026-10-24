@@ -3455,6 +3455,34 @@ another thread's frames (`sys._current_frames()`) holds them, and all they reach
 while a local names them; and a census that goes down is something the run before
 left alive, so look at what holds the earlier run, not at the run that failed.
 
+### RA3 — 0.10.0 release audit (2026-10-24)
+
+Same method as RA and RA2: four read-only agents, one per slice of the 0.10.0
+CHANGELOG (Breaking + Added, Fixed in two halves, Documentation), each probing
+the "before" claim at v0.9.1 (a detached checkout) and the "after" one on the
+release branch, and running each named test against the v0.9.1 engine to see
+it fail. Every bullet described a bug or a feature that v0.9.1 really had or
+lacked (none born inside the cycle, none listed twice with 0.9.1). Findings:
+
+| ID | Finding | Fix / guard |
+| --- | --- | --- |
+| RA3-1 | A destroyed shape's `move_along` on an anchored track snapped it to the track's start, and a destroyed Point raised there (the DV3 fix skipped the probe, not the start snap) | `timed_move_along` returns the cancelled Handle before the ride or snap; `test_dead_verb_order` adds anchored tracks (time and speed) and checks the dead do not move |
+| RA3-2 | `copy.copy(st)` / `copy.deepcopy(st)` ended in `RecursionError` (`State` is no Container, so the copy refusal did not reach it); the CHANGELOG said "every other Scena object refuses" | `State.__copy__` / `__deepcopy__` refuse naming the value copy (`test_held_value_doors…test_a_state_bag_refuses_and_names_the_value_copy`); the bullet names the objects of the world |
+| RA3-3 | Gradient resize: the "same paint" assertion had been dropped, and an `id()` set of freed paints would have passed anyway (Python reuses the id) | `test_gradient.TestGradientFit.test_a_growing_shape_keeps_one_paint` holds the paints; fails at v0.9.1 (30 paints) |
+| RA3-4 | Lamp / Spotlight lengths: only `_length_to_fb` was tested, so a lamp back on raw pixels passed; the post effects' mouse default (fixed with the targets) had no test | `test_post_targets_camera`: the uniforms a draw sets are the mapped lengths (zoom 2, post image ×1 and ×0.5); the mouse default maps like a target under every camera |
+| RA3-5 | CHANGELOG claims: Lamp "divide by more at a low `post_fx_scale`" (it is less: pixel ratio × `post_fx_scale`); "a History filling slowly" warned (it did not at v0.9.1; the test guards nothing there); "five" CC-BY tracks (four); the showcases' speed "about `revoada.py`" (never measured); the Guia cards line under Fixed (moved to Documentation); `hitbox_from` and `local_at` missing from lists; the music move and the new font unlisted | CHANGELOG reworded |
+| RA3-6 | Doc drift: the Guia's `cull_offscreen` row and Effect System Design said parallax layers are never culled (they are, against their own view, since the showcase fixes); Canvas Design said keep culling off (on since 2026-10-12); Effect System Design spelled `"project"` caps; the Guia had no word on `ship["aim"] @=` on a Vec2 field | Guia (pt and en, parity marked) and design docs updated |
+| RA3-7 | Two `line_cap="project"` doors (`set_defaults`, `Contrail`) and a string written before `super().__init__()` raised / linked but had no test | `test_showcase_messages.TestLineCapNames.test_project_raises_at_the_other_doors`, `test_fx_knobs.TestBracketOnPlainValue.test_a_string_written_before_super_init_links` |
+
+Left as they are: `@e.every` on an object at the top of a file is told to
+write `@self.every(1.5)` (the fix it names, parentheses, is right); the
+Polygon-angle and per-frame colour speedups are sourced in Shapes Design and
+SH-D4 but have no failing-without-fix guard (a timing, not a behaviour).
+Lesson for the class, beyond RA2's: **a fix for one door of a rule leaves the
+rule's other doors** (DV3 fixed the probe; the start snap of an anchored ride
+was a second write on the dead), and **an identity test over objects nobody
+holds proves nothing** (`id()` of a freed object is reused).
+
 ### AH — async functions where Scena calls one (2026-10-10, 2026-10-12)
 
 | ID | Bug | Root cause | Guard |
@@ -3861,7 +3889,7 @@ any arguments; the death is the author's first problem.
 | --- | --- | --- | --- | --- | --- |
 | DV1 | On a destroyed actor, a bad argument or value raised its own error before `DestroyedError`: `move_to` / `move_by` (also with no argument), `rotate_to` / `scale_to` / `rotate_by` / `scale_by` (`force=`, the value, the timing keywords), `reset_rotation`, `move_along`, `add_to_group`, `goto_mode`, `tangent_lines_from`, every subclass pose override, and every setter given a function (`dead.radius = lambda: 3` said "use @="). The author chased the number when the actor was gone | `c = Circle(); c.destroy(); c.move_to((math.nan, 0))` → "a point takes two finite numbers" | The verbs parsed their arguments, then called `_refuse_if_destroyed`; `__setattr__` refused a callable before the dead route map | P6 accepts any author error from a dead verb (it asks for no trace, not for the order) and calls each verb with good arguments only | `if self._destroyed:` as each verb's first statement (`_refuse_dead_verb`: instant → refuse; timed → on to its cancelled Handle, DV3) and at the head of `_install_timed_pose`'s wrapper (the overrides' own checks removed); `__setattr__`'s callable branch skips a dead actor. A/B vs HEAD, 12 interleaved rounds: moves 3–6 % faster (one call fewer), turns and scales flat or faster. Guard: `test_dead_verb_order` (every Entity kind × every refusing verb and setter × each parameter × ten junk values; a parameter that picks a path that does not refuse, such as `time=` on a turn, is P6's) |
 | DV2 | A read on a destroyed Track refused: `at`, `local_at`, `tangent_at`, `angle_at`, `sample_span`, `spaced_points` raised "Track.length cannot change a destroyed object" while reads stay legal elsewhere | `t = Track(); t.destroy(); t.at(0.5)` (a track whose tables were never built, or were dirtied before the destroy) | The first read builds the tables, and the refresh published `length` through the public setter, which the dead route map refuses (`_refresh_length`) | P6 accepts `DestroyedError` from any method; DV1's sweep excluded these reads by name | Fixed: on a dead track the refresh stores `length` in the instance (nothing listens to it), so every read, `length` included, matches a live twin. Guard: `test_dead_verb_order.TestADeadTrackStillReads` (cold and dirtied, three kinds of track); the sweep's exclusion is gone |
-| DV3 | Timed pose on a destroyed actor: Actors Design said a cancelled Handle (law T6), and so did the timed moves and turns, but every timed `scale_to` / `scale_by` and a Point's timed `move_to` / `move_by` / `move_along` raised `DestroyedError` | `c.destroy(); c.scale_to(2, time=1)` raised; `c.move_to(5, 5, time=1)` was a cancelled Handle | `_refuse_dead_verb` ran the timed helper's call-time probe, and the probes (`_probe_scale_writable` → `_scale_gate_at_call`, a dead Point's `_move_by(0, 0)`) refuse a dead subject | DV1 kept today's split on purpose; nothing asked the timed verbs for the documented Handle | Fixed (the doc's rule, 2026-10-24): `_refuse_dead_verb` refuses only an instant call; the timed helpers skip the probe (and the scale's claim targets) for a dead subject, and the scheduler returns the Handle cancelled (`_R_DEAD_AT_START`), never registered. Guard: `test_dead_verb_order.TestATimedVerbOnTheDeadComesBackCancelled` (every Entity kind and Point × every timed verb; an instant call still refuses) |
+| DV3 | Timed pose on a destroyed actor: Actors Design said a cancelled Handle (law T6), and so did the timed moves and turns, but every timed `scale_to` / `scale_by` and a Point's timed `move_to` / `move_by` / `move_along` raised `DestroyedError` | `c.destroy(); c.scale_to(2, time=1)` raised; `c.move_to(5, 5, time=1)` was a cancelled Handle | `_refuse_dead_verb` ran the timed helper's call-time probe, and the probes (`_probe_scale_writable` → `_scale_gate_at_call`, a dead Point's `_move_by(0, 0)`) refuse a dead subject | DV1 kept today's split on purpose; nothing asked the timed verbs for the documented Handle | Fixed (the doc's rule, 2026-10-24): `_refuse_dead_verb` refuses only an instant call; the timed helpers skip the probe (and the scale's claim targets) for a dead subject, and the scheduler returns the Handle cancelled (`_R_DEAD_AT_START`), never registered; `move_along` returns it before an anchored track's start snap (RA3-1). Guard: `test_dead_verb_order.TestATimedVerbOnTheDeadComesBackCancelled` (every Entity kind and Point × every timed verb; an instant call still refuses) |
 
 ### EX — building the Corrida example (2026-10-21)
 

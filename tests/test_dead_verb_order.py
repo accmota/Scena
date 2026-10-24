@@ -228,6 +228,10 @@ _TIMED = (
     ("scale_to", lambda: ((2.0,), {"time": 0.1})),
     ("scale_by", lambda: ((2.0,), {"time": 0.1})),
     ("move_along", lambda: ((scena.Track.line(100.0),), {"time": 0.1})),
+    # An anchored track: the ride starts with a snap to its start (the 0.10.0
+    # release audit: a dead Point raised there, a dead Circle was moved).
+    ("move_along", lambda: ((scena.Track(points=[(100.0, 100.0), (150.0, 100.0)]),), {"time": 0.1})),
+    ("move_along", lambda: ((scena.Track(points=[(100.0, 100.0), (150.0, 100.0)]),), {"speed": 10.0})),
 )
 
 
@@ -252,8 +256,10 @@ class TestATimedVerbOnTheDeadComesBackCancelled(unittest.TestCase):
                     if fn is None:
                         continue
                     a, k = args()
-                    with self.subTest(kind=name, verb=verb, kwargs=k):
+                    with self.subTest(kind=name, verb=verb, args=a, kwargs=k):
                         before = len(get_scheduler()._handles)
+                        center = getattr(obj, "center", obj)
+                        where = (float(center.x), float(center.y)) if hasattr(center, "x") else None
                         try:
                             with quiet():
                                 h = fn(*a, **k)
@@ -268,6 +274,8 @@ class TestATimedVerbOnTheDeadComesBackCancelled(unittest.TestCase):
                         self.assertTrue(h.cancelled)
                         self.assertEqual(getattr(h, "_cancel_reason", None), _R_DEAD_AT_START)
                         self.assertEqual(len(get_scheduler()._handles), before, "registered work for the dead")
+                        if where is not None:
+                            self.assertEqual((float(center.x), float(center.y)), where, "the dead moved")
                         reached.add((name, verb))
         # Vacuity: the kinds the bug was found on.
         for pair in (("Circle", "scale_to"), ("Rect", "scale_by"), ("Point", "move_to"),

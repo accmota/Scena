@@ -162,6 +162,24 @@ class TestBracketOnPlainValue(unittest.TestCase):
             self.assertEqual(hero.hp, 7)
             hero.destroy()
 
+    def test_a_string_written_before_super_init_links(self):
+        # The CHANGELOG says "a number or string" (release audit: only the
+        # number had a test).
+        class Hero(Circle):
+            def __init__(self, **kw):
+                self.title = "novice"
+                super().__init__(**kw)
+
+        with system_world(draw=False) as w:
+            st.level = 1
+            hero = Hero(center=(10, 10), radius=5)
+            self.assertEqual(hero.title, "novice")
+            hero["title"] @= lambda: f"level {st.level}"
+            st.level = 2
+            w.step(1, dt=FRAME)
+            self.assertEqual(hero.title, "level 2")
+            hero.destroy()
+
     def test_migration_keeps_the_other_fields(self):
         # ``_ink`` is a slot on shapes: the move must add to the object's
         # ink, never replace it (a first draft read ``__dict__`` and would

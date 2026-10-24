@@ -5422,6 +5422,11 @@ def timed_move_along(
         shape._move_by(0.0, 0.0, force=force)
 
     target = _resolve_move_along_target(target)
+    if shape._destroyed:
+        # T6, DV3: no snap to an anchored track's start, no ride; the
+        # scheduler hands the Handle back cancelled (its owner is dead).
+        return get_scheduler().add(Handle._make(kind="tween", owner=shape, scope=SCOPE_ENTITY,
+                                                target=shape))
 
     path = None
     floating = False
