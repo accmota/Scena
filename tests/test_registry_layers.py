@@ -775,6 +775,33 @@ class TestGroupLiveView(RegistryTestCase):
             for m in ms:
                 m.destroy()
 
+    def test_destroy_skips_members_an_earlier_destroy_took(self):
+        # 0.10.0 deep (test_sys_hyp_world, law L3): an override of destroy that
+        # takes a neighbour ran again on the dead neighbour when the group's
+        # walk reached it (a second explosion). Since v0.9.1 at least.
+        calls = []
+
+        class Enemy(Circle):
+            partner = None
+
+            def destroy(self, *args, **kwargs):
+                calls.append((self.label, self.is_alive))
+                if self.is_alive and self.partner is not None and self.partner.is_alive:
+                    self.partner.destroy()
+                super().destroy(*args, **kwargs)
+
+        a = Enemy(center=(0, 0), radius=4, group="gd_enemy")
+        b = Enemy(center=(10, 0), radius=4, group="gd_enemy")
+        a.label, b.label = "a", "b"
+        a.partner = b
+        try:
+            group["gd_enemy"].destroy()
+            self.assertEqual(calls, [("a", True), ("b", True)])
+            self.assertFalse(a.is_alive or b.is_alive)
+        finally:
+            for m in (a, b):
+                m.destroy()
+
     def test_broadcast_sees_new_members(self):
         a = self.track(Circle(center=(0, 0), radius=1, group='g_bc'))
         g = group['g_bc']

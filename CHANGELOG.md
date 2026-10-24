@@ -216,6 +216,11 @@ left out.
   balls bounced off each other 10 px apart. They now run in the order the
   effects started, and so do the other engine lists walked each frame
   (SpatialFx, `Endless`, linked fields).
+- `group["enemies"].destroy()` called `destroy` a second time on a member
+  that an earlier member's `destroy` had already taken: a class that
+  overrides `destroy` (an explosion that takes its neighbour) ran it again
+  on the dead one. A member destroyed during the walk is now skipped, as a
+  group-wide method call already did.
 - Reading a destroyed `Track` (`at`, `local_at`, `tangent_at`, `angle_at`,
   `sample_span`, `spaced_points`, `length`) raised `DestroyedError` when its
   length had not been worked out since its last change (a new track, one

@@ -2307,6 +2307,12 @@ class GroupOperator:
     def destroy(self) -> 'GroupOperator':
         """Bulk teardown of current members (wave clear, restart)."""
         for obj in self._iter_members():
+            # The walk copied live members: one dead here died in this walk
+            # (an earlier member's destroy took it). Its own ``destroy`` (an
+            # author override: an explosion) must not run again on the dead
+            # (Laws L3; the broadcast skips such a member too, S9-3).
+            if getattr(obj, "_destroyed", False):
+                continue
             obj.destroy()
         return self
 

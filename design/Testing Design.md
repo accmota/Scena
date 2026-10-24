@@ -3523,6 +3523,15 @@ class as S2-9 (the `on_update` fleet), which had fixed one site. Lesson:
 **iteration over an id-hashed container is a source of run-to-run
 difference; a container that is walked keeps insertion order.**
 
+The same deep run's `test_sys_hyp_world` broke law L3: `GroupOperator.destroy`
+walks a copy of its members and called `destroy()` on one that an earlier
+member's `destroy` override had taken; the engine's second destroy is a no-op
+(L2), but the override ran again on the dead (since v0.9.1 at least). The
+broadcast (`group[...].verb()`) already skipped such a member (S9-3); the
+explicit `destroy` now does too. Guard:
+`test_registry_layers…test_destroy_skips_members_an_earlier_destroy_took`
+(fails without the fix).
+
 Open (seen while tracing, not changed): with the list order fixed, which body
 the solver takes first still decides how a ball-on-ball overlap is split
 (in the traced step one order moved both balls 10 px, the other moved one
