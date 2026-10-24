@@ -117,6 +117,23 @@ class TestProbesAndTeardown(unittest.TestCase):
             with ProgramRun("input_probe"):
                 self.assertEqual(proc.WATCHDOG_RESUME_S, 0.05)
 
+    def test_a_harness_run_lifts_the_freeze_budget_too(self):
+        # The example scripts of the laws (E1, E3, E15) run in a child process
+        # through tests/script_harness.py, not through ProgramRun: the lift
+        # above never reached them, and E1 failed again under load.
+        import subprocess
+        import tempfile
+        here = os.path.dirname(os.path.abspath(__file__))
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "budget.py")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("import scena.process as p\nprint('BUDGET', p.WATCHDOG_RESUME_S)\n"
+                         "from scena import *\ninit(width=200, height=100)\nrun()\n")
+            out = subprocess.run([sys.executable, os.path.join(here, "script_harness.py"), path, "2"],
+                                 capture_output=True, text=True, timeout=120).stdout
+        budget = float(out.split("BUDGET", 1)[1].split()[0])
+        self.assertGreaterEqual(budget, 5.0, out)
+
     def test_leftovers_from_another_module_are_not_the_programs(self):
         # The deep serial pass runs every module in one process: actors an
         # earlier module left alive are parked while the program runs and

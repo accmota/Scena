@@ -42,6 +42,9 @@ import runpy
 import sys
 import warnings
 
+# The freeze budget a headless run uses (``main``; ProgramRun's PROGRAM_WATCHDOG_S).
+HARNESS_WATCHDOG_S = 5.0
+
 
 def harness_cwd(script: str, root: str):
     """``# harness: cwd=<dir>`` on a script's first lines (repo-relative), or
@@ -140,6 +143,13 @@ def main(argv) -> None:
 
     import scena
     from scena.orchestration import ScenaFramework
+    # A headless run counts frames, never wall time: the freeze watchdog's
+    # 0.5 s budget for one async step cut string_theory's 160-line build under
+    # the gate's load, and law E1 saw one pacing twin make fewer Lines (0.10.0
+    # gate). Same rule as ProgramRun; a step that never yields still trips.
+    import scena.process as _proc
+    _proc.WATCHDOG_RESUME_S = max(_proc.WATCHDOG_RESUME_S, HARNESS_WATCHDOG_S)
+
     def headless_run(first_act=None):
         fw = ScenaFramework.get_instance()
         caller = inspect.currentframe().f_back.f_globals
