@@ -42,7 +42,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 
 PATH = "examples/rose_window.py"
 SECOND = 60
@@ -97,7 +97,7 @@ class TestRoseWindowCycle(unittest.TestCase):
                 live = []           # 2 s into the first movement, of each loop
                 for _ in range(105 * SECOND):
                     if run.frames == seen[-1][1] + 2 * SECOND and st.movement == 0:
-                        live.append(len(registry().live))
+                        live.append(len(run_registry().live))
                         if len(live) == 2:
                             break
                     before = st.bells

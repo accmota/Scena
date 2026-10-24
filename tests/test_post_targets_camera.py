@@ -114,7 +114,9 @@ class TestPostPointsFollowTheCamera(unittest.TestCase):
         # post image may be smaller (post_fx_scale): the same place, scaled.
         from scena.orchestration import ScenaFramework
         fw = ScenaFramework.get_instance()
-        metrics = dict(fb_width=2000, fb_height=1200, view_scale=2.0, pixel_ratio=2.0,
+        # the design size too: a module before this one may have init'd its own (WP41)
+        metrics = dict(design_width=400.0, design_height=300.0,
+                       fb_width=2000, fb_height=1200, view_scale=2.0, pixel_ratio=2.0,
                        _letterbox_pad_x=100.0, _letterbox_pad_y=0.0)
         saved = {k: getattr(fw, k) for k in metrics}
         try:

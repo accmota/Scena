@@ -53,7 +53,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 from scena.act import get_act_manager  # noqa: E402
 
 PATH = "examples/corrida.py"
@@ -580,7 +580,7 @@ class TestCorridaShot(unittest.TestCase):
                     break
             self.assertEqual(r.azul.mode, r.azul.batido, "vacuous: no hit")
             run.step(2)
-            nuvens = [o for o in registry().live_objects() if isinstance(o, Fumaca) and o.is_alive]
+            nuvens = [o for o in run_registry().live_objects() if isinstance(o, Fumaca) and o.is_alive]
             self.assertEqual(len(nuvens), 1, "no black smoke on the hit car")
             nuvem = nuvens[0]
             # The smoke pack's images are 25 different puffs, not the frames

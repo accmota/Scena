@@ -205,9 +205,11 @@ def _lazy_part_lines():
         try:
             here = inspect.currentframe().f_lineno
             shuttle = Ellipse(center=(100, 100), width=58, height=12)
-            Ellipse(center=lambda: shuttle.center, width=24, height=5)
+            follower = Ellipse(center=lambda: shuttle.center, width=24, height=5)
         finally:
             trace.uninstall()
+        follower.destroy()
+        shuttle.destroy()
     lines = {}
     for e in rec.events:
         if e[0] == "N" and e[2] == "Point" and e[3].startswith("test_laws_quick.py:"):

@@ -42,6 +42,12 @@ from scena import (  # noqa: E402
     Sprite, Square, Text, Vec2, clock,
 )
 from scena.process import reset_process_scheduler, tick_processes  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+# START_SLOW's shapes link to a reference shape (a Rect, a Line, a Circle) that
+# the test does not hold: it outlived the module, and later modules counted it
+# (the deep serial pass, 2026-10-24: string_theory saw its Lines; WP42).
+setUpModule, tearDownModule = module_sweep()
 
 # Every constructor model with a Defining-only pose. The key is the label in
 # failure messages; each factory builds one fresh shape.

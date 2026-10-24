@@ -40,7 +40,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 import scena.process  # noqa: E402
 from scena import RegularPolygon, Text, Triangle, canvas, clock, vec_from_angle  # noqa: E402
 
@@ -76,7 +76,7 @@ def formula_mismatches(ns) -> list:
     st = ns["st"]
     t = clock.time
     out = []
-    shapes = registry().live_objects()
+    shapes = run_registry().live_objects()
     hexagons = [o for o in shapes if type(o) is RegularPolygon]
     petals = [o for o in shapes if isinstance(o, Triangle)]
     if (len(hexagons), len(petals)) != (19, 24):
@@ -132,10 +132,10 @@ class TestHundredLines(unittest.TestCase):
                     cls.frames.append(row)
                     if f % 15 == 0:
                         cls.titles.append((clock.time, sum(
-                            1 for o in registry().live_objects()
+                            1 for o in run_registry().live_objects()
                             if isinstance(o, Text) and o.is_alive and o.text == TITLE)))
                     if f % 30 == 0:
-                        cls.roster.append((clock.time, len(registry().live_objects())))
+                        cls.roster.append((clock.time, len(run_registry().live_objects())))
                     if f % 20 == 0:
                         cls.mismatches += formula_mismatches(ns)
                         cls.checked += 1

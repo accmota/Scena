@@ -473,6 +473,34 @@ def custom(fn: Callable[[Trace], Any]) -> Callable[[Trace], Optional[str]]:
 # Runner
 # --------------------------------------------------------------------------
 
+# The ProgramRun now running (one at a time): ``run_registry`` reads its roster.
+_CURRENT_RUN: List[Any] = []
+
+
+class RunRoster:
+    """``registry()``'s ``live`` / ``live_objects()`` with only what the running
+    program registered (keys are serials, never reused). Another module's
+    leftovers are parked by the run but stay live: a test counting a kind in
+    ``registry().live`` counted them too (the deep serial pass, 2026-10-24:
+    test_diff_pose's reference Lines read as string_theory's strings; WP42)."""
+
+    def __init__(self, before) -> None:
+        self._before = before
+
+    @property
+    def live(self) -> Dict[int, Any]:
+        before = self._before
+        return {k: o for k, o in registry().live.items() if k not in before}
+
+    def live_objects(self) -> List[Any]:
+        return list(self.live.values())
+
+
+def run_registry():
+    """The running program's roster (``RunRoster``); ``registry()`` outside a run."""
+    return RunRoster(_CURRENT_RUN[-1]._roster_before) if _CURRENT_RUN else registry()
+
+
 class ProgramRun:
     """Run one program in a ``SystemWorld``; feed input; sample probes per frame.
 
@@ -541,6 +569,7 @@ class ProgramRun:
         self.world = SystemWorld(draw=self.draw, quarantine=False)
         fw = self.world.fw
         self._roster_before = set(registry().live.keys())
+        _CURRENT_RUN.append(self)
         # The program starts with an empty ``st``, as in its own process: the
         # cells other modules left are parked and given back at close. A
         # program that wrote ``st.pontos`` over a leftover cell reused it, and
@@ -665,6 +694,8 @@ class ProgramRun:
         ``self.census_after`` is then comparable with ``census_before``
         (``leftovers()``): a program that leaves state behind is a finding.
         """
+        if self in _CURRENT_RUN:
+            _CURRENT_RUN.remove(self)
         try:
             if self.world is not None:
                 # Acts end only through the act manager (destroying the

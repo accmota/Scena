@@ -35,7 +35,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 import scena.process  # noqa: E402
 from scena import Line, canvas, clock, group  # noqa: E402
 
@@ -65,7 +65,7 @@ def sides(ns) -> dict:
 def strand_mismatches(ns) -> list:
     """With the lines locked on the circle, line j joins slot j to slot j·mult + skip."""
     st = ns["st"]
-    strands = [o for o in registry().live_objects()      # in the order they were made
+    strands = [o for o in run_registry().live_objects()      # in the order they were made
                if isinstance(o, Line) and o.is_alive and "strand" in o.group]
     n = ns["STRANDS"]
     if len(strands) != n:
@@ -147,7 +147,7 @@ class TestPolygonBallet(unittest.TestCase):
     @staticmethod
     def piece_mismatches(ns) -> list:
         """Each rosette piece circles its rosette, as far out as the rosette is open."""
-        pieces = [o for o in registry().live_objects()
+        pieces = [o for o in run_registry().live_objects()
                   if o.is_alive and "piece" in getattr(o, "group", ())]
         if not pieces:
             return []

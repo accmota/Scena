@@ -38,7 +38,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 from program_support import ProgramRun  # noqa: E402
 
 from scena import clock  # noqa: E402
@@ -87,11 +87,11 @@ class Playthrough:
         calls = self.calls
         if inspect.iscoroutinefunction(orig):
             async def watched(*a, **k):
-                calls.append((name, run.frames, len(registry().live)))
+                calls.append((name, run.frames, len(run_registry().live)))
                 return await orig(*a, **k)
         else:
             def watched(*a, **k):
-                calls.append((name, run.frames, len(registry().live)))
+                calls.append((name, run.frames, len(run_registry().live)))
                 return orig(*a, **k)
         ns[name] = watched
 

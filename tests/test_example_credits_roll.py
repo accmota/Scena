@@ -42,7 +42,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 from program_support import ProgramRun  # noqa: E402
 
 import scena  # noqa: E402
@@ -64,7 +64,7 @@ CAST = ["base_ratio", "Fire", "Concave", "Portal", "@=", "Neon", "Orb", "differe
 
 
 def live(kind):
-    return [o for o in registry().live.values() if isinstance(o, kind)]
+    return [o for o in run_registry().live.values() if isinstance(o, kind)]
 
 
 def xy(p):
@@ -105,7 +105,7 @@ class Playthrough:
         greets = self.greets
 
         async def watched():
-            greets.append((fn.__name__, st.number, run.frames, len(registry().live),
+            greets.append((fn.__name__, st.number, run.frames, len(run_registry().live),
                            list(canvas.effects), canvas.zoom, canvas.rotation,
                            type(get_act_manager().current).__name__))
             return await fn()

@@ -39,7 +39,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 
 PATH = "examples/loom.py"
 SECOND = 60
@@ -101,9 +101,9 @@ class TestLoomWeaving(unittest.TestCase):
                     if st.card_name != cards[-1]:
                         cards.append(st.card_name)
                         run.step(SECOND)
-                        at_card.append(len(registry().live))
+                        at_card.append(len(run_registry().live))
                     if run.frames % SECOND == 0:
-                        live.append(len(registry().live))
+                        live.append(len(run_registry().live))
                     if ns["bloom"].enabled:
                         revealed = max(revealed, 1 - ns["canvas"].zoom)
                     if len(cards) == 7:

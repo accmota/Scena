@@ -34,7 +34,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 import scena.process  # noqa: E402
 from scena import Line, Text, canvas, clock  # noqa: E402
 
@@ -54,7 +54,7 @@ def engine_warnings(caught) -> list:
 
 
 def texts() -> list:
-    return [o.text for o in registry().live_objects() if isinstance(o, Text) and o.is_alive]
+    return [o.text for o in run_registry().live_objects() if isinstance(o, Text) and o.is_alive]
 
 
 def caption() -> str:
@@ -69,7 +69,7 @@ def caption() -> str:
 
 def lines() -> list:
     """The live lines, in the order they were made."""
-    return [o for o in registry().live_objects() if isinstance(o, Line) and o.is_alive]
+    return [o for o in run_registry().live_objects() if isinstance(o, Line) and o.is_alive]
 
 
 def tap(run, key):
@@ -105,7 +105,7 @@ class TestStringTheory(unittest.TestCase):
                     row = {"t": clock.time, "part": now,
                            "effects": {type(e).__name__ for e in canvas.effects}}
                     if f % 30 == 0:
-                        row["live"] = len(registry().live_objects())
+                        row["live"] = len(run_registry().live_objects())
                     cls.frames.append(row)
                     if f % 30 == 0 and now in ("I", "II", "III", "IV"):
                         cls.counts.setdefault(now, set()).add(len(lines()))

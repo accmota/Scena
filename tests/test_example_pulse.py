@@ -42,7 +42,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 from program_support import ProgramRun  # noqa: E402
 
 import miniaudio  # noqa: E402
@@ -58,7 +58,7 @@ TITLES = ["I  MANDALA", "II  RUNNERS", "III  BLOOM"]
 
 
 def live(kind):
-    return [o for o in registry().live.values() if isinstance(o, kind)]
+    return [o for o in run_registry().live.values() if isinstance(o, kind)]
 
 
 def tap(run, key):
@@ -112,7 +112,7 @@ class TestPulseSong(unittest.TestCase):
 
         def watched_enter(number, title):
             # the last scene is gone, the new one not built yet
-            cls.enters.append((number, title, st.beats, clock.time, len(registry().live)))
+            cls.enters.append((number, title, st.beats, clock.time, len(run_registry().live)))
             enter(number, title)
 
         ns["enter"] = watched_enter

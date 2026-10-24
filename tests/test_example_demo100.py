@@ -38,7 +38,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 import scena.process  # noqa: E402
 from scena import Text, Triangle, canvas, clock, group, vec_from_angle  # noqa: E402
 
@@ -75,7 +75,7 @@ def dance_mismatches(ns) -> list:
     """Every dancer (and the heart) that is not where its formula puts it now."""
     t = clock.time
     members = {id(o) for o in group["dancer"]}
-    dancers = [o for o in registry().live_objects()      # in the order make_rings made them
+    dancers = [o for o in run_registry().live_objects()      # in the order make_rings made them
                if isinstance(o, Triangle) and o.is_alive and id(o) in members]
     if len(dancers) != DANCERS:
         return [f"t={t:.2f}: {len(dancers)} dancers"]
@@ -120,7 +120,7 @@ class TestDemo100(unittest.TestCase):
                     row["effects"] = {type(e).__name__ for e in canvas.effects}
                     cls.frames.append(row)
                     if f % 15 == 0:
-                        live = registry().live_objects()
+                        live = run_registry().live_objects()
                         cls.counts.append((
                             clock.time,
                             sum(1 for o in group["dancer"] if o.is_alive),

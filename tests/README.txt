@@ -55,6 +55,12 @@ Every tier checks it: run_tiers.py runs each job through "run_tiers.py --child"
 (python -m unittest plus a LeftoverCheck after each module), which fails a module
 that leaves more than leftovers.LIMIT live roster items.
 
+A test that counts a program's objects reads the run's roster, not the whole
+one: run_registry().live / .live_objects() (program_support) holds what the
+running ProgramRun registered; another module's leftovers are parked but stay
+in registry().live (WP42). A pixel test at fixed points draws in a SystemWorld,
+which starts at boot's 400x300 whatever size an earlier module init'd (WP41).
+
 A test that counts reactive graph nodes reads them settled:
   from tests.graph_support import gc_paused, settled_graph_size
   self.enterContext(gc_paused()); before = settled_graph_size()

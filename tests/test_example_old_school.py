@@ -40,7 +40,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 from program_support import ProgramRun  # noqa: E402
 
 import scena  # noqa: E402
@@ -55,7 +55,7 @@ IGNORED = (DeprecationWarning, PendingDeprecationWarning, ResourceWarning)
 
 
 def live(kind=None):
-    objs = list(registry().live.values())
+    objs = list(run_registry().live.values())
     return objs if kind is None else [o for o in objs if isinstance(o, kind)]
 
 
@@ -95,7 +95,7 @@ class Playthrough:
 
         def watched_part(name):
             new_part(name)
-            count = len(registry().live)    # before an anchor read adds its Point
+            count = len(run_registry().live)    # before an anchor read adds its Point
             captions = [t for t in live(scena.Text) if t.text == name]
             found = any(abs(t.top_left.x - 28) < 1e-6 and abs(t.top_left.y - 784) < 1e-6
                         for t in captions)

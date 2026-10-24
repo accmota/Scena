@@ -41,7 +41,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 
 PATH = "examples/tesla.py"
 SECOND = 60
@@ -101,7 +101,7 @@ class TestTeslaNight(unittest.TestCase):
                 parts = [st.part]
                 lit_in_calm = 0
                 storm_top = dawn_top = 0.0
-                live = [len(registry().live)]     # at the start of each night
+                live = [len(run_registry().live)]     # at the start of each night
                 for _ in range(60 * SECOND):
                     run.step(1)
                     if st.part != parts[-1]:
@@ -126,7 +126,7 @@ class TestTeslaNight(unittest.TestCase):
                 # two more nights: nothing piles up from one night to the next
                 # (a death verb only hides a shape; strikes, bolts and sparks
                 # must be destroyed)
-                live.append(len(registry().live))
+                live.append(len(run_registry().live))
                 for _ in range(2):
                     for _ in range(60 * SECOND):
                         run.step(1)
@@ -137,7 +137,7 @@ class TestTeslaNight(unittest.TestCase):
                         if st.part == "calm":
                             break
                     self.assertEqual(st.part, "calm")
-                    live.append(len(registry().live))
+                    live.append(len(run_registry().live))
                 self.assertLessEqual(max(live[1:]), live[0], f"live objects grew night after night: {live}")
         self.assertEqual([w for w in caught], [], "a part of the night raised a Scena warning")
 
@@ -188,7 +188,7 @@ class TestTeslaPower(unittest.TestCase):
             # the city: one more window for each step of charge (a link on
             # visible); ``win`` / ``step`` are the last window and its need
             win, need = ns["win"], ns["step"]
-            hud = [t for t in registry().live.values()
+            hud = [t for t in run_registry().live.values()
                    if isinstance(t, ns["Text"]) and str(t.text).startswith("GRID")]
             self.assertEqual(len(hud), 1)
             for charge, level in ((0.9, 18), (0.05, 1), (0.6, 12)):

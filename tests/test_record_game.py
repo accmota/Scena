@@ -527,7 +527,7 @@ def _play(tid, seconds, watch=None):
     before the run closes."""
     import make_readme_media as mm
     from program_support import ProgramRun  # type: ignore
-    from hypothesis_support import registry  # type: ignore
+    from program_support import run_registry  # type: ignore
     spec = tk.take(tid)
     path, source = mm.program_of({"program": spec["program"]})
     random.seed(spec["seed"])
@@ -547,7 +547,7 @@ def _play(tid, seconds, watch=None):
             if getattr(game, "done", False):
                 break
         ns = run.ns
-        circles = [o for o in registry().live_objects()
+        circles = [o for o in run_registry().live_objects()      # the program's (WP42)
                    if type(o).__name__ == "Circle" and getattr(o, "is_alive", False)]
         out = {"done": getattr(game, "done", False), "before": before,
                "circles": len(circles)}

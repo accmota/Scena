@@ -40,7 +40,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from program_support import ProgramRun  # noqa: E402
-from hypothesis_support import registry  # noqa: E402
+from program_support import run_registry  # noqa: E402
 from scena.act import get_act_manager  # noqa: E402
 
 PATH = "examples/genesis.py"
@@ -85,7 +85,7 @@ def go_to(run, name: str) -> None:
 
 
 def live(kind):
-    return [o for o in registry().live.values()
+    return [o for o in run_registry().live.values()
             if isinstance(o, kind) and getattr(o, "is_alive", True)]
 
 
@@ -102,7 +102,7 @@ class TestGenesisStory(unittest.TestCase):
                 st = run.ns["st"]
                 seen = [(act_name(), st.title, 0)]
                 run.step(1)
-                first_loop = len(registry().live)
+                first_loop = len(run_registry().live)
                 for _ in range(115 * SECOND):
                     run.step(1)
                     if act_name() != seen[-1][0]:
@@ -112,7 +112,7 @@ class TestGenesisStory(unittest.TestCase):
                 # the same point of the next loop: nothing piled up (a shape
                 # that is only hidden by a death verb stays registered)
                 run.step(1)
-                second_loop = len(registry().live)
+                second_loop = len(run_registry().live)
         self.assertEqual([w for w in caught], [], "a chapter raised a Scena warning")
         self.assertLessEqual(second_loop, first_loop, "live objects grew over one loop")
         names = [s[0] for s in seen]

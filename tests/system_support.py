@@ -42,11 +42,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import skia  # noqa: E402
 
-from hypothesis_support import WorldTracker, boot, quiet, registry  # noqa: E402
+from hypothesis_support import BOOT_SIZE, WorldTracker, boot, quiet, registry  # noqa: E402
 from graph_support import full_collect  # noqa: E402,F401  (re-exported)
 
 import scena.orchestration as orch  # noqa: E402
-from scena import ANYTHING, canvas, clock  # noqa: E402
+from scena import ANYTHING, canvas, clock, init  # noqa: E402
 from scena.audio_mixer import get_mixer, make_sine  # noqa: E402
 from scena.audio import Sound  # noqa: E402
 from scena.bounds import get_bounds_system, reset_bounds_system  # noqa: E402
@@ -305,6 +305,13 @@ class SystemWorld(WorldTracker):
         fw.post_draw = lambda skia_canvas, scene_image=None: None
         fw._fx_auto = False
         fw._was_using_post = False
+        # The design size boot() set: ~40 modules init their own in setUp, and
+        # a later module's pixels at fixed points read under it (the deep
+        # serial pass, 2026-10-24: a rect at y 150 drawn 300 px low after an
+        # 800 x 600 init; WP41). The size found is given back at teardown.
+        self._design_found = (fw.design_width, fw.design_height)
+        if self._design_found != BOOT_SIZE:
+            init(width=BOOT_SIZE[0], height=BOOT_SIZE[1])
         w = max(1, int(fw.fb_width or 400))
         h = max(1, int(fw.fb_height or 300))
         self.surface = skia.Surface(w, h)
@@ -420,6 +427,8 @@ class SystemWorld(WorldTracker):
             fw._scena_draw.skia_canvas = self._saved.pop("skia_canvas")
             for k, v in self._saved.items():
                 setattr(fw, k, v)
+            if (fw.design_width, fw.design_height) != self._design_found:
+                init(width=self._design_found[0], height=self._design_found[1])
             gc_policy.thaw_world()
             gc_policy.set_gc_freeze(self._gc_freeze_was)
             with quiet():

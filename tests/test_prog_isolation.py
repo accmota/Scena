@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hypothesis_support  # noqa: E402  (profile; also resets the globals' module)
 from diff_support import assert_catches  # noqa: E402
 from program_oracles import _diff_samples, _run  # noqa: E402
-from program_support import Trace, load_spec, registry  # noqa: E402
+from program_support import ProgramRun, Trace, load_spec, registry, run_registry  # noqa: E402
 from surface_support import CURSOR_KEYS, surface_census  # noqa: E402
 from system_support import quiet  # noqa: E402
 
@@ -485,6 +485,28 @@ class TestAxes(unittest.TestCase):
             cell, program, _sc = [s.strip() for s in key.split("|")]
             self.assertIn(cell, cells, key)
             self.assertIn(program, PROGRAMS, key)
+
+
+class TestRunRoster(unittest.TestCase):
+    """``run_registry()`` is the running program's roster: another module's
+    leftover is parked by the run but stays live in ``registry()``, and a test
+    that counted a kind there counted it too (WP42)."""
+
+    def test_a_leftover_is_not_the_programs(self):
+        from scena import Line
+        left = Line(p1=(0, 0), p2=(10, 0))       # another module's leftover
+        src = "from scena import *\nLine(p1=(0, 0), p2=(5, 5))\nrun()\n"
+        try:
+            with ProgramRun("examples/_run_roster.py", source=src) as run:
+                run.step(1)
+                mine = [o for o in run_registry().live_objects() if isinstance(o, Line)]
+                every_line = [o for o in registry().live_objects() if isinstance(o, Line)]
+                self.assertEqual(len(mine), 1)
+                self.assertIn(left, every_line)
+                self.assertNotIn(left, run_registry().live.values())
+            self.assertIn(left, run_registry().live_objects())   # no run: the whole roster
+        finally:
+            left.destroy()
 
 
 class TestResetWorldSettings(unittest.TestCase):

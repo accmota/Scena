@@ -144,13 +144,14 @@ from scena.state import (  # noqa: E402
 )
 
 _BOOTED = False
+BOOT_SIZE = (400.0, 300.0)   # the design size a test process starts from
 
 
 def boot() -> None:
     """``init`` once per process (design size only; no window)."""
     global _BOOTED
     if not _BOOTED:
-        init(width=400, height=300)
+        init(width=BOOT_SIZE[0], height=BOOT_SIZE[1])
         _BOOTED = True
 
 
