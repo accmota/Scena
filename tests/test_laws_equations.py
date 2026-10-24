@@ -48,7 +48,7 @@ from laws import equations as eq  # noqa: E402
 from laws.plants import col  # noqa: E402
 from program_support import ProgramRun, Scenario, load_spec, program_path  # noqa: E402
 from test_prog_invariance import PROGRAMS  # noqa: E402
-from test_scripts_run import law_scripts, scripts  # noqa: E402
+from test_scripts_run import law_scripts, scripts, translation_pairs  # noqa: E402
 
 FULL = hypothesis_support.PROFILE in ("ci", "deep")
 LAW_SCRIPTS = law_scripts(hypothesis_support.PROFILE)
@@ -425,8 +425,23 @@ class TestPacing(unittest.TestCase):
     def test_some_example_is_paced(self):
         self.assertTrue(E1_PATHS)
 
+    def test_an_english_twin_is_excluded_with_its_example(self):
+        # deep runs the twins (WP33): plane.py failed E1 as aviao.py does
+        for pt, en in translation_pairs():
+            if os.path.basename(pt) in E1_EXCLUDED:
+                self.assertIn(os.path.basename(en), _e1_excluded_names())
+                self.assertNotIn(os.path.normpath(en), map(os.path.normpath, E1_PATHS))
 
-E1_PATHS = [p for p in LAW_SCRIPTS if os.path.basename(p) not in E1_EXCLUDED
+
+def _e1_excluded_names():
+    """``E1_EXCLUDED`` with each English twin of an excluded example: the
+    same program renamed name for name (``test_example_translations``)."""
+    twins = {os.path.basename(en) for pt, en in translation_pairs()
+             if os.path.basename(pt) in E1_EXCLUDED}
+    return set(E1_EXCLUDED) | twins
+
+
+E1_PATHS = [p for p in LAW_SCRIPTS if os.path.basename(p) not in _e1_excluded_names()
             and (FULL or os.path.basename(p) in E1_DEV)]
 _shard_classes("TestPacingExamples", eq.e1_script_runs,
                """E1 on the examples, one job of at most ``RUNS_PER_JOB`` runs.""", E1_PATHS)

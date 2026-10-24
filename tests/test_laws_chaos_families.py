@@ -130,7 +130,9 @@ for _game in _games():
 # S5: every door kind x every command, one S5 run each (ci: 19 kinds x 22
 # commands, ~0.6 s a run alone on the Mac). One job per group of commands; a
 # door's picks do not depend on the commands, so the groups are the sweep.
-COMMANDS_PER_JOB = 6
+# deep picks two runs per door: half the commands per job keep the count.
+S5_PER_DOOR = 2 if DEEP else 1
+COMMANDS_PER_JOB = 6 // S5_PER_DOOR
 S5_RUNS_PER_JOB = 150
 
 
@@ -140,7 +142,7 @@ def _command_groups():
 
 
 def _s5_plans(base, commands):
-    return chaos.every_door(base.chaos.doors, commands, per_door=2 if DEEP else 1, seed=SEED)
+    return chaos.every_door(base.chaos.doors, commands, per_door=S5_PER_DOOR, seed=SEED)
 
 
 def _s5_class(k, commands):

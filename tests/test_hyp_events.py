@@ -130,8 +130,12 @@ class EventMachine(RuleBasedStateMachine):
                 if repeat_rounds >= FLUSH_MAX_ROUNDS:
                     return
 
-    def _after_write(self):
-        if not self.deferring:
+    def _after_write(self, changed=True):
+        # Outside a batch a write polls only when it changes the value: a
+        # same-value write invalidates nothing, so a capped cycle's leftover
+        # waits for the next flush (deep, 2026-10-24: a relay had just written
+        # the value the author wrote again).
+        if not self.deferring and changed:
             self._poll_model()
 
     # ---------------------------------------------------------------- rules
@@ -152,21 +156,24 @@ class EventMachine(RuleBasedStateMachine):
             except DestroyedError:
                 return
             raise AssertionError(f"write to destroyed {src} accepted")
+        changed = value != src.value
         src.ent.v = value
         src.value = value
-        self._after_write()
+        self._after_write(changed)
 
     @rule(src=sources, a=values, b=values)
     def bounce(self, src, a, b):
         """Two writes in a row: inside a frame only the last one is visible."""
         if not src.alive:
             return
+        changed = a != src.value
         src.ent.v = a
         src.value = a
-        self._after_write()
+        self._after_write(changed)
+        changed = b != src.value
         src.ent.v = b
         src.value = b
-        self._after_write()
+        self._after_write(changed)
 
     @rule(src=sources)
     def destroy_source(self, src):
@@ -300,6 +307,31 @@ class TestRelayCycleRounds(unittest.TestCase):
             m.end_frame()                         # the flush runs the cycle
             self.assertEqual(len(m.log), 27)      # 9 rounds of 3 relays
             check()                               # the model agrees
+        finally:
+            m.teardown()
+
+    def test_a_same_value_write_leaves_the_rest_for_the_next_flush(self):
+        """Deep found it (2026-10-24): after a capped flush, outside a batch,
+        the author wrote the value a relay had just written. Nothing changed,
+        so nothing polls; the model polled after every write (54 fires, 27)."""
+        m = EventMachine()
+        try:
+            s1 = m.new_source(value=1)
+            s2 = m.new_source(value=1)
+            m.watch_relay(a=s1, b=s2)
+            s3 = m.new_source(value=0)
+            m.watch_relay(a=s3, b=s1)
+            m.watch_relay(a=s2, b=s3)
+            m.write(src=s3, value=1)
+            m.bounce(a=0, b=0, src=s1)
+            m.end_frame()                         # capped: 27 fires
+            self.assertEqual(s3.ent.v, 0)         # the last relay wrote it
+            m.write(src=s3, value=0)              # the same value: no poll
+            self.assertEqual(len(m.log), 27)
+            m.fires_match_model()
+            m.flush()                             # the rest runs here
+            self.assertEqual(len(m.log), 54)
+            m.fires_match_model()
         finally:
             m.teardown()
 
