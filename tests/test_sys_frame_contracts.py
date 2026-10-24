@@ -24,7 +24,7 @@ import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from system_support import FRAME, quiet, system_world  # noqa: E402
+from system_support import FRAME, frame_report, quiet, system_world  # noqa: E402
 
 import numpy as np  # noqa: E402
 import skia  # noqa: E402
@@ -170,11 +170,13 @@ class TestParametersApplyNextFrame(unittest.TestCase):
             self.assertAlmostEqual(float(getattr(obj, attr)), float(value))
             w.step(1)
             after = _screen(w)
+            # The report: the deep serial pass saw no change now and then (WP44).
+            seen = frame_report(w, obj)
             remove = getattr(obj, "remove", None) or getattr(obj, "destroy", None)
             with quiet():
                 remove()
         self.assertGreater(int(np.abs(before.astype(int) - after.astype(int)).max()), 0,
-                           f"{type(obj).__name__}.{attr} = {value} did not change the next frame")
+                           f"{type(obj).__name__}.{attr} = {value} did not change the next frame ({seen})")
 
     def test_spatial_fx(self):
         self._check(lambda w: w.track(GlowSpot(center=(200, 150), radius=60, amount=0.2)),
@@ -190,6 +192,38 @@ class TestParametersApplyNextFrame(unittest.TestCase):
 
     def test_background(self):
         self._check(lambda w: Plasma("cyan", amount=0.1, alpha=0.9), "amount", 1.0)
+
+
+class TestFrameReport(unittest.TestCase):
+    """``frame_report`` names what the frame was drawn under (WP44): the
+    pixel failures of the deep serial pass come and go, so the message is
+    the only evidence a failing run leaves."""
+
+    def test_the_report_names_the_camera_the_post_stack_and_each_object(self):
+        with system_world(draw=True) as w:
+            dot = w.track(Circle(center=(150, 110), radius=7))
+            v = Vignette(amount=0.5)
+            canvas.effects.add(v)
+            try:
+                canvas.pan_to(70, -30)
+                w.step(1)
+                seen = frame_report(w, dot)
+            finally:
+                canvas.effects.remove(v)
+                canvas.reset_view()
+        self.assertIn("camera=(70.0, -30.0, 1.0, 0.0)", seen)
+        self.assertIn("'Vignette'", seen)
+        self.assertIn("Circle={", seen)
+        self.assertIn("test_sys_frame_contracts.py:", seen)
+
+    def test_a_probe_that_raises_is_reported_not_raised(self):
+        class Broken:
+            @property
+            def is_alive(self):
+                raise RuntimeError("half-built")
+        with system_world(draw=False) as w:
+            seen = frame_report(w, Broken())
+        self.assertIn("Broken=<RuntimeError: half-built>", seen)
 
 
 # --------------------------------------------------------------------------

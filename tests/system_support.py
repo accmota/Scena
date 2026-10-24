@@ -577,6 +577,55 @@ def describe_new_live(before: set, limit: int = 8) -> str:
     return "; ".join(out)
 
 
+def frame_report(world: "SystemWorld", *objs: Any) -> str:
+    """What a frame was drawn under, for a pixel assertion's message.
+
+    The deep serial pass fails a few pixel tests now and then (WP44: a blank
+    frame, a dot off its mapped point, an effect knob with no visible change)
+    and passes them on the next run in the same order: a failure that cannot
+    be bisected has to say what it saw. Each probe is guarded; the report
+    never raises.
+    """
+    _canvas_mod = sys.modules["scena.canvas"]     # ``scena.canvas`` the name is the facade
+    from scena.entity import made_at
+    from scena.cover import is_cover_active
+    parts = [f"hashseed={os.environ.get('PYTHONHASHSEED', 'random')}"]
+
+    def probe(label, fn):
+        try:
+            parts.append(f"{label}={fn()}")
+        except Exception as exc:  # noqa: BLE001 — a report, not a check
+            parts.append(f"{label}=<{type(exc).__name__}: {exc}>")
+
+    fw = world.fw
+    sd = fw._scena_draw
+    probe("camera", lambda: (sd._look_x, sd._look_y, sd._zoom, sd._rotation))
+    probe("design", lambda: (fw.design_width, fw.design_height, fw.view_scale,
+                             fw._letterbox_pad_x, fw._letterbox_pad_y, fw.pixel_ratio))
+    probe("surface", lambda: (world.surface.width(), world.surface.height(),
+                              fw._drawing_surface is world.surface))
+    probe("post", lambda: (getattr(fw._post_fx_stack, "enabled", None),
+                           [type(e).__name__ for e in (getattr(fw._post_fx_stack, "_effects", None) or [])]))
+    probe("cover", is_cover_active)
+    probe("cull", lambda: canvas.cull_offscreen)
+    reg = registry()
+    probe("live", lambda: len(reg.live))
+    probe("active_live", lambda: sum(1 for o in reg.live_objects()
+                                     if getattr(o, "is_alive", False) and getattr(o, "active", True)))
+    probe("quarantined", lambda: len(world._quarantined))
+    probe("layers", lambda: [(getattr(l, "name", "?"), _len(getattr(l, "_objects", ())),
+                              getattr(l, "visible", "?")) for l in all_layers(reg)])
+    probe("handles", lambda: _len(get_scheduler()._handles))
+    probe("frames", lambda: world.frames_run)
+    for o in objs:
+        probe(type(o).__name__, lambda o=o: dict(
+            at=made_at(o), alive=getattr(o, "is_alive", "?"), active=getattr(o, "active", "?"),
+            visible=getattr(o, "visible", "?"), layer=getattr(getattr(o, "layer", None), "name",
+                                                            getattr(o, "layer", "?")),
+            box=_canvas_mod._cull_box(o)))
+    return "; ".join(parts)
+
+
 # --------------------------------------------------------------------------
 # Zombies: dead objects a registry still references
 # --------------------------------------------------------------------------
