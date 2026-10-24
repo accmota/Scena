@@ -29,6 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_hyp_surface as p6  # noqa: E402
 from hypothesis_support import fresh_world, quiet  # noqa: E402
 
+import scena  # noqa: E402
+from scena.process import Handle, _R_DEAD_AT_START, get_scheduler  # noqa: E402
 from scena.state import DestroyedError  # noqa: E402
 
 # One value per refusal the verbs make: not finite, too big for a float, the
@@ -93,14 +95,6 @@ def _with_junk(params, i, args, kwargs, value):
     return args, kwargs
 
 
-# Reads that refuse a dead Track only because its lazy refresh writes
-# ``length`` through the dead route ("Track.set cannot change a destroyed
-# actor"): a read should not refuse at all (DV2 in Testing Design), so the
-# order rule does not apply to them.
-_READS_THAT_REFUSE = {("Track", r) for r in (
-    "at", "local_at", "tangent_at", "angle_at", "sample_span", "spaced_points")}
-
-
 def _call_junk(fn, a, k):
     """What a junk call raised, or ``None`` when it raised ``DestroyedError``."""
     try:
@@ -115,7 +109,7 @@ def _call_junk(fn, a, k):
 
 def _walk_verbs(name, obj, verbs, bad):
     for attr in sorted(dir(type(obj))):
-        if attr.startswith("_") or attr in p6._READ_OK or (name, attr) in _READS_THAT_REFUSE:
+        if attr.startswith("_") or attr in p6._READ_OK:
             continue
         member = inspect.getattr_static(type(obj), attr, None)
         if isinstance(member, property) or not callable(member):
@@ -222,6 +216,105 @@ class TestADestroyedActorRefusesFirst(unittest.TestCase):
                     self.assertIn(setter, setters, f"{name}.{setter} = … not walked")
         self.assertGreater(verbs_n, 300, f"DV1 walks only {verbs_n} refusing verbs")
         self.assertGreater(setters_n, 2000, f"DV1 walks only {setters_n} refusing setters")
+
+
+# The timed verbs, with good arguments; ``move_along`` gets a fresh Track.
+_TIMED = (
+    ("move_to", lambda: ((5.0, 5.0), {"time": 0.1})),
+    ("move_by", lambda: ((5.0, 5.0), {"time": 0.1})),
+    ("move_to", lambda: ((5.0, 5.0), {"speed": 10.0})),
+    ("rotate_to", lambda: ((30.0,), {"time": 0.1})),
+    ("rotate_by", lambda: ((30.0,), {"time": 0.1})),
+    ("scale_to", lambda: ((2.0,), {"time": 0.1})),
+    ("scale_by", lambda: ((2.0,), {"time": 0.1})),
+    ("move_along", lambda: ((scena.Track.line(100.0),), {"time": 0.1})),
+)
+
+
+class TestATimedVerbOnTheDeadComesBackCancelled(unittest.TestCase):
+    """DV3, law T6: a timed move, turn or scale on a destroyed actor returns an
+    already-cancelled Handle that was never registered, on every kind. A
+    timed ``scale_to`` / ``scale_by`` and a Point's timed moves raised
+    ``DestroyedError`` from their call-time writability probe instead, while
+    Actors Design promised the Handle."""
+
+    def test_every_kind_every_timed_verb(self):
+        reached = set()
+        for name in p6.ENTITY_NAMES + ["Point"]:
+            for verb, args in _TIMED:
+                with fresh_world():
+                    if name == "Point":
+                        obj = scena.Point(1.0, 1.0)
+                        obj.destroy()
+                    else:
+                        obj = p6._dead(name)
+                    fn = getattr(obj, verb, None) if obj is not None else None
+                    if fn is None:
+                        continue
+                    a, k = args()
+                    with self.subTest(kind=name, verb=verb, kwargs=k):
+                        before = len(get_scheduler()._handles)
+                        try:
+                            with quiet():
+                                h = fn(*a, **k)
+                        except TypeError as exc:
+                            # The pose verbs' signatures hide ``time=`` (a
+                            # wrapper takes it), so the call is the test: skip
+                            # only a kind without the timed form.
+                            if "unexpected keyword" in str(exc):
+                                continue
+                            raise
+                        self.assertIsInstance(h, Handle)
+                        self.assertTrue(h.cancelled)
+                        self.assertEqual(getattr(h, "_cancel_reason", None), _R_DEAD_AT_START)
+                        self.assertEqual(len(get_scheduler()._handles), before, "registered work for the dead")
+                        reached.add((name, verb))
+        # Vacuity: the kinds the bug was found on.
+        for pair in (("Circle", "scale_to"), ("Rect", "scale_by"), ("Point", "move_to"),
+                     ("Point", "move_by"), ("Point", "move_along")):
+            self.assertIn(pair, reached)
+
+    def test_an_instant_verb_still_refuses(self):
+        # The cancelled Handle is for timed work only: an instant change on the
+        # dead raises, whatever the argument (DV1).
+        with fresh_world():
+            c = scena.Circle()
+            c.destroy()
+            for call in (lambda: c.scale_to(2.0), lambda: c.scale_to(math.nan),
+                         lambda: c.move_to(5.0, 5.0)):
+                with self.assertRaises(DestroyedError):
+                    call()
+            p = scena.Point(1.0, 1.0)
+            p.destroy()
+            with self.assertRaises(DestroyedError):
+                p.move_by(1.0, 0.0)
+
+
+class TestADeadTrackStillReads(unittest.TestCase):
+    """DV2: reads on a destroyed Track work (reads stay legal on the dead). The
+    first read of a never-sampled track builds its tables, and the refresh
+    published ``length`` through the dead route map: ``at`` raised "Track.length
+    cannot change a destroyed object"."""
+
+    def _reads(self, t):
+        return {
+            "at": t.at(0.5), "local_at": t.local_at(0.5), "tangent_at": t.tangent_at(0.5),
+            "angle_at": t.angle_at(0.5), "sample_span": t.sample_span(0.0, 1.0, 4),
+            "spaced_points": t.spaced_points(3), "length": t.length,
+        }
+
+    def test_cold_and_dirty_dead_tracks_read_like_a_live_twin(self):
+        with fresh_world():
+            for make in (scena.Track, scena.Track.eight, lambda: scena.Track.line(100.0)):
+                for dirty in (False, True):
+                    live, dead = make(), make()
+                    if dirty:
+                        for t in (live, dead):
+                            t.at(0.5)
+                            t.scale = 2.0    # the tables rebuild on the next read
+                    dead.destroy()           # a cold one never built them
+                    with self.subTest(make=make, dirty=dirty):
+                        self.assertEqual(self._reads(dead), self._reads(live))
 
 
 if __name__ == "__main__":

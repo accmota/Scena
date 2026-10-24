@@ -2507,17 +2507,11 @@ def _refuse_dead_verb(obj, verb: str, instant: bool) -> None:
     """A destroyed actor's verb, before it checks one argument (DV1 in Testing
     Design): ``dead.move_to((nan, 0))`` says destroyed, not "finite". The
     verbs reach it only when ``obj._destroyed`` is set, so a living call pays
-    one attribute read. An instant call refuses. A timed one runs the probe
-    its helper runs at the call: a kind whose probe refuses (a Point's move,
-    every pose scale) refuses here whatever the arguments; a turn, or a move
-    whose probe passes, goes on to its cancelled Handle (T6)."""
+    one attribute read. An instant call refuses. A timed one goes on to its
+    cancelled Handle (law T6): every timed move, turn and scale, on every kind
+    (a Point's move and the pose scales refused here until DV3)."""
     if instant:
         _refuse_if_destroyed(obj, verb)
-    elif verb.startswith("scale"):
-        if getattr(obj, "_scale_gate", None) is not None:
-            _refuse_if_destroyed(obj, verb)     # ``_scale_gate_at_call``'s first check
-    elif verb.startswith("move"):
-        obj._move_by(0.0, 0.0)                  # the move helpers' writability probe
 
 
 def _refuse_if_destroyed(obj, action: str) -> None:

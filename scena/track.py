@@ -1162,7 +1162,14 @@ class Track(Shape):
 
     def _refresh_length(self) -> None:
         local = self._s[-1] if self._s else 0.0
-        self.length = float(local) * abs(float(self._scale))
+        value = float(local) * abs(float(self._scale))
+        if getattr(self, "_destroyed", False):
+            # A read on a dead track (``at``, ``length``) builds its tables too;
+            # the public write would refuse through the dead route map (DV2).
+            # Nothing listens to a dead track: store the value, notify nobody.
+            self.__dict__["length"] = value
+            return
+        self.length = value
 
     def _refresh_cursor(self) -> None:
         # Cold until first read/link: the slot is missing from __dict__.

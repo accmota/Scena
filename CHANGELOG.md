@@ -203,6 +203,15 @@ left out.
   `hitbox_source`, on any shape or Text) was taken as a field of the
   object's own and changed nothing. It now raises: those are a Sprite's
   knobs, and a shape's hitbox is its own geometry.
+- A timed `scale_to` / `scale_by` on a destroyed object, and a timed
+  `move_to` / `move_by` / `move_along` on a destroyed `Point`, raised
+  `DestroyedError`. Like every other timed move and turn, they now return a
+  Handle that is already cancelled and never runs (an instant change on a
+  destroyed object still raises).
+- Reading a destroyed `Track` (`at`, `tangent_at`, `angle_at`,
+  `sample_span`, `spaced_points`, `length`) raised `DestroyedError` when its
+  shape had not been sampled since its last change. Reads work on a
+  destroyed track, as on any destroyed object.
 
 ### Documentation
 

@@ -5006,7 +5006,8 @@ def timed_move_to(
     # Probe writability at the call with the writer the ticks use (``_move_by``):
     # ``_move_to`` to the current place returned before its gate, so the
     # refusal came from a tick, after part of the move (GX4 in Testing Design).
-    shape._move_by(0.0, 0.0, force=force)
+    if not shape._destroyed:    # a dead Point's write refuses: its Handle comes back cancelled (T6, DV3)
+        shape._move_by(0.0, 0.0, force=force)
     owner, scope = _pose_owner_scope(shape)
     dx = x1 - px
     dy = y1 - py
@@ -5089,7 +5090,8 @@ def timed_move_by(
     key = _center_pose_key(shape)
     _preempt_tween_keys(key, quiet=True)
     # Probe writability on the instant path.
-    shape._move_by(0.0, 0.0, force=force)
+    if not shape._destroyed:    # a dead Point's write refuses: its Handle comes back cancelled (T6, DV3)
+        shape._move_by(0.0, 0.0, force=force)
     applied = [0.0, 0.0]
     owner, scope = _pose_owner_scope(shape)
     bound = [None]
@@ -5314,7 +5316,9 @@ def timed_scale_to(
     _preempt_tween_keys((id(shape), "scale"), quiet=True)
     start = float(shape.scale)
     end = fixed_magnitude(value, "scale", hint=HINT_SCALE)
-    _probe_scale_writable(shape, end, about=about, force=force, verb="scale_to")
+    dead = shape._destroyed if _is_entity(shape) else False
+    if not dead:                # a dead shape gets its cancelled Handle (T6, DV3)
+        _probe_scale_writable(shape, end, about=about, force=force, verb="scale_to")
     owner, scope = _pose_owner_scope(shape)
 
     def write(u, s=shape, a=start, b=end, ab=about, f=force):
@@ -5325,7 +5329,7 @@ def timed_scale_to(
         tween_key=(id(shape), "scale"),
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo,
-        claim_targets=_scale_claim_targets(shape, about),
+        claim_targets=() if dead else _scale_claim_targets(shape, about),
         claim_kind="tween", claim_verb="scale_to",
         target=shape,
     )
@@ -5353,7 +5357,9 @@ def timed_scale_by(
     _preempt_tween_keys((id(shape), "scale"), quiet=True)
     start = float(shape.scale)
     end = start * fixed_magnitude(factor, "scale", hint=HINT_SCALE)
-    _probe_scale_writable(shape, end, about=about, force=force, verb="scale_by")
+    dead = shape._destroyed if _is_entity(shape) else False
+    if not dead:                # a dead shape gets its cancelled Handle (T6, DV3)
+        _probe_scale_writable(shape, end, about=about, force=force, verb="scale_by")
     owner, scope = _pose_owner_scope(shape)
 
     def write(u, s=shape, a=start, b=end, ab=about, f=force):
@@ -5364,7 +5370,7 @@ def timed_scale_by(
         tween_key=(id(shape), "scale"),
         then=then, on_done=on_done, owner=owner, scope=scope,
         loops=n_loops, yoyo=yoyo,
-        claim_targets=_scale_claim_targets(shape, about),
+        claim_targets=() if dead else _scale_claim_targets(shape, about),
         claim_kind="tween", claim_verb="scale_by",
         target=shape,
     )
@@ -5412,7 +5418,8 @@ def timed_move_along(
     key = _center_pose_key(shape)
     _preempt_tween_keys(key, *((id(shape), "angle"),) if face else ())
     # Probe writability (same refuse / unlink as move_to).
-    shape._move_by(0.0, 0.0, force=force)
+    if not shape._destroyed:    # a dead Point's write refuses: its Handle comes back cancelled (T6, DV3)
+        shape._move_by(0.0, 0.0, force=force)
 
     target = _resolve_move_along_target(target)
 

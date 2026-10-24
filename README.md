@@ -402,8 +402,10 @@ and for having fun doing it.
 ## License
 
 Scena's code and documentation are under the [MIT license](https://github.com/accmota/Scena/blob/main/LICENSE).
-The images and sounds in `examples/media/` come from other artists under their own
-licenses (mostly CC0). A few sounds ask for credit; the lines to copy are in
+The images, sounds, music and fonts in `examples/media/` come from other artists
+under their own licenses: mostly CC0, the fonts under the SIL Open Font License
+or Apache 2.0. Some sounds, music tracks and backgrounds ask for credit; the
+lines to copy are in
 [`examples/media/CREDITS.md`](https://github.com/accmota/Scena/blob/main/examples/media/CREDITS.md).
 
 Contributions are welcome under the same license: see
