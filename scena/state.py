@@ -261,8 +261,8 @@ class State:
         a copy would share every cell's links."""
         label = self.__dict__.get("_name", "State")
         raise TypeError(
-            f"copy.copy() / copy.deepcopy() cannot copy {label}: its fields are cells "
-            f"that formulas and widgets follow; copy the values you need instead "
+            f"copy.copy() / copy.deepcopy() cannot copy {label}: formulas and widgets "
+            f"follow its fields, and a copy would share them; copy the values you need instead "
             f"(saved = {label}.score; copy.copy({label}.pos) for a Vec2).")
 
     def __deepcopy__(self, memo):
