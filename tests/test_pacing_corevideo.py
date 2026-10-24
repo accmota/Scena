@@ -87,17 +87,23 @@ class TestLiveCoreVideo(unittest.TestCase):
             while time.perf_counter() < deadline:
                 pacer._link.poll(time.perf_counter())
                 time.sleep(0.002)
-            presents = []
+            presents, slots = [], []
             for _ in range(20):
                 pacer.wait_for_present()
+                slots.append(pacer._slot)
                 pacer.presented()
                 presents.append(time.perf_counter())
             period = pacer.vblank_period()
             steps = [round((b - a) / period) for a, b in zip(presents[2:], presents[3:])]
-            # Locked to the link: never two presents in one vblank, and most one
+            targets = [round((b - a) / period) for a, b in zip(slots[2:], slots[3:])]
+            # Locked to the link: never two presents for one vblank, and most one
             # apart. A loaded machine may miss a vblank (a step of 2, the next
-            # one waited for): the quick tier saw it once (WP36).
-            self.assertNotIn(0, steps, steps)
+            # one waited for): the quick tier saw it once (WP36). The vblanks are
+            # the ones each present targeted, not the clock after it: a thread
+            # stalled past its vblank presents late for one already gone, then
+            # on time for the next, 0.4 period later on the clock ([5, 0] in a
+            # loaded gate, WP37).
+            self.assertNotIn(0, targets, (targets, steps))
             self.assertEqual(sorted(steps)[len(steps) // 2], 1, steps)
         finally:
             pacer.stop()
