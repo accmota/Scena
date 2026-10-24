@@ -102,6 +102,21 @@ class TestProbesAndTeardown(unittest.TestCase):
         self.assertEqual(run.leftovers(), {})
         self.assertEqual(zombies(), [])
 
+    def test_the_freeze_budget_is_no_wall_clock_in_a_run(self):
+        # A run counts frames: the 0.5 s wall-clock budget for one async step
+        # cut a long build under the gate's load, and law E1 saw one pacing
+        # make fewer Lines (string_theory, 0.10.0 gate). A run lifts the
+        # default budget and gives it back; a test's own budget stays.
+        from unittest import mock
+        import scena.process as proc
+        default = proc.WATCHDOG_RESUME_S
+        with ProgramRun("input_probe"):
+            self.assertGreaterEqual(proc.WATCHDOG_RESUME_S, 5.0)
+        self.assertEqual(proc.WATCHDOG_RESUME_S, default)
+        with mock.patch.object(proc, "WATCHDOG_RESUME_S", 0.05):
+            with ProgramRun("input_probe"):
+                self.assertEqual(proc.WATCHDOG_RESUME_S, 0.05)
+
     def test_leftovers_from_another_module_are_not_the_programs(self):
         # The deep serial pass runs every module in one process: actors an
         # earlier module left alive are parked while the program runs and

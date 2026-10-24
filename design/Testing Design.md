@@ -3483,6 +3483,17 @@ rule's other doors** (DV3 fixed the probe; the start snap of an anchored ride
 was a second write on the dead), and **an identity test over objects nobody
 holds proves nothing** (`id()` of a freed object is reused).
 
+The release gate then failed once, under load ~25 (a peer's six-hour unittest
+run beside it): law E1 on `string_theory.py` saw the 30 Hz twin make three
+Lines fewer at 3.5 s. Mechanism: the freeze watchdog's wall-clock budget for
+one async step (`WATCHDOG_RESUME_S`, 0.5 s) cut the 160-line build (~0.1 s
+idle) mid-loop in one twin. The example's own test already lifted the budget;
+the program harness did not. Fix: `ProgramRun` lifts the default budget to
+5 s for its run and gives it back (a test that sets its own keeps it):
+`test_program_support…test_the_freeze_budget_is_no_wall_clock_in_a_run`. Same
+rule as the gate's job sizes: **a frame-stepped test's outcome is a count,
+never a wall-clock time.**
+
 ### AH — async functions where Scena calls one (2026-10-10, 2026-10-12)
 
 | ID | Bug | Root cause | Guard |

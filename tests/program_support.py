@@ -476,6 +476,11 @@ def custom(fn: Callable[[Trace], Any]) -> Callable[[Trace], Optional[str]]:
 # The ProgramRun now running (one at a time): ``run_registry`` reads its roster.
 _CURRENT_RUN: List[Any] = []
 
+# The engine's freeze budget for one async step, and the one a run uses
+# instead while it is the default (``ProgramRun._start``).
+PROGRAM_WATCHDOG_DEFAULT = scena.process.WATCHDOG_RESUME_S
+PROGRAM_WATCHDOG_S = 5.0
+
 
 class RunRoster:
     """``registry()``'s ``live`` / ``live_objects()`` with only what the running
@@ -628,6 +633,18 @@ class ProgramRun:
             (orch.glfw, "poll_events", self._deliver),
         ):
             p = mock.patch.object(target, attr, new=new)
+            p.start()
+            self._patches.append(p)
+        # A frame-stepped run is a count of frames, never a time: the freeze
+        # watchdog's wall-clock budget for one async step (0.5 s, sized for a
+        # slow classroom box) cut string_theory's 160-line build under the
+        # gate's load (~25), so the 30 Hz twin made three Lines fewer and the
+        # law E1 saw a difference no player would (0.10.0 gate, 2026-10-24).
+        # The budget is test_process's subject; a test that sets its own
+        # keeps it.
+        import scena.process as proc
+        if proc.WATCHDOG_RESUME_S == PROGRAM_WATCHDOG_DEFAULT:
+            p = mock.patch.object(proc, "WATCHDOG_RESUME_S", PROGRAM_WATCHDOG_S)
             p.start()
             self._patches.append(p)
         # The program is __main__ for the whole run, with its folder as cwd:
