@@ -279,10 +279,15 @@ left out.
   each with its file name.
 - Music has its own folder, `examples/media/music/`: 14 tracks from
   OpenGameArt, OGG Vorbis at about 96 kbps, each with its author and license
-  in `music/License.txt`. Five are CC-BY 3.0, with a credit to copy in
-  `media/CREDITS.md`. The planes' music moved there:
+  in `music/License.txt`. Four are CC-BY 3.0, with a credit to copy in
+  `media/CREDITS.md`; the rest are CC0. The planes' music moved there:
   `audio/SuperHero_original_no_Intro.ogg` is now
-  `music/super_hero_original_no_intro.ogg` (tutorials 16, 17 and Appendix B).
+  `music/super_hero_original_no_intro.ogg` (tutorials 16, 17 and Appendix B,
+  and their examples): a script of your own that played the old path needs
+  the new one.
+- A monospaced font in `examples/media/fonts/`: JetBrains Mono NL (Nerd Font
+  patch), regular, bold and italic, under the SIL Open Font License, with its
+  license text in `fonts/Licenses/`.
 
 ## 0.9.1 — 2026-10-23
 
