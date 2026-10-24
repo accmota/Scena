@@ -130,7 +130,7 @@ class TestProbesAndTeardown(unittest.TestCase):
                 fh.write("import scena.process as p\nprint('BUDGET', p.WATCHDOG_RESUME_S)\n"
                          "from scena import *\ninit(width=200, height=100)\nrun()\n")
             out = subprocess.run([sys.executable, os.path.join(here, "script_harness.py"), path, "2"],
-                                 capture_output=True, text=True, timeout=120).stdout
+                                 capture_output=True, text=True, encoding="utf-8", timeout=120).stdout
         budget = float(out.split("BUDGET", 1)[1].split()[0])
         self.assertGreaterEqual(budget, 5.0, out)
 
