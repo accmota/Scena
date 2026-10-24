@@ -133,6 +133,19 @@ class TestLineCapNames(unittest.TestCase):
                         self.assertIn('"square"', msg)
                         self.assertEqual(owner.line_cap, "round")
 
+    def test_project_raises_at_the_other_doors(self):
+        # The 0.10.0 release audit: set_defaults and a Contrail's own field
+        # raised already, but no test held them.
+        from scena import Contrail, set_defaults
+        with system_world(draw=False):
+            trail = Contrail(max_points=5)
+            for name, call in (("set_defaults", lambda: set_defaults(line_cap="project")),
+                               ("Contrail", lambda: setattr(trail, "line_cap", "project"))):
+                with self.subTest(door=name):
+                    msg = self.refusal(call)
+                    self.assertIn('"butt"', msg)
+                    self.assertIn('"square"', msg)
+
     refusal = TestShowcaseMessages.refusal
 
 

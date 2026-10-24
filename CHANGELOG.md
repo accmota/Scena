@@ -65,9 +65,9 @@ left out.
   from punch cards), demoscene-style shows (`old_school.py`, `pulse.py`,
   `one_line.py`, `credits_roll.py`, `hundred_lines.py` in exactly 100 lines,
   `demo100.py`) and two short ones (`polygon_ballet.py`, `string_theory.py`).
-  They run at about the speed of `revoada.py` and use the visual parts of the
-  engine together: looks, SpatialFx, transients, posts, the camera, Track
-  windows and modifiers, History, impacts, and formulas everywhere.
+  They use the visual parts of the engine together: looks, SpatialFx,
+  transients, posts, the camera, Track windows and modifiers, History,
+  impacts, and formulas everywhere.
 
 ### Fixed
 

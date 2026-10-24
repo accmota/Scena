@@ -1291,7 +1291,7 @@ If a bucket mixes `circle` and `path`, the helper demotes the **whole** group to
 - No author-facing “mark static” / “cache this shape.”
 - Strict z remains available via `batch_shared_filters=False` / `fx_quality="max"`.
 - Look-pass emit buckets stay **kind-pure** (`_world_stroke_kind`) whenever they call `_stroke_group_world` / `_fill_group_world`.
-- Host-following look-pass paints also stay **cap-pure** (and join-pure on stroke types): bucket keys include `line_cap` / `line_join` so `"project"` tips do not inherit a peer's round paint.
+- Host-following look-pass paints also stay **cap-pure** (and join-pure on stroke types): bucket keys include `line_cap` / `line_join` so `"butt"` or `"square"` tips do not inherit a peer's round paint.
 - Product scope stays tens–hundreds of screen objects; n=80–200 stresses the walk, not a new 500+ promise.
 
 **Benches:** `scripts/bench/perf_shape_draw.py` (`--suite`, `--micro`, `--profile`); product-shaped `scripts/bench/gpu_mix.py --bench --mode fleet|heroes|heroes_mass`. Mixed-geometry smoke: `scripts/smoke/shape_fx.py` (not an isolation cell — also pays `move_to` / wallpaper / HiDPI). Compare **phase ratios** across harnesses (isolation is 1000×700 design==window; `gpu_mix` is HiDPI).
