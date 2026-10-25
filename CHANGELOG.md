@@ -10,6 +10,21 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Fixed
+
+- A `Gradient` on a `Track` spans the drawn line on every kind of track:
+  points, a turtle walk (`vectors=`), a shape's outline, `eight`, `spiral`,
+  `wave`, `arc`, a `zigzag`. Only the circle fitted; the others spread the
+  ramp over the track's length (a 36-step star: ~8000 units) and showed one
+  flat middle colour.
+- A colour written to a background or a screen effect after it is made
+  (`sky.color = "gold"`, `sky.color = ramp.get_color(t)` in `update`) is
+  used: a `Color` raised `'Color' object is not iterable` on the next frame,
+  and a colour name drew the wrong colour. Every colour knob of every
+  background and effect takes the forms `color=` takes.
+
 ## 0.10.0 — 2026-10-24
 
 ### Breaking

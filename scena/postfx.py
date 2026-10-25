@@ -19,6 +19,7 @@ from typing import List, Optional, Sequence
 import skia
 
 from .closed import ClosedSurface
+from .color import color_knob_setattr
 
 from .input import MAX_FRAME_DT as _MAX_FRAME_DT  # the clocks' frame cap
 
@@ -55,6 +56,9 @@ class PostEffect(ClosedSurface):
     :meth:`temp` or :func:`~scena.place.unplaced_creation` to skip.
     :meth:`remove` detaches from the stack.
     """
+
+    # a colour knob written after construction resolves like color= did
+    __setattr__ = color_knob_setattr
 
     _stage: PostEffectStage = PostEffectStage.FILTER
     # When True, spatial work may run at ``post_fx_scale``; cheap color /

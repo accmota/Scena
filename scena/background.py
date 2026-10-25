@@ -18,6 +18,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple, Union
 import skia
 
 from .closed import ClosedSurface
+from .color import color_knob_setattr
 
 
 @dataclass(frozen=True)
@@ -175,6 +176,9 @@ class BackgroundField(ClosedSurface):
     camera — Space Invaders-style rolling stars with a fixed look-at.
     Orthogonal to ``pan_response`` (camera) and kind ``speed`` (intrinsic animation).
     """
+
+    # a colour knob written after construction resolves like color= did
+    __setattr__ = color_knob_setattr
 
     _place = "extra"
     enabled: bool = True

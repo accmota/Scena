@@ -2771,6 +2771,24 @@ def _paint_attr_float(v, default: float = 0.0, *, abs_value: bool = True) -> flo
         return default
 
 
+def _track_half_extents(track) -> Optional[Tuple[float, float]]:
+    """Origin-centered half-size of a Track's flattened local outline.
+
+    Cached on the table host by list identity: a reflatten swaps in new
+    lists, so a held reference (not ``id``) tells a stale cache apart."""
+    host = track._table_host()
+    xs, ys = host._xs, host._ys
+    if not xs:
+        return None
+    cached = host._paint_extent_cache
+    if cached is not None and cached[0] is xs and cached[1] is ys:
+        return cached[2]
+    hw = max(max(abs(x) for x in xs), 1e-3)
+    hh = max(max(abs(y) for y in ys), 1e-3)
+    host._paint_extent_cache = (xs, ys, (hw, hh))
+    return (hw, hh)
+
+
 def _local_half_extents(shape) -> Tuple[float, float]:
     """Origin-centered local AABB half-size (design units)."""
     if _kind(shape) == "Text":
@@ -2786,6 +2804,14 @@ def _local_half_extents(shape) -> Tuple[float, float]:
         h = abs(y2 - y1)
         if w > 1e-6 and h > 1e-6:
             return (0.5 * w, 0.5 * h)
+
+    if _kind(shape) == "Track":
+        # A Track's ``length`` is its arc length (a star walk: thousands of
+        # units) and point / turtle tracks have no radius: the ramp spread
+        # over that showed one flat middle colour. Fit the drawn outline.
+        ext = _track_half_extents(shape)
+        if ext is not None:
+            return ext
 
     # Defining geometry first: Line ``length`` and Square ``width``/``height``
     # are cold Derivates — reading them marks the host pull-live (off A1).

@@ -8,7 +8,7 @@ import warnings
 import skia
 
 from .state import as_payload, as_payload_all
-from .closed import ClosedSurface, seal
+from .closed import ClosedSurface, closed_setattr, is_sealed, seal
 
 # Oklab conversions (_linear_srgb_to_oklab / _oklab_to_linear_srgb) follow
 # Björn Ottosson's reference code, which he placed in the public domain (MIT
@@ -1385,6 +1385,28 @@ def resolve_rgb(
         return (float(rgb[0]), float(rgb[1]), float(rgb[2]))
     ch = _sequence_channels(color, min_len=3)
     return (_clamp01(ch[0]), _clamp01(ch[1]), _clamp01(ch[2]))
+
+
+def color_knob_setattr(self, name: str, value) -> None:
+    """``__setattr__`` of a closed surface whose colour knobs hold RGB(A) floats.
+
+    Background fields and screen effects resolve ``color=`` once, in the
+    constructor, and store a float triple the shader reads. A later
+    ``plasma.color = "gold"`` (or a ``Colormap`` colour written each frame)
+    stored the raw value and the next draw raised (``'Color' object is not
+    iterable``) or read a string's letters. Rule: after construction, a public
+    knob that holds a 3- or 4-float tuple takes any colour form a constructor
+    takes, resolved the same way (a 4-tuple keeps its alpha for a name or a
+    ``Color``). No per-class list to forget; other writes pass unchanged.
+    """
+    if isinstance(value, (str, Color)) and name[:1] != "_":
+        old = self.__dict__.get(name)
+        if type(old) is tuple and is_sealed(self):
+            if len(old) == 3:
+                value = resolve_rgb(value, default=old)
+            elif len(old) == 4:
+                value = resolve_rgba(value, default=old)
+    closed_setattr(self, name, value)
 
 
 def resolve_rgba(

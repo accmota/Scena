@@ -667,6 +667,8 @@ class Track(Shape):
         self._ys: List[float] = []
         self._s: List[float] = [0.0]
         self._baked_key = None
+        # (xs, ys, half-extents): a gradient / texture fits the outline (style)
+        self._paint_extent_cache = None
         self._rebuilds = 0
         self._read_reversed = False
         self._alias_of = None  # Track we share tables with (reversed view)

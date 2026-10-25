@@ -186,6 +186,86 @@ class TestGradientFit(unittest.TestCase):
         self.assertIsNotNone(fill.paint.getShader())
 
 
+class TestTrackGradientFit(unittest.TestCase):
+    """A gradient on a Track fits the drawn outline, never its arc length.
+
+    A turtle star (Track(vectors=…)) has no radius, so the fit fell through
+    to ``length``: 36 steps of 220 units spread the ramp over ~8000 units
+    and the star showed one flat middle colour. Every Track form is checked:
+    the half-size equals the outline's own reach in the track's frame."""
+
+    def setUp(self):
+        init(width=1000, height=800)
+
+    def tracks(self):
+        from scena import Track, vec_from_angle
+        star_walk = [vec_from_angle(k * 170, 220) for k in range(36)]
+        return {
+            "vectors": Track(vectors=star_walk, start=(0, 0), smooth=0),
+            "points": Track(points=[(0, 0), (300, 40), (120, 260)], closed=True),
+            "circle": Track.circle(center=(0, 0), radius=90),
+            "eight": Track.eight(width=300, height=120, center=(0, 0)),
+            "star": Track.star(points=5, radius=110, center=(0, 0)),
+            "spiral": Track.spiral(turns=3, radius=150, center=(0, 0)),
+            "wave": Track.wave(length=400, amplitude=50, start=(0, 0)),
+            "arc": Track.arc(radius=200, from_angle=225, to_angle=315, center=(0, 0)),
+            "zigzag": Track.circle(center=(0, 0), radius=100).zigzag(amount=20, waves=12),
+            "shape": Track(Rect(center=(0, 0), width=240, height=60)),
+        }
+
+    def test_every_track_form_fits_its_outline(self):
+        for name, t in self.tracks().items():
+            with self.subTest(track=name):
+                pts = [t.local_at(i / 720) for i in range(721)]
+                reach_x = max(abs(p[0]) for p in pts)
+                reach_y = max(abs(p[1]) for p in pts)
+                hw, hh = _local_half_extents(t)
+                self.assertAlmostEqual(hw, reach_x, delta=0.03 * reach_x + 1)
+                self.assertAlmostEqual(hh, max(reach_y, 1e-3), delta=0.03 * reach_y + 1)
+
+    def test_turtle_star_ramp_spans_the_star(self):
+        t = self.tracks()["vectors"]
+        g = Gradient("red", "blue", angle=90)
+        t.color = g
+        t.visible = True
+        t.at(0.5)
+        hw, hh = _local_half_extents(t)
+        self.assertLess(_gradient_fit_scale(hw, hh, g), 300)
+
+    def test_ramp_reaches_both_ends_on_screen(self):
+        # Pixels, not sizes (A29 lesson): a closed box walk 600 wide is
+        # 1400 long; fitted on the length its sides were 30 % / 70 % mixes.
+        import skia
+        from scena import Track
+        t = Track(points=[(100, 250), (700, 250), (700, 350), (100, 350)],
+                  closed=True, smooth=0, line_width=16)
+        t.color = Gradient("red", "blue")
+        t.visible = True
+        info = skia.ImageInfo.Make(800, 600, skia.kRGBA_8888_ColorType, skia.kPremul_AlphaType)
+        surface = skia.Surface.MakeRaster(info)
+        surface.getCanvas().clear(skia.ColorBLACK)
+        t.draw(surface.getCanvas())
+        img = surface.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)
+        left = [int(v) for v in img[300, 101][:3]]
+        right = [int(v) for v in img[300, 699][:3]]
+        self.assertGreater(left[0], 220, left)
+        self.assertLess(left[2], 40, left)
+        self.assertGreater(right[2], 220, right)
+        self.assertLess(right[0], 40, right)
+
+    def test_reshaped_track_refits(self):
+        from scena import Track
+        t = Track(points=[(0, 0), (100, 0), (100, 100)], closed=True)
+        t.at(0.5)
+        before = _local_half_extents(t)
+        t.scale = 1     # pose only: the outline (and the cache) stays
+        self.assertEqual(_local_half_extents(t), before)
+        t.zigzag(amount=40, waves=6)
+        t.at(0.5)
+        after = _local_half_extents(t)
+        self.assertGreater(after[0], before[0] + 10)
+
+
 class TestSkyGradientAutoFit(unittest.TestCase):
     def setUp(self):
         self._unplaced = unplaced_creation()
