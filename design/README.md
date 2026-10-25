@@ -440,6 +440,18 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   exception: `tools/readme/editor_ninja.py` starts the editor the way
   `scena-editor` does, with Ninja IV's level open, and a pilot zooms, box-selects
   and drags in it.
+- **The page is English, and so is what it shows.** Every example the README
+  links or records is an English file: a tutorial's English twin
+  (`names_en.json`, `ships_4_shield.py`, never `naves_4_escudo.py`) or a
+  showcase. A Portuguese-only example (`revoada.py`, `constelacao.py`) stays
+  off the page until it has a twin, since its clip would show Portuguese text
+  and its file name. Levels the same: `ninja_hazards.json`, with its English
+  groups (`"floor"`, `"elevator"`). A command names the file where the
+  examples zip has it (`media/levels/…`). `tests/test_readme.py` holds both.
+- **A dropped clip outlives its README by one release.** PyPI shows the README
+  of the released version, and its images load from `main`: a clip renamed or
+  removed goes into `RETIRED` in the tool (file kept) and is deleted only after
+  a release ships a README without it.
 - **A pilot plays like a player.** It reads the game's globals each frame and
   holds keys or moves the mouse; places it acts on are world points of the
   level (`run_jump_and_throw`, `edit_a_level`), put on screen through the

@@ -44,11 +44,13 @@ README = """\
 Scena examples
 ==============
 
-Each .py file here is the last step of a tutorial. The images and sounds they
-use are in media/. To run one (Python 3.12 or newer):
+Each tutorial ends in one of these files, in English and in Portuguese
+(ships_4_shield.py is naves_4_escudo.py); the rest are games, creative coding
+and showcases. The images and sounds they use are in media/. To run one
+(Python 3.12 or newer):
 
     pip install scena
-    python naves_4_escudo.py
+    python ships_4_shield.py
 
 Tutorial and API Guide: https://accmota.github.io/Scena/
 The tutorial copies media/ next to your own scripts: copy this media/ folder.

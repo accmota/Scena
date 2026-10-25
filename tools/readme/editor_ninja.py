@@ -13,7 +13,7 @@ init(width=1280, height=800, title="Scena level editor")
 from scena_editor.app import App, callbacks
 
 LEVEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
-                     "examples", "media", "levels", "ninja_perigos.json")
+                     "examples", "media", "levels", "ninja_hazards.json")
 app = App(os.path.normpath(LEVEL))
 globals().update(callbacks(app))
 

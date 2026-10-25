@@ -18,6 +18,12 @@ Bug classes guarded:
   every attribute it reads on a scena global (``canvas.burst_at``) must exist.
 * **A link or picture points at a file that moved.** Every absolute URL into
   this repository maps to a file in the checkout.
+* **A shell command names a file the reader does not have.** ``python x.py``
+  and ``scena-editor x.json`` in a ``bash`` block run in the unzipped examples:
+  the file must be in ``examples/`` (a level is under ``media/levels/``).
+* **The English page shows Portuguese programs.** Every example the README
+  links or records, and every level it names, is an English file: a tutorial's
+  English twin (``tools/tutorial/names_en.json``) or a showcase.
 * **A clip and its code drift apart.** ``tools/readme/make_readme_media.py``
   renders the README's own block for ``<!-- clip: id -->``; each clip the README
   shows is one the tool makes, and each README clip has its marker. Staleness
@@ -60,6 +66,9 @@ _BLOCK = re.compile(r"^([ \t]*)```python\n(.*?)\n\1```", re.S | re.M)
 # Globals whose attributes are the author's own (``st.score``): any name is legal.
 _OPEN = frozenset({"st"})
 _ATTR = re.compile(r"""(?:src|href)=["']([^"']+)["']|\]\(([^)\s]+)\)""")
+_SHELL = re.compile(r"^```bash\n(.*?)\n```", re.S | re.M)
+# A command whose argument is a file of the examples zip: a script or a level.
+_FILE_ARG = re.compile(r"^(?:python|scena-editor)\s+(\S+\.(?:py|json))$")
 
 
 def _readme() -> str:
@@ -70,6 +79,24 @@ def _readme() -> str:
 def _blocks(text: str | None = None) -> list[str]:
     return [textwrap.dedent(m.group(2)) + "\n" for m in _BLOCK.finditer(
         _readme() if text is None else text)]
+
+
+def _shell_lines(text: str) -> list[str]:
+    return [ln.strip() for m in _SHELL.finditer(text) for ln in m.group(1).splitlines()
+            if ln.strip()]
+
+
+def _english_examples() -> tuple[set[str], set[str]]:
+    """``(English example files, Portuguese level files)``: the tutorials'
+    English twins (``tools/tutorial/names_en.json``) and the showcases
+    (``examples/README.md``, whose names are English by contract)."""
+    import json
+    with open(os.path.join(ROOT, "tools", "tutorial", "names_en.json"), encoding="utf-8") as fh:
+        names = json.load(fh)
+    with open(os.path.join(ROOT, "examples", "README.md"), encoding="utf-8") as fh:
+        showcases = fh.read().split("## Showcases", 1)[1].split("\n## ", 1)[0]
+    allowed = set(names["examples"].values()) | set(re.findall(r"^\| `(\w+\.py)`", showcases, re.M))
+    return allowed, set(names["levels"])
 
 
 def _is_program(code: str) -> bool:
@@ -205,6 +232,25 @@ class TestReadmeLinks(unittest.TestCase):
                 rel.append(target)
         self.assertEqual(rel, [])
 
+    def test_shell_commands_name_files_in_the_examples(self):
+        """A reader runs them in the unzipped examples (``examples/`` here):
+        ``scena-editor levels/x.json`` failed, the levels are in ``media/levels/``."""
+        missing = []
+        for line in _shell_lines(_readme()):
+            m = _FILE_ARG.match(line)
+            if m:
+                rel = re.sub(r"^scena-examples/", "", m.group(1))
+                if not os.path.exists(os.path.join(ROOT, "examples", *rel.split("/"))):
+                    missing.append(line)
+        self.assertEqual(missing, [])
+
+    def test_the_shell_check_catches_a_wrong_path(self):
+        text = "```bash\nscena-editor levels/ninja_perigos.json\npip install scena\n```\n"
+        self.assertEqual(_shell_lines(text), ["scena-editor levels/ninja_perigos.json",
+                                              "pip install scena"])
+        m = _FILE_ARG.match(_shell_lines(text)[0])
+        self.assertFalse(os.path.exists(os.path.join(ROOT, "examples", m.group(1))))
+
     def test_pyproject_ships_this_readme_as_markdown(self):
         with open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8") as fh:
             text = fh.read()
@@ -218,6 +264,14 @@ class TestReadmeClips(unittest.TestCase):
         self.assertEqual(shown - set(mm.CLIPS), set())
         self.assertEqual(set(mm.CLIPS) - shown, set(), "a clip the README does not show")
 
+    def test_every_clip_file_is_shown_or_retired(self):
+        """A dropped clip stays only while a released README (PyPI) loads it:
+        it is listed in ``RETIRED``, never a stray file."""
+        files = {f[:-5] for f in os.listdir(mm.OUT_DIR) if f.endswith(".webp")}
+        self.assertEqual(sorted(files - set(mm.CLIPS) - mm.RETIRED), [])
+        self.assertEqual(sorted(mm.RETIRED - files), [], "a retired clip whose file is gone")
+        self.assertEqual(sorted(mm.RETIRED & set(mm.CLIPS)), [])
+
     def test_readme_clips_have_their_block(self):
         blocks = mm.readme_blocks(_readme())
         for cid, clip in mm.CLIPS.items():
@@ -226,6 +280,29 @@ class TestReadmeClips(unittest.TestCase):
                     self.assertIn(take["program"].split("#", 1)[1], blocks)
         for cid in blocks:
             self.assertIn(cid, mm.CLIPS, f"<!-- clip: {cid} --> has no CLIPS entry")
+
+    def test_the_readme_shows_english_programs(self):
+        """The README is in English: each example it links or records, and each
+        level it names, is an English program (a tutorial's English twin, or a
+        showcase). The gallery once showed and linked the Portuguese files."""
+        allowed, pt_levels = _english_examples()
+        named = set(re.findall(r"examples/(\w+\.py)", _readme()))
+        named |= {os.path.basename(t["program"]) for c in mm.CLIPS.values()
+                  for t in mm.takes(c) if t["program"].startswith("examples/")}
+        self.assertEqual(sorted(named - allowed), [], "a Portuguese (or untranslated) example")
+        with open(os.path.join(ROOT, "tools", "readme", "editor_ninja.py"),
+                  encoding="utf-8") as fh:
+            text = _readme() + fh.read()
+        levels = {f"levels/{m}" for m in re.findall(r"levels[/\"', ]+\"?(\w+\.json)", text)}
+        self.assertEqual(sorted(levels & pt_levels), [], "a Portuguese level file")
+
+    def test_the_english_check_sees_a_portuguese_example(self):
+        allowed, pt_levels = _english_examples()
+        self.assertIn("ships_4_shield.py", allowed)
+        self.assertIn("tesla.py", allowed)                 # a showcase
+        self.assertNotIn("naves_4_escudo.py", allowed)     # its Portuguese twin
+        self.assertNotIn("revoada.py", allowed)            # Portuguese, no twin
+        self.assertIn("levels/ninja_perigos.json", pt_levels)
 
     def test_marker_takes_the_block_right_after_it(self):
         text = "x\n<!-- clip: a-b -->\n```python\nprint(1)\n```\n```python\nprint(2)\n```\n"

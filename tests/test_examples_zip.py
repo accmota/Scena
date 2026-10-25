@@ -82,7 +82,7 @@ class TestExamplesZipWiring(unittest.TestCase):
             readme = fh.read()
         self.assertIn("https://github.com/accmota/Scena/releases/latest/download/"
                       "scena-examples.zip", readme)
-        self.assertIn(f"python {mz.TOP}/naves_4_escudo.py", readme)
+        self.assertIn(f"python {mz.TOP}/ships_4_shield.py", readme)
 
     def test_the_release_job_builds_and_attaches_it_after_pypi(self):
         with open(os.path.join(ROOT, ".github", "workflows", "release.yml"),
@@ -113,6 +113,7 @@ class TestExamplesZipContents(unittest.TestCase):
     def test_layout(self):
         self.assertTrue(all(n.startswith(mz.TOP + "/") for n in self.names))
         self.assertIn(f"{mz.TOP}/README.txt", self.names)
+        self.assertIn(f"{mz.TOP}/ships_4_shield.py", self.names)
         self.assertIn(f"{mz.TOP}/naves_4_escudo.py", self.names)
         self.assertIn(f"{mz.TOP}/media/CREDITS.md", self.names)
 

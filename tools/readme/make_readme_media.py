@@ -66,16 +66,16 @@ BLANK_MIN_DIFF = 8             # a clip must change by more than this (0–255) 
 CLIPS = {
     "catch-the-stars": {"program": "README.md#catch-the-stars", "size": (640, 480),
                         "seconds": 6.0, "lead": 1.5, "pilot": "follow_stars"},
-    "naves_escudo": {"program": "examples/naves_4_escudo.py", "size": (600, 480),
+    "ships_shield": {"program": "examples/ships_4_shield.py", "size": (600, 480),
                      "seconds": 8.0, "lead": 0.5, "pilot": "fly_fire_and_catch"},
-    "aviao_paisagem": {"program": "examples/aviao_paisagem.py", "size": (480, 270),
-                       "seconds": 7.0, "lead": 3.0, "pilot": "fly_the_gaps"},
-    "corrida": {"program": "examples/corrida.py", "size": (640, 360),
-                "seconds": 11.0, "lead": 0.0, "pilot": "pick_and_race"},
-    "ninja_perigos": {"program": "examples/ninja_4_perigos.py", "size": (600, 450),
+    "plane_landscape": {"program": "examples/plane_landscape.py", "size": (480, 270),
+                        "seconds": 7.0, "lead": 3.0, "pilot": "fly_the_gaps"},
+    "race": {"program": "examples/race.py", "size": (640, 360),
+             "seconds": 11.0, "lead": 0.0, "pilot": "pick_and_race"},
+    "ninja_hazards": {"program": "examples/ninja_4_hazards.py", "size": (600, 450),
                       "seconds": 7.2, "lead": 1.0, "pilot": "run_jump_and_throw"},
-    "ligue4": {"program": "examples/ligue4.py", "size": (500, 380), "frame": (640, 360),
-               "seconds": 8.5, "lead": 0.0, "pilot": "play_connect_four"},
+    "connect_four": {"program": "examples/connect_four.py", "size": (500, 380),
+                     "frame": (640, 360), "seconds": 8.5, "lead": 0.0, "pilot": "play_connect_four"},
     "electric-hosts": {"program": "README.md#electric-hosts", "size": (720, 240),
                        "seconds": 3.0, "lead": 0.5, "pilot": "watch"},
     # Not an example: the editor as ``scena-editor`` starts it, with a level open.
@@ -83,21 +83,25 @@ CLIPS = {
                      "seconds": 6.0, "lead": 0.0, "pilot": "edit_a_level"},
     # A montage: one short take of each program, in order, each fitted into
     # ``size`` (letterboxed when its aspect differs) with its file name in a
-    # corner.
-    "mais_exemplos": {"size": (640, 360), "segments": [
-        {"program": "examples/osciloscopio.py", "seconds": 3.3, "lead": 1.6,
+    # corner. The README is in English: every take is an English program (a
+    # tutorial's English twin, or a showcase).
+    "more_examples": {"size": (640, 360), "segments": [
+        {"program": "examples/oscilloscope.py", "seconds": 3.3, "lead": 1.6,
          "pilot": "click_the_ball"},
-        {"program": "examples/constelacao.py", "seconds": 2.5, "lead": 2.0,
-         "pilot": "pull_the_stars"},
-        {"program": "examples/duelo.py", "seconds": 2.5, "lead": 2.0, "pilot": "duel"},
-        {"program": "examples/corredor.py", "seconds": 2.5, "lead": 1.0, "pilot": "jump_the_gaps"},
-        {"program": "examples/app_rgb_arena.py", "seconds": 3.0, "lead": 1.0,
-         "pilot": "three_reds_and_glow"},
-        {"program": "examples/revoada.py", "seconds": 2.5, "lead": 3.0, "pilot": "falcon"},
-        {"program": "examples/cadeia_de_bolas.py", "seconds": 2.5, "lead": 0.5,
+        {"program": "examples/rose_window.py", "seconds": 2.5, "lead": 4.0, "pilot": "watch"},
+        {"program": "examples/duel.py", "seconds": 2.5, "lead": 2.0, "pilot": "duel"},
+        {"program": "examples/runner.py", "seconds": 2.5, "lead": 1.0, "pilot": "jump_the_gaps"},
+        {"program": "examples/string_theory.py", "seconds": 2.5, "lead": 6.0, "pilot": "watch"},
+        {"program": "examples/tesla.py", "seconds": 2.5, "lead": 6.0, "pilot": "watch"},
+        {"program": "examples/ball_chain.py", "seconds": 2.5, "lead": 0.5,
          "pilot": "lead_the_chain"},
     ]},
 }
+# Clips the README no longer shows, kept because PyPI's page for a released
+# version still loads them from main. Delete each one (file and entry) once a
+# release ships a README without it. Since 0.10.0: the gallery became English.
+RETIRED = {"naves_escudo", "ninja_perigos", "aviao_paisagem", "corrida", "ligue4",
+           "mais_exemplos"}
 CAPTION_FONT = "examples/media/fonts/Quantico-Bold.ttf"
 LETTERBOX = (10, 11, 16)
 
@@ -127,23 +131,23 @@ def follow_stars(game, t):
 
 def fly_fire_and_catch(game, t):
     """The ship fires all the time, sweeps under the fleet, and goes for a falling shield."""
-    nave = game.ns["nave"]
-    if not nave:
+    ship = game.ns["ship"]
+    if not ship:
         game.hold()
         return
-    poderes = list(game.ns["group"]["poderes"])
-    if poderes:
-        target = min(poderes, key=lambda p: p.center.y).center.x
+    powers = list(game.ns["group"]["powers"])
+    if powers:
+        target = min(powers, key=lambda p: p.center.y).center.x
     else:
         target = 500 + 300 * math.sin(t * 0.9)
-    dx = target - nave.center.x
+    dx = target - ship.center.x
     game.hold("SPACE", "RIGHT" if dx > 15 else "LEFT" if dx < -15 else None)
 
 
 def click_the_ball(game, t):
     """Click the ball to turn the oscilloscope on, then drag two sliders."""
     if t < 0.1:
-        c = game.ns["bola"].center
+        c = game.ns["ball"].center
         game.mouse(c.x, c.y)
         game.press()
     elif t < 0.2:
@@ -155,12 +159,12 @@ def click_the_ball(game, t):
 
 def fly_the_gaps(game, t):
     """Steer the plane toward the next gap between pillars (or the middle)."""
-    aviao = game.ns["aviao"]
-    portas = [p for p in game.ns["group"]["porta"] if p.center.x > aviao.center.x - 10]
-    target = min(portas, key=lambda p: p.center.x).center.y if portas else 200
-    dy = target - aviao.center.y
+    plane = game.ns["plane"]
+    doors = [p for p in game.ns["group"]["door"] if p.center.x > plane.center.x - 10]
+    target = min(doors, key=lambda p: p.center.x).center.y if doors else 200
+    dy = target - plane.center.y
     keys = ["UP" if dy > 12 else "DOWN" if dy < -12 else None]
-    if not game.ns["st"].voando and t % 1.0 < 0.05:
+    if not game.ns["st"].flying and t % 1.0 < 0.05:
         keys.append("SPACE")
     game.hold(*keys)
 
@@ -168,7 +172,7 @@ def fly_the_gaps(game, t):
 def edit_a_level(game, t):
     """Zoom into the level, box-select three platforms, lift them, pick a star.
 
-    Targets are world points of ``ninja_perigos.json``, put on screen through the
+    Targets are world points of ``ninja_hazards.json``, put on screen through the
     editor's own camera (``view_point``) each frame.
     """
     from scena_editor.view import view_point
@@ -216,9 +220,9 @@ def play_connect_four(game, t):
     move, k = int(t), t - int(t)
     if move >= len(columns):
         return
-    ball = game.ns["proxima"]
-    start = game.ns["INICIO"]
-    above = game.ns["grade"].cell(columns[move], 0).center
+    ball = game.ns["next_ball"]
+    start = game.ns["START"]
+    above = game.ns["board"].cell(columns[move], 0).center
     if k < 0.1:
         game.mouse(*start)
         if k < 1 / 60 and ball.visible:
@@ -234,21 +238,21 @@ def run_jump_and_throw(game, t):
     """The ninja runs right through the start of Ninja IV: up onto the first
     platforms, over the water, throws at each robot ahead, waits for the
     electric barrier to switch off, and stops before the second pool. Jumps
-    happen at fixed places of the level (``ninja_perigos.json``):
+    happen at fixed places of the level (``ninja_hazards.json``):
     ``(from x, to x, lowest y, highest y)`` of the feet."""
     jumps = ((230, 262, 70, 90), (440, 478, 240, 260))
-    if t < 2.4 or not list(game.ns["group"]["heroi"]):   # overview, then the zoom
+    if t < 2.4 or not list(game.ns["group"]["hero"]):   # overview, then the zoom
         game.hold()
         return
-    hero = list(game.ns["group"]["heroi"])[0]
+    hero = list(game.ns["group"]["hero"])[0]
     x, y = hero.center.x, hero.center.y
     on_ground = "bottom" in hero.touching_sides
     if on_ground and any(0 < r.center.x - x < 420 and abs(r.center.y - y) < 60
-                         for r in game.ns["group"]["robo"]):
+                         for r in game.ns["group"]["robot"]):
         game.hold("SPACE")
         return
     if on_ground and any(0 < b.center.x - x < 110 and b.active
-                         for b in game.ns["group"]["raio"]):
+                         for b in game.ns["group"]["bolt"]):
         game.hold()
         return
     if x > 1420:                                   # the second pool: the clip ends here
@@ -276,41 +280,30 @@ def _act():
 
 
 def pick_and_race(game, t):
-    """Click UM JOGADOR, then the Serpentina, with the pointer in view; then the
-    blue car races, driven by the CPU's own brain (``Carro.pensar``) turned
+    """Click ONE PLAYER, then the Serpentine, with the pointer in view; then the
+    blue car races, driven by the CPU's own brain (``Car.think``) turned
     into keys: what it wants this frame is what the pilot holds."""
-    one, serpentina = (640, 380), (340, 170)
+    one, serpentine = (640, 380), (340, 170)
     if t < 2.6:
         game.cursor = True
         if t < 1.3:
             _glide(game, (1000, 110), one, start=0.2, end=0.9, now=t)
         else:
-            _glide(game, one, serpentina, start=1.3, end=2.0, now=t)
+            _glide(game, one, serpentine, start=1.3, end=2.0, now=t)
         if _at(t, 1.0) or _at(t, 2.2):
             game.press()
         if _at(t, 1.1) or _at(t, 2.3):
             game.release()
         return
     game.cursor = False
-    azul = getattr(_act(), "azul", None)
-    if azul is None or not game.ns["st"].largou:
+    blue = getattr(_act(), "blue", None)
+    if blue is None or not game.ns["st"].started:
         game.hold()
         return
-    azul.pensar(1 / 60)
-    game.hold("UP" if azul.acelera else None, "DOWN" if azul.freia else None,
-              "LEFT" if azul.vira > 0.25 else "RIGHT" if azul.vira < -0.25 else None,
-              "ENTER" if azul.quer_atirar else None)
-
-
-def pull_the_stars(game, t):
-    """Two more comets, then the mouse circles; held, it pulls the points;
-    let go, a wave pushes them away."""
-    game.mouse(640 + 260 * math.cos(t * 1.4), 400 + 200 * math.sin(t * 1.4))
-    game.hold("SPACE" if _at(t, 0.3) or _at(t, 0.9) else None)
-    if _at(t, 2.4):
-        game.press()
-    if _at(t, 3.6):
-        game.release()
+    blue.think(1 / 60)
+    game.hold("UP" if blue.accelerate else None, "DOWN" if blue.brake else None,
+              "LEFT" if blue.steer > 0.25 else "RIGHT" if blue.steer < -0.25 else None,
+              "ENTER" if blue.wants_to_shoot else None)
 
 
 def duel(game, t):
@@ -318,62 +311,32 @@ def duel(game, t):
     turns toward the other ship (a little off, sweeping) and fires."""
     game.hold("TAB" if _at(t, 0.1) else "ENTER" if _at(t, 0.3) else None)
     act = _act()
-    if not hasattr(act, "azul"):
+    if not hasattr(act, "blue"):
         return
     heading = game.ns["heading"]
     keys = []
-    for nave, outra, fase in ((act.azul, act.vermelha, 0.0), (act.vermelha, act.azul, 2.0)):
-        if not nave.is_alive or not outra.is_alive:
+    for ship, other, phase in ((act.blue, act.red, 0.0), (act.red, act.blue, 2.0)):
+        if not ship.is_alive or not other.is_alive:
             continue
-        k = nave.teclas
-        erro = (heading(nave, outra) + 25 * math.sin(t * 2.3 + fase) - nave.angle + 180) % 360 - 180
-        keys.append(k["esquerda"] if erro > 6 else k["direita"] if erro < -6 else None)
-        keys.append(k["cima"] if math.sin(t * 1.1 + fase) > 0 else k["baixo"])
-        keys.append(k["tiro"])
+        k = ship.controls
+        error = (heading(ship, other) + 25 * math.sin(t * 2.3 + phase) - ship.angle + 180) % 360 - 180
+        keys.append(k["left"] if error > 6 else k["right"] if error < -6 else None)
+        keys.append(k["up"] if math.sin(t * 1.1 + phase) > 0 else k["down"])
+        keys.append(k["shot"])
     game.hold(*keys)
 
 
 def jump_the_gaps(game, t):
     """The robot jumps when a hole or a crate is just ahead."""
-    robo = getattr(_act(), "robo", None)
-    if robo is None:
+    robot = getattr(_act(), "robot", None)
+    if robot is None:
         return
     ns = game.ns
-    x = robo.center.x
+    x = robot.center.x
     ahead = x + 70
-    hole = not ns["collision"].query_point((ahead, ns["altura"](ahead) - 8), group="chao")
-    crate = any(0 < c.center.x - x < 120 for c in ns["group"]["caixa"])
-    game.hold("UP" if (hole or crate) and "bottom" in robo.touching_sides else None)
-
-
-def three_reds_and_glow(game, t):
-    """Three more red particles (Criar), then the Visual slider goes to 7."""
-    if t < 1.0:
-        game.mouse(*game.run.widget_center("Criar"))
-        for when in (0.2, 0.45, 0.7):
-            if _at(t, when):
-                game.press()
-            if _at(t, when + 0.1):
-                game.release()
-        return
-    game.cursor = t < 2.4
-    game.drag_slider("Visual", 1.0, 7.0, start=1.3, end=2.2, now=t)
-
-
-def falcon(game, t):
-    """The falcon (the mouse) sweeps across the sky; once, a click in the flock."""
-    group = game.ns["group"]
-    if _at(t, 3.8):
-        birds = list(group["passaro"])
-        cx = sum(b.center.x for b in birds) / len(birds)
-        cy = sum(b.center.y for b in birds) / len(birds)
-        game.mouse(cx, cy)
-        game.press()
-        return
-    if _at(t, 3.9):
-        game.release()
-    if t < 3.8 or t > 4.2:
-        game.mouse(640 + 480 * math.sin(t * 0.9), 400 + 260 * math.sin(t * 1.7))
+    hole = not ns["collision"].query_point((ahead, ns["ground_height"](ahead) - 8), group="floor")
+    crate = any(0 < c.center.x - x < 120 for c in ns["group"]["crate"])
+    game.hold("UP" if (hole or crate) and "bottom" in robot.touching_sides else None)
 
 
 def lead_the_chain(game, t):
@@ -383,13 +346,11 @@ def lead_the_chain(game, t):
 
 PILOTS = {f.__name__: f for f in (watch, follow_stars, fly_fire_and_catch, click_the_ball,
                                    fly_the_gaps, edit_a_level, play_connect_four,
-                                   run_jump_and_throw, pick_and_race, pull_the_stars, duel,
-                                   jump_the_gaps, three_reds_and_glow, falcon,
+                                   run_jump_and_throw, pick_and_race, duel, jump_the_gaps,
                                    lead_the_chain)}
 # Pilots that use the helpers above (``_at``, ``_glide``, ``_act``) or draw the
 # pointer: the helpers' source is part of their clips' hash.
-_HELPED = {"pick_and_race", "pull_the_stars", "duel", "jump_the_gaps", "three_reds_and_glow",
-           "falcon", "lead_the_chain"}
+_HELPED = {"pick_and_race", "duel", "jump_the_gaps", "lead_the_chain"}
 
 
 # ── README blocks ──────────────────────────────────────────────────────────
