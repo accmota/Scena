@@ -96,6 +96,10 @@ names and comments are in English. Each docstring says what to try.
 | `demo100.py` | Rings of dancing triangles around a `Bolt` heart, in three parts (Open, Dance, Storm), written to be built up step by step. |
 | `polygon_ballet.py` | A floor of regular polygons in three movements: domino waves that change their sides and looks, rosettes, and their edges as string art. |
 | `string_theory.py` | Lines from simple rules: a times-table cardioid, moiré fans, Lissajous strings, harmonograph curves. Starts with a photosensitivity note (SPACE skips). |
+| `xyz.py` | Circles, turtles and light, written to be built up step by step: a ring whose two lights run together, against and out of step (`begin`/`end`), a rosette of see-through squares, triangles and pentagons, turtle walks with sweep gradients and a line `Halo`, and rings inside the ring lit in step, out of phase and at different speeds. |
+| `life.py` | Conway's Game of Life in glass: the grid's lines fly from a corner like a fan, newborn cells grow over a few ticks, the colour is the age (a `Colormap`), and a seed falls when the board stops changing. Click or drag flips cells; SPACE, RIGHT, R, G, C; `COLS` sets the board. |
+| `canopy.py` | A tree of 511 branches laid by one recursive function that turns into a circuit, a coral and a fern; still dust and rising embers follow the drifting camera at different rates (`pan_response`), under `Bloom`, `Grade` and `ColorSweep`. |
+| `pendulums.py` | A pendulum wave that sings: 24 bobs, each one more swing per cycle than the last, drift into snakes, rows and scatters and meet again; each plays a pentatonic note as it crosses the middle, and the row curls into a ring that draws flowers. |
 
 ## Media and licenses
 

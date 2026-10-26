@@ -15,6 +15,7 @@ examples/bolas.py
 examples/bolhas.py
 examples/bubbles.py
 examples/cadeia_de_bolas.py
+examples/canopy.py
 examples/catch_stars.py
 examples/ceu_estrelado.py
 examples/colisao.py
@@ -40,6 +41,7 @@ examples/hundred_lines.py
 examples/interacao.py
 examples/interaction.py
 examples/letreiro.py
+examples/life.py
 examples/ligue4.py
 examples/loom.py
 examples/media/CREDITS.md
@@ -353,6 +355,7 @@ examples/orbits.py
 examples/oscilloscope.py
 examples/osciloscopio.py
 examples/pegar_estrelas.py
+examples/pendulums.py
 examples/piano.py
 examples/plane.py
 examples/plane_depth.py
@@ -379,3 +382,4 @@ examples/studio_voice.py
 examples/tesla.py
 examples/tracks.py
 examples/trilhas.py
+examples/xyz.py

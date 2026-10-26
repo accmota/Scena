@@ -12,6 +12,14 @@ left out.
 
 ## Unreleased
 
+### Added
+
+- Four showcase examples (`examples/README.md`, "Showcases"): `xyz.py`
+  (a ring, a glass rosette, turtle walks and phased rings, written to be
+  built up step by step), `life.py` (the Game of Life with a grid that flies
+  into place and cells that grow), `canopy.py` (a recursive tree of light
+  over a parallax sky) and `pendulums.py` (a pendulum wave that plays notes).
+
 ### Fixed
 
 - A `Gradient` on a `Track` spans the drawn line on every kind of track:
