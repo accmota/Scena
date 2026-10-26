@@ -10,6 +10,17 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Documentation
+
+- GitHub tests every push to `main` and every pull request
+  (`.github/workflows/tests.yml`). The built wheel is installed and imported
+  on Windows, macOS and Linux with Python 3.12, 3.13 and 3.14; the quick
+  tier runs on Linux, and a smoke set of modules runs on the other cells.
+  What it covers and what it leaves out: `design/Testing Design.md`,
+  "Continuous integration".
+
 ## 0.10.1 — 2026-10-26
 
 ### Added
