@@ -99,9 +99,8 @@ CLIPS = {
 }
 # Clips the README no longer shows, kept because PyPI's page for a released
 # version still loads them from main. Delete each one (file and entry) once a
-# release ships a README without it. Since 0.10.0: the gallery became English.
-RETIRED = {"naves_escudo", "ninja_perigos", "aviao_paisagem", "corrida", "ligue4",
-           "mais_exemplos"}
+# release ships a README without it.
+RETIRED: set[str] = set()
 CAPTION_FONT = "examples/media/fonts/Quantico-Bold.ttf"
 LETTERBOX = (10, 11, 16)
 
