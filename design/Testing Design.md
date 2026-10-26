@@ -1625,7 +1625,8 @@ Everything runs headless: no window (GLFW is never initialised), no GL context
 through the offline mixer. No display server or GPU is needed. The one system
 dependency: skia-python's Linux wheel loads `libEGL.so.1` / `libGL.so.1` at
 import, which a desktop Linux has and the bare runner image does not (the first
-run failed `import skia` there), so the Ubuntu cells install `libegl1` and `libgl1`.
+run failed `import skia` there), so the Ubuntu cells install `libegl1` and `libgl1`
+(the README's install section tells Linux users the same).
 Linux's GLFW (pyGLFW's wheel) is also built with C asserts on: a GLFW call with
 no window aborts the process (rc -6) where macOS and Windows return quietly
 (WP48). Never hand GLFW `fw._window` without checking it for `None`.
