@@ -54,6 +54,9 @@ from scena.process import _ROLE_LABELS, _claim_decorator_role  # noqa: E402
 from scena.validate import call_truncated, is_async_callable  # noqa: E402
 from leftovers import mark, sweep  # noqa: E402
 from system_support import SystemTestCase, SystemWorld, tone  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 async def _coro_fn(*_args):

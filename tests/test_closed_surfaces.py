@@ -27,6 +27,9 @@ from scena.closed import (  # noqa: E402
     ClosedSurface, closed_setattr, is_sealed, make_closed_setattr, seal_after_init,
 )
 from scena.validate import install_friendly_constructor  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class Knob(ClosedSurface):

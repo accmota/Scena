@@ -13,6 +13,9 @@ from scena.scenamath import Vec2
 from scena.state import State, Attribute, get_scena_system
 from scena.input import KeyPressed
 from tests.graph_support import settled_graph_size  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _settled_nodes(ss):

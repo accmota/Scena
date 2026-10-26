@@ -3976,9 +3976,11 @@ class TestAsyncAwait(ProcessTestCase):
         proc.WATCHDOG_CHECK_EVERY = 32
 
         class Busy(Entity):
+            spin = 0.08
+
             async def work(self):
                 t0 = time.perf_counter()
-                while time.perf_counter() - t0 < 0.08:
+                while time.perf_counter() - t0 < self.spin:
                     pass
                 self.done_ok = True
                 await wait(0.01)
@@ -3986,6 +3988,10 @@ class TestAsyncAwait(ProcessTestCase):
         try:
             proc.set_watchdog(True)
             a = self.track(Busy())
+            # Long enough for the watcher thread to wake under any load (a
+            # loaded gate, load 55: 80 ms ended before it polled); a trip
+            # ends the spin at ~20 ms anyway.
+            a.spin = 5.0
             a.done_ok = False
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")

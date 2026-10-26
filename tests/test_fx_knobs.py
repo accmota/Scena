@@ -35,8 +35,12 @@ from system_support import boot, system_world  # noqa: E402
 import scena  # noqa: E402
 from scena import Circle, GlowSpot, Warp, st, tween  # noqa: E402
 from scena.spatial_fx import SpatialFx, _fx_knob_names  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 boot()
+
 
 FIRE_STYLES = ("plume", "blaze", "tongues", "embers", "soft")
 

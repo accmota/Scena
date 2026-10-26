@@ -28,6 +28,9 @@ from scena.scenamath import Vec2
 from scena.style import LineCapStyle, TileMode, Gradient, PaintState
 from scena.color import Color, ColorSpace
 from scena.validate import coerce_enum, expect_choice
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _disk_image(side: int = 32, radius: float = 14.0) -> skia.Image:

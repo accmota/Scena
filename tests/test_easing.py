@@ -18,7 +18,9 @@ from hypothesis import given, strategies as hst  # noqa: E402
 
 from scena import Circle, Point, Vec2, approach, chase, clock, deadzone, lerp, init
 from scena.easing import MappingFunctions, TWEEN_EASES, lerp as easing_lerp
+from tests.leftovers import module_sweep  # noqa: E402
 
+setUpModule, tearDownModule = module_sweep()
 
 
 class TestDeadzoneTakesCells(unittest.TestCase):

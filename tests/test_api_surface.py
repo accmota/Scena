@@ -36,6 +36,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import scena
 from tests import repo_layout as layout  # noqa: E402
 from scena import init, Circle, Rect, Polygon, Vec2, Color, Point, Sprite
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 # Kept public. Do not underscore these.
 KEPT_PUBLIC = frozenset({"draw", "undraw", "update", "owner", "parts"})

@@ -27,6 +27,10 @@ from hypothesis_support import boot  # noqa: E402
 boot()
 
 from scena import Circle, Point, Track, Vec2, st  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 ENTRIES = {
     "Point <<": lambda v: Point(0, 0) << v,

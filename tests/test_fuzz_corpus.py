@@ -33,6 +33,10 @@ from source_support import iter_files  # noqa: E402
 import geom_fuzz as F  # noqa: E402
 import geom_gen as GEN  # noqa: E402
 import geom_rewrite as RW  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 CORPUS = os.path.join(HERE, "fuzz", "corpus")
 FOUND = os.path.join(HERE, "fuzz", "found")

@@ -17,6 +17,9 @@ from scena.process import tween
 from scena.shapes import Circle, Point, Rect
 from scena.scenamath import Vec2
 from scena.track import Track
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _mouse(x, y):

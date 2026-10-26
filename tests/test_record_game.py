@@ -185,6 +185,22 @@ class TestSync(unittest.TestCase):
         self.assertEqual(len(sink.frames), 15)
         self.assertEqual(len(sink.samples), 22050)
 
+    def test_a_take_leaves_the_framework_as_it_found_it(self):
+        # record() sets the framebuffer metrics and the canvas's pixel ratio
+        # for its render and pins its surface: they outlived the take, and
+        # every later pixel test of the serial pass drew at 2x into a
+        # 320 x 180 surface ("nothing drawn", WP44).
+        from scena.orchestration import ScenaFramework
+        fw = ScenaFramework.get_instance()
+
+        def state():
+            return ({k: getattr(fw, k) for k in ("fb_width", "fb_height", "pixel_ratio", "view_scale",
+                                                  "_letterbox_pad_x", "_letterbox_pad_y")},
+                    fw._scena_draw.pixel_ratio, "_create_drawing_surface" in vars(fw))
+        before = state()
+        self._record(seconds=0.1)
+        self.assertEqual(state(), before)
+
 
 def _done_at(when):
     def pilot(game, t):

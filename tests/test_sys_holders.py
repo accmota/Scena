@@ -67,6 +67,10 @@ from scena.input import Mouse  # noqa: E402
 from scena.orchestration import ScenaFramework  # noqa: E402
 from scena.process import get_scheduler  # noqa: E402
 from scena.state import get_scena_system  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 N_AFTER = 4          # frames stepped after the ender before the scan
 

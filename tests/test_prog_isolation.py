@@ -509,6 +509,27 @@ class TestRunRoster(unittest.TestCase):
             left.destroy()
 
 
+class TestWorldGivesBackTheFramebuffer(unittest.TestCase):
+    """A world gives back the framebuffer metrics, the canvas's pixel ratio
+    and the drawing-surface hook it found, whatever ran inside it changed
+    (WP44: a recording's 320 x 180 at 2x drew every later pixel test off its
+    surface)."""
+
+    def test_metrics_and_the_surface_hook_come_back(self):
+        from system_support import _FB_METRICS, system_world
+        fw = ScenaFramework.get_instance()
+        before = ({k: getattr(fw, k) for k in _FB_METRICS}, fw._scena_draw.pixel_ratio,
+                  "_create_drawing_surface" in vars(fw))
+        with system_world(draw=True):
+            fw.fb_width, fw.fb_height, fw.pixel_ratio, fw.view_scale = 320, 180, 2.0, 1.0
+            fw._letterbox_pad_x = fw._letterbox_pad_y = 7
+            fw._create_drawing_surface = lambda: None
+            fw._scena_draw.rebind(fw._scena_draw.skia_canvas, pixel_ratio=2.0)
+        after = ({k: getattr(fw, k) for k in _FB_METRICS}, fw._scena_draw.pixel_ratio,
+                 "_create_drawing_surface" in vars(fw))
+        self.assertEqual(after, before)
+
+
 class TestResetWorldSettings(unittest.TestCase):
     """``system_support.reset_world_settings`` reaches every act-restored
     setting (a new ``WORLD_SETTINGS`` row without a reset fails), and the

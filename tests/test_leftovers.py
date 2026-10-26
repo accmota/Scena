@@ -6,7 +6,7 @@ per process, so actors a module leaves alive sit on the draw lists of every
 later module in the deep tier's serial pass. ``test_shapes`` left ~720 drawn
 (1905 roster items), ``test_reactive_matrix`` ~25 700. ``module_sweep`` destroys
 what a module registered; ``tests/run_tiers.py`` runs a ``LeftoverCheck`` after
-every module of every tier.
+every module of every tier: one live actor a module made fails it (WP43).
 
 Run headless:
 
@@ -68,6 +68,28 @@ class TestSweep(unittest.TestCase):
         c = Circle(center=(20, 20), radius=5)
         self.addCleanup(c.destroy)
         self.assertIn(c, leftovers.made_since(at))
+
+    def test_the_canvas_boundary_rect_is_the_canvas_s(self):
+        # A replaced canvas counts whole, but its own ``canvas_rect`` is not
+        # what a module left, and ``sweep`` (which destroys ``made_since``)
+        # would have destroyed it (WP43: test_readme and 13 more "left 1 Rect").
+        from scena.canvas import ScenaCanvas
+        own = ScenaCanvas.get_current().canvas_rect
+        at = (object(), 0)                          # every key on the registry is newer
+        self.assertTrue(own.is_alive)
+        self.assertNotIn(own, leftovers.made_since(at))
+
+    def test_a_framework_singleton_is_the_framework_s(self):
+        # The HUD labels the first begin_game builds (once per process) are
+        # marked _scena_internal: they were "2 Text" of whichever module
+        # began a game first (WP43), and a sweep would destroy them.
+        at = leftovers.mark()
+        label = Circle(center=(20, 20), radius=5)
+        self.addCleanup(label.destroy)
+        object.__setattr__(label, "_scena_internal", True)
+        self.assertNotIn(label, leftovers.made_since(at))
+        leftovers.sweep(at)
+        self.assertTrue(label.is_alive)
 
 
 class TestChecksBetweenModules(unittest.TestCase):
@@ -134,8 +156,39 @@ class TestChildRun(unittest.TestCase):
         self.assertTrue(res.ok, log)
         self.assertEqual(res.ran, 1)
 
-    def test_a_few_are_tolerated(self):
-        res, log = self._run(3, sweep=False)
+    def test_one_untagged_leftover_fails(self):
+        """A later test that counts a kind on the roster counts it: test_diff_pose's
+        26 untagged actors (under the old limit of 50) read as string_theory's
+        strings in the deep serial pass (2026-10-24, WP42, WP43)."""
+        res, log = self._run(1, sweep=False)
+        self.assertFalse(res.ok, log)
+        self.assertIn("left 1 live actors (1 Circle; Circle made at leaky_mod.py:", log)
+        res, log = self._run(1, sweep=True)
+        self.assertTrue(res.ok, log)
+
+    def test_lazy_parts_of_an_import_time_actor_are_tolerated(self):
+        """An actor made at import is the module's fixture (made before the
+        mark); a test that links to its center fills its foci, two parts made
+        after the mark, which leave with it."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        with open(os.path.join(tmp, "fixture_mod.py"), "w", encoding="utf-8") as fh:
+            fh.write(textwrap.dedent("""
+                import unittest
+                from tests.leftovers import module_sweep
+                from scena import Ellipse
+                SHUTTLE = Ellipse(center=(50, 50), width=40, height=10)
+                setUpModule, tearDownModule = module_sweep()
+
+                class T(unittest.TestCase):
+                    def test_links(self):
+                        Ellipse(center=lambda: SHUTTLE.center, width=4, height=2)
+            """))
+        runner = rt.Runner(os.path.join(tmp, "logs"), timeout=120, workers=1,
+                           stream=io.StringIO())
+        (res,) = runner.run([rt.Job("fixture", ["fixture_mod"], {"PYTHONPATH": tmp})])
+        with open(res.log, encoding="utf-8") as fh:
+            log = fh.read()
         self.assertTrue(res.ok, log)
 
     def test_one_tagged_leftover_fails(self):

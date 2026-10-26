@@ -32,6 +32,9 @@ from program_support import FRAME  # noqa: E402
 from system_support import boot, system_world  # noqa: E402
 
 from scena import Circle, Neon, Track  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 boot()
 

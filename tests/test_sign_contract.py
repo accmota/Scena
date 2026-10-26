@@ -4,6 +4,9 @@ import unittest
 
 from scena import Circle, Line, Rect, Square
 from tests.test_shapes import ShapeTestCase
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class TestMagnitudes(ShapeTestCase):

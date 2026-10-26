@@ -40,6 +40,10 @@ from scena import (  # noqa: E402
 )
 from tests.input_driver import input_driver  # noqa: E402
 from tests.system_support import system_world  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 FRAME = 1 / 60
 _HOOKS = ("on_key_down", "on_key_up", "on_key", "on_mouse_down", "on_mouse_up",

@@ -32,6 +32,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 import scena
 from scena import init, Vec2, Color, Colormap, Entity
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _raw_arity_message(msg: str) -> bool:

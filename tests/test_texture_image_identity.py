@@ -10,6 +10,9 @@ import skia
 
 from scena import init, Line, Rect
 from scena.style import Texture
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class TestTextureImageIdentity(unittest.TestCase):

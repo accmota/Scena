@@ -10,6 +10,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scena.shapes import Circle, Point
 from scena.scenamath import Vec2
 from scena.state import State, get_scena_system
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _xy(point):

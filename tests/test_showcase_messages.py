@@ -31,6 +31,9 @@ from system_support import boot, system_world  # noqa: E402
 from scena import (  # noqa: E402
     Bloom, Circle, Fire, Shield, Stars, Track, canvas, st, tween,
 )
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 boot()
 

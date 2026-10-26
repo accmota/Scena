@@ -23,6 +23,9 @@ from scena.history import (
 from scena.process import reset_process_scheduler, tick_processes
 from scena.state import DestroyedError
 from tests.graph_support import full_collect, gc_paused  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class HistoryTestCase(unittest.TestCase):

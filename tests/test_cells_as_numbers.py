@@ -29,6 +29,10 @@ from system_support import system_world  # noqa: E402
 
 import scena  # noqa: E402
 from scena import st  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 _N = itertools.count()
 

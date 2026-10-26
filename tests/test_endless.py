@@ -32,6 +32,10 @@ from scena import (  # noqa: E402
 from scena.canvas import ScenaCanvas  # noqa: E402
 from scena.endless import _SLOT_CAP, Slot, _mix  # noqa: E402
 from scena.registry import BUILT_IN_LAYERS, ParallaxLayerError  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 MEDIA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                      "examples", "media")

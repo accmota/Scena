@@ -24,6 +24,10 @@ from scena import Box, Circle, Rect, Sprite, Text, canvas, group, init
 from scena.shapes import Point, get_xy
 from scena.state import get_scena_system
 from tests.graph_support import full_collect, gc_paused  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 FRAMES = [
     (10.0, 20.0, 30.0, 40.0, 0.0),

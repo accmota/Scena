@@ -18,6 +18,9 @@ from scena.collision import get_collision_system, reset_collision_system
 from scena.entity import Entity
 from scena.process import every
 from scena.shapes import Circle
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _bounds_step():

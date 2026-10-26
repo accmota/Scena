@@ -41,6 +41,10 @@ from scena import (  # noqa: E402
     Circle, Entity, after, canvas, collide, group, leave_playfield, wait, when,
 )
 from scena.process import get_scheduler  # noqa: E402
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
+
 
 # Bounded by design (flood-detector memory, swept past a threshold): not a
 # per-actor holder.

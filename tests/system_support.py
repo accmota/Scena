@@ -270,6 +270,12 @@ def reset_world_settings() -> None:
         wm.reset_hud_stack()
 
 
+# The framework's framebuffer metrics a world gives back at teardown (WP44).
+_FB_METRICS = ("fb_width", "fb_height", "pixel_ratio", "view_scale",
+               "_letterbox_pad_x", "_letterbox_pad_y")
+_MISSING = object()
+
+
 class SystemWorld(WorldTracker):
     """A headless world that steps real frames.
 
@@ -312,6 +318,14 @@ class SystemWorld(WorldTracker):
         self._design_found = (fw.design_width, fw.design_height)
         if self._design_found != BOOT_SIZE:
             init(width=BOOT_SIZE[0], height=BOOT_SIZE[1])
+        # The framebuffer metrics and the canvas's pixel ratio, given back at
+        # teardown too: tools/video/record_game.record() sets them for its
+        # offline render inside a ProgramRun world (and pins the surface by an
+        # instance ``_create_drawing_surface``), and every later pixel test of
+        # the serial pass drew at 2x into its 320 x 180 surface (WP44).
+        self._fb_found = {k: getattr(fw, k) for k in _FB_METRICS}
+        self._ratio_found = fw._scena_draw.pixel_ratio
+        self._create_found = vars(fw).get("_create_drawing_surface", _MISSING)
         w = max(1, int(fw.fb_width or 400))
         h = max(1, int(fw.fb_height or 300))
         self.surface = skia.Surface(w, h)
@@ -429,6 +443,14 @@ class SystemWorld(WorldTracker):
                 setattr(fw, k, v)
             if (fw.design_width, fw.design_height) != self._design_found:
                 init(width=self._design_found[0], height=self._design_found[1])
+            for k, v in self._fb_found.items():
+                setattr(fw, k, v)
+            if self._create_found is _MISSING:
+                vars(fw).pop("_create_drawing_surface", None)
+            else:
+                fw._create_drawing_surface = self._create_found
+            if fw._scena_draw.pixel_ratio != self._ratio_found:
+                fw._scena_draw.rebind(fw._scena_draw.skia_canvas, pixel_ratio=self._ratio_found)
             gc_policy.thaw_world()
             gc_policy.set_gc_freeze(self._gc_freeze_was)
             with quiet():
@@ -580,11 +602,10 @@ def describe_new_live(before: set, limit: int = 8) -> str:
 def frame_report(world: "SystemWorld", *objs: Any) -> str:
     """What a frame was drawn under, for a pixel assertion's message.
 
-    The deep serial pass fails a few pixel tests now and then (WP44: a blank
-    frame, a dot off its mapped point, an effect knob with no visible change)
-    and passes them on the next run in the same order: a failure that cannot
-    be bisected has to say what it saw. Each probe is guarded; the report
-    never raises.
+    A pixel test that fails only late in the deep serial pass has to say what
+    it saw: WP44's blank frames read "surface=(320, 180)" at pixel ratio 2, a
+    recording's framebuffer that outlived it. Each probe is guarded; the
+    report never raises.
     """
     _canvas_mod = sys.modules["scena.canvas"]     # ``scena.canvas`` the name is the facade
     from scena.entity import made_at

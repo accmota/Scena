@@ -23,6 +23,9 @@ from scena.spatial_fx import (
     tick_all_spatial_fx,
     registered_count,
 )
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class SpatialFxTestBase(unittest.TestCase):

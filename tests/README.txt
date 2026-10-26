@@ -53,13 +53,17 @@ later module). A module that builds actors and keeps them declares
   setUpModule, tearDownModule = module_sweep()
 Every tier checks it: run_tiers.py runs each job through "run_tiers.py --child"
 (python -m unittest plus a LeftoverCheck after each module), which fails a module
-that leaves more than leftovers.LIMIT live roster items.
+that leaves one live actor it made, and names each with the line that made it
+(WP43). Parts an import-time actor makes lazily may stay, up to leftovers.LIMIT;
+the canvas's own canvas_rect and the framework's HUD labels never count.
 
 A test that counts a program's objects reads the run's roster, not the whole
 one: run_registry().live / .live_objects() (program_support) holds what the
 running ProgramRun registered; another module's leftovers are parked but stay
 in registry().live (WP42). A pixel test at fixed points draws in a SystemWorld,
-which starts at boot's 400x300 whatever size an earlier module init'd (WP41).
+which starts at boot's 400x300 whatever size an earlier module init'd (WP41)
+and gives back at teardown the design size, the framebuffer metrics and the
+canvas's pixel ratio it found (a recording's 320x180 at 2x outlived it, WP44).
 
 A test that counts reactive graph nodes reads them settled:
   from tests.graph_support import gc_paused, settled_graph_size

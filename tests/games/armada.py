@@ -158,21 +158,36 @@ def _placar():
 G.invariant("hud.fresh", _placar)
 
 
+_CCD = {"check": 0}   # which check this is: an enemy's pose is kept with its number
+
+
 def _ccd():
     """A shot that survived the last frame did not travel deep through an
     enemy (Guia, "Objeto rápido": a fast traveller is checked along its whole
-    path). Independent geometry: the shot's path last frame against each
-    enemy's circle, at half its radius (enemies move too: a margin)."""
+    path). Independent geometry: the shot's path last frame relative to each
+    enemy's own motion over that frame (its pose at the last check), against
+    its circle at half its radius. Against the enemy's pose now, a diving
+    enemy (21 px a frame) that moved into the place a fast shot had just left
+    read as a tunnel the shot never made (gate 2026-10-24, WP46)."""
+    n = _CCD["check"] = _CCD["check"] + 1
     for t in group["tiro"]:
         a0 = t.__dict__.get("_antes_jogo")
         if a0 is None:
             continue
         for e in group["inimigo"]:
             r = e.hitbox.box.width / 2.0
-            p = geom.closest_on_seg(e.center, a0, (t.center.x, t.center.y))
-            if geom.dist(p, e.center) < 0.5 * r and abs(t.center.y - a0[1]) > 0:
+            was = e.__dict__.get("_ccd_pose")
+            e0 = was[1] if was is not None and was[0] == n - 1 else (e.center.x, e.center.y)
+            # the shot's path in the enemy's frame: from a0 - e0 to now - e_now
+            start = (a0[0] - e0[0], a0[1] - e0[1])
+            end = (t.center.x - e.center.x, t.center.y - e.center.y)
+            p = geom.closest_on_seg((0.0, 0.0), start, end)
+            if geom.dist(p, (0.0, 0.0)) < 0.5 * r and abs(t.center.y - a0[1]) > 0:
                 G.hit("ccd.checked_deep")
-                return f"shot path {a0} -> {(round(t.center.x, 1), round(t.center.y, 1))} crossed an enemy"
+                return (f"shot path {a0} -> {(round(t.center.x, 1), round(t.center.y, 1))} crossed an enemy "
+                        f"going {(round(e0[0], 1), round(e0[1], 1))} -> {(round(e.center.x, 1), round(e.center.y, 1))}")
+    for e in group["inimigo"]:
+        e.__dict__["_ccd_pose"] = (n, (e.center.x, e.center.y))
     G.hit("ccd.checked")
     return None
 

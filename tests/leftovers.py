@@ -10,8 +10,9 @@ parks and resumes it. So a module destroys what it made::
     from tests.leftovers import module_sweep  # noqa: E402
     setUpModule, tearDownModule = module_sweep()
 
-``tests/run_tiers.py`` checks every module of every tier: a module that leaves
-more than ``LIMIT`` live roster items fails (``LeftoverCheck``). Testing
+``tests/run_tiers.py`` checks every module of every tier (``LeftoverCheck``): a
+module that leaves one live actor it made fails, and so does one that leaves
+more than ``LIMIT`` parts (a part an import-time actor made lazily). Testing
 Design, "Harness pitfalls".
 """
 from __future__ import annotations
@@ -23,22 +24,41 @@ import warnings
 from collections import Counter
 from typing import Any, List, Optional, Tuple
 
-# Live roster items (actors and their parts) a module may leave behind.
+# Parts a module may leave behind: lazy parts of the actors it made at import
+# (those are its fixtures, made before the mark). Actors: none (WP43).
 LIMIT = 50
 
 Mark = Tuple[Optional[Any], int]  # (registry, newest key) — keys are serials
 
 
-def _registry():
-    """The current canvas's registry, or None (no canvas, or Scena not loaded:
-    a module that never imported Scena made nothing)."""
+def _current_canvas():
+    """The current canvas, or None (no canvas, or Scena not loaded: a module
+    that never imported Scena made nothing)."""
     canvas = sys.modules.get("scena.canvas")
     if canvas is None:
         return None
     try:
-        return canvas.ScenaCanvas.get_current().registry
+        return canvas.ScenaCanvas.get_current()
     except RuntimeError:
         return None
+
+
+def _registry():
+    """The current canvas's registry, or None."""
+    cv = _current_canvas()
+    return cv.registry if cv is not None else None
+
+
+def _framework_singleton(obj) -> bool:
+    """A framework singleton (``_scena_internal``: the HUD labels the first
+    ``begin_game`` builds, once per process) is the framework's, not the
+    module's that happened to begin a game first."""
+    try:
+        return bool(object.__getattribute__(obj, "_scena_internal"))
+    except AttributeError:
+        return False
+    except Exception:  # noqa: BLE001 — a half-built item is not a singleton
+        return False
 
 
 def mark() -> Mark:
@@ -51,14 +71,20 @@ def made_since(at: Mark) -> List[Any]:
     """Live roster items registered after ``at``, oldest first.
 
     A canvas that replaced the one at ``at`` counts whole: everything on it is
-    newer. The roster is weak, so unreachable garbage can still be listed until
-    the next GC pass.
+    newer, except the canvas's own boundary rect. Framework singletons never
+    count. The roster is weak, so
+    unreachable garbage can still be listed until the next GC pass.
     """
-    reg = _registry()
-    if reg is None:
+    cv = _current_canvas()
+    if cv is None:
         return []
+    reg = cv.registry
     since = at[1] if reg is at[0] else 0
-    items = [(k, o) for k, o in list(reg.live.items()) if k > since]
+    # The canvas's own boundary rect (``canvas_rect``) is the canvas's, not
+    # the module's: a module that made a new canvas did not leave it.
+    own = getattr(cv, "canvas_rect", None)
+    items = [(k, o) for k, o in list(reg.live.items())
+             if k > since and o is not own and not _framework_singleton(o)]
     items.sort(key=lambda kv: kv[0])
     return [o for _k, o in items]
 
@@ -116,6 +142,19 @@ def module_sweep():
     return setUpModule, tearDownModule
 
 
+def _actors(items: List[Any]) -> List[Any]:
+    """The live, non-part items of ``items``: the actors themselves."""
+    from scena.entity import is_part
+    out = []
+    for o in items:
+        try:
+            if getattr(o, "is_alive", False) and not is_part(o):
+                out.append(o)
+        except Exception:  # noqa: BLE001 — a half-built item counts
+            out.append(o)
+    return out
+
+
 def _tagged(items: List[Any]) -> List[Any]:
     """The live, non-part actors of ``items`` that carry a group tag."""
     from scena.entity import is_part
@@ -134,10 +173,22 @@ def describe(items: List[Any], top: int = 6) -> str:
     return ", ".join(f"{n} {name}" for name, n in counts.most_common(top))
 
 
+def sites(items: List[Any], top: int = 6) -> str:
+    """Where the first ``top`` of ``items`` were made, for a message."""
+    from scena.entity import made_at
+    out = []
+    for o in items[:top]:
+        try:
+            out.append(f"{type(o).__name__} {made_at(o) or '(no site)'}")
+        except Exception:  # noqa: BLE001 — a message, not a check
+            out.append(type(o).__name__)
+    return "; ".join(out)
+
+
 class LeftoverCheck(unittest.TestCase):
     """Runs after a module's ``tearDownModule`` (``tests/run_tiers.py`` puts one
-    after each module): fails when the module left more than ``LIMIT`` live
-    roster items."""
+    after each module): fails when the module left a live actor it made, or
+    more than ``LIMIT`` live parts."""
 
     def __init__(self, module: str, state: dict) -> None:
         super().__init__("test_module_cleans_up")
@@ -161,7 +212,7 @@ class LeftoverCheck(unittest.TestCase):
     def test_module_cleans_up(self):
         try:
             left = made_since(self.state["at"])
-            if len(left) > LIMIT or _tagged(left):
+            if len(left) > LIMIT or _actors(left):
                 # Only when it matters: the roster is weak, so garbage still
                 # lists. Drop our own references first, or they keep it alive.
                 left = None
@@ -183,6 +234,17 @@ class LeftoverCheck(unittest.TestCase):
                 f"({describe(tagged)}; groups {names[:8]}): every later module's "
                 "group[...] and collision rules see them. Destroy what the tests make: "
                 "`setUpModule, tearDownModule = module_sweep()` (tests/leftovers.py)")
+        actors = _actors(left)
+        if actors:
+            # Untagged too: a later test that counts a kind on the roster
+            # counts them (deep serial pass 2026-10-24: test_diff_pose's
+            # reference Lines read as string_theory's strings, WP42), and
+            # every SystemWorld parks and resumes them.
+            self.fail(
+                f"{self.module} left {len(actors)} live actors ({describe(actors)}; "
+                f"{sites(actors)}): "
+                "later modules that count the roster see them. Destroy what the tests "
+                "make: `setUpModule, tearDownModule = module_sweep()` (tests/leftovers.py)")
         if len(left) > LIMIT:
             self.fail(
                 f"{self.module} left {len(left)} live roster items (limit {LIMIT}): "

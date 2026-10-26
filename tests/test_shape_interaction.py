@@ -37,6 +37,9 @@ from scena.shapes import (
     RegularPolygon,
     Square,
 )
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _registry():

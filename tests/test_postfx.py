@@ -29,6 +29,9 @@ from scena.postfx import PostFxStack, PostEffectStage
 from scena.orchestration import ScenaFramework
 from scena.registry import TOP_LAYER
 from scena.fx_quality import activate_quality, fidelity_is_survival
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class TestPostFxStack(unittest.TestCase):

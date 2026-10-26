@@ -21,6 +21,9 @@ from scena.visuals import Visual
 from scena.background_kinds import Lattice, Wallpaper
 from scena.color import Color
 from scena.place import unplaced_creation
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class TestFxApiErrors(unittest.TestCase):

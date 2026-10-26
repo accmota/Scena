@@ -21,6 +21,9 @@ from scena.geom import _oriented_box_verts
 from scena.track import shape_outline, tracks_overlay_wanted
 from scena.process import reset_process_scheduler, tick_processes
 from scena.state import FieldType, DerivedAttributeError, LinkedAttributeError
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _frame(dt=0.1):

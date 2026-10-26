@@ -25,6 +25,9 @@ from scena.state import (
 )
 from scena.scenamath import Vec2
 from tests.graph_support import gc_paused, settled_graph_size
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 class ReactiveEdgeCaseTest(unittest.TestCase):

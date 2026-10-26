@@ -17,6 +17,9 @@ from scena import (
 )
 from scena.process import reset_process_scheduler, tick_processes
 from scena.state import Attribute
+from tests.leftovers import module_sweep  # noqa: E402
+
+setUpModule, tearDownModule = module_sweep()
 
 
 def _frame(real_dt=0.1):
