@@ -1,0 +1,106 @@
+# Tests on every push to main and every pull request: the README's promise
+# (Python 3.12-3.14 on Windows, macOS and Linux), checked on GitHub's runners.
+# What each cell runs and what CI does not cover: design/Testing Design.md,
+# "Continuous integration".
+#
+# Every cell builds the wheel, installs it with the test extra, and imports
+# scena and scena_editor from site-packages (outside the checkout), so a file
+# missing from the wheel or a native dependency without a wheel for that
+# Python fails here. Then the tests run from the checkout (run_tiers.py puts
+# the repo root first on the children's path): the whole quick tier on
+# Ubuntu, the smoke modules below on macOS and Windows. Everything is headless
+# (no window, no GL context, the offline audio mixer), so no display is needed.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request cancels the older run.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Modules for the cells that do not run the whole quick tier: the API
+  # surface, a frame, shapes, collision, drawing, text and fonts, audio,
+  # level files, the editor's launch, every example run headless, and the
+  # Windows / Linux portability guards.
+  SMOKE: >-
+    test_api_surface test_act test_shapes test_collision test_visuals
+    test_text test_audio test_audio_effects test_level test_editor_launch
+    test_editor_i18n test_scripts_run test_platform_portability
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · ${{ matrix.python }} · ${{ matrix.tier || 'smoke' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.12", "3.13", "3.14"]
+        include:
+          - os: ubuntu-latest
+            tier: quick
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Into the runner's temp folder; setuptools' build/ and egg-info go too,
+      # so the tests' source scans see the checkout alone.
+      - name: Build the wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir "$RUNNER_TEMP/dist"
+          rm -rf build scena.egg-info
+
+      - name: Install the wheel with the test extra
+        run: python -m pip install "$(ls "$RUNNER_TEMP"/dist/scena-*.whl)[test]"
+
+      # From outside the checkout, so the import cannot find the source tree.
+      - name: Import the installed wheel
+        working-directory: ${{ runner.temp }}
+        run: |
+          python - <<'EOF'
+          import os, sys
+          import scena, scena_editor
+          root = os.path.normcase(os.path.realpath(os.environ["GITHUB_WORKSPACE"]))
+          for mod in (scena, scena_editor):
+              where = os.path.normcase(os.path.realpath(mod.__file__))
+              print(mod.__name__, where)
+              if where.startswith(root + os.sep):
+                  sys.exit(f"{mod.__name__} imported from the checkout, not the wheel")
+          print("scena", scena.__version__, "on Python", sys.version.split()[0])
+          EOF
+          scena-editor --help > /dev/null
+
+      - name: Quick tier
+        if: matrix.tier == 'quick'
+        run: python tests/run_tiers.py quick -j 4
+
+      - name: Smoke modules
+        if: matrix.tier != 'quick'
+        run: python tests/run_tiers.py focused $SMOKE -j 4
+
+      - name: Keep the logs of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-logs-${{ matrix.os }}-${{ matrix.python }}
+          path: .scena_test_runs/
+          include-hidden-files: true
+          retention-days: 7
