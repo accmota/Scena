@@ -4,9 +4,8 @@ A whole piece in at most 100 lines of plain code. No shader, no pixel loop:
 everything that moves is a formula of the clock (@=), a light on a Track, or an effect.
 
   I    Bloom    nested hexagons open out of a point
-  II   Vortex   they twist into a spiral; a ring of petals and a comet come out
-  III  Mandala  a kaleidoscope folds the spiral while it winds the other way
-  IV   Tunnel   the centres trail round into a tunnel; a dive, a burst, and again
+  II   Vortex   they twist into a spiral; a ring of petals springs out round the comet
+  III  Tunnel   the centres trail round into a tunnel; a dive, a burst, and again
 Try: change the number of hexagons, the colour wheel, or how far st.twist goes. No keys: it loops.
 """
 from scena import *
@@ -25,6 +24,11 @@ st.spin = 1         # how fast everything turns
 st.pulse = 0        # 1 on a kick drum, then it fades (see update)
 st.beat = 1         # how much the strokes follow the music: only under the title
 
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
 # ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
 for i in range(19):
     hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
@@ -32,15 +36,16 @@ for i in range(19):
     hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
     hexagon.fill = None
     hexagon["line_width"] @= lambda: 3 + 4 * st.pulse
-    # int(): the colours step round the wheel, four steps a second
-    hexagon["line"] @= lambda i=i: wheel.get_color(int(clock.time * 4 + i) % 24 / 24)
+    hexagon["line"] @= lambda i=i: wheel_color(i)
 
 # ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
 for k in range(24):
-    turn = lambda k=k: k * 15 + clock.time * 15 * st.spin
-    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda turn=turn: turn() + 90)
-    petal["center"] @= lambda turn=turn: vec_from_angle(turn(), st.petals * st.open * 340)
-    petal["color"] @= lambda k=k: wheel.get_color(int(clock.time * 4 + k) % 24 / 24)
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
 
 # ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
 glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
@@ -68,17 +73,10 @@ async def show():
         canvas.zoom_to(1.2, time=4, ease="ease_in_out")
         tween(st["petals"], 1, time=3, ease="elastic")
         await tween(st["twist"], 8, time=5, ease="ease_in_out")
-        for beat in range(16):
+        for bang in range(16):
             canvas.burst_at(comet, radius=50)
             await wait(0.75)
-        # III  Mandala: a kaleidoscope folds the spiral while it winds the other way
-        mirror = Kaleidoscope(segments=6, spin=0.1)
-        tween(st["twist"], -8, time=12, ease="ease_in_out")
-        for beat in range(16):
-            canvas.zap_at(comet, style="fork", color="white", radius=70)
-            await wait(1)
-        # IV  Tunnel: the centres trail round; it spins up, falls into a point and bursts
-        mirror.remove()
+        # III  Tunnel: the centres trail round; it spins up, falls into a point and bursts
         prism = Prism(amount=0.006)
         await tween(st["bend"], 1, time=5, ease="ease_in_out")
         prism.remove()
@@ -92,8 +90,9 @@ async def show():
         st.open, st.twist, st.bend, st.petals, st.spin, st.beat = 0, 0, 0, 0, 1, 1
 
 def update(dt):
-    # on a kick drum the bass jumps about 0.1 over its calm level (0.62 in this song)
-    st.pulse = max(0, st.pulse - 2 * dt, 8 * st.beat * (amp_db(audio.spectrum(4)[0]) - 0.62))
+    bass = amp_db(audio.spectrum(4)[0])      # about 0.62 in this song, 0.1 more on a kick drum
+    kick = 8 * st.beat * (bass - 0.62)
+    st.pulse = max(0, st.pulse - 2 * dt, kick)       # it jumps on a kick, then fades
     light.intensity = 0.9 + 0.8 * st.pulse
 
 run_task(show)

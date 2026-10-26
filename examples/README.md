@@ -60,6 +60,7 @@ file here.
 | [30 Spins](https://accmota.github.io/Scena/en/tutorial/30-spins.html) | `spinning_bars.py`, `oscilloscope.py` | `barras_girando.py`, `osciloscopio.py` |
 | [31 Duel](https://accmota.github.io/Scena/en/tutorial/31-duel.html) | `duel.py` | `duelo.py` |
 | [32 Race](https://accmota.github.io/Scena/en/tutorial/32-race.html) | `race.py` | `corrida.py` |
+| [33 100 Lines](https://accmota.github.io/Scena/en/tutorial/33-hundred-lines.html) | `hundred_lines.py` | `cem_linhas.py` |
 
 ## Other examples
 
@@ -92,7 +93,6 @@ names and comments are in English. Each docstring says what to try.
 | `pulse.py` | Music-driven visuals: shapes linked to `audio.spectrum()` bands, a beat detector on `@when`, three scenes. M switches to the microphone (VJ mode); 1–3 scenes. |
 | `one_line.py` | One line of light that draws itself and turns into a star, a spiral, an eight and a wave; everything else on screen is read from it (`at(u)`, riders, a turning echo, rings). |
 | `credits_roll.py` | End credits in which the engine thanks its parts: each feature performs under its own name (History, Concave, `@=`, the impacts, the camera, the looks…). |
-| `hundred_lines.py` | An intro in exactly 100 lines: nested hexagons, a spiral vortex, a tunnel; the music drives the strokes under the title. |
 | `demo100.py` | Rings of dancing triangles around a `Bolt` heart, in three parts (Open, Dance, Storm), written to be built up step by step. |
 | `polygon_ballet.py` | A floor of regular polygons in three movements: domino waves that change their sides and looks, rosettes, and their edges as string art. |
 | `string_theory.py` | Lines from simple rules: a times-table cardioid, moiré fans, Lissajous strings, harmonograph curves. Starts with a photosensitivity note (SPACE skips). |

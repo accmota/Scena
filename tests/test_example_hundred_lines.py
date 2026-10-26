@@ -1,12 +1,12 @@
 """
 The claims of ``examples/hundred_lines.py``, played headless.
 
-The example says: a whole intro in exactly 100 lines; four parts in order
+The example says: a whole intro in at most 100 lines; three parts in order
 (I Bloom: the hexagons open out of a point under the title; II Vortex: they
-twist into a spiral and the petals spring out; III Mandala: a Kaleidoscope
-folds the spiral while it winds the other way; IV Tunnel: the centres trail
+twist into a spiral and the petals spring out; III Tunnel: the centres trail
 round, it spins up, falls into a point and bursts), then it loops; everything
-that moves is a formula of the clock and ``st``. User decisions guarded here:
+that moves is a formula of the clock and ``st``. It is also the endpoint of
+tutorial 33 (English), so ``test_tutorials`` holds it to the last step too. User decisions guarded here:
 the music drives the strokes only under the title (``st.beat`` goes to 0 when
 the title leaves, and the stroke pulse then stays at 0 even on a loud kick),
 and the Prism (split colours) covers only part of the piece.
@@ -46,7 +46,7 @@ from scena import RegularPolygon, Text, Triangle, canvas, clock, vec_from_angle 
 
 PATH = "examples/hundred_lines.py"
 SECOND = 60
-PLAY = 80           # seconds: the whole loop (~57 s) and the first part of the next
+PLAY = 60           # seconds: the whole loop (~41 s) and the first part of the next
 TITLE = "100 LINES OF SCENA"
 SCENA_DIR = os.path.normcase(os.path.join(ROOT, "scena")) + os.sep
 FIELDS = ("open", "twist", "bend", "petals", "spin", "pulse", "beat")
@@ -156,9 +156,9 @@ class TestHundredLines(unittest.TestCase):
         return self.first(lambda r: r["bend"] == 0, after=t_bent)
 
     # -- the claims ---------------------------------------------------------
-    def test_the_file_is_exactly_100_lines(self):
+    def test_the_file_is_at_most_100_lines(self):
         with open(os.path.normpath(os.path.join(ROOT, *PATH.split("/"))), encoding="utf-8") as fh:
-            self.assertEqual(len(fh.read().splitlines()), 100)
+            self.assertLessEqual(len(fh.read().splitlines()), 100)
 
     def test_the_whole_loop_plays_without_a_warning(self):
         self.assertEqual(self.warned, [])
@@ -166,25 +166,18 @@ class TestHundredLines(unittest.TestCase):
         self.assertGreater(self.frames[-1]["t"], self.loop_start() + 10,
                            "vacuous: the run did not reach the second loop")
 
-    def test_the_four_parts_come_in_order_then_it_loops(self):
+    def test_the_three_parts_come_in_order_then_it_loops(self):
         bloom = self.first(lambda r: r["open"] == 1)     # the tween is over
         vortex = self.first(lambda r: r["twist"] >= 7.999, after=bloom)
         self.assertLess(self.first(lambda r: r["petals"] >= 0.999, after=bloom), vortex,
                         "the petals did not spring out in the Vortex")
-        mandala = self.first(lambda r: "Kaleidoscope" in r["effects"], after=vortex)
-        wound = self.first(lambda r: r["twist"] <= -7.999, after=mandala)
-        tunnel = self.first(lambda r: r["bend"] >= 0.999, after=wound)
+        tunnel = self.first(lambda r: r["bend"] >= 0.999, after=vortex)
         spun = self.first(lambda r: r["spin"] >= 7.999, after=tunnel)
         shut = self.first(lambda r: r["open"] == 0, after=spun)
         again = self.loop_start()
         self.assertLess(shut, again)
         self.assertLess(again, 60, "the loop is far longer than the storyboard")
         self.first(lambda r: r["open"] >= 0.999, after=again)       # Bloom again
-        # the mirror folds only the Mandala: off before the tunnel bends
-        mirror = [r["t"] for r in self.frames if "Kaleidoscope" in r["effects"] and r["t"] < again]
-        self.assertTrue(mirror)
-        self.assertGreater(min(mirror), vortex)
-        self.assertLess(max(mirror), self.first(lambda r: r["bend"] > 0))
 
     def test_the_title_stands_only_over_the_bloom_and_one_at_a_time(self):
         bloom = self.first(lambda r: r["open"] == 1)     # the tween is over
@@ -217,10 +210,10 @@ class TestHundredLines(unittest.TestCase):
         for r in prism:
             self.assertLess(r["bend"], 1)
             self.assertEqual(r["spin"], 1)
-            self.assertLessEqual(r["twist"], -7.999)
+            self.assertGreaterEqual(r["twist"], 7.999)
 
     def test_the_shapes_are_their_formulas(self):
-        self.assertGreater(self.checked, 200)
+        self.assertGreater(self.checked, 150)
         self.assertEqual(self.mismatches[:5], [])
 
     def test_a_loop_leaves_nothing_behind(self):

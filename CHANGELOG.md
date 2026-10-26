@@ -10,6 +10,23 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Documentation
+
+- New tutorial 33, Cem linhas / 100 Lines (`examples/cem_linhas.py`,
+  `examples/hundred_lines.py`), 13 steps, in Portuguese and English: a
+  looping piece of light and music in fewer than 100 lines, built up from
+  one hexagon. It teaches `canvas.set_origin("center")` with
+  `vec_from_angle`, cells of `st` as the knobs of a piece, a track's
+  `begin` / `end` window, a script of `tween`s with and without `await`, a
+  screen effect switched on and off (`Prism`, `remove()`), and measuring the
+  bass of a song (`audio.spectrum`, `amp_db`) before a pulse uses it.
+- `hundred_lines.py` is now that tutorial's English endpoint (it moved from
+  "Showcases" to the tutorial table in `examples/README.md`): three parts
+  (the Kaleidoscope part is gone), and its densest lines unpacked into
+  `wheel_color(i)` and `on_ring(k)` and a three-line `update`; 99 lines.
+
 ## 0.10.1 — 2026-10-26
 
 ### Added

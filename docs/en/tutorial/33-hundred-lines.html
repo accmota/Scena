@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="alternate" hreflang="pt-BR" href="../../pt/tutorial/33-cem-linhas.html">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>100 Lines — Scena tutorial · 2D games in Python</title>
+<!-- site head (tools/site/seo.py) -->
+<meta name="description" content="A piece of light and music in fewer than 100 lines, like the demoscene&#x27;s intros: hexagons that open, twist and become a tunnel, all made of formulas. Knobs in st, a script of tweens, a screen effect that turns on and off, and a pulse that follows the song&#x27;s kick drum. No game. A step-by-step Scena tutorial: 2D games in Python.">
+<link rel="canonical" href="https://accmota.github.io/Scena/en/tutorial/33-hundred-lines.html">
+<link rel="alternate" hreflang="en" href="https://accmota.github.io/Scena/en/tutorial/33-hundred-lines.html">
+<link rel="alternate" hreflang="pt-BR" href="https://accmota.github.io/Scena/pt/tutorial/33-cem-linhas.html">
+<link rel="alternate" hreflang="x-default" href="https://accmota.github.io/Scena/en/tutorial/33-hundred-lines.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Scena">
+<meta property="og:title" content="100 Lines — Scena tutorial · 2D games in Python">
+<meta property="og:description" content="A piece of light and music in fewer than 100 lines, like the demoscene&#x27;s intros: hexagons that open, twist and become a tunnel, all made of formulas. Knobs in st, a script of tweens, a screen effect that turns on and off, and a pulse that follows the song&#x27;s kick drum. No game. A step-by-step Scena tutorial: 2D games in Python.">
+<meta property="og:url" content="https://accmota.github.io/Scena/en/tutorial/33-hundred-lines.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://accmota.github.io/Scena/assets/og/scena.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Scena: 2D games and creative graphics in Python. A racing game and a space duel made with it.">
+<meta name="twitter:card" content="summary_large_image">
+<!-- /site head -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/tutorial/tutorial.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="../../assets/tutorial/tutorial.js"></script>
+<script>
+Tutorial.mount({
+  n: "33",
+  title: "100 Lines",
+  steps: [
+    {
+      title: "A hexagon in the middle",
+      body: `
+        <p>This tutorial is not a game: it is a piece to watch, with light and music, in the spirit of the demoscene's <em>intros</em>, short programs that play a whole show. Their challenge is size, and so is ours: a piece in fewer than 100 lines, in three parts that repeat. In the <strong>Bloom</strong>, nineteen hexagons open out of a point; in the <strong>Vortex</strong>, they twist into a spiral and a ring of petals springs out; in the <strong>Tunnel</strong>, the centers trail round, everything speeds up and falls into a point.</p>
+        <p>Nothing is moved by hand. Everything that moves is a formula: the size, the turn, the place and the color of every shape are sums with the clock, and a script only changes the numbers the formulas read.</p>
+        <p>Almost every shape in the piece turns round the middle of the screen. So the first line after <code>init</code> moves where the point (0, 0) is:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 160" role="img" aria-label="Two windows. In the left one, the point (0, 0) is at the bottom-left corner. In the right one, with set_origin center, the point (0, 0) is in the middle, and x goes from −640 to 640, y from −400 to 400.">
+            <rect class="guide" x="20" y="20" width="160" height="100"/>
+            <circle class="dot" cx="20" cy="120" r="4"/>
+            <text x="26" y="114">(0, 0)</text>
+            <text x="100" y="142" text-anchor="middle">without set_origin</text>
+            <rect class="guide" x="220" y="20" width="160" height="100"/>
+            <line class="ray" x1="220" y1="70" x2="380" y2="70"/>
+            <line class="ray" x1="300" y1="20" x2="300" y2="120"/>
+            <circle class="dot" cx="300" cy="70" r="4"/>
+            <text x="306" y="64">(0, 0)</text>
+            <text x="226" y="84">−640</text>
+            <text x="374" y="84" text-anchor="end">640</text>
+            <text x="306" y="32">400</text>
+            <text x="306" y="116">−400</text>
+            <text x="300" y="142" text-anchor="middle">set_origin("center")</text>
+          </svg>
+          <figcaption>The same 1280 × 800 window. With <code>set_origin("center")</code>, (0, 0) moves to the middle: x goes from −640 to 640, and y from −400 to 400, still growing upwards.</figcaption>
+        </figure>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+
+hexagon = RegularPolygon(n=6, center=(0, 0), radius=100, angle=lambda: clock.time * 20)
+hexagon.fill = None
+hexagon.line = "gold"
+hexagon.line_width = 3
+
+run()
+`,
+      notes: [
+        {
+          at: "canvas.set_origin(\"center\")",
+          text: "<code>set_origin</code> moves the camera so that (0, 0) sits in the middle of the window. The shapes do not move in the world; what changes is the piece of the world the window shows."
+        },
+        {
+          at: "n=6, center=(0, 0), radius=100",
+          text: "A <code>RegularPolygon</code> has <code>n</code> equal sides: with 6, it is a hexagon. <code>center=(0, 0)</code> is now the middle of the screen, and the <code>radius</code> goes from the center to a corner."
+        },
+        {
+          at: "angle=lambda: clock.time * 20",
+          text: "A formula can also go straight into the constructor, in place of the number. It is the same as writing <code>hexagon[\"angle\"] @= lambda: clock.time * 20</code> on a line of its own: the angle grows 20 degrees a second."
+        },
+        {
+          at: "hexagon.fill = None",
+          text: "<code>fill</code> <code>None</code>: the hexagon is empty, only its outline. <code>line</code> is the color of the outline, and <code>line_width</code> its thickness."
+        }
+      ],
+      after: `
+        <p>Run it: a golden hexagon turns slowly in the middle of the screen.</p>
+        <p>What <code>set_origin</code> buys shows up soon, when every hexagon moves round a circle. A point at some distance and angle from the middle of the screen is just <code>vec_from_angle(angle, distance)</code>: without (0, 0) in the middle, every formula would still have to add (640, 400).</p>
+      `
+    },
+    {
+      title: "Nineteen hexagons",
+      body: [
+        `
+        <p>The Bloom has nineteen hexagons, one inside the other. The <code>for</code> makes them all, and each one's radius comes from the number of the turn:</p>
+        `,
+        {
+          snip: `for i in range(19):
+    hexagon = RegularPolygon(n=6, center=(0, 0), radius=14 + 17 * i, angle=lambda i=i: clock.time * 20 + i * 8)`
+        },
+        `
+        <div class="tbl"><table><thead><tr><th><code>i</code></th><th><code>14 + 17 * i</code></th></tr></thead><tbody>
+          <tr><td>0</td><td>14 (the smallest, in the middle)</td></tr>
+          <tr><td>1</td><td>31</td></tr>
+          <tr><td>2</td><td>48</td></tr>
+          <tr><td>18</td><td>320 (the largest)</td></tr>
+        </tbody></table></div>
+        <p>Each hexagon is 17 pixels bigger than the one inside it, and the gap between them stays the same.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, center=(0, 0), radius=14 + 17 * i, angle=lambda i=i: clock.time * 20 + i * 8)
+    hexagon.fill = None
+    hexagon.line = "gold"
+    hexagon.line_width = 3
+
+run()
+`,
+      notes: [
+        {
+          at: "# ---- the core",
+          text: "A comment line marks each part of the file. In a piece that will grow to almost 100 lines, it helps you find the core, the petals, the tracks and the script."
+        },
+        {
+          at: "angle=lambda i=i:",
+          text: "The <code>i=i</code> keeps each turn's <code>i</code> inside the formula. Without it, the formula would read <code>i</code> when it does the sum, every frame, when the <code>for</code> is long over and <code>i</code> is 18 for all of them."
+        },
+        {
+          at: "clock.time * 20 + i * 8",
+          text: "Each hexagon turns 8 degrees more than the one inside it. Added up, those 8 degrees each make a spiral."
+        }
+      ],
+      after: `
+        <p>Run it: the stack of hexagons turns, twisted into a spiral.</p>
+        <details class="ask"><summary>Take out the <code>i=i</code> and leave just <code>lambda:</code>. What happens?</summary><p>The spiral is gone. Every formula reads the same <code>i</code>, 18, the last one from the <code>for</code>, and all the hexagons get the same angle: nineteen outlines lined up. The radii still differ, because <code>radius</code> was worked out once, when each hexagon was made.</p></details>
+      `
+    },
+    {
+      title: "Knobs in st",
+      body: [
+        `
+        <p>During the piece, these numbers will change: the Bloom starts shut in a point and opens; the spiral starts straight and twists. A number written inside the formula does not change. A cell of <code>st</code> does, and every formula that reads it follows.</p>
+        <p>So each number the script will move becomes a knob in <code>st</code>, with a comment saying what it does:</p>
+        `,
+        {
+          snip: `st.open = 1         # 0: shut in a point · 1: wide open
+st.twist = 8        # degrees each hexagon turns past the one inside it
+st.spin = 1         # how fast everything turns`
+        }
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+st.open = 1         # 0: shut in a point · 1: wide open
+st.twist = 8        # degrees each hexagon turns past the one inside it
+st.spin = 1         # how fast everything turns
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, center=(0, 0), angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon.fill = None
+    hexagon.line = "gold"
+    hexagon.line_width = 3
+
+run()
+`,
+      notes: [
+        {
+          at: "clock.time * 20 * st.spin + i * st.twist",
+          text: "The 8 became <code>st.twist</code>, and the speed got a multiplier, <code>st.spin</code>: with 2, everything turns twice as fast."
+        },
+        {
+          at: "hexagon[\"radius\"] @=",
+          text: "The radius became a formula: the same <code>14 + 17 * i</code>, times <code>st.open</code>. With 1, the size from before; with 0.5, half; with 0, nothing."
+        }
+      ],
+      after: `
+        <p>Run it: the same spiral. Now change the numbers at the top and run it again: <code>st.twist = 0</code> lines the hexagons up; <code>st.twist = 30</code> makes a star; <code>st.open = 0.4</code> shrinks the bloom.</p>
+        <details class="ask"><summary>And with <code>st.open = 0</code>?</summary><p>Every radius is 0, and the screen is empty: the nineteen hexagons are shut in a point, in the middle. That is how the piece will start, and the script will open the bloom.</p></details>
+      `
+    },
+    {
+      title: "The color wheel",
+      body: [
+        `
+        <p>The colors move round a wheel. <code>Colormap.from_colors</code> makes a gradient through the colors in the list: <code>wheel.get_color(0)</code> is the first, <code>wheel.get_color(1)</code> the last, and in between the colors blend. The list starts and ends on the same pink, so the wheel closes: 0 and 1 have the same color.</p>
+        <p>Each hexagon asks the wheel for a color that depends on the time and on its number:</p>
+        `,
+        {
+          snip: `def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)`
+        },
+        `
+        <p>The wheel has 24 steps. <code>int()</code> cuts off the decimals (9.7 becomes 9), and <code>% 24</code> is the remainder of dividing by 24, which keeps the step between 0 and 23. Some values:</p>
+        <div class="tbl"><table><thead><tr><th><code>clock.time</code></th><th><code>i</code></th><th><code>step</code></th></tr></thead><tbody>
+          <tr><td>0</td><td>0</td><td>0</td></tr>
+          <tr><td>0</td><td>1</td><td>1</td></tr>
+          <tr><td>0.25</td><td>0</td><td>1</td></tr>
+          <tr><td>6.1</td><td>0</td><td>0 (24 % 24)</td></tr>
+        </tbody></table></div>
+        <p>Each hexagon is one step ahead of the one inside it, and four times a second they all move up a step: the colors climb from the middle outwards.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 1         # 0: shut in a point · 1: wide open
+st.twist = 8        # degrees each hexagon turns past the one inside it
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, center=(0, 0), angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+run()
+`,
+      notes: [
+        {
+          at: "Nebula(",
+          text: "A nebula background in indigo and teal, half see-through (<code>alpha=0.6</code>)."
+        },
+        {
+          at: "light = Bloom(intensity=0.8)",
+          text: "<code>Bloom</code> is a screen effect: whatever is bright spills light round it. It goes into a variable, <code>light</code>, because the music will change its <code>intensity</code>."
+        },
+        {
+          at: "hexagon[\"line\"] @= lambda i=i: wheel_color(i)",
+          text: "The formula calls a function. Scena redoes the sum every frame, because the function reads <code>clock.time</code>. The <code>hexagon.line = \"gold\"</code> is gone: the color now comes from the wheel."
+        }
+      ],
+      after: `
+        <p>Run it: the colors climb through the hexagons in jumps, and the <code>Bloom</code> glow spills over the strokes.</p>
+      `,
+      try: [
+        {
+          note: "In place of the step with <code>int()</code>: without cutting the decimals, the colors glide instead of jumping.",
+          replaces: ['step = int('],
+          code: `step = (clock.time * 4 + i) % 24`
+        },
+        {
+          note: "In place of the wheel: other colors, always ending on the first so the wheel closes.",
+          replaces: ['wheel = Colormap'],
+          code: `wheel = Colormap.from_colors("cyan", "deep sky blue", "violet", "white", "cyan")`
+        }
+      ]
+    },
+    {
+      title: "Trailing centers",
+      body: [
+        `
+        <p>So far, every hexagon has the same center. In the Tunnel, each center moves round a circle about the middle of the screen, and each hexagon moves a little behind the one inside it, on a smaller circle:</p>
+        `,
+        {
+          snip: `    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))`
+        },
+        `
+        <p><code>vec_from_angle(angle, distance)</code> gives the point at that angle and that distance from (0, 0). With (0, 0) in the middle of the screen, that point is already the right place.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 190" role="img" aria-label="The centers of the hexagons on a spiral curve. The center of hexagon 0 is far from the middle, on a big circle; the next ones lag further behind and come closer to the middle, down to hexagon 18, almost at the center.">
+            <circle class="guide" cx="200" cy="125" r="92.4"/>
+            <circle class="guide" cx="200" cy="125" r="9.2"/>
+            <polyline class="ray" style="fill:none" points="216.0,34.0 232.9,43.6 246.5,56.1 256.5,70.4 262.7,85.8 265.1,101.3 264.1,116.0 259.9,129.2 253.3,140.3 244.9,148.9 235.4,154.7 225.6,157.8 216.2,158.2 207.8,156.4 201.0,152.7 196.0,147.7 193.1,142.1 192.2,136.5 193.4,131.4"/>
+            <circle class="hot" cx="216.0" cy="34.0" r="4"/>
+            <circle class="dot" cx="264.1" cy="116.0" r="3"/>
+            <circle class="dot" cx="216.2" cy="158.2" r="3"/>
+            <circle class="dot" cx="193.4" cy="131.4" r="3"/>
+            <circle class="dot" cx="200" cy="125" r="1.8"/>
+            <text x="224" y="30">i = 0</text>
+            <text x="272" y="120">i = 6</text>
+            <text x="218" y="176">i = 12</text>
+            <text x="150" y="122">i = 18</text>
+            <text x="200" y="14" text-anchor="middle">the circle of 0: radius 220</text>
+          </svg>
+          <figcaption>The centers at one moment. Hexagon 0, the smallest, moves on the big circle, and the others follow: 12 degrees and 11 pixels of radius less each time. Number 18, the largest, hardly leaves the middle. As time goes by, the whole curve turns.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 1         # 0: shut in a point · 1: wide open
+st.twist = 8        # degrees each hexagon turns past the one inside it
+st.bend = 1         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+run()
+`,
+      notes: [
+        {
+          at: "st.bend = 1",
+          text: "One more knob. With 0, every circle has radius 0, and the centers stay at (0, 0); with 1, the whole tunnel."
+        },
+        {
+          at: "hexagon = RegularPolygon(n=6, angle=",
+          text: "<code>center=(0, 0)</code> has left the constructor: the center is now the formula on the line below."
+        },
+        {
+          at: "clock.time * 70 - i * 12",
+          text: "The centers turn 70 degrees a second, and each hexagon stays 12 degrees behind the one inside it."
+        }
+      ],
+      after: `
+        <p>Run it: the small hexagons, far in, sweep a wide circle, and the big ones hardly move. It looks as if you are looking down a tunnel that bends.</p>
+        <p>Change <code>st.bend</code> to 0.3 and run it: a shallow tunnel. With 0, the bloom has a single center again.</p>
+      `
+    },
+    {
+      title: "A ring of petals",
+      body: [
+        `
+        <p>Round everything, a ring of 24 petals. Each petal rides the ring with its tip ahead, and its place on the ring is used twice: for the center and for the angle. A function with a name does the sum only once:</p>
+        `,
+        {
+          snip: `def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees`
+        },
+        `
+        <p>24 petals 15 degrees apart close the circle: 24 × 15 = 360. Time makes the whole ring turn, 15 degrees a second.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 180" role="img" aria-label="A circle with a petal on it. A line goes from the center to the petal, at the angle on_ring(k). The tip of the petal points along the circle, 90 degrees past that angle.">
+            <circle class="guide" cx="200" cy="100" r="70"/>
+            <line class="ray" x1="200" y1="100" x2="257.3" y2="59.8"/>
+            <line class="ray" x1="200" y1="100" x2="280" y2="100"/>
+            <path class="guide" d="M 230 100 A 30 30 0 0 0 224.6 82.8"/>
+            <polygon class="bar child" points="248.2,46.7 266.0,63.5 257.8,69.3"/>
+            <circle class="dot" cx="200" cy="100" r="3"/>
+            <text x="236" y="92">on_ring(k)</text>
+            <text x="252" y="22" text-anchor="end">tip: on_ring(k) + 90</text>
+          </svg>
+          <figcaption>The angle of the line out of the middle is <code>on_ring(k)</code>. A quarter turn past it, <code>on_ring(k) + 90</code>, the tip points along the ring, where the petal is going.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 1         # 0: shut in a point · 1: wide open
+st.twist = 8        # degrees each hexagon turns past the one inside it
+st.bend = 1         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 1       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+run()
+`,
+      notes: [
+        {
+          at: "base_ratio=0.5",
+          text: "<code>Triangle(radius=20)</code> is a triangle with equal sides inside a circle of radius 20, with its tip at the <code>angle</code>. A <code>base_ratio</code> of 0.5 gives the base half the width: a narrow triangle, a petal."
+        },
+        {
+          at: "st.petals * st.open * 340",
+          text: "Two knobs multiplied: the ring is only far out when both are 1. When the bloom shuts (<code>st.open</code> 0), the petals come back to the middle too."
+        },
+        {
+          at: "petal[\"color\"] @=",
+          text: "The same color wheel, now in the <code>color</code> of the petal, which is filled."
+        }
+      ],
+      after: `
+        <p>Run it: the ring turns round the hexagons, every petal tip first, and the colors climb round the ring as they climb through the hexagons.</p>
+        <details class="ask"><summary>And if the <code>+ 90</code> were <code>+ 0</code>?</summary><p>The tips would point outwards, like the rays of a sun, and the ring would turn sideways. The <code>+ 90</code> is what turns each petal the way it is going.</p></details>
+      `
+    },
+    {
+      title: "A window of light",
+      body: [
+        `
+        <p>At the edge of the screen, a crown of light: a zigzag circle, lit only along a piece that runs round it. A <code>Track</code> has <code>begin</code> and <code>end</code>: fractions of the way, from 0 to 1, that cut what is drawn. With <code>begin</code> 0.1 and <code>end</code> 0.22, only 12% of the circle shows.</p>
+        `,
+        {
+          snip: `glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1`
+        },
+        `
+        <p>Both ends of the window move together, a quarter of the way a second, and the window goes round the circle every 4 seconds.</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 175" role="img" aria-label="Two circles. On the first, only the arc from begin 0.10 to end 0.22 is lit. On the second, the window crosses the point 0 = 1: begin is 0.94 and end is 0.06, and the lit arc crosses the point where the circle starts and ends.">
+            <circle class="guide" cx="100" cy="90" r="55"/>
+            <path class="bar" style="fill:none;stroke-width:5" d="M 144.5 57.7 A 55 55 0 0 0 110.3 36.0"/>
+            <text x="150" y="56">begin 0.10</text>
+            <text x="100" y="26" text-anchor="middle">end 0.22</text>
+            <circle class="guide" cx="270" cy="90" r="55"/>
+            <path class="bar" style="fill:none;stroke-width:5" d="M 321.1 110.2 A 55 55 0 0 0 321.1 69.8"/>
+            <line class="ray" x1="318" y1="90" x2="332" y2="90"/>
+            <text x="336" y="94">0 = 1</text>
+            <text x="326" y="126">begin 0.94</text>
+            <text x="326" y="62">end 0.06</text>
+            <text x="100" y="168" text-anchor="middle">a window</text>
+            <text x="270" y="168" text-anchor="middle">the window crosses 0</text>
+          </svg>
+          <figcaption>When the window crosses the point where the circle starts and ends, <code>end</code> is smaller than <code>begin</code>. On a closed track, Scena takes it that the window runs past the end and carries on from the start.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 1         # 0: shut in a point · 1: wide open
+st.twist = 8        # degrees each hexagon turns past the one inside it
+st.bend = 1         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 1       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+# ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
+glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
+glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1
+
+run()
+`,
+      notes: [
+        {
+          at: "Track.circle(center=(0, 0), radius=390",
+          text: "A circular track with radius 390, almost touching the top and bottom edges. With <code>color=</code>, the track is drawn; with no color, it is only an invisible path."
+        },
+        {
+          at: ".zigzag(amount=8, waves=72)",
+          text: "<code>zigzag</code> bends the track into 72 waves of 8 pixels. It hands back the track itself, so it fits at the end of the same line."
+        },
+        {
+          at: "clock.time * 0.25 % 1",
+          text: "<code>% 1</code> keeps only the part after the decimal point: 2.3 becomes 0.3. The start of the window goes from 0 to 1 and starts again."
+        }
+      ],
+      after: `
+        <p>Run it: a zigzag streak of light runs round the screen. The rest of the crown is there, but not drawn.</p>
+      `,
+      try: [
+        {
+          note: "In place of both lines: only the end moves, and the start stays at 0. The crown draws itself whole every 4 seconds and starts again empty.",
+          replaces: ['glint["begin"] @=', 'glint["end"] @='],
+          code: `glint["end"] @= lambda: clock.time * 0.25 % 1`
+        }
+      ]
+    },
+    {
+      title: "The comet",
+      body: `
+        <p>What is missing is a comet that wanders round the screen on a long loop, with a golden trail. Its path is another <code>Track</code>, this time made of points and with no color: invisible, only the comet shows where it goes.</p>
+      `,
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 1         # 0: shut in a point · 1: wide open
+st.twist = 8        # degrees each hexagon turns past the one inside it
+st.bend = 1         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 1       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+# ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
+glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
+glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1
+# a comet riding a long, smooth loop that wanders round the screen
+roam = Track(points=[(-520, 250), (-60, 320), (470, 260), (540, -150), (120, -320),
+                     (-330, -250), (-560, -20)], smooth=1, closed=True)
+comet = Circle(radius=9, color="white")
+comet.tail = Tail(color="gold", size=4)
+comet.move_along(roam, time=18, loops="forever")
+
+run()
+`,
+      notes: [
+        {
+          at: "roam = Track(points=[",
+          text: "Seven points spread round the screen. The list is long and carries on onto the next line: inside square brackets, Python lets you break the line."
+        },
+        {
+          at: "smooth=1, closed=True",
+          text: "<code>smooth=1</code> runs a soft curve through the points, with no corners; <code>closed=True</code> joins the last point back to the first."
+        },
+        {
+          at: "comet.tail = Tail(",
+          text: "<code>Tail</code> is the trail that follows the comet, golden and thin."
+        },
+        {
+          at: "time=18, loops=\"forever\"",
+          text: "One loop every 18 seconds, forever."
+        }
+      ],
+      after: `
+        <p>Run it: the comet wanders slowly round the bloom. To see its path, press <kbd>Ctrl+Shift+7</kbd>, which draws the tracks (the debug keys are in <a href="A-debug-keys.html">Appendix A</a>).</p>
+        <p>Every piece is on stage. From here on, no new shapes: only the script, which moves the knobs.</p>
+      `
+    },
+    {
+      title: "The script: the Bloom",
+      body: [
+        `
+        <p>The piece needs a script: start shut, open, twist, in order and on time. It is an <code>async</code> function, like the ones in the interlude <a href="25i-events-and-processes.html">Events and processes</a>, and what it moves are the knobs in <code>st</code>. To change a knob gradually, <code>tween</code>:</p>
+        `,
+        {
+          snip: `        await tween(st["open"], 1, time=8, ease="ease_out")`
+        },
+        `
+        <p><code>tween(st["open"], 1, time=8)</code> takes the cell from the value it has to 1, in 8 seconds. The cell goes in square brackets: <code>tween</code> needs the cell, not the number. Every frame it is a little bigger, and every formula that reads it follows: the nineteen hexagons and the petals grow together. With <code>await</code> in front, the script waits for the end before going on.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 0         # 0: shut in a point · 1: wide open
+st.twist = 0        # degrees each hexagon turns past the one inside it
+st.bend = 0         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 0       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+# ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
+glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
+glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1
+# a comet riding a long, smooth loop that wanders round the screen
+roam = Track(points=[(-520, 250), (-60, 320), (470, 260), (540, -150), (120, -320),
+                     (-330, -250), (-560, -20)], smooth=1, closed=True)
+comet = Circle(radius=9, color="white")
+comet.tail = Tail(color="gold", size=4)
+comet.move_along(roam, time=18, loops="forever")
+
+async def show():
+    await wait(0.5)
+    while True:
+        # I  Bloom: the title, and the hexagons open out of a point
+        canvas.fade_in(1.5)
+        title = Text("100 LINES OF SCENA", center=(0, 0), font_size=80, font="fonts/VastShadow-Regular.ttf")
+        title.dissolve_in(2.5)
+        await tween(st["open"], 1, time=8, ease="ease_out")
+        canvas.ripple_at(0, 0)
+        title.dissolve_out(1.5, style="vortex", on_done=title.destroy)
+        canvas.fade_out(1.5)
+        await wait(2)
+        st.open, st.twist, st.bend, st.petals, st.spin = 0, 0, 0, 0, 1
+
+run_task(show)
+run()
+`,
+      notes: [
+        {
+          at: "st.open = 0         #",
+          text: "Now the piece starts shut: the script opens it. The twist, the bend and the petals start at 0 too, and the next parts of the script will move them."
+        },
+        {
+          at: "while True:",
+          text: "The piece repeats forever: each turn of the <code>while</code> is a whole performance."
+        },
+        {
+          at: "canvas.fade_in(1.5)",
+          text: "The screen comes out of black in 1.5 seconds. At the end of the turn, <code>fade_out</code> does the opposite."
+        },
+        {
+          at: "title.dissolve_in(2.5)",
+          text: "The title appears in little pieces, over 2.5 seconds. <code>dissolve_out</code>, with the <code>\"vortex\"</code> style, takes it away spinning."
+        },
+        {
+          at: "on_done=title.destroy",
+          text: "<code>dissolve_out</code> only hides the text. Without the <code>destroy</code> at the end, each turn of the piece would leave one more hidden title in the world."
+        },
+        {
+          at: "canvas.ripple_at(0, 0)",
+          text: "An impact: a wave runs out from the middle when the bloom has finished opening."
+        },
+        {
+          at: "st.open, st.twist, st.bend, st.petals, st.spin = 0, 0, 0, 0, 1",
+          text: "Back to the start, while the screen is black, before the next turn. One line gives values to five cells, in order."
+        },
+        {
+          at: "run_task(show)",
+          text: "<code>run_task</code> starts the script as a task: it runs beside the frames, sleeping at every <code>await</code>."
+        }
+      ],
+      after: `
+        <p>Run it: black screen, the title appears, and the bloom opens out of the point in 8 seconds. <code>ease="ease_out"</code> opens fast at first and slowly at the end. Then the screen goes dark, and it all starts again.</p>
+      `
+    },
+    {
+      title: "The Vortex",
+      body: [
+        `
+        <p>In the second part, the spiral twists and the petals spring out at the same time. A <code>tween</code> without <code>await</code> starts and the script goes straight on, without waiting:</p>
+        `,
+        {
+          snip: `        tween(st["petals"], 1, time=3, ease="elastic")
+        await tween(st["twist"], 8, time=5, ease="ease_in_out")`
+        },
+        `
+        <p>Both cells change together: the petals in 3 seconds, the twist in 5. The script waits only for the twist.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 0         # 0: shut in a point · 1: wide open
+st.twist = 0        # degrees each hexagon turns past the one inside it
+st.bend = 0         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 0       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+# ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
+glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
+glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1
+# a comet riding a long, smooth loop that wanders round the screen
+roam = Track(points=[(-520, 250), (-60, 320), (470, 260), (540, -150), (120, -320),
+                     (-330, -250), (-560, -20)], smooth=1, closed=True)
+comet = Circle(radius=9, color="white")
+comet.tail = Tail(color="gold", size=4)
+comet.move_along(roam, time=18, loops="forever")
+
+async def show():
+    await wait(0.5)
+    while True:
+        # I  Bloom: the title, and the hexagons open out of a point
+        canvas.fade_in(1.5)
+        title = Text("100 LINES OF SCENA", center=(0, 0), font_size=80, font="fonts/VastShadow-Regular.ttf")
+        title.dissolve_in(2.5)
+        await tween(st["open"], 1, time=8, ease="ease_out")
+        canvas.ripple_at(0, 0)
+        title.dissolve_out(1.5, style="vortex", on_done=title.destroy)
+        # II  Vortex: the hexagons twist into a spiral, the petals spring out
+        canvas.zoom_to(1.2, time=4, ease="ease_in_out")
+        tween(st["petals"], 1, time=3, ease="elastic")
+        await tween(st["twist"], 8, time=5, ease="ease_in_out")
+        for bang in range(16):
+            canvas.burst_at(comet, radius=50)
+            await wait(0.75)
+        canvas.fade_out(1.5)
+        await wait(2)
+        st.open, st.twist, st.bend, st.petals, st.spin = 0, 0, 0, 0, 1
+
+run_task(show)
+run()
+`,
+      notes: [
+        {
+          at: "canvas.zoom_to(1.2, time=4",
+          text: "The camera moves in over 4 seconds. Also without <code>await</code>: the zoom happens while the spiral twists."
+        },
+        {
+          at: "ease=\"elastic\")",
+          text: "<code>elastic</code> overshoots the target and comes back, like a spring: the petals jump out and wobble."
+        },
+        {
+          at: "for bang in range(16):",
+          text: "Sixteen bursts, one every 0.75 seconds: twelve seconds of Vortex. The name <code>bang</code> is not used; the <code>for</code> only counts."
+        },
+        {
+          at: "canvas.burst_at(comet, radius=50)",
+          text: "An impact where the comet is now. Since the comet moves, each burst comes out somewhere else."
+        }
+      ],
+      after: `
+        <details class="ask"><summary>And if the petals' tween had an <code>await</code> too?</summary><p>The script would wait for the petals to arrive, 3 seconds, and only then start twisting the spiral. The two would come one after the other, and the Vortex would be 3 seconds longer.</p></details>
+      `
+    },
+    {
+      title: "The Tunnel",
+      body: [
+        `
+        <p>The last part. While the tunnel bends, the colors split apart, like light going through a prism:</p>
+        `,
+        {
+          snip: `        prism = Prism(amount=0.006)
+        await tween(st["bend"], 1, time=5, ease="ease_in_out")
+        prism.remove()`
+        },
+        `
+        <p><code>Prism</code> is a screen effect, like <code>Bloom</code>. An effect is an object: making it turns it on, <code>remove()</code> turns it off. Here it lives only for the 5 seconds of the bend.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 0         # 0: shut in a point · 1: wide open
+st.twist = 0        # degrees each hexagon turns past the one inside it
+st.bend = 0         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 0       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+# ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
+glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
+glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1
+# a comet riding a long, smooth loop that wanders round the screen
+roam = Track(points=[(-520, 250), (-60, 320), (470, 260), (540, -150), (120, -320),
+                     (-330, -250), (-560, -20)], smooth=1, closed=True)
+comet = Circle(radius=9, color="white")
+comet.tail = Tail(color="gold", size=4)
+comet.move_along(roam, time=18, loops="forever")
+
+async def show():
+    await wait(0.5)
+    while True:
+        # I  Bloom: the title, and the hexagons open out of a point
+        canvas.fade_in(1.5)
+        title = Text("100 LINES OF SCENA", center=(0, 0), font_size=80, font="fonts/VastShadow-Regular.ttf")
+        title.dissolve_in(2.5)
+        await tween(st["open"], 1, time=8, ease="ease_out")
+        canvas.ripple_at(0, 0)
+        title.dissolve_out(1.5, style="vortex", on_done=title.destroy)
+        # II  Vortex: the hexagons twist into a spiral, the petals spring out
+        canvas.zoom_to(1.2, time=4, ease="ease_in_out")
+        tween(st["petals"], 1, time=3, ease="elastic")
+        await tween(st["twist"], 8, time=5, ease="ease_in_out")
+        for bang in range(16):
+            canvas.burst_at(comet, radius=50)
+            await wait(0.75)
+        # III  Tunnel: the centres trail round; it spins up, falls into a point and bursts
+        prism = Prism(amount=0.006)
+        await tween(st["bend"], 1, time=5, ease="ease_in_out")
+        prism.remove()
+        canvas.rotate_by(-360, time=8.5, ease="ease_in")
+        canvas.zoom_to(1, time=7, ease="ease_in_out")
+        await tween(st["spin"], 8, time=7, ease="ease_in")
+        await tween(st["open"], 0, time=1.5, ease="ease_in")
+        canvas.explosion_at(0, 0)
+        canvas.fade_out(1.5)
+        await wait(2)
+        st.open, st.twist, st.bend, st.petals, st.spin = 0, 0, 0, 0, 1
+
+run_task(show)
+run()
+`,
+      notes: [
+        {
+          at: "Prism(amount=0.006)",
+          text: "<code>amount</code>: how far the colors split. Small values are enough, like 0.006."
+        },
+        {
+          at: "canvas.rotate_by(-360, time=8.5",
+          text: "The camera turns a whole circle in 8.5 seconds and ends where it started. <code>ease_in</code> starts slowly and speeds up."
+        },
+        {
+          at: "await tween(st[\"spin\"], 8",
+          text: "Everything starts turning eight times faster: the hexagons and the ring of petals."
+        },
+        {
+          at: "await tween(st[\"open\"], 0",
+          text: "In 1.5 seconds, the bloom falls back into the point it came from, and bursts."
+        }
+      ],
+      after: `
+        <p>Run the whole piece. It lasts about 41 seconds and starts again. Each part of the script only takes knobs from one value to another:</p>
+        <figure class="fig">
+          <svg viewBox="0 0 400 214" role="img" aria-label="A timeline from 0 to 41 seconds, split into Bloom, Vortex and Tunnel. Open rises from 0 to 1 in the Bloom and falls at the end of the Tunnel. Petals and twist rise at the start of the Vortex. Bend rises at the start of the Tunnel, together with the Prism. Spin rises from 1 to 8 in the Tunnel.">
+            <line class="guide" x1="134.6" y1="24" x2="134.6" y2="194"/>
+            <line class="guide" x1="263.8" y1="24" x2="263.8" y2="194"/>
+            <text x="102" y="18" text-anchor="middle">I Bloom</text>
+            <text x="199" y="18" text-anchor="middle">II Vortex</text>
+            <text x="322" y="18" text-anchor="middle">III Tunnel</text>
+            <text x="64" y="48" text-anchor="end">open</text>
+            <polyline class="ray" style="fill:none" points="70,50 73.8,50 134.6,34 355,34 366.4,50 381.6,50"/>
+            <text x="64" y="78" text-anchor="end">petals</text>
+            <polyline class="ray" style="fill:none" points="70,80 134.6,80 157.4,64 381.6,64"/>
+            <text x="64" y="108" text-anchor="end">twist</text>
+            <polyline class="ray" style="fill:none" points="70,110 134.6,110 172.6,94 381.6,94"/>
+            <text x="64" y="138" text-anchor="end">bend</text>
+            <polyline class="ray" style="fill:none" points="70,140 263.8,140 301.8,124 381.6,124"/>
+            <text x="64" y="168" text-anchor="end">spin</text>
+            <polyline class="ray" style="fill:none" points="70,168 301.8,168 355,154 381.6,154"/>
+            <text x="64" y="191" text-anchor="end">Prism</text>
+            <rect class="bar child" x="263.8" y="183" width="38" height="9"/>
+            <text x="70" y="208">0 s</text>
+            <text x="381.6" y="208" text-anchor="end">41 s</text>
+          </svg>
+          <figcaption>The knobs over one turn of the piece. Each ramp is a <code>tween</code>; the ones that start together are the ones without <code>await</code>. At the end, the restart line takes everything back to its starting value.</figcaption>
+        </figure>
+      `,
+      try: [
+        {
+          note: "In place of the <code>Prism</code>: red, green and blue pulled apart sideways, like a faulty screen. Other effects that fit here: <code>ZoomBlur</code>, <code>Pixelate</code>, <code>Crt</code>. All of them in the <a href=\"../guide/index.html#mundo-post\">Screen effects</a> section of the Guide.",
+          replaces: ['prism = Prism('],
+          code: `prism = Chroma(amount=6)`
+        },
+        {
+          note: "Or a whirlpool that twists the picture round the middle of the screen.",
+          replaces: ['prism = Prism('],
+          code: `prism = Vortex(target=(0, 0), amount=0.6)`
+        }
+      ]
+    },
+    {
+      title: "Listening to the music",
+      body: [
+        `
+        <p>The piece has music, and the strokes are going to pulse with the kick drum. First, you need to know what the kick drum looks like in numbers. A meter in the corner of the screen shows the bass of the music:</p>
+        `,
+        {
+          snip: `    st.bass = amp_db(audio.spectrum(4)[0])`
+        },
+        `
+        <p><code>audio.spectrum(4)</code> splits the sound that is playing into 4 bands, from low to high, like the equalizer in <a href="22-studio-piano.html">Studio · Piano</a>. <code>[0]</code> is the first, the lowest, where the kick drum is. <code>amp_db</code> turns the number into a scale from 0 to 1 closer to what the ear hears.</p>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+play_sound("music/super_hero_original_no_intro.ogg", loops="forever", volume=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 0         # 0: shut in a point · 1: wide open
+st.twist = 0        # degrees each hexagon turns past the one inside it
+st.bend = 0         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 0       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+st.bass = 0         # the bass level, measured every frame
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon.line_width = 3
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+# ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
+glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
+glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1
+# a comet riding a long, smooth loop that wanders round the screen
+roam = Track(points=[(-520, 250), (-60, 320), (470, 260), (540, -150), (120, -320),
+                     (-330, -250), (-560, -20)], smooth=1, closed=True)
+comet = Circle(radius=9, color="white")
+comet.tail = Tail(color="gold", size=4)
+comet.move_along(roam, time=18, loops="forever")
+
+async def show():
+    await wait(0.5)
+    while True:
+        # I  Bloom: the title, and the hexagons open out of a point
+        canvas.fade_in(1.5)
+        title = Text("100 LINES OF SCENA", center=(0, 0), font_size=80, font="fonts/VastShadow-Regular.ttf")
+        title.dissolve_in(2.5)
+        await tween(st["open"], 1, time=8, ease="ease_out")
+        canvas.ripple_at(0, 0)
+        title.dissolve_out(1.5, style="vortex", on_done=title.destroy)
+        # II  Vortex: the hexagons twist into a spiral, the petals spring out
+        canvas.zoom_to(1.2, time=4, ease="ease_in_out")
+        tween(st["petals"], 1, time=3, ease="elastic")
+        await tween(st["twist"], 8, time=5, ease="ease_in_out")
+        for bang in range(16):
+            canvas.burst_at(comet, radius=50)
+            await wait(0.75)
+        # III  Tunnel: the centres trail round; it spins up, falls into a point and bursts
+        prism = Prism(amount=0.006)
+        await tween(st["bend"], 1, time=5, ease="ease_in_out")
+        prism.remove()
+        canvas.rotate_by(-360, time=8.5, ease="ease_in")
+        canvas.zoom_to(1, time=7, ease="ease_in_out")
+        await tween(st["spin"], 8, time=7, ease="ease_in")
+        await tween(st["open"], 0, time=1.5, ease="ease_in")
+        canvas.explosion_at(0, 0)
+        canvas.fade_out(1.5)
+        await wait(2)
+        st.open, st.twist, st.bend, st.petals, st.spin = 0, 0, 0, 0, 1
+
+meter = Text(lambda: f"bass {st.bass:.2f}", top_left=(20, 780), font_size=40, layer="ui")
+
+def update(dt):
+    st.bass = amp_db(audio.spectrum(4)[0])
+
+run_task(show)
+run()
+`,
+      notes: [
+        {
+          at: "play_sound(",
+          text: "The music plays forever (<code>loops=\"forever\"</code>), a little quieter (<code>volume=0.8</code>)."
+        },
+        {
+          at: "st.bass = 0",
+          text: "A cell for the meter to read. <code>update</code> writes to it every frame."
+        },
+        {
+          at: "f\"bass {st.bass:.2f}\"",
+          text: "A text with a formula. Inside the braces of an f-string, <code>:.2f</code> shows the number with two decimals."
+        },
+        {
+          at: "layer=\"ui\"",
+          text: "On the <code>\"ui\"</code> layer, the text stays still in the corner while the camera zooms and turns."
+        }
+      ],
+      after: `
+        <p>Run it and watch the number. In this song, it stays between 0.62 and 0.70 and jumps to 0.72 or more on every beat of the kick drum. 0.62 is the floor: the bass of the song almost never goes below it. The next step uses that number.</p>
+        <details class="ask"><summary>And if you change the song?</summary><p>The meter shows other numbers: every song has its own floor and its own beats. Measure again and swap the 0.62 in the next step for the floor of the new song.</p></details>
+      `
+    },
+    {
+      title: "The pulse",
+      example: "hundred_lines.py",
+      body: [
+        `
+        <p>Now the number pushes the strokes. <code>st.pulse</code> jumps on a beat and then falls, 2 a second. Three lines in <code>update</code> do both:</p>
+        `,
+        {
+          snip: `    bass = amp_db(audio.spectrum(4)[0])      # about 0.62 in this song, 0.1 more on a kick drum
+    kick = 8 * st.beat * (bass - 0.62)
+    st.pulse = max(0, st.pulse - 2 * dt, kick)       # it jumps on a kick, then fades`
+        },
+        `
+        <p><code>kick</code> is how far the bass has gone above the floor, times 8: a beat, 0.1 above the floor, gives 0.8. <code>max</code> keeps the biggest of three numbers:</p>
+        <div class="tbl"><table><thead><tr><th>number</th><th>what it is</th></tr></thead><tbody>
+          <tr><td><code>0</code></td><td>the pulse never goes negative</td></tr>
+          <tr><td><code>st.pulse - 2 * dt</code></td><td>the pulse from the frame before, falling 2 a second: from 1 to 0 in half a second</td></tr>
+          <tr><td><code>kick</code></td><td>the beat right now</td></tr>
+        </tbody></table></div>
+        <figure class="fig">
+          <svg viewBox="0 0 400 140" role="img" aria-label="The pulse over two seconds: four jumps up to 1, one on each beat, and after each jump a straight fall down to the calm level.">
+            <line class="guide" x1="40" y1="93" x2="380" y2="93"/>
+            <line class="ray" x1="40" y1="120" x2="380" y2="120"/>
+            <polyline class="ray" style="fill:none" points="40,93 74,93 74,30 133.5,93 159,93 159,30 218.5,93 244,93 244,30 303.5,93 329,93 329,30 380,84"/>
+            <text x="34" y="34" text-anchor="end">1</text>
+            <text x="34" y="124" text-anchor="end">0</text>
+            <text x="74" y="22" text-anchor="middle">beat</text>
+            <text x="110" y="58">−2 a second</text>
+            <text x="380" y="106" text-anchor="end">the calm bass, a little above the floor</text>
+          </svg>
+          <figcaption>On each beat, <code>kick</code> is the biggest and the pulse jumps. Between beats, the earlier pulse wins as it falls, until it meets the calm bass.</figcaption>
+        </figure>
+        `
+      ],
+      code: `from scena import *
+
+init(width=1280, height=800, title="100 Lines")
+canvas.set_origin("center")         # (0, 0) in the middle keeps the formulas short
+Nebula(color="indigo", color2="teal", alpha=0.6)
+light = Bloom(intensity=0.8)
+play_sound("music/super_hero_original_no_intro.ogg", loops="forever", volume=0.8)
+wheel = Colormap.from_colors("deep pink", "orange", "gold", "lime", "deep sky blue", "violet", "deep pink")
+st.open = 0         # 0: shut in a point · 1: wide open
+st.twist = 0        # degrees each hexagon turns past the one inside it
+st.bend = 0         # 0: one centre · 1: each centre trails the one inside it (a tunnel)
+st.petals = 0       # how far out the ring of petals is
+st.spin = 1         # how fast everything turns
+st.pulse = 0        # 1 on a kick drum, then it fades (see update)
+st.beat = 1         # how much the strokes follow the music: only under the title
+
+def wheel_color(i):
+    # int(): the colours step round the wheel, four steps a second
+    step = int(clock.time * 4 + i) % 24
+    return wheel.get_color(step / 24)
+
+# ---- the core: nested hexagons whose size, turn, place and colour are formulas ----
+for i in range(19):
+    hexagon = RegularPolygon(n=6, angle=lambda i=i: clock.time * 20 * st.spin + i * st.twist)
+    hexagon["radius"] @= lambda i=i: st.open * (14 + 17 * i)
+    hexagon["center"] @= lambda i=i: vec_from_angle(clock.time * 70 - i * 12, st.bend * (220 - 11 * i))
+    hexagon.fill = None
+    hexagon["line_width"] @= lambda: 3 + 4 * st.pulse
+    hexagon["line"] @= lambda i=i: wheel_color(i)
+
+# ---- a ring of petals, each one riding it with its tip ahead ----
+def on_ring(k):
+    return k * 15 + clock.time * 15 * st.spin       # where petal k is on the ring, in degrees
+
+for k in range(24):
+    petal = Triangle(radius=20, base_ratio=0.5, angle=lambda k=k: on_ring(k) + 90)
+    petal["center"] @= lambda k=k: vec_from_angle(on_ring(k), st.petals * st.open * 340)
+    petal["color"] @= lambda k=k: wheel_color(k)
+
+# ---- light on tracks: a zigzag crown, lit only along a window that runs round it ----
+glint = Track.circle(center=(0, 0), radius=390, color="white", line_width=4).zigzag(amount=8, waves=72)
+glint["begin"] @= lambda: clock.time * 0.25 % 1
+glint["end"] @= lambda: (clock.time * 0.25 + 0.12) % 1
+# a comet riding a long, smooth loop that wanders round the screen
+roam = Track(points=[(-520, 250), (-60, 320), (470, 260), (540, -150), (120, -320),
+                     (-330, -250), (-560, -20)], smooth=1, closed=True)
+comet = Circle(radius=9, color="white")
+comet.tail = Tail(color="gold", size=4)
+comet.move_along(roam, time=18, loops="forever")
+
+async def show():
+    await wait(0.5)
+    while True:
+        # I  Bloom: the title, and the hexagons open out of a point
+        canvas.fade_in(1.5)
+        title = Text("100 LINES OF SCENA", center=(0, 0), font_size=80, font="fonts/VastShadow-Regular.ttf")
+        title.dissolve_in(2.5)
+        await tween(st["open"], 1, time=8, ease="ease_out")
+        canvas.ripple_at(0, 0)
+        title.dissolve_out(1.5, style="vortex", on_done=title.destroy)
+        tween(st["beat"], 0, time=1.5)         # the strokes settle to a calm width
+        # II  Vortex: the hexagons twist into a spiral, the petals spring out
+        canvas.zoom_to(1.2, time=4, ease="ease_in_out")
+        tween(st["petals"], 1, time=3, ease="elastic")
+        await tween(st["twist"], 8, time=5, ease="ease_in_out")
+        for bang in range(16):
+            canvas.burst_at(comet, radius=50)
+            await wait(0.75)
+        # III  Tunnel: the centres trail round; it spins up, falls into a point and bursts
+        prism = Prism(amount=0.006)
+        await tween(st["bend"], 1, time=5, ease="ease_in_out")
+        prism.remove()
+        canvas.rotate_by(-360, time=8.5, ease="ease_in")
+        canvas.zoom_to(1, time=7, ease="ease_in_out")
+        await tween(st["spin"], 8, time=7, ease="ease_in")
+        await tween(st["open"], 0, time=1.5, ease="ease_in")
+        canvas.explosion_at(0, 0)
+        canvas.fade_out(1.5)
+        await wait(2)
+        st.open, st.twist, st.bend, st.petals, st.spin, st.beat = 0, 0, 0, 0, 1, 1
+
+def update(dt):
+    bass = amp_db(audio.spectrum(4)[0])      # about 0.62 in this song, 0.1 more on a kick drum
+    kick = 8 * st.beat * (bass - 0.62)
+    st.pulse = max(0, st.pulse - 2 * dt, kick)       # it jumps on a kick, then fades
+    light.intensity = 0.9 + 0.8 * st.pulse
+
+run_task(show)
+run()
+`,
+      notes: [
+        {
+          at: "st.beat = 1",
+          text: "One more knob: how much the music drives the strokes. The script takes it to 0 when the title leaves, and the pulse only beats under the title. A piece that pulses all the time tires the eyes."
+        },
+        {
+          at: "hexagon[\"line_width\"] @=",
+          text: "The thickness became a formula: 3 with no pulse, up to 7 on a beat."
+        },
+        {
+          at: "tween(st[\"beat\"], 0, time=1.5)",
+          text: "When the title dissolves, the strokes calm down over 1.5 seconds and stay 3 thick."
+        },
+        {
+          at: "light.intensity = 0.9 + 0.8 * st.pulse",
+          text: "The <code>Bloom</code> glows more on the beat. The meter is gone: it has told us what we needed to know."
+        },
+        {
+          at: "st.spin, st.beat = 0, 0, 0, 0, 1, 1",
+          text: "The restart also gives the music back to the strokes, for the next title."
+        }
+      ],
+      after: `
+        <p>Run it: under the title, the strokes thicken and the glow grows on every beat of the kick drum; when the title is gone, the bloom carries on calmly.</p>
+        <p>Count the lines: the whole program has fewer than 90. With the example's docstring at the top, 99. A hundred lines, within the limit.</p>
+      `,
+      closing: `
+        <p>No keys: the piece plays by itself, with the music, and starts again every 41 seconds. Close the window to quit.</p>
+      `,
+      recap: `
+        <ul>
+          <li><code>set_origin</code> — puts (0, 0) in the middle of the screen; <code>vec_from_angle</code> gives a point round the center without adding the middle.</li>
+          <li>Knobs in <code>st</code> — every number the piece changes is a cell; the formulas read it, and the script moves it.</li>
+          <li><code>begin</code> and <code>end</code> — the window that cuts a track's stroke; on a closed track, it goes round.</li>
+          <li><code>tween</code> with and without <code>await</code> — the script in order; without <code>await</code>, two changes at once.</li>
+          <li><code>Prism</code> and <code>remove()</code> — a screen effect is an object: making it turns it on, <code>remove()</code> turns it off.</li>
+          <li><code>audio.spectrum</code> and <code>amp_db</code> — the bass of the music becomes a number, measured before it is used.</li>
+        </ul>
+        <p><strong>In the Guide:</strong> <a href="../guide/index.html#mundo-camera">Camera</a> · <a href="../guide/index.html#reativo-state">st</a> · <a href="../guide/index.html#track-window">Track window</a> · <a href="../guide/index.html#mover-tween">tween</a> · <a href="../guide/index.html#mode-task">Tasks</a> · <a href="../guide/index.html#mundo-post">Screen effects</a> · <a href="../guide/index.html#som-audio">audio</a>.</p>
+      `,
+      explore: `
+        <ul>
+          <li>Make up a fourth part for the script: a new knob in st, a shape it moves, an effect that turns on and off.</li>
+          <li>Can you change the song and make the pulse beat with it? The meter from the step “Listening to the music” helps you find the floor.</li>
+          <li>Make a piece of your own in at most 100 lines. What fits in it?</li>
+        </ul>
+      `
+    }
+  ]
+});
+</script>
+</body>
+</html>
