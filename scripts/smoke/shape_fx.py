@@ -273,6 +273,9 @@ _live = None
 _canvas_live = None
 _rebuild = None  # callable(**params) -> FilterEffect | None
 _param_map: list[tuple] = []  # (widget, key, kind) kind: float|int|bool
+# True while the panel shows the shape visual's sliders. Only then does
+# `_rebuild` read the panel; a canvas panel never feeds the look.
+_panel_is_look = False
 _last_shape_key = None
 _pyro_labels = []
 _pyro_acc = 0.0
@@ -541,6 +544,20 @@ def _is_cover_mode(name: str) -> bool:
     return str(name).startswith("cover")
 
 
+# Canvas modes that read their own sliders when the user clicks.
+_CLICK_PANEL_MODES = frozenset({
+    "hit", "wave", "explosion", "burst", "pyro", "fireworks",
+    "zap_spark", "zap_fork", "zap_corona", "hit_at", "debris", "bubbles",
+})
+
+
+def _click_owns_panel(name: str) -> bool:
+    """A click mode keeps its own panel even while a shape visual runs:
+    with the visual's sliders shown, the click read the visual's
+    ``radius`` / ``amount`` and the click's own knobs were unreachable."""
+    return name in _CLICK_PANEL_MODES or _is_cover_mode(name)
+
+
 def _clear_post():
     """Drop canvas post FX only — never the active shape-look rebuild."""
     global _live, _canvas_live
@@ -726,6 +743,8 @@ def _sync_live_params():
     global _live, _last_shape_key
     if not _param_map:
         return
+    if _rebuild is not None and not _panel_is_look:
+        return  # the panel is the canvas mode's; the look keeps its last build
     params = _read_params()
     if _rebuild is not None:
         key = tuple(sorted(params.items()))
@@ -1846,36 +1865,49 @@ def _hud():
 
 
 def _apply_canvas(i: int):
-    global _c_idx, _last_shape_key
+    global _c_idx, _last_shape_key, _panel_is_look
+    prev = CANVAS_MODES[_c_idx][0]
     _c_idx = i % len(CANVAS_MODES)
     name, label, fn = CANVAS_MODES[_c_idx]
     fn()
     if not _is_cover_mode(name):
         _clear_cover()
-    # Prefer shape-look params when a visual is active — do not clobber user sliders.
+    # Prefer shape-look params when a visual is active — do not clobber user
+    # sliders — except for click modes, which read their own on every click.
     look_name = VISUAL_MODES[_l_idx][0]
-    if look_name == "none" or look_name not in _P:
+    if look_name == "none" or look_name not in _P or _click_owns_panel(name):
         _configure_panel(_P.get(name, []))
+        _panel_is_look = False
         _last_shape_key = None
         _sync_live_params()
+    elif _click_owns_panel(prev):
+        # A click mode had the panel: give it back to the look.
+        _panel_is_look = True
+        VISUAL_MODES[_l_idx][2]()
     _hud()
 
 
 def _apply_visual(i: int):
-    global _l_idx, _last_shape_key, _rebuild, _live
+    global _l_idx, _last_shape_key, _rebuild, _live, _panel_is_look
     _l_idx = i % len(VISUAL_MODES)
     name, label, fn = VISUAL_MODES[_l_idx]
     _last_shape_key = None
+    cn = CANVAS_MODES[_c_idx][0]
     if name == "none":
         _rebuild = None
         _hide_water_pool()
         _clear_shape_fx()
         _live = _canvas_live
-        cn = CANVAS_MODES[_c_idx][0]
         _configure_panel(_P.get(cn, []))
+        _panel_is_look = False
         _sync_live_params()
     else:
+        _panel_is_look = True
         fn()  # configures visual panel + rebuild + applies
+        if _click_owns_panel(cn):
+            # The look is built from its defaults; the panel stays the click's.
+            _configure_panel(_P.get(cn, []))
+            _panel_is_look = False
     _hud()
 
 
