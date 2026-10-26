@@ -131,8 +131,17 @@ def units_of(kind: str, text: str) -> list[tuple[str, str]]:
     return page_units(text) if kind == "page" else js_units(text)
 
 
+# The head lines tools/site/seo.py writes (the <title> and its marked block of
+# search tags) are made from each page, never translated: no hash sees them,
+# so rewriting them leaves every unit as it was.
+_SITE_HEAD = re.compile(r"^<title>[^\n]*</title>\n|^<!-- site head [^\n]*-->\n.*?^<!-- /site head -->\n",
+                        re.M | re.S)
+
+
 def digest(text: str) -> str:
-    """Hash of a unit's text; whitespace runs count as one space."""
+    """Hash of a unit's text without the site head lines; whitespace runs
+    count as one space."""
+    text = _SITE_HEAD.sub("", text)
     return hashlib.sha1(re.sub(r"\s+", " ", text).strip().encode("utf-8")).hexdigest()[:12]
 
 

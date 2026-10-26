@@ -8,6 +8,7 @@ tool. ``tests/test_repo_layout.py`` checks that each path exists.
                      docs/<lang>/tutorial/, docs/assets/ (shared by languages)
     tools/guide/     the Guide's generators and checks (validate_guia.py, …)
     tools/tutorial/  the English tutorials' checks (tutorial_parity.py, glossary)
+    tools/site/      search tags of every page, docs/sitemap.xml (seo.py)
     workbench/       private, git-ignored: archive/, proposals/, guides/
     drafts/          private, git-ignored: game examples in development
 """
@@ -34,6 +35,7 @@ ASSETS = os.path.join(DOCS, "assets")
 THUMBS = os.path.join(ASSETS, "thumbs")
 GUIDE_TOOLS = os.path.join(ROOT, "tools", "guide")
 TUTORIAL_TOOLS = os.path.join(ROOT, "tools", "tutorial")
+SITE_TOOLS = os.path.join(ROOT, "tools", "site")
 EXAMPLES = os.path.join(ROOT, "examples")
 # Game system tests: programs written to be tested (tests/games/README.txt).
 GAMES = os.path.join(ROOT, "tests", "games")
