@@ -4016,6 +4016,24 @@ moving picture pays**, **a refusal that names no fix**. Commits on main
 | SH-F | Transients only hide; the watchdog trips on a long building step; an `st` tween from a game task outlives `change_act`; a Text anchor read adds a Point | By design; Guia notes; the watchdog message names "build in pieces" | | Guia |
 | SH-L | `Lamp(radius=, range=)` were post-image pixels (changed with screen and `post_fx_scale`); `Spotlight(range=)` ignored zoom | Fixed: design units mapped like positions (`_length_to_fb`) | | `test_post_targets_camera` |
 
+### SL — a linked pose read before the geometry it rewrites (2026-10-26)
+
+Found while moving the `xyz2` showcase into `examples/`: its claims test read
+each square's `length` once the vortex had opened and got 21 where 300 was
+due. Bug class: **a lazy value needs a dirty edge *and* a pull on read**
+(lesson 6), on every name the pulled verb writes, not only the one D18 fixed.
+
+| ID | Finding | Cause | Fix | Guard |
+| --- | --- | --- | --- | --- |
+| SL1 | `sq["scale"] @= lambda: st.k`; `st.k = 2`; `sq.length` read 50 (the last pull), `sq.scale` then 2 and `sq.length` 200. The same on every kind with a structural model: Rect / Square / Concave sizes and corners, Circle `radius` / `p1`, Ellipse foci, Line points, Polygon `perimeter_length` / `signed_area`, RegularPolygon / Triangle `radius` / `side` / `vertex`, Track `length` / `cursor`, Text corners. A formula reading `sq.width` stayed stale (`probe.radius` 5 where 20) until something read `scale` (draw, collision, `box`). A tangent Line with a linked `angle` had the same hole on `at_angle` / `p1` / `p2`. | A pose link drives `scale_to` / `rotate_to` through a `_PropertyAnchor` that writes only when pulled. D18 routed reads through the owner for a derived heading's driven parts only; a scale link had no route, and a source-only or relational anchor (`at_angle`, the tangent `p1`) returned before the route | One pull for the whole linked pose on Graphic (`_pull_pose_links`, replacing `_pull_heading`) before a structural resolve or Derivate materialization; a pose link marks the shape and its parts `_pull_owner`; the read cache holds the pose anchor to check; source-only anchors pull, relational parts get a dirty edge and `_resolve_link` pulls first ([Reactive Design](Reactive%20Design.md)) | `test_scale_link` (every kind × every name read first, for `scale`, `angle`, `flip_x`, `flip_y`; 615 failures on the old engine) |
+
+Perf (interleaved A/B against a HEAD copy, 8 rounds): plain, linked, anchored
+and point reads, `perf_fields` and plain draws within ±2 %; 24 scale-linked
+squares +2.0 % a draw, +2.6 % on reads. A first version that sent every read of
+a pose-linked shape down `_refresh_scalar` cost +82 %, and pulls on the hot
+linked-node paths +11 %: the read cache holding the anchor to check and a
+dirty edge for relational parts took both off the hot paths.
+
 ### Open (found, not yet fixed)
 
 | Found in | Issue | Planned |

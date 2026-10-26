@@ -2716,9 +2716,9 @@ class Container():
             if root is not None and root._dirty:
                 root._resolve_structural()
             elif root is self and self._owner is not None and self._owner._dirty \
-                    and '_heading_anchor' in self._owner.__dict__:
+                    and self._owner.__dict__.get('_pose_linked'):
                 # A Derivate with its own structure (a Line's ``vec``) is clean
-                # while its owner still has a linked heading to pull (D18).
+                # while its owner still has a linked pose to pull (D18, SL1).
                 self._owner._resolve_structural()
         elif '_pull_owner' in self.__dict__:
             self._pull_owner_first()
@@ -2742,6 +2742,10 @@ class Container():
         if self._link is None:
             self._dirty = False
             return
+        if '_pull_owner' in self.__dict__:
+            # A part with its own link that a linked pose also moves (a tangent
+            # Line's ``p1`` follows ``at_angle``): apply the pose first (SL1).
+            self._pull_owner_first()
         self._resolving = True
         try:
             result = self._link.evaluate()
@@ -2830,7 +2834,14 @@ class Container():
         ``p2``): bring that owner up to date first, or this read sees the points
         from before the source moved (D18 in Testing Design)."""
         owner = self.__dict__.get('_pull_owner')
-        if owner is not None and owner._dirty and not owner._in_batch_update:
+        if (owner is not None and owner._dirty and not owner._in_batch_update
+                and not owner.__dict__.get('_pulling_pose')):
+            if owner.__dict__.get('_pose_linked'):
+                # A Defining read needs only the pose applied; a Derivate
+                # resolves its owner on its own path.
+                owner._pull_pose_links()
+                if not getattr(type(owner), '_pull_owner_lays_out', False):
+                    return
             owner._resolve_structural()
 
     def _recalculate_formula(self) -> bool:
@@ -3665,13 +3676,16 @@ class Container():
             # skip the repeated resolve/link/derivate walks on every tween write.
             # Any ScalarAnchor for this name (linked or source-only) must take the
             # full path: linked raises; source-only still dirties dependents.
+            # A leaf a linked pose rewrites (its flag is the node to check
+            # before a read, SL1) is a bare Defining leaf for a write.
             if isinstance(slot, ScalarSlot):
                 bare_ok = self.__dict__.get('_scalar_bare_ok')
                 anchors = self.__dict__.get('_field_anchors')
                 has_anchor = bool(anchors and name in anchors)
+                flag = bare_ok.get(name) if bare_ok is not None else None
                 if (
-                    bare_ok is not None
-                    and bare_ok.get(name) is True
+                    flag is not None
+                    and flag is not False
                     and not has_anchor
                 ):
                     if isinstance(value, Attribute):
@@ -4026,7 +4040,7 @@ class Container():
             if root is not None and root._dirty:
                 root._resolve_structural()
             elif root is self and self._owner is not None and self._owner._dirty \
-                    and '_heading_anchor' in self._owner.__dict__:
+                    and self._owner.__dict__.get('_pose_linked'):
                 self._owner._resolve_structural()      # D18, as in _ensure_fresh
         elif '_pull_owner' in self.__dict__:
             self._pull_owner_first()
@@ -4494,13 +4508,18 @@ class ScalarSlot:
             anchor = anchors[name]
             anchor._ensure_fresh()
             ad = anchor.__dict__
-            if ad.get('_derivate_field') and ad.get('_dirty') and ad.get('_link') is None:
-                # A source-only anchor depends on its parent: dirty means the
-                # parent changed, so a Derivate scalar recomputes (it froze
-                # for every reader: review 2026-10-09 S5-2).
-                anchor._clear_subtree_dirty()
-                instance._refresh_scalar(name)
-                return d.get(name, self.default)
+            if ad.get('_link') is None:
+                if ad.get('_derivate_field') and ad.get('_dirty'):
+                    # A source-only anchor depends on its parent: dirty means
+                    # the parent changed, so a Derivate scalar recomputes (it
+                    # froze for every reader: review 2026-10-09 S5-2).
+                    anchor._clear_subtree_dirty()
+                    instance._refresh_scalar(name)
+                    return d.get(name, self.default)
+                if '_pull_owner' in d:
+                    # A source-only anchor on a field a linked pose rewrites
+                    # (a tangent Line's ``at_angle``): pose first (D18, SL1).
+                    instance._pull_owner_first()
             if type(anchor) is _PropertyAnchor:
                 # A link that drives a verb on a Derivate slot (Rect spine /
                 # Ellipse foci / p1-p2 Line ``angle``): the value is the Derivate.
@@ -4523,6 +4542,14 @@ class ScalarSlot:
             if flag is False:
                 instance._refresh_scalar(name)
                 return d.get(name, self.default)
+            if flag is not None:
+                # A Defining leaf a linked verb rewrites: the flag is the node
+                # whose dirty bit says the owner has a pull pending (its one
+                # linked pose anchor, else the owner; D18, SL1). While it
+                # resolves, the read is the verb's own: nothing to pull.
+                if flag._dirty and not flag._resolving:
+                    instance._pull_owner_first()
+                return d.get(name, self.default)
 
         # Classify once (A3): unlinked Defining leaf with no formula/Derivate
         # ancestor can skip owner-chain walks on subsequent reads.
@@ -4531,12 +4558,18 @@ class ScalarSlot:
             and instance._formula_driven_ancestor() is None
             and not instance._field_is_derivate(name, self)
             and instance._derivate_source() is None
-            and '_pull_owner' not in d
         ):
             if bare_ok is None:
                 bare_ok = {}
                 d['_scalar_bare_ok'] = bare_ok
-            bare_ok[name] = True
+            owner = d.get('_pull_owner')
+            if owner is None:
+                bare_ok[name] = True
+            else:
+                signal = owner.__dict__.get('_pose_signal') or owner
+                bare_ok[name] = signal
+                if signal._dirty and not signal._resolving:
+                    instance._pull_owner_first()
             return d.get(name, self.default)
 
         if bare_ok is None:

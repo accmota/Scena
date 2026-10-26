@@ -838,6 +838,9 @@ class Box(_RectFrame, _RectNames, ClosedSurface, Container):
         "top_center", "bottom_center", "left_center", "right_center",
     )
 
+    def _pull_pose_links(self) -> None:
+        """A Box has no pose to link (the Rect frame's hook; Graphic pulls)."""
+
     def __copy__(self) -> "Box":
         """A Box over the same region (``Box(box)``), with no links of its own
         (Container.__copy__)."""

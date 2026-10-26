@@ -4494,6 +4494,73 @@ class Graphic(Entity, ABC):
             if anchor is not None:
                 anchor._ensure_fresh()
 
+    def _pull_pose_links(self) -> None:
+        """Apply a pending linked pose (``angle`` / ``scale`` / a flip) before
+        anything reads the geometry its verb rewrites. Never inside the shape's
+        own update (a batch): there the pose is stored, not applied (D18, SL1)."""
+        d = self.__dict__
+        if (not d.get("_pose_linked") or d.get("_pulling_pose")
+                or self._resolving or self._in_batch_update):
+            return
+        anchors = d.get("_field_anchors")
+        if not anchors:
+            return
+        for name in type(self)._scena_pose_pull:
+            anchor = anchors.get(name)
+            if anchor is not None and anchor._dirty:
+                # The verbs read the parts they rewrite: those reads must not
+                # resolve the shape halfway through (``_pull_owner_first``).
+                d["_pulling_pose"] = True
+                try:
+                    anchor._ensure_fresh()
+                finally:
+                    d["_pulling_pose"] = False
+
+    def _resolve_structural(self) -> None:
+        # A linked pose rewrites the geometry with ``rotate_to`` / ``scale_to``,
+        # which only runs when its anchor is pulled. A resolve of the shape (a
+        # read of a Derivate, or of a part the verb rewrites) pulls it first.
+        if self.__dict__.get("_pose_linked"):
+            self._pull_pose_links()
+        super()._resolve_structural()
+
+    def _note_pose_link_installed(self, anchor) -> None:
+        """Route reads of what the pose verbs rewrite through this shape: its
+        own scalars (``length``, ``radius``) and its parts (``p2``, a vertex).
+        A part with a link of its own (a tangent Line's ``p1`` follows the
+        circle at ``at_angle``) depends on the pose anchor instead: the source
+        dirties it, and its formula's read pulls the pose. Sticky: an unlinked
+        pose leaves a dirty check per read (D18, SL1)."""
+        from .state import Container, ScalarAnchor
+        if type(self)._update_impl is Container._update_impl:
+            self.__dict__["_pose_linked"] = True
+            return      # a pose-only kind (Sprite, Svg): its verbs rewrite no part
+        ss = getattr(self, "_scena_system", None)
+        d = self.__dict__
+        mark = not d.get("_pose_linked")
+        d["_pose_linked"] = True
+        # What a read checks first: the one linked pose anchor goes dirty only
+        # when its source moves; the shape stays dirty after the pull until a
+        # resolve. Two pose links, or a caption's layout, check the shape.
+        signal = d.get("_pose_signal")
+        if signal is None and not getattr(type(self), "_pull_owner_lays_out", False):
+            d["_pose_signal"] = anchor
+            mark = True
+        elif signal is not None and signal is not anchor and signal is not self:
+            d["_pose_signal"] = self
+            mark = True
+        for node in self._iter_subtree():
+            if isinstance(node, ScalarAnchor):
+                continue
+            node.__dict__["_pull_owner"] = self
+            if node is not self and node._link is not None and ss is not None:
+                try:
+                    ss.add_dependency(node, anchor)
+                except ValueError:
+                    pass        # already there (a second pose link)
+        if mark:
+            self._invalidate_bare_reads()
+
     def _scalar_anchor_class(self, name: str):
         if name in _PROPERTY_LINK_ANY and name in type(self)._scena_property_links:
             return _PROPERTY_LINK_ANCHORS.get(name, _PropertyAnchor)
@@ -4578,6 +4645,8 @@ class Graphic(Entity, ABC):
             if channel:
                 object.__setattr__(self, "_alinks", True)      # sticky (PaintState slot)
                 _LINKED_CHANNEL_HOSTS.add(self)
+            if name in type(self)._scena_pose_pull:
+                self._note_pose_link_installed(anchor)
             return
         super()._link_field(name, source)
 

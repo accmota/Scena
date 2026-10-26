@@ -326,10 +326,10 @@ class TestCanaries(unittest.TestCase):
 
     def test_a_heading_link_that_is_not_pulled_is_caught(self):
         from diff_support import assert_catches
-        from scena.shapes import _DerivedRotationRoute
+        from scena.entity import Graphic
         assert_catches(
             self, "test_reactive_matrix.TestCanaryTargets.test_heading",
-            [(_DerivedRotationRoute, "_pull_heading", lambda self: None)],
+            [(Graphic, "_pull_pose_links", lambda self: None)],
             "a Derivate read before the linked heading was applied (D18)")
 
     def test_a_whole_link_that_skips_the_refresh_is_caught(self):

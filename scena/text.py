@@ -294,6 +294,9 @@ class Text(Graphic, PaintState):
 
     # A caption does not collide: ``text.hitbox`` raises (measure with ``.box``).
     _has_no_hitbox = True
+    # A read of a part this caption places (``_pull_owner``) re-lays it out,
+    # after a linked pose too (D26, SL1).
+    _pull_owner_lays_out = True
     # Appearance links (Reactive Design — Appearance links). No flips: Text
     # cannot be mirrored.
     _property_link_extra = frozenset({

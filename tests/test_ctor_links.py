@@ -113,6 +113,9 @@ def _snapshot(obj):
         "side", "major_axis", "dist", "dx", "dy", "spread",
     ):
         if name in obj.__dict__ and not callable(obj.__dict__[name]):
+            slot = obj._field_slots().get(name) if hasattr(obj, "_field_slots") else None
+            if slot is not None and obj._field_is_derivate(name, slot):
+                continue        # a cache a read may have built (a Track's ``length``)
             try:
                 bits.append((name, round(float(obj.__dict__[name]), 4)))
             except (TypeError, ValueError):

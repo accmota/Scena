@@ -1502,17 +1502,44 @@ subtree's dirty bits. `Container._refresh_after_raw_store` runs the node's own
 before) follows (D19). Only nodes with parts reach it: Point / Vec2 /
 ScalarAnchor sinks keep the leaf fast path.
 
-**A linked heading is pulled before the points it rewrites are read.** Where
-`angle` is derived (a `p1,p2` Line, a Circle by its rim, an Ellipse by its
-foci, a Rect spine), `shape["angle"] @=` drives `rotate_to` through a
-`_PropertyAnchor`: the points move only when the anchor is pulled. Three rules
-keep a read fresh (D18): `_pull_heading` runs before a structural resolve and
-before a Derivate is materialized, never inside the shape's own update batch
-(there `angle` is stored, not applied); the points the turn rewrites carry
-`_pull_owner`, which keeps them off the bare-read fast path so a read of them
-resolves the owner first (`_pull_owner_first`; classification is once per node,
-so a plain Defining read stays free); a Derivate with its own structure
-(`vec`) asks its owner too. The same parts are why the heading link and a link
+**A linked pose is pulled before the geometry it rewrites is read.** A link
+on `scale` (every kind), on a derived `angle` (a `p1,p2` Line, a Circle by its
+rim, an Ellipse by its foci, a Rect spine, a tangent Line) or on a flip drives
+its verb (`scale_to`, `rotate_to`, the mirror) through a `_PropertyAnchor`:
+the sizes and points change only when the anchor is pulled. Until 2026-10-26
+only the heading had the rules below (D18); a read of `length`, `width`,
+`radius`, a corner or `p2` made first after a scale source moved returned the
+geometry of the last pull, and so did a formula that read one of them (SL1 in
+[Testing Design](Testing%20Design.md#sl--a-linked-pose-read-before-the-geometry-it-rewrites-2026-10-26)).
+The rules (`Graphic._pull_pose_links`, `_note_pose_link_installed`):
+
+* The shape pulls its dirty pose anchors before a structural resolve and
+  before a Derivate is materialized, never inside its own update batch (there
+  the pose is stored, not applied) and never while the pull runs
+  (`_pulling_pose`: the verb reads the parts it rewrites).
+* A pose link marks the shape and its parts with `_pull_owner` (sticky;
+  `_pose_linked`). A read of a Defining leaf classifies once: its read cache
+  holds, instead of `True`, the node whose dirty bit says a pull is pending
+  (`_pose_signal`: the one linked pose anchor; the shape itself with two pose
+  links, or on a caption, whose layout also uses `_pull_owner`). A read checks
+  that bit and calls `_pull_owner_first` only when it is set and not
+  resolving; the shape stays dirty after the pull until a resolve, so checking
+  the shape would call on every read. A write treats the flag as a bare leaf.
+* For a pose-linked owner `_pull_owner_first` applies the pose only: a Defining
+  read needs nothing else, and a Derivate resolves its owner on its own path. A
+  caption still re-lays out (`_pull_owner_lays_out`, D26). A pose-only kind
+  (Sprite, Svg: no structural update, its sizes are read from the pose) marks
+  nothing.
+* A source-only anchor on such a field (a tangent Line's `at_angle`, which the
+  heading reads) pulls the owner after its own freshness check; a part with a
+  link of its own (the tangent Line's `p1` follows the circle at `at_angle`)
+  gets a dirty edge from the pose anchor, and `_resolve_link` pulls its owner
+  before it evaluates (its formula reads `at_angle` raw).
+* A Derivate with its own structure (`vec`) asks its owner too.
+
+Cost: nothing on a shape with no pose link; on a scale-linked shape ~2 % a
+draw (24 linked squares, interleaved A/B). Guard: `tests/test_scale_link.py`
+(every kind × every name read first, for `scale`, `angle` and both flips). The same parts are why the heading link and a link
 on one of them are exclusive, refused at the second `@=` (D17,
 `_heading_driven_parts`). So is a part the heading is measured from that the
 turn does not rewrite (`_heading_pivot_inputs`: a rim-placed Circle's
@@ -1794,7 +1821,7 @@ path exists for per-frame cost. Merging them was evaluated (Track C item 5)
 and declined: the bugs came from rules or refreshes living on one path, not
 from the paths being separate. Instead the rules are on the slot (one
 coercion, D22), refreshes are hooks (`_sync_computed`,
-`_refresh_after_raw_store`, `_pull_heading`), and the static guards above make
+`_refresh_after_raw_store`, `_pull_pose_links`), and the static guards above make
 a new bypass fail a test. Revisit a merge only if a bug traces to the split.
 
 # Deferred: float pose + promotion (B1)

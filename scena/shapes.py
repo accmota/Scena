@@ -4026,16 +4026,11 @@ class _DerivedRotationRoute:
             from .state import _refuse_link_on_dead
             _refuse_link_on_dead(self, f"{name} @=")
             self._refuse_heading_link_over_linked_parts()
-            self._ensure_scalar_anchor(name)._assign_formula(source)
-            self._note_heading_link_installed()
+            anchor = self._ensure_scalar_anchor(name)
+            anchor._assign_formula(source)
+            self._note_pose_link_installed(anchor)
             return
         super()._link_field(name, source)
-
-    def _ensure_scalar_anchor(self, name: str, anchor_cls: type = None):
-        anchor = super()._ensure_scalar_anchor(name, anchor_cls)
-        if name == self._HEADING_FIELD and isinstance(anchor, _PropertyAnchor):
-            self.__dict__['_heading_anchor'] = anchor       # read by _pull_heading (D18)
-        return anchor
 
     def _heading_driven_parts(self) -> Tuple:
         """Parts ``rotate_to`` rewrites when the heading is derived (besides ``angle``).
@@ -4080,30 +4075,6 @@ class _DerivedRotationRoute:
             return f"{h} has an @= formula that turns the shape by rewriting {label}"
         return (f"its {label} has an @= formula, and a linked {h} turns the shape "
                 f"by rewriting {label}")
-
-    def _resolve_structural(self) -> None:
-        # A linked heading turns the shape with ``rotate_to``, which only runs
-        # when the anchor is pulled. A resolve of the shape (a read of a
-        # Derivate, or of a point the turn rewrites) pulls it first, outside
-        # the update batch: inside it ``angle`` is stored, not applied (D18).
-        self._pull_heading()
-        super()._resolve_structural()
-
-    def _pull_heading(self) -> None:
-        """Apply a pending linked heading before anything reads the points it
-        rewrites. Never inside the shape's own update (a batch): there ``angle``
-        is stored, not applied."""
-        a = self.__dict__.get('_heading_anchor')
-        if (a is not None and a._dirty and a._link is not None
-                and not self._resolving and not self._in_batch_update):
-            a._ensure_fresh()
-
-    def _note_heading_link_installed(self) -> None:
-        """Route reads of the points the turn rewrites through this shape."""
-        for part in self._heading_driven_parts():
-            target = self if isinstance(part, FieldRef) else part
-            target.__dict__['_pull_owner'] = self
-        self._invalidate_bare_reads()
 
     def _heading_link_active(self) -> bool:
         anchor = (self.__dict__.get('_field_anchors') or {}).get(self._HEADING_FIELD)
@@ -4514,7 +4485,7 @@ class Line(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
     def _materialize_derivate_part(self, name: str) -> None:
         """Fill a Derivate part on first access via model ``_update_impl``."""
-        self._pull_heading()
+        self._pull_pose_links()
         with self._no_update():
             self._update_impl()
 
@@ -5506,7 +5477,7 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
 
     def _materialize_derivate_part(self, name: str) -> None:
         """Fill a Derivate part on first access via model ``_update_impl``."""
-        self._pull_heading()
+        self._pull_pose_links()
         with self._no_update():
             self._update_impl()
 
@@ -6281,7 +6252,7 @@ class Ellipse(_DerivedRotationRoute, Shape):
 
     def _materialize_derivate_part(self, name: str) -> None:
         """Fill a Derivate part on first access via model ``_update_impl``."""
-        self._pull_heading()
+        self._pull_pose_links()
         with self._no_update():
             self._update_impl()
 
@@ -8265,8 +8236,8 @@ class _RectFrame:
     materialization and the per-model ``_update_impl_*``. Box used to carry a
     near-copy of all of it, and the copies drifted (Box's ``top_left`` model
     ignored the corner names). Hooks: ``_publish_heading`` (Rect writes its
-    pose store; Box has none) and ``_pull_heading`` (Rect's derived-heading
-    link; nothing on Box). Uses only ``__dict__`` / ``getattr`` patterns that
+    pose store; Box has none) and ``_pull_pose_links`` (Rect's linked pose,
+    from Graphic; a no-op on Box). Uses only ``__dict__`` / ``getattr`` patterns that
     work on a slotted Shape and on a closed surface alike.
     """
 
@@ -8275,8 +8246,6 @@ class _RectFrame:
     def _publish_heading(self, ang: float) -> None:
         """After an update: Rect keeps its pose store in step (it overrides)."""
 
-    def _pull_heading(self) -> None:
-        """A pending derived-heading link (Rect, via _DerivedRotationRoute)."""
 
     def _wh_signed(self) -> Tuple[float, float]:
         """Signed Defining ``(width, height)``. On a Square ``length`` is Defining
@@ -8535,7 +8504,7 @@ class _RectFrame:
 
     def _materialize_derivate_part(self, name: str) -> None:
         """Compute and write one Derivate part (called on first access / link)."""
-        self._pull_heading()
+        self._pull_pose_links()
         slot = self._field_slots().get(name)
         if isinstance(slot, ScalarSlot):
             if not self._field_is_derivate(name, slot):

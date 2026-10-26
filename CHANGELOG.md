@@ -25,6 +25,11 @@ left out.
 
 ### Fixed
 
+- A shape whose `scale` follows a formula (`sq["scale"] @= lambda: st.k`)
+  reads its new size at once: `sq.length`, `width`, `radius`, a corner or a
+  point read right after the source moved gave the size from before until
+  something read `sq.scale`, and so did a formula that read them. The same
+  for a linked flip, and for a linked `angle` on a tangent `Line`.
 - A `Gradient` on a `Track` spans the drawn line on every kind of track:
   points, a turtle walk (`vectors=`), a shape's outline, `eight`, `spiral`,
   `wave`, `arc`, a `zigzag`. Only the circle fitted; the others spread the
