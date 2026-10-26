@@ -5,7 +5,7 @@ ink, and modes. **Happy path for this subsystem** — pick one row; do not read
 the rest. Sprite body / hitbox / clone: [Sprite Design.md](Sprite%20Design.md).
 Collision engine: [Collision Design.md](Collision%20Design.md). Hub:
 [Scena Design.md](Scena%20Design.md). Author calls:
-[Guia da API](../docs/pt/guide/index.html#agendar).
+[API Guide](../docs/en/guide/index.html#agendar).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -29,7 +29,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
 3. Open **Start** only if the section is not enough.
 4. Open **Also** / another Design doc only if Start is not enough.
-5. Stop. Do not ingest `scripts/`, Sprite Design, or the private archive / proposals unless the body/hitbox is the task.
+5. Stop. Do not ingest `scripts/` or Sprite Design unless the body/hitbox is the task.
 
 ## Router
 
@@ -60,7 +60,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 - Collision engine → [Collision Design.md](Collision%20Design.md)
 - Measuring `group[...].box` → [Box Design.md](Box%20Design.md#bridge)
 - Follow math (`chase` / `approach` / `deadzone`) → [Canvas Design.md](Canvas%20Design.md#follow-math-chase--deadzone)
-- Author catalogs → [Guia da API](../docs/pt/guide/index.html#agendar) (process), [Guia da API](../docs/pt/guide/index.html#desenhar-entity) (Entity)
+- Author catalogs → [API Guide](../docs/en/guide/index.html#agendar) (process), [API Guide](../docs/en/guide/index.html#desenhar-entity) (Entity)
 
 
 # Actors (Entity, Process)
@@ -69,7 +69,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 
 Identity (`Entity`) and behaviour (process: timers, modes, tweens, async).
 Rejected process names (`state`, `on_hit`, `remove`) are **not** Scena API.
-Taught fleet sample: `examples/app_galaga.py`. Smoke scripts are visual
+Taught fleet sample: `examples/ships_6_acts.py`. Smoke scripts are visual
 tests, not idiomatic references.
 
 ## Architecture
@@ -213,7 +213,7 @@ or park with `active=False` and keep the same instance.
 Groups grow **verbs** (`destroy`, `tag`) and **queries** (`count`, `empty`, `any`, …) at
 the same DSL level as `move_by` / `len`. They are **not** a new process owner.
 `every` / `on_update` keep attaching where they already attach (script, or an `Entity`).
-Author surface: [Guia da API](../docs/pt/guide/index.html#mundo-grupos).
+Author surface: [API Guide](../docs/en/guide/index.html#mundo-grupos).
 
 ### Principles
 
@@ -233,11 +233,11 @@ Author surface: [Guia da API](../docs/pt/guide/index.html#mundo-grupos).
 Do not put 80 timers on 80 wasps. Loop the group from **one** place: `update(dt)`, script-level
 `every`, or a Director `Entity`. Individuals keep dive / death modes.
 
-`examples/app_galaga.py` is the showcase of that beginner-idiomatic shape (one Director
-sway loop, `await until_empty("wasp")`, per-wasp dive/death). Fire in that sample is
-per-wasp `@every(2.4, name="fire")` plus `@collide_with("bolt")` so class-method
-decorators have a live home; the O(1) fleet clock remains `every(2.4, volley)` as
-below. Most other `scripts/` remain visual smokes, not author references.
+The taught fleet, `examples/ships_6_acts.py` (the last Ships tutorial), has that shape:
+the act places the fleet and `await until_empty("enemies")`; each enemy owns its
+arrival and fire modes, and the boss fires one `every(1.0, self.volley)`. For a large
+fleet the O(1) clock is one `every(2.4, volley)` that picks shooters, as below. Most
+`scripts/` remain visual smokes, not author references.
 
 Equally fine for one fleet: skip the Director class and put sway in `update(dt)` plus a
 script-level `every`. A `sway_x` group verb is **parking lot** (see **Deferred**).
@@ -987,7 +987,7 @@ driver claims stay held while paused. A pointer hold freezes motion through a
 separate private gate (`Handle._held`), never through `.paused`: `.paused` is the
 author's switch only and never reports or undoes a hold ([Shapes Design.md —
 Persistent drivers](Shapes%20Design.md#persistent-drivers-vs-linked-pose)). `then=` / `on_done=` do not run on pause.
-Author surface: [Guia da API — Handle](../docs/pt/guide/index.html#agendar-handle).
+Author surface: [API Guide — Handle](../docs/en/guide/index.html#agendar-handle).
 
 **First tick next frame.** A Handle created during `Scheduler.tick()` — including
 one re-armed from its own `after` / `every` fire callback or `tween(..., on_done=...)`
@@ -1092,8 +1092,8 @@ flat tuples/lists, types with `.lerp(other, t)` (`Vec2`, `Color`), and pose
 overshoot). Incompatible shapes raise at `tween()` call time, not mid-run.
 `Color.interpolate` / `Color.lerp` default to `ColorSpace.OKLAB`. Documented
 contract for sequences is depth-1; deeper nesting may work but is not promised.
-Author surface: [Guia da API — tween](../docs/pt/guide/index.html#mover-tween),
-[lerp](../docs/pt/guide/index.html#util-lerp).
+Author surface: [API Guide — tween](../docs/en/guide/index.html#mover-tween),
+[lerp](../docs/en/guide/index.html#util-lerp).
 
 ### Mode enter / exit
 

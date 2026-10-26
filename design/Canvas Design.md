@@ -5,7 +5,7 @@ offscreen cull, and the scene draw walk. **Happy path for this subsystem** —
 pick one row; do not read the rest. Looks / post / quality:
 [Effect System Design.md](Effect%20System%20Design.md). Hub:
 [Scena Design.md](Scena%20Design.md). Author calls:
-[Guia da API](../docs/pt/guide/index.html#mundo).
+[API Guide](../docs/en/guide/index.html#mundo).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -28,7 +28,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
 3. Open **Start** only if the section is not enough.
 4. Open **Also** / another Design doc only if Start is not enough.
-5. Stop. Do not ingest `scripts/`, `_sksl_*`, or the private archive / proposals unless the shader or a named campaign is the task.
+5. Stop. Do not ingest `scripts/` or `_sksl_*` unless the shader is the task.
 
 ## Router
 
@@ -64,7 +64,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 - Process tick and Entity park → [Actors Design.md](Actors%20Design.md)
 - Groups / formula `@=` → [Actors Design.md](Actors%20Design.md#fleet-helpers-groups)
 - Background kinds inventory / cost → [Effect System Design.md §3.1e](Effect%20System%20Design.md#31e-backgroundfields-scenabackgroundpy-scenabackground_kindspy)
-- Author catalogs → [Guia da API](../docs/pt/guide/index.html#mundo)
+- Author catalogs → [API Guide](../docs/en/guide/index.html#mundo)
 - Measuring `Box` / `game_view` / `ui_view` → [Box Design.md](Box%20Design.md)
 
 
@@ -612,8 +612,8 @@ Genre rules stay inline (e.g. ignore Y while grounded). Destinations of timed
 pursuing a moving target at a fixed speed is `move_to(approach(...))` every tick.
 `chase` and `approach` are not two spellings of one sum: `chase` brakes and never
 quite lands; `approach` keeps its speed and lands exactly.
-Author catalog: [Guia da API](../docs/pt/guide/index.html#util-chase),
-[`approach`](../docs/pt/guide/index.html#util-approach).
+Author catalog: [API Guide](../docs/en/guide/index.html#util-chase),
+[`approach`](../docs/en/guide/index.html#util-approach).
 
 | Not taken | Why not |
 | --- | --- |
@@ -966,7 +966,7 @@ clustered fleets and canvas Bloom for atmosphere. See [Effect System Design.md](
 
 ### Playfield leave bounds
 
-**`canvas.playfield`** — world-fixed playfield for [`@leave_playfield`](../docs/pt/guide/index.html#reagir-bounds).
+**`canvas.playfield`** — world-fixed playfield for [`@leave_playfield`](../docs/en/guide/index.html#reagir-bounds).
 Default pad 0.25 (1.5× design rect). Negative `pad` shrinks inside the design
 rect; `pad <= -0.5` collapses to a point at the design center (does not invert
 edges). Not the camera frustum. `canvas.bounds` is an alias. `.inset` /

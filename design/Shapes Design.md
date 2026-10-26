@@ -6,7 +6,7 @@ the rest. Registry identity (`Entity`, internal `Graphic`) lives in `entity.py`;
 `shapes.py` re-exports them and hosts `_publish_graphic_api()`. Hub:
 [Scena Design.md](Scena%20Design.md). Pull graph:
 [Reactive Design.md](Reactive%20Design.md). Author calls:
-[Guia da API](../docs/pt/guide/index.html#desenhar-shapes).
+[API Guide](../docs/en/guide/index.html#desenhar-shapes).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -29,7 +29,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
 3. Open **Start** only if the section is not enough.
 4. Open **Also** / another Design doc only if Start is not enough.
-5. Stop. Do not ingest `scripts/`, other companions, or the private archive / proposals.
+5. Stop. Do not ingest `scripts/` or other companions.
 
 ## Router
 
@@ -57,7 +57,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 - Collision pipeline → [Collision Design.md](Collision%20Design.md)
 - Sprite body / hitbox → [Sprite Design.md](Sprite%20Design.md)
 - `Track` / `move_along` → [Tracks Design.md](Tracks%20Design.md)
-- Author catalogs → [Guia da API](../docs/pt/guide/index.html#desenhar-shapes)
+- Author catalogs → [API Guide](../docs/en/guide/index.html#desenhar-shapes)
 - Measuring `Box` / `box=` / `game_view` → [Box Design.md](Box%20Design.md)
 
 
@@ -716,7 +716,7 @@ not geometry (`length` / `at` / `move_along` stay the full curve).
 Collision matches the pointer family: a **stroke tube** (chain of thin OBBs along
 the bake, thickness `line_width`) — closed = ring, not a disk; not a `Circle` arc.
 `move_along` is on every Graphic. Depth:
-[Tracks Design.md](Tracks%20Design.md). Author: [Guia da API](../docs/pt/guide/index.html#shape-track).
+[Tracks Design.md](Tracks%20Design.md). Author: [API Guide](../docs/en/guide/index.html#shape-track).
 
 Live stamp buffers (growing / expiring samples, fading stroke recipe) are
 `History` / `Contrail` — not a Track. See [History Design.md](History%20Design.md).
@@ -803,7 +803,7 @@ Graphics and SpatialFx have no `.x` / `.y`. Position is `.center`. A write, a re
 
 ### `clone`
 
-Shared with Sprite — author usage in [Guia da API](../docs/pt/guide/index.html#spr-clone). Architecture: [Sprite Design.md — Sprite spawn & clone](Sprite%20Design.md#sprite-spawn--clone).
+Shared with Sprite — author usage in [API Guide](../docs/en/guide/index.html#spr-clone). Architecture: [Sprite Design.md — Sprite spawn & clone](Sprite%20Design.md#sprite-spawn--clone).
 
 ```python
 c2 = circle.clone()           # same size, new identity, style copied
@@ -1578,7 +1578,7 @@ Line(p1=lambda: intersection(c1, c2, 0), p2=lambda: intersection(c1, c2, 1))
 `Shape.visible` is a plain property, not an Attribute — hide a vanishing chord in
 `update` (`chord.visible = len(intersections(...)) == 2`), not with `@=`.
 
-Tests: `tests/test_geom.py`. Smoke: `scripts/smoke/geom.py`. Author: [Guia da API](../docs/pt/guide/index.html)#comecar-geom.
+Tests: `tests/test_geom.py`. Smoke: `scripts/smoke/geom.py`. Author: [API Guide — Geometry](../docs/en/guide/index.html#geometria).
 
 
 # Deferred

@@ -4,7 +4,7 @@ Pull reactivity, `Container` / `Attribute`, ownership vs dependency graph, takei
 pose fast path (A1–A4), and maintainer hazards. **Happy path for this subsystem** —
 pick one row; do not read the rest. Hub: [Scena Design.md](Scena%20Design.md).
 Shape geometry: [Shapes Design.md](Shapes%20Design.md). Author calls:
-[Guia da API](../docs/pt/guide/index.html#reativo).
+[API Guide](../docs/en/guide/index.html#reativo).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -25,7 +25,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
 3. Open **Start** only if the section is not enough.
 4. Open **Also** / another Design doc only if Start is not enough.
-5. Stop. Do not ingest `scripts/`, other companions, or the private archive / proposals.
+5. Stop. Do not ingest `scripts/` or other companions.
 
 ## Router
 
@@ -52,7 +52,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 - Process / modes → [Actors Design.md](Actors%20Design.md)
 - Formula groups (`group["name"] @=`) → [Actors Design.md](Actors%20Design.md#formula-groups) (not an Attribute / `FieldRef` edge)
 - Linked hitbox switch (`hb["active"] @=`) → [Sprite Design.md — round 2](Sprite%20Design.md#pixel-shapes-and-linked-active-round-2) (a polled link, not a graph edge)
-- Author catalogs → [Guia da API](../docs/pt/guide/index.html#reativo)
+- Author catalogs → [API Guide](../docs/en/guide/index.html#reativo)
 
 
 # Reactive model
@@ -172,7 +172,7 @@ Weighed (2026-10-16): refusing `.x =` / `<<` on an ink-held Vec2, as the cell th
 
 **Known limit: an own field cannot read its object's size (AC14, 2026-10-10).** `r["dano"] @= lambda: r.width` (and `c.radius`, `r.top_left`, a Polygon's `center`) raises `CircularReferenceError`: a scalar-slot read names the whole object as the source, and a Derivate part depends on the shape's root, which depends on every child, the new field anchor included. Fixing it would mean per-slot source nodes and Derivate parts wired to Defining parts only, on the hottest reactive paths; the need is narrow and a class `@property` (or `update(dt)`) is the clean idiom, so it stays a limit. `check_circular_reference` recognises the case (`_own_size_read_message`: the owner is a field anchor or a part such as `center`, the source a non-formula node of the same object) and says so, naming the idiom that fits: a custom (ink) field gets the class `@property`; a built-in field or a part gets "read what the value comes from, or one part by name (`distance(p.center, q.center)`, not `distance(p, q)`), or `update(dt)`" (a property named `radius` would recurse). Until showcase B5 (2026-10-23) a part (`t["center"] @= lambda: … t.angle`) got the generic message and a built-in field the property idiom. A real cycle between two of the object's formulas keeps the generic message. Guia: reactive sources, "Não confundir". Guards: `test_fieldref.TestOwnSizeReadIsAKnownLimit` (custom, built-in and part owners), `test_subclass_parity.KNOWN_SELF_READ`.
 
-**Refuse empty FormulaLink sources.** `_extract_sources` keeps only Containers. It resolves free variables (closure / globals), **default-arg captures** (`lambda h=host: h.angle` — the usual loop-binding idiom: the body's `h` resolves to the default's value; the default *expression* is not a read, it ran once at creation, so `lambda g=g: g.ganho` reads `g.ganho`, never the whole `g` — reading it made a shape's own field "read itself" and raise `CircularReferenceError`, AC8; `test_formula_functions.TestDefaultArgIsNotARead`), and simple **subscript** chains (`items[0].radius`). The arguments of every **call inside a chain** are reads too: `TONS.get_color(st.calor).with_alpha(0.3)` and `str(st.n).upper()` link `st.calor` / `st.n` (`SourceExtractor._visit_call_arguments`). Before 2026-10-21 the chain walk stepped from a call to its function and dropped its arguments: alone the formula was refused as sourceless (a wrong message), and beside another source (`lambda: a.value + float(str(st.n))`) it linked on `a` only and stayed stale on `st.n`, silently; guard `test_formula_chain_args` (found writing `examples/affinity.py`). A bracket handle read inside a formula (`st["score"]`, `c["radius"]`, `st["x"].value`) is refused before extraction, with the dot spelling (see [The handle is not the value](#the-handle-is-not-the-value)); it used to link a bare `lambda: st["score"]` (leaf `_takein` unwrapped the handle) while any use of it as a number broke. If the set is empty (constant lambda, only plain Python vars, or unparsable lambda with no Container defaults), `FormulaLink.__init__` raises `TypeError` — it does **not** install a one-shot frozen link. A named function is read exactly like a lambda (its body, plus default-arg captures); see [Formula visibility](#formula-visibility-named-functions-helpers-refusals) for what the static pass follows and refuses. A named function whose source cannot be read (`exec`) links only through Container defaults. When the lambda has no AST (REPL / `python -c` / `exec`), closure cells and referenced globals are used the same way — and a `State` among them (`st`) contributes every cell the code object reads, so `ship["shield"] @= lambda: st.lives * 10` links from an `exec` string too. A chain that reads a **missing** `st` cell (`st.livse`) raises the State's own "has no field … Create it first" error instead of the generic "formula has no sources". Author `=` of a non-number onto any `ScalarSlot` raises `TypeError` (magnitude slots also refuse negatives); a formula / batch refresh is not re-checked. Mixed formulas (`lambda: plain_x + c.radius`) are fine: the Container source dirties the sink and the whole lambda re-runs (re-reading the plain name). If `set_owner` raises after the link is installed, `assign_formula` rolls the link, edges, structural rewire, and pull-invalidate flags back to the pre-install snapshot. Author surface: [Guia — O que pode ser ligado](../docs/pt/guide/index.html#reativo-fontes).
+**Refuse empty FormulaLink sources.** `_extract_sources` keeps only Containers. It resolves free variables (closure / globals), **default-arg captures** (`lambda h=host: h.angle` — the usual loop-binding idiom: the body's `h` resolves to the default's value; the default *expression* is not a read, it ran once at creation, so `lambda g=g: g.ganho` reads `g.ganho`, never the whole `g` — reading it made a shape's own field "read itself" and raise `CircularReferenceError`, AC8; `test_formula_functions.TestDefaultArgIsNotARead`), and simple **subscript** chains (`items[0].radius`). The arguments of every **call inside a chain** are reads too: `TONS.get_color(st.calor).with_alpha(0.3)` and `str(st.n).upper()` link `st.calor` / `st.n` (`SourceExtractor._visit_call_arguments`). Before 2026-10-21 the chain walk stepped from a call to its function and dropped its arguments: alone the formula was refused as sourceless (a wrong message), and beside another source (`lambda: a.value + float(str(st.n))`) it linked on `a` only and stayed stale on `st.n`, silently; guard `test_formula_chain_args` (found writing `examples/affinity.py`). A bracket handle read inside a formula (`st["score"]`, `c["radius"]`, `st["x"].value`) is refused before extraction, with the dot spelling (see [The handle is not the value](#the-handle-is-not-the-value)); it used to link a bare `lambda: st["score"]` (leaf `_takein` unwrapped the handle) while any use of it as a number broke. If the set is empty (constant lambda, only plain Python vars, or unparsable lambda with no Container defaults), `FormulaLink.__init__` raises `TypeError` — it does **not** install a one-shot frozen link. A named function is read exactly like a lambda (its body, plus default-arg captures); see [Formula visibility](#formula-visibility-named-functions-helpers-refusals) for what the static pass follows and refuses. A named function whose source cannot be read (`exec`) links only through Container defaults. When the lambda has no AST (REPL / `python -c` / `exec`), closure cells and referenced globals are used the same way — and a `State` among them (`st`) contributes every cell the code object reads, so `ship["shield"] @= lambda: st.lives * 10` links from an `exec` string too. A chain that reads a **missing** `st` cell (`st.livse`) raises the State's own "has no field … Create it first" error instead of the generic "formula has no sources". Author `=` of a non-number onto any `ScalarSlot` raises `TypeError` (magnitude slots also refuse negatives); a formula / batch refresh is not re-checked. Mixed formulas (`lambda: plain_x + c.radius`) are fine: the Container source dirties the sink and the whole lambda re-runs (re-reading the plain name). If `set_owner` raises after the link is installed, `assign_formula` rolls the link, edges, structural rewire, and pull-invalidate flags back to the pre-install snapshot. Author surface: [Guide — What can be linked](../docs/en/guide/index.html#reativo-fontes).
 
 ### Formula visibility (named functions, helpers, refusals)
 
@@ -282,7 +282,7 @@ What needs the cell takes the bracket, and refuses the value loudly with the bra
 2. **Registration** (`EventRegistration.__init__`): a `@when` / `@on_change` lambda whose seed evaluation returns a handle raises. Checked once, so a poll pays nothing; the bare handle (`@on_change(st["wave"])`) still watches.
 3. **The handle** (`FieldRef`): every value protocol (`__bool__`, `__str__`, `__format__`, comparisons, arithmetic both sides, `__int__` / `__float__` / `__index__` / `__round__`, `__iter__` / `__len__` / `__contains__`, bitwise, unary, `math.floor` / `ceil` / `trunc`) raises `TypeError` (`state.field_ref_value_message`), a subscript (`st["pos"]["x"]`) names `st.pos['x']`, and an unknown public attribute (`st["pos"].x`) raises `AttributeError` naming `st.pos.x`. `__repr__` stays for debugging and `__hash__` is the identity one. This catches what is never parsed: a `@when` comparison, the REPL, `print`, `st["score"] += 1`. No engine path uses a handle as a value (they test `isinstance` and read `.value`), so nothing hot pays.
 
-Rejected (2026-10-13, with the user): making the bracket read the value inside a formula. A rewrite of the lambda would run code the author did not write (and miss helpers, `@when` lambdas and the REPL); a "formula context" flag in `State.__getitem__` would make the same helper return a handle or a number depending on its caller and tax every formula evaluation; a handle that imitates its value is the pre-0.8.0 leak (`is None`, `type`, `isinstance`). Each would give one spelling two meanings, the confusion this removes. Guards: `tests/test_handle_not_value.py` (each layer, plus a completeness check that every number / text protocol of `float` / `str` is defined on `FieldRef`).
+Rejected (2026-10-13, with the maintainer): making the bracket read the value inside a formula. A rewrite of the lambda would run code the author did not write (and miss helpers, `@when` lambdas and the REPL); a "formula context" flag in `State.__getitem__` would make the same helper return a handle or a number depending on its caller and tax every formula evaluation; a handle that imitates its value is the pre-0.8.0 leak (`is None`, `type`, `isinstance`). Each would give one spelling two meanings, the confusion this removes. Guards: `tests/test_handle_not_value.py` (each layer, plus a completeness check that every number / text protocol of `float` / `str` is defined on `FieldRef`).
 
 ## Shape and the canvas
 
@@ -1029,7 +1029,7 @@ A one-shot `Circle(center=(mouse.x, mouse.y))` or `Circle(center=mouse)` in
 the script body is still `(0, 0)` — no window yet. Live follow is
 `Circle(center=lambda: mouse)` or `center @= mouse`. Live `@=` is current
 from the first drawn frame.
-Author catalog: [Guia — Frame](../docs/pt/guide/index.html#frame).
+Author catalog: [Guide — Frame](../docs/en/guide/index.html#frame).
 
 ## Vec2 (`scenamath.py`)
 
@@ -1110,8 +1110,8 @@ pull (`c.vel += vec_from_angle(heading(c, hole), k / d**3 * dt)`) 17.3 →
 `x` / `y`, then the `Graphic.vel` setter gets the same vector back and writes
 both axes again (four guarded field writes, ~8 µs). Whole game
 (`game_bench.py --ab` on a temporary switch over both fast paths, 30 s,
-machine under peer load, load average 4–8): `horda` work 16.4 → 13.9 ms per
-frame; the Duelo draft idle on its menu (no lasers) +0.9 %, within noise.
+machine under other load, load average 4–8): `horda` work 16.4 → 13.9 ms per
+frame; `duelo.py` idle on its menu (no lasers) +0.9 %, within noise.
 The template is a second
 copy of what the general path writes: a new private field in
 `Container.__init__` or `Vec2.__init__` goes into `_TEMP_STATE` too.

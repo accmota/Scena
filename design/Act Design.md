@@ -2,7 +2,7 @@
 
 **Status: implemented (2026-09-28); renamed to `Act` 2026-10-06 (0.6.0).**
 `Act`, `change_act` and `run(Titulo)` are Scena API (`scena/act.py`, exported
-from `stage`). Author surface: [Guia — Atos](../docs/pt/guide/index.html#atos).
+from `stage`). Author surface: [Guide — Acts](../docs/en/guide/index.html#atos).
 Tests: `tests/test_act.py`. A runnable sample game (the design's paper
 sketch, made runnable) is in development and not yet in `examples/`.
 Design history: first pass 2026-09-25 as "Room Design"; reshaped 2026-09-26;

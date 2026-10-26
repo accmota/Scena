@@ -3,7 +3,7 @@
 `History` is a bounded, expiring sequence. `Contrail` is one recipe on top:
 a single stroke through the sampled points (Catmull-Rom cubic by default), with
 an optional alpha fade from tail to head. Hub: [Scena Design.md](Scena%20Design.md).
-Author catalog: [Guia da API](../docs/pt/guide/index.html#history).
+Author catalog: [API Guide](../docs/en/guide/index.html#history).
 
 Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 

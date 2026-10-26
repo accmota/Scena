@@ -5,7 +5,7 @@ and the mass-sprite hot path. **Happy path for this subsystem** — pick one row
 do not read the rest. Registry citizen / process: [Actors Design.md](Actors%20Design.md).
 Collision engine: [Collision Design.md](Collision%20Design.md). Hub:
 [Scena Design.md](Scena%20Design.md). Author calls:
-[Guia da API](../docs/pt/guide/index.html#desenhar-sprite).
+[API Guide](../docs/en/guide/index.html#desenhar-sprite).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -33,7 +33,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
 3. Open **Start** only if the section is not enough.
 4. Open **Also** / another Design doc only if Start is not enough.
-5. Stop. Do not ingest `scripts/` or the private archive / proposals unless visual/bench proof is the task.
+5. Stop. Do not ingest `scripts/` unless visual/bench proof is the task.
 
 ## Router
 
@@ -63,7 +63,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 - Entity / process / fleet Director → [Actors Design.md](Actors%20Design.md)
 - Collision pipeline / `resolve` → [Collision Design.md](Collision%20Design.md)
 - Looks / stamps / §5.5 AABB → [Effect System Design.md](Effect%20System%20Design.md)
-- Author catalogs → [Guia da API](../docs/pt/guide/index.html#desenhar-sprite)
+- Author catalogs → [API Guide](../docs/en/guide/index.html#desenhar-sprite)
 
 ## Author surface (Guia layout)
 
@@ -137,7 +137,7 @@ name); without it, the first cell of the sheet's first clip; else cell 0. There 
 `size_from=` — `frame=` already is "the cell `height=` measures", and a sheet with
 `pixel_size` needs no reference at all.
 
-Author surface: [Guia — Tamanhos diferentes](../docs/pt/guide/index.html#spr-size).
+Author surface: [Guide — Different sizes](../docs/en/guide/index.html#spr-size).
 Tests: `tests/test_sheet_scale_anchor.py`.
 
 ## Sprite design notes
@@ -151,7 +151,7 @@ A Sprite is a **Graphic**, not a `Rect` with `Texture` fill and not a `Shape`. T
 `Sheet` is the catalog (pixels, layout / atlas, named clips). It does **not** place.
 `Sprite` is the registry citizen (pose, size, Graphic, `play` / `frame`). One catalog
 type. Author surface:
-[Guia da API — Carregar sprites](../docs/pt/guide/index.html#sprite-carregar).
+[API Guide — Loading sprites](../docs/en/guide/index.html#sprite-carregar).
 
 | Case | Catalog | Actor |
 | --- | --- | --- |
@@ -304,7 +304,7 @@ at `Sheet`; an atlas filename as `source` is the same error), `sheet.cycle`,
   3. `media/` next to that script (`Sprite("hero.png")` → `script/media/hero.png`; `Sprite("sprites/ship.png")` → `script/media/sprites/ship.png`).
   4. Current working directory.
 
-  REPL / `python -c` skip to cwd. A file pattern searches the same folders, first folder with a match ([File patterns](#file-patterns)). Atlas PNG: name listed in the atlas, then a sibling of the resolved atlas file. Author surface: [Guia da API — Arquivos de imagem](../docs/pt/guide/index.html#arquivos-imagem).
+  REPL / `python -c` skip to cwd. A file pattern searches the same folders, first folder with a match ([File patterns](#file-patterns)). Atlas PNG: name listed in the atlas, then a sibling of the resolved atlas file. Author surface: [API Guide — Image files](../docs/en/guide/index.html#arquivos-imagem).
 - Size: design units. With no size keyword: the sheet's `pixel_size` if set (each PNG pixel = `pixel_size` units), else a default longer side = `max(48, 0.06 * min(design_w, design_h))` on the construct cell. `frame=` names the construct cell — the size reference ([Scale and registration](#scale-and-registration)).
 - `play` uses world `clock.time` × `time_scale` (pauses with the world). The clip clock is world time, not a timer: a parked sprite (`active = False`) is not drawn, but its clip keeps advancing, so on resume it shows the cell world time has reached (parking pauses the actor's `after` / `every` / tweens, not the playhead). To hold the cell across a park, write `time_scale = 0` before parking. Writing `time_scale` rebases the playhead so the elapsed time does not jump; `0` freezes that elapsed time. Same clip again is a no-op. Size is **one scale per sprite** — every cell draws at its own PNG size times that scale ([Scale and registration](#scale-and-registration)); `play()` / `frame=` move `width` / `height` to the new cell, they do not refit it to the construct size. `size =` / `width =` / `height =` rescale every clip. `clone()` passes the knob kind of the size intent (`size`, `width`, `height`, or both) with the value of the cloned cell at the same scale.
 - `flip_x` / `flip_y` — Sprite-only pose bools. Mirror about the pivot **before**
@@ -346,10 +346,10 @@ at `Sheet`; an atlas filename as `source` is the same error), `sheet.cycle`,
   named `frame` / `height` (those shadow descriptors). `center` / `layer` rejected
   as placement. `clone()` still passes the resolved sheet + live pose (including flip /
   `art_angle`).
-- `hitbox` — Sprite collider. Four knobs: `hitbox_shape=` (primitive), `hitbox_source=` (which art), `hitbox_anchor=` / `hitbox_scale=` (shaping). Default `"auto"` is a rotation-safe utility pick, baked from the **reference set** on collision enroll and **frozen** while the clip plays unless `hitbox_source="each"` (every cell) or `"clip"` (once per clip switch). Under `"auto"` those two lock **kind** on the first bake and refit params only. Walkers should pick `"rect"`. Extra detection-only colliders are **hitbox parts** (`sprite.add_hitbox(group=…)`) — see [Hitbox parts](#hitbox-parts). Full contract: **Auto hitbox** below. Author surface: [Guia da API](../docs/pt/guide/index.html#spr-hit). Collision: [Collision Design.md](Collision%20Design.md#sprite-colliders).
+- `hitbox` — Sprite collider. Four knobs: `hitbox_shape=` (primitive), `hitbox_source=` (which art), `hitbox_anchor=` / `hitbox_scale=` (shaping). Default `"auto"` is a rotation-safe utility pick, baked from the **reference set** on collision enroll and **frozen** while the clip plays unless `hitbox_source="each"` (every cell) or `"clip"` (once per clip switch). Under `"auto"` those two lock **kind** on the first bake and refit params only. Walkers should pick `"rect"`. Extra detection-only colliders are **hitbox parts** (`sprite.add_hitbox(group=…)`) — see [Hitbox parts](#hitbox-parts). Full contract: **Auto hitbox** below. Author surface: [API Guide](../docs/en/guide/index.html#spr-hit). Collision: [Collision Design.md](Collision%20Design.md#sprite-colliders).
 - Appearance stamps — `.glow` / `.shadow` / `.hue` / `.gray` / `.tail` (Sprite family: Sprite, Svg, SpriteButton, author subclasses — dispatch is `entity.is_sprite_family`, never the class name); Shape drops `.hue` / `.gray`; Text `.glow` only. Sugar `True` / color / number / object; Tail `True` follows motion.
-- Overlay / path / material looks via `Visual._allows_sprite` (see [Guia da API](../docs/pt/guide/index.html#aparencia-visual)). Pixel looks on `.visual` (`Recolor`, `Aura`, `EmissiveBloom`) are `_sprite_only`. **HueShift** is a stamp (`.hue`) or `Texture(..., shift=HueShift(...))` — not `.visual`. Remaining body looks (`Neon`, `Water`, `Gel`, …) and `Paint` / Gradient as `.visual` → **`TypeError`**. `_replaces_sprite_body` materials (`Metal`, `Flame`, `Swell`, `Aurora`, `Wave`) fill the silhouette instead of blitting.
-- **`Svg`** — Sprite subclass whose body is rasterized from SVG. First positional `source` is markup if it contains `<`, otherwise a filename (same resolve as Sprite). `.svg` always stores markup (file contents after load, never the path). Writing `.svg` uses the same rule; same stored markup → no-op. Missing file / parse failure: warn once, checker, stay valid (setter keeps last good body). `svg = None` clears to the checker, as `Svg(None)` builds it. Private single-frame sheet (never interned — live unique strings would leak). Still only: catalog kwargs (`cols=` / `atlas=` / `fps=`), `play`, and `strip` raise `TypeError` (`frame=` other than `0` too). Same hitbox knobs as Sprite (`"all"` / `"each"` are one-frame no-ops). `clone()` recopies markup into a new private sheet (later writes do not affect the source). Bitmap body: camera zoom softens; no live `SVGDOM.render` each frame. Author surface: [Guia da API — Svg](../docs/pt/guide/index.html#spr-svg). Smoke: `scripts/smoke/sprite_fx.py` (compass/car cell). Tests: `tests/test_svg.py`.
+- Overlay / path / material looks via `Visual._allows_sprite` (see [API Guide](../docs/en/guide/index.html#aparencia-visual)). Pixel looks on `.visual` (`Recolor`, `Aura`, `EmissiveBloom`) are `_sprite_only`. **HueShift** is a stamp (`.hue`) or `Texture(..., shift=HueShift(...))` — not `.visual`. Remaining body looks (`Neon`, `Water`, `Gel`, …) and `Paint` / Gradient as `.visual` → **`TypeError`**. `_replaces_sprite_body` materials (`Metal`, `Flame`, `Swell`, `Aurora`, `Wave`) fill the silhouette instead of blitting.
+- **`Svg`** — Sprite subclass whose body is rasterized from SVG. First positional `source` is markup if it contains `<`, otherwise a filename (same resolve as Sprite). `.svg` always stores markup (file contents after load, never the path). Writing `.svg` uses the same rule; same stored markup → no-op. Missing file / parse failure: warn once, checker, stay valid (setter keeps last good body). `svg = None` clears to the checker, as `Svg(None)` builds it. Private single-frame sheet (never interned — live unique strings would leak). Still only: catalog kwargs (`cols=` / `atlas=` / `fps=`), `play`, and `strip` raise `TypeError` (`frame=` other than `0` too). Same hitbox knobs as Sprite (`"all"` / `"each"` are one-frame no-ops). `clone()` recopies markup into a new private sheet (later writes do not affect the source). Bitmap body: camera zoom softens; no live `SVGDOM.render` each frame. Author surface: [API Guide — Svg](../docs/en/guide/index.html#spr-svg). Smoke: `scripts/smoke/sprite_fx.py` (compass/car cell). Tests: `tests/test_svg.py`.
 - Interned **FrameFx** cache (silhouette path + optional SDF, max side 96) shared like auto hitbox. Assigning `.visual` warms the **current clip or cell**. `prepare_fx(*looks)` bakes every cell. See **FrameFx** below.
 - `SPRITE_BODY` fill sentinel so filter batching sees a fill channel; draw always blits the bitmap.
 - Tail on Sprite ghosts the **current frame**.
@@ -391,7 +391,7 @@ Alpha cutoff `_FX_ALPHA = 16` (0–255, ~6%) — **same floor as** `_AUTO_ALPHA`
 
 Sprite Laser beam is slightly thicker than Shape Laser (SDF bands + a modest core vs the thin Shape white stroke). Tune `_LASER_SPRITE_THICK` / `_LASER_SPRITE_CORE` in `recipes.py`; SkSL core falloff in `_sksl_shape.py` (`sprite_sil_v2`).
 
-Author surface: [Guia da API — Aparência e clique](../docs/pt/guide/index.html#spr-look). Smoke: `scripts/smoke/look_fx.py`. Tests: `tests/test_atlas.py` (`TestSilhouettePathV2`), `tests/test_sprite.py` (FrameFx assign / `prepare_fx` / destroy-recreate).
+Author surface: [API Guide — Appearance and clicks](../docs/en/guide/index.html#spr-look). Smoke: `scripts/smoke/look_fx.py`. Tests: `tests/test_atlas.py` (`TestSilhouettePathV2`), `tests/test_sprite.py` (FrameFx assign / `prepare_fx` / destroy-recreate).
 
 ### Costume envelope (Shield on Sprite)
 
@@ -409,7 +409,7 @@ Shield (including `style="plasma"`) sizes from a **frozen silhouette-union ellip
 
 Tests: `tests/test_sprite.py` (`TestShieldEnvelope`, `TestShieldFilterBounds`); Shape UV: `tests/test_visuals.py` (`test_shield_shape_not_sprite_envelope`).
 
-Author spawn / `clone()` usage: [Guia da API — Clone](../docs/pt/guide/index.html#spr-clone). Architecture below.
+Author spawn / `clone()` usage: [API Guide — Clone](../docs/en/guide/index.html#spr-clone). Architecture below.
 
 ## Sprite spawn & clone
 
@@ -623,7 +623,7 @@ conservative closed-form bound under rotation (circumradius; for a sprite, its l
 do not rebuild full prims every frame just for the proxy
 ([Collision rotation / proxy AABB](#collision-rotation--proxy-aabb-2026-08-21)).
 That proxy is **not** a classic fat AABB (permanent radius pad) — see the
-decision table there. Author API: [Guia da API — Colisão](../docs/pt/guide/index.html#colisao).
+decision table there. Author API: [API Guide — Collision](../docs/en/guide/index.html#colisao).
 
 ### Author contract (current)
 
@@ -1298,7 +1298,7 @@ bench for real FPS attribution.
 `SpriteButton(Sprite)` (`scena/sprite_button.py`) packages a game button on one
 Sprite: hover / press / disabled **feel**, optional breathing, `on_click`,
 sounds, a centered **label** and optional **state art**. Default layer `ui`.
-Guia: [SpriteButton](../docs/pt/guide/index.html#ui-sprite-button).
+Guide: [SpriteButton](../docs/en/guide/index.html#ui-sprite-button).
 
 **Feel is draw-time only.** `draw` (the class is `_draws_solo`, never
 `_plain_blit` — `Graphic.__init__` seeds that flag True, so the constructor

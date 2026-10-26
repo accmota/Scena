@@ -35,7 +35,7 @@ its examples/ file (test_scripts_run).
   python tests/run_tiers.py focused test_tutorial_steps              # every step (~1 min)
 The English pages (docs/en/tutorial/) get the same checks and step runs
 (TestStepsEn05), and test_tutorial_parity (quick) holds them to their
-Portuguese twins (design/README.md, "The English tutorials").
+Portuguese twins (design/Docs Design.md, "The English tutorials").
 test_example_translations (quick) holds each English example in examples/ to
 its Portuguese twin, renamed name for name; so the laws modules run one of the
 pair below deep (test_scripts_run.law_scripts, WP33).

@@ -5,7 +5,7 @@ kinds, canvas post, quality ladder, and cost model. **Happy path for this
 subsystem** — pick one row; do not read the rest. Placement / camera / layers:
 [Canvas Design.md](Canvas%20Design.md). Post/background mutate-hide-remove:
 [Effect Handles.md](Effect%20Handles.md). Hub: [Scena Design.md](Scena%20Design.md).
-Author calls: [Guia da API](../docs/pt/guide/index.html#aparencia).
+Author calls: [API Guide](../docs/en/guide/index.html#aparencia).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -27,7 +27,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
 3. Open **Start** in [§12](#12-file-map) only if the section is not enough.
 4. Open **Also** / another Design doc only if Start is not enough.
-5. Stop. Do not ingest `scripts/`, `_sksl_*`, or the private archive / proposals unless the shader or a named campaign is the task.
+5. Stop. Do not ingest `scripts/` or `_sksl_*` unless the shader is the task.
 
 ## Do not confuse
 
@@ -46,7 +46,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 - Camera / layers / cull / HUD → [Canvas Design.md](Canvas%20Design.md)
 - Post / background hide-remove → [Effect Handles.md](Effect%20Handles.md)
 - Sprite FrameFx / Shield envelope → [Sprite Design.md](Sprite%20Design.md)
-- Author catalogs → [Guia da API](../docs/pt/guide/index.html#aparencia)
+- Author catalogs → [API Guide](../docs/en/guide/index.html#aparencia)
 - Bench method → [§8](#8-benchmarks); time-series pulse → [`scripts/bench/fx.md`](../scripts/bench/fx.md)
 - Visual / bench proof → `scripts/smoke/shape_fx.py`, `transients.py`, `spatial.py`, `background.py`, `world_view.py`; `scripts/bench/perf_effects.py`, `perf_fx_matrix.py` (only if the task is proof)
 
@@ -316,7 +316,7 @@ Implementation: `[scena/visuals.py](../scena/visuals.py)` (compiled packages) + 
 Animation without multipass: curated `ProceduralFill` ticks time in `to_skia_fill_paint`.  
 Animation with multipass: `Recipe.render` reads clock each frame.
 
-**Primary tint policy:** `color=` is the hero tint per look. Roles A–E (body / outline / pigment / fixed art / motion) are documented in [Guia da API](../docs/pt/guide/index.html#aparencia-cor); authors need not memorize the matrix. Live sample = field reads only; never rebuild ImageFilter DAGs from tint each frame.
+**Primary tint policy:** `color=` is the hero tint per look. Roles A–E (body / outline / pigment / fixed art / motion) are documented in [API Guide](../docs/en/guide/index.html#aparencia-cor); authors need not memorize the matrix. Live sample = field reads only; never rebuild ImageFilter DAGs from tint each frame.
 
 Five rules:
 

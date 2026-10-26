@@ -23,6 +23,9 @@ root files):
   ``proposals/x.py`` in backticks in a design doc), or a path to one is joined
   in code. Naming a folder alone (``workbench/``, ``archive/``) is allowed:
   protocol text may say the folders exist and are private.
+* **private pointer** (``design/*.md`` only) — prose that sends the reader to
+  unpublished evidence ("private workbench", "private notes") or names a
+  private folder, even alone (``TestDesignPrivatePointers``, DL2).
 * **broken link** — a relative Markdown ``[..](target)`` or HTML
   ``href="target"`` in a ``.md`` / ``.html`` file whose file does not exist.
   Anchors (``#…``) are not checked here.
@@ -157,6 +160,25 @@ def _offenders():
                 yield "broken link", rel, no, dest
 
 
+# A design doc that sends the reader to unpublished evidence without a path
+# ("report in the private workbench", "Repros: private workbench, …"), or names
+# a private folder at all: agents learn the folders from CLAUDE.md, readers of
+# the published docs have no use for them (DL2). Matched across line breaks.
+_PRIVATE_POINTER = re.compile(
+    r"\bprivate\s+(?:workbench|archive|proposals|notes|repros?|reports?)\b"
+    r"|(?<![\w/.-])(?:workbench|drafts)/", re.I)
+
+
+def _design_pointers():
+    """Yield ``(rel_file, line_no, phrase)`` for each pointer in ``design/*.md``."""
+    for path in iter_files(layout.DESIGN, ".md"):
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+        for m in _PRIVATE_POINTER.finditer(text):
+            no = text.count("\n", 0, m.start()) + 1
+            yield _rel(path), no, " ".join(m.group(0).split())
+
+
 
 
 class TestScanner(unittest.TestCase):
@@ -227,6 +249,65 @@ class TestDocLinks(unittest.TestCase):
             "Carry the conclusion and its reason in the living doc instead of a link "
             "(design/README.md — 'Private folders').\n" + "\n".join(found),
         )
+
+
+class TestDesignPrivatePointers(unittest.TestCase):
+    """DL2: the design docs neither point at unpublished evidence in prose nor
+    name the private folders."""
+
+    def test_pattern(self):
+        for line in ("(report in the private\nworkbench) confirmed",
+                     "Repros: private workbench, \"2026-10-09 review\"",
+                     "the private archive / proposals", "see the private notes",
+                     "Do not ingest the private `workbench/`", "drafts/ holds games"):
+            self.assertTrue(_PRIVATE_POINTER.search(line), line)
+        for line in ("a private field on the snapshot path", "`state.probe_private`",
+                     "the private `_RectBody`", "a private serial (`_reg_key`)",
+                     "the trial (rounds, drafts) is not published", "`examples/drafts.py`",
+                     "unpublished material for evidence (a review report, repros)"):
+            self.assertIsNone(_PRIVATE_POINTER.search(line), line)
+
+    def test_design_docs_carry_their_evidence(self):
+        found = [f"{rel}:{no}: {phrase}" for rel, no, phrase in _design_pointers()]
+        self.assertEqual(
+            found, [],
+            "\nA design doc carries its evidence (the repro, the test, the number) and "
+            "does not name the private folders (design/README.md — 'Private folders').\n"
+            + "\n".join(found),
+        )
+
+
+class TestDesignPageAnchors(unittest.TestCase):
+    """A design doc's link into a page of the author site names an id that page
+    has: `[API Guide](…/index.html)#comecar-geom` sat outside its link and named
+    no section (the chapter is `#geometria`). Design docs link the English
+    Guide first; the ids are the same in both languages."""
+
+    def test_anchors_exist(self):
+        ids = {}
+        found, n = [], 0
+        for path in iter_files(layout.DESIGN, ".md"):
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+            for no, target in _link_targets(text):
+                dest = _resolve(path, target)
+                if dest is None or not dest.startswith("docs/") or "#" not in target:
+                    continue
+                if not dest.endswith(".html") or not os.path.exists(os.path.join(ROOT, dest)):
+                    continue  # a missing file is TestDocLinks' finding
+                if dest not in ids:
+                    with open(os.path.join(ROOT, dest), encoding="utf-8") as fh:
+                        ids[dest] = set(re.findall(r'\bid="([^"]+)"', fh.read()))
+                n += 1
+                anchor = unquote(target.split("#", 1)[1])
+                if anchor not in ids[dest]:
+                    found.append(f"{_rel(path)}:{no}: {dest}#{anchor}")
+            for m in re.finditer(r"\]\(\.\./docs/[^)#]*\)#[\w-]+", text):
+                found.append(f"{_rel(path)}:{text.count(chr(10), 0, m.start()) + 1}: "
+                             f"anchor outside the link: {m.group(0)[2:]}")
+        self.assertGreater(n, 50)  # the scan sees the Guide links
+        self.assertEqual(found, [], "\nLinks into the author site name a missing id:\n"
+                         + "\n".join(found))
 
 
 if __name__ == "__main__":

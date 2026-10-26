@@ -5,7 +5,7 @@ Constructors for canvas-wide post effects and background fields **return the liv
 **Happy path for this note** — pick one row; do not read the rest. Looks / cost:
 [Effect System Design.md](Effect%20System%20Design.md). Hub:
 [Scena Design.md](Scena%20Design.md). Author catalogs:
-[Guia da API](../docs/pt/guide/index.html#mundo-post) (one-shot `canvas.flash` / `*_at` / capa: [Impactos](../docs/pt/guide/index.html#mundo-impactos)).
+[API Guide](../docs/en/guide/index.html#mundo-post) (one-shot `canvas.flash` / `*_at` / capa: [Impacts](../docs/en/guide/index.html#mundo-impactos)).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 

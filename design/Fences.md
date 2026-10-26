@@ -106,4 +106,4 @@ When a Rejected / Dropped / Non-goals block is about to land:
 
 1. **Will the next edit try this?** Fence in the companion (≤ ~8 lines), at the feature, with a revisit bar. Add a row here.
 2. **Waiting on evidence?** One **Deferred** bullet in the matching companion.
-3. **Why?** In the fence itself: one line on why the alternative lost (the case it breaks, the number it costs). The living doc keeps the conclusion and its reason; the trial (rounds, drafts) stays in the private archive and is never linked.
+3. **Why?** In the fence itself: one line on why the alternative lost (the case it breaks, the number it costs). The living doc keeps the conclusion and its reason; the trial (rounds, drafts) is not published and is never linked.

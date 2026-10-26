@@ -3,7 +3,7 @@
 Shared collider registry and narrow-phase pipeline for Shape, Sprite, and SpatialFx.
 **Happy path for this subsystem** — pick one row; do not read the rest. Hub:
 [Scena Design.md](Scena%20Design.md). Author calls:
-[Guia da API](../docs/pt/guide/index.html#colisao). Sprite bake:
+[API Guide](../docs/en/guide/index.html#colisao). Sprite bake:
 [Sprite Design.md](Sprite%20Design.md#auto-hitbox-shapeauto).
 
 Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
@@ -41,7 +41,7 @@ Today’s baseline, not a freeze — [Scena Design.md](Scena%20Design.md#design-
 2. Read that section only (search; do not read the rest of this file). Treat fences there as current constraints.
 3. Open **Start** only if the section is not enough.
 4. Open **Also** / another Design doc only if Start is not enough.
-5. Stop. Do not ingest `scripts/` or the private archive / proposals unless a named campaign or visual proof is the task.
+5. Stop. Do not ingest `scripts/` unless visual proof is the task.
 
 ## Router
 
@@ -199,7 +199,7 @@ Leaving collision (park, `collidable = False`) clears `touching_sides` / `touchi
 
 What a player *does* see is contact flicker on resting bodies. `touching_sides` is steady at any frame pacing ([Floor snap / grounded flicker](#floor-snap--grounded-flicker)); `@collide` on a resolved pair is kept steady by the detection skin ([Resting contact (skin)](#resting-contact-skin)).
 
-Author catalog: [Guia da API — Colisão](../docs/pt/guide/index.html#colisao). Resolution helpers on `CollisionInfo`: `mtv_split`, `velocity_split`, `push_apart`, `bounce_apart`, `resolve`, `reflect_velocity`; ramp reading: `side`, `slope_angle`, `tangent`, `slide_along`.
+Author catalog: [API Guide — Collision](../docs/en/guide/index.html#colisao). Resolution helpers on `CollisionInfo`: `mtv_split`, `velocity_split`, `push_apart`, `bounce_apart`, `resolve`, `reflect_velocity`; ramp reading: `side`, `slope_angle`, `tangent`, `slide_along`.
 
 # Resolution
 
@@ -222,7 +222,7 @@ unresolve(player, "walls")
 
 Same target grammar as `@collide`: tag, shape, list/tuple OR, `ANYTHING`. Self-paired tags cover mutual push pools: `resolve("crates", "crates")`. No separate `collidable = True` required on either side.
 
-**`ANYTHING` makes every enrolled body solid.** `resolve(hero, ANYTHING)` pushes against collectables, bullets and triggers too: anything enrolled by `@collide`, `collidable` or `on_collide` (hitbox parts are excluded), because there is no sensor flag to opt a body out (above: a collectable is never named in `resolve()`, and `ANYTHING` names it implicitly). The `@collide` handler still fires; the coin is shoved instead of passed through. Kept on purpose (2026-10-13): it is the right spelling for a world where every body is solid, it costs about what a tag pool costs (400 bodies: `resolve("p", "p")` 4.2 ms/step, `resolve("p", ANYTHING)` 4.7, `resolve(ANYTHING, ANYTHING)` 4.8), plus a partner-cache drop on every enroll / leave ([Resolve hot path](#resolve-hot-path)). Not refused, unlike `@leave_playfield(ANYTHING)` ([Canvas Design](Canvas%20Design.md)), where it would mean every actor. The Guia warns at [Parede e chão](../docs/pt/guide/index.html#res-basic): name the solid groups instead. Guard: `tests/test_collision.py` `TestResolveAnythingIsSolid`.
+**`ANYTHING` makes every enrolled body solid.** `resolve(hero, ANYTHING)` pushes against collectables, bullets and triggers too: anything enrolled by `@collide`, `collidable` or `on_collide` (hitbox parts are excluded), because there is no sensor flag to opt a body out (above: a collectable is never named in `resolve()`, and `ANYTHING` names it implicitly). The `@collide` handler still fires; the coin is shoved instead of passed through. Kept on purpose (2026-10-13): it is the right spelling for a world where every body is solid, it costs about what a tag pool costs (400 bodies: `resolve("p", "p")` 4.2 ms/step, `resolve("p", ANYTHING)` 4.7, `resolve(ANYTHING, ANYTHING)` 4.8), plus a partner-cache drop on every enroll / leave ([Resolve hot path](#resolve-hot-path)). Not refused, unlike `@leave_playfield(ANYTHING)` ([Canvas Design](Canvas%20Design.md)), where it would mean every actor. The Guide warns at [Walls and floors](../docs/en/guide/index.html#res-basic): name the solid groups instead. Guard: `tests/test_collision.py` `TestResolveAnythingIsSolid`.
 
 **Pair sides.** One rule for `@collide` / `@collide_stay` / `@collide_exit` / `resolve` / `unresolve` (`_check_pair_sides`, `collision.py`): a side is one atom or a list / tuple of atoms, and an atom is an actor (`Entity`), a group tag string, `group["tag"]`, `ANYTHING`, a `Collider`, or a `Hitbox` part. Anything else (`5`, `None`, `True`, a dict / set, a post effect, a function) raises `TypeError` at the call, naming the call, the type and the spelling to write (`resolve(player, "walls")`); the value is shown only for `None` / numbers (no object reprs). The check runs before anything is registered or removed, and before `only=` is read, so a bad side is always the first error. Before it, `resolve` / `unresolve` registered a junk atom silently: a pair nothing could ever match. Later, more specific refusals still apply on top (a hitbox part is a valid atom, but `resolve()` refuses it: parts only detect). An empty side keeps its own "must not be empty" message. A shape's Point part (`c.center`, `line.p2`) is an `Entity` but not a body: the same check refuses it first, naming the owner and `@collide(owner)` + `info.point` / `contains_point` / a follower `Point` ([Actors — A part is not an actor](Actors%20Design.md#a-part-is-not-an-actor)); `collidable = True` / `on_collide*` on a part and a registered `Collider([part])` refuse the same way, `ensure_collider` is the backstop, and queries (`test_collision`, `collides_with`) still take a part through an unregistered probe. Tests: `tests/test_pair_sides.py`, `tests/test_part_lifecycle.py`.
 
@@ -329,7 +329,7 @@ Two orthogonal axes on pose writes. Naming carries **abs vs rel** (`_to` / `=` v
 
 Taught reset / respawn: `center = spawn` or instant `move_to`. Do not suspend `resolve_enabled` for that. Do not treat `@=` as motion. Keep `move_to(..., time=)` on the taught surface; its ticks go through the motion channel.
 
-Author catalog: [Guia da API — Mover](../docs/pt/guide/index.html#mover) and [Colisão](../docs/pt/guide/index.html#colisao). Tracks: [Tracks Design.md](Tracks%20Design.md).
+Author catalog: [API Guide — Move](../docs/en/guide/index.html#mover) and [Collision](../docs/en/guide/index.html#colisao). Tracks: [Tracks Design.md](Tracks%20Design.md).
 
 ### Orbit chord
 
@@ -754,7 +754,7 @@ Sensors still fire **`@collide`** / **`collides_with()`** — only **`touching_*
 
 ## Floor ahead: `floor_below`
 
-`body.floor_below(dx=0, depth=None, group=None)` → the floor body `body` would stand on after stepping `dx` (signed, `+` = right), or `None`. The platformer ledge question: the patrol that turns before falling, the teeter animation. Guia: [Chão à frente](../docs/pt/guide/index.html#colisao-floor).
+`body.floor_below(dx=0, depth=None, group=None)` → the floor body `body` would stand on after stepping `dx` (signed, `+` = right), or `None`. The platformer ledge question: the patrol that turns before falling, the teeter animation. Guide: [Floor ahead](../docs/en/guide/index.html#colisao-floor).
 
 **Invariant: it asks the solver's own question.** `None` must mean "the resolver would let this body fall", so every ingredient is the solver's:
 
@@ -877,7 +877,7 @@ Why: `@collide` reads the detection snapshot, taken *before* resolve. The sweep 
 | Cost | Only for resolve broad pairs that did not overlap and whose prim AABBs are within the skin (plus the carry, which costs two attribute reads per pair with a moving side: in-process A/B within noise, 2026-10-14). 30 walkers on 100 tiles at 5 / 28 ms pacing: within noise (GJK alone for boxes cost ~8 %, hence the closed forms); a 200-ball `resolve("ball", "ball")` pile: ~6 %. `last_stats["skin"]` counts skin contacts |
 | Resolve | A zero-depth skin contact never pushes. One that the body's sweep never reached is answered for velocity that step (LW8, 2026-10-15; `_answer_unreached`, `_SKIN_ANSWER`): a body that made no stop, was airborne at the start of the frame, on a `bounce > 0` pair, whose velocity approaches the partner. The normal is a cast of `2 × _CONTACT_SKIN` along the velocity (the sweep's question: the detection's gap normal at a seam is a corner-to-corner artefact, and it once gave a landing walker `(54.9, +7.5)`); the contact is recorded, so `touching_*` agrees with what `@collide` saw. Why: a brick broken the frame after its `@collide` was gone before the sweep that would have bounced the ball, which flew through it (2 % of hits at 60 Hz, 5 % at 144). Not for `bounce=0` (the next sweep answers it; answering early turned an idle hero's fall into a slide down a ramp, P5) nor for a grounded body (floor snap's), nor for a partner with a `.vel` and a finite mass, moving or resting: the next sweep answers it with the masses and writes both (persona probes R3-2: answered here as a wall, a resting box sent an equal-mass mover back and never moved, at 60 Hz only, for starts in the skin band). A partner with no `.vel` (a Breakout brick at the default mass) still answers as rest, here |
 
-Accepted limitation (F2, by design): a **curved** body (circle, rounded hitbox) walking over tile seams with **uneven** frame times can enter and exit the *next* tile for a few frames near the seam. The pre-resolve pose sinks by g·dt² (0.6 DU on a 28 ms frame, none on a 5 ms one), so its gap to the tile's corner swings across any fixed skin. It needs all four: a curved body, a seam between separate pieces, uneven pacing, and per-tile `@collide` enter / exit. The tile it stands on stays in contact; grounding and motion are unaffected; steady 60 / 144 / 200 Hz and flat-bottomed bodies are clean. "Which tile am I on" is `touching_contacts` (resolved pose, steady at any pacing) — the Guia teaches that ([Tocando](../docs/pt/guide/index.html#colisao-touching)).
+Accepted limitation (F2, by design): a **curved** body (circle, rounded hitbox) walking over tile seams with **uneven** frame times can enter and exit the *next* tile for a few frames near the seam. The pre-resolve pose sinks by g·dt² (0.6 DU on a 28 ms frame, none on a 5 ms one), so its gap to the tile's corner swings across any fixed skin. It needs all four: a curved body, a seam between separate pieces, uneven pacing, and per-tile `@collide` enter / exit. The tile it stands on stays in contact; grounding and motion are unaffected; steady 60 / 144 / 200 Hz and flat-bottomed bodies are clean. "Which tile am I on" is `touching_contacts` (resolved pose, steady at any pacing) — the Guide teaches that ([Touching](../docs/en/guide/index.html#colisao-touching)).
 
 Fence: do not move resolved-pair `@collide` to the resolved pose (dispatch after resolve, or a post-resolve membership test) to cure F2 or a carry case like PB4 (widen the skin by what the solver will provably undo instead). It splits the [Frame order](#frame-order) rule ("handlers see this frame's detection, then resolve runs"), drops the impact `depth` on enter, and breaks same-frame policy in `@collide_stay` — more cost to teach than the artifact. Reopen only with a real game that shows it. Guard: `tests/test_sys_resting_contact.py` (F2 kept as an `expectedFailure` tripwire: if the behaviour changes, the unexpected success says so; `TestRiderOnAMovingLift` for the carry, with a guard that turning the carry off loses the contact again).
 
@@ -1772,8 +1772,8 @@ Incremental `@collide` enroll, lazy world hulls, and collider swap-remove live w
 
 - Auto hitbox fitters / utility pick / corpus results → [Sprite Design.md](Sprite%20Design.md#auto-hitbox-shapeauto)
 - Sprite freeze / mapping / proxy contract → **Sprite colliders** above
-- Author API catalog (examples, `@collide_stay`, `resolve`, …) → [Guia da API — Colisão](../docs/pt/guide/index.html#colisao)
-- Off-field cleanup (`@leave_playfield`, not colliders) → [Guia da API](../docs/pt/guide/index.html#reagir-bounds)
+- Author API catalog (examples, `@collide_stay`, `resolve`, …) → [API Guide — Collision](../docs/en/guide/index.html#colisao)
+- Off-field cleanup (`@leave_playfield`, not colliders) → [API Guide](../docs/en/guide/index.html#reagir-bounds)
 - Method decorators on classes → [Actors Design.md](Actors%20Design.md)
 - **Outline crossings** (`intersections` / `intersection` / `closest_point`) → [`scena/geom.py`](../scena/geom.py); design notes in [Shapes Design.md — Geometry queries](Shapes%20Design.md#geometry-queries). Collision answers filled-body overlap (`CollisionInfo.points` is a contact, not an outline crossing list).
 - Not taken: sprite proxy tighter than the turned extent box (see **Sprite colliders** / Proxy).

@@ -242,7 +242,7 @@ class TestGuiaDoesNotSayCena(unittest.TestCase):
 #
 # Bug class: an engine message says "actor" for a game object or "cell" for a
 # value Scena tracks (``st["hp"]``, an Attribute). The Guia's vocabulary
-# (design/README.md, "Vocabulary") says *object* and *field*, and the Guia
+# (design/Docs Design.md, "Vocabulary") says *object* and *field*, and the Guia
 # quotes engine messages exactly, so the old word leaks into both Guides
 # (found 2026-10-22: "st has no cell 'nope'", "To show a st cell live",
 # "The actor is still valid").

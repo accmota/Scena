@@ -6,8 +6,8 @@ the motion track for `move_along`. **Happy path** — pick one row. Hub:
 [Shapes Design.md](Shapes%20Design.md). Tweens:
 [Actors Design.md](Actors%20Design.md). Collision channel:
 [Collision Design.md — Motion vs placement](Collision%20Design.md#motion-vs-placement). Author catalog:
-[Guia da API](../docs/pt/guide/index.html#shape-track) and
-[Mover](../docs/pt/guide/index.html#mover-move-along).
+[API Guide](../docs/en/guide/index.html#shape-track) and
+[Move](../docs/en/guide/index.html#mover-move-along).
 
 Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -356,7 +356,7 @@ The ride Handle reports this tick’s rate without writing `.vel`: `.velocity` /
 reverse — same quantity as `face=`).
 `.u` is the mapped track parameter; `.lap` is 0-based (`loops="forever"` keeps
 counting). Ignore them when you only need the hover. Detail: [Actors Design.md](Actors%20Design.md)
-(Handle clock) and [Guia — Handle](../docs/pt/guide/index.html#agendar-handle).
+(Handle clock) and [Guide — Handle](../docs/en/guide/index.html#agendar-handle).
 
 Source death on a live outline: freeze the last sample table, keep travelling.
 Cancel only if nothing was baked yet.

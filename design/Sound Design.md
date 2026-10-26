@@ -5,7 +5,7 @@ material (like `Sheet` / `Gradient`) — it never places itself. **Happy path** 
 pick one row. Hub: [Scena Design.md](Scena%20Design.md). Ownership:
 [Actors Design.md](Actors%20Design.md). Effect-stack idiom:
 [Effect Handles.md](Effect%20Handles.md). Author catalog:
-[Guia da API](../docs/pt/guide/index.html#som).
+[API Guide](../docs/en/guide/index.html#som).
 
 Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -507,7 +507,7 @@ live vocoder per key.
 Positional / ambient sound (`Ambience`, camera-distance falloff, SpatialFx
 twin) is **v2**. Live `Transpose` on the mix thread is deferred.
 `bake(..., pitch=)` frozen rate and mic recording are supported.
-Author catalogs: [Guia da API](../docs/pt/guide/index.html#som).
+Author catalogs: [API Guide](../docs/en/guide/index.html#som).
 
 **Implemented.** Tests: `tests/test_audio.py`, `test_audio_capture.py`,
 `test_audio_effects.py`. Smoke: `scripts/smoke/audio.py`, `audio_mic.py`,

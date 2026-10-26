@@ -5,7 +5,7 @@ path for this subsystem — pick one row. Hub:
 [Scena Design.md](Scena%20Design.md). Camera / playfield:
 [Canvas Design.md](Canvas%20Design.md). Shape models:
 [Shapes Design.md](Shapes%20Design.md). Author catalog:
-[Guia da API](../docs/pt/guide/index.html#colocar).
+[API Guide](../docs/en/guide/index.html#colocar).
 
 Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
@@ -73,7 +73,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 - Camera timed verbs / cull frustum math → [Canvas Design.md](Canvas%20Design.md)
 - Rect models / CTM draw → [Shapes Design.md](Shapes%20Design.md)
 - Sprite body / hitbox → [Sprite Design.md](Sprite%20Design.md)
-- Author catalogs → [Guia da API](../docs/pt/guide/index.html#colocar)
+- Author catalogs → [API Guide](../docs/en/guide/index.html#colocar)
 
 
 # Surface

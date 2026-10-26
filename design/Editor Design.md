@@ -12,7 +12,7 @@ what it becomes.** Two parts:
   framework (see [Boundary](#boundary)).
 
 Hub: [Scena Design.md](Scena%20Design.md). Regions: [Box Design.md](Box%20Design.md).
-Author catalog: [Guia da API](../docs/pt/guide/index.html#colocar-fase).
+Author catalog: [API Guide](../docs/en/guide/index.html#colocar-fase).
 
 Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-descriptions-not-locks).
 
