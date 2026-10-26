@@ -828,7 +828,7 @@ flush()
 - Unused derived work is never recomputed (cold Derivate laziness; unread linked formulas stay idle until read or an effect pulls them).
 - `UpdateManager.is_updating` prevents nested effect flushes; writes during flush only `mark_dirty`.
 - `@when` callbacks run during flush; `flush` re-polls the event list while anything fired, so a cascade (A's callback changes what B watches) settles in the same flush. A chain with no cycle never fires one watch twice, so it settles in the same flush however long it is. Only rounds in which a watch fires *again* count: after `FLUSH_MAX_ROUNDS` (8) such rounds, `flush` warns ("re-triggering each other") and leaves the rest for the next flush — a ping-pong cycle cannot spin. (Before 2026-10-09 every round counted, so an acyclic relay chain longer than 8 links warned "a cycle?" and its tail lagged a frame.)
-- `mark_dirty` **always re-walks the cone** (cycle `seen` only). Do not short-circuit when the seed is already dirty — a prior pull may have cleared dependents. A **pull** never walks: resolvers store through `_takein_impl`, not the `_takein` dispatcher ("Pull stores raw").
+- `mark_dirty` **always re-walks the cone** (cycle `seen` only). Do not short-circuit when the seed is already dirty — a prior pull may have cleared dependents. A **pull** never walks: resolvers store through `_takein_impl`, not the `_takein` dispatcher ("Pull stores raw"), and a structural pull's Derivate refresh skips its walk ("A structural pull does not re-walk").
 
 
 
@@ -1551,10 +1551,55 @@ part's own link before the turn that reads it, so the turn uses the current
 pivot. Guard: `tests/test_heading_link.py` (finds the inputs by writing each
 one and watching `angle`).
 
-Not covered by this rule: Derivate-part refreshes (`_refresh_*` in shapes /
-box under `_no_update`) call the dispatcher on purpose — a refreshed part must
-notify its own outbound consumers ("Dirty fan-out level mismatch" in Difficult areas).
+Not covered by this rule: Derivate-part refreshes (`_takein_live_derivate`,
+`_refresh_*` in shapes / box, under `_no_update`) call the dispatcher on
+purpose — run outside a pull (`move_to`, a first read that materializes a part),
+a refreshed part must notify its own outbound consumers ("Dirty fan-out level
+mismatch" in Difficult areas). Inside a structural pull that walk is redundant,
+and the next section skips it.
 Guard: `tests/test_pull_no_invalidate.py`.
+
+## A structural pull does not re-walk
+
+`Container._resolve_structural` runs the owner's `_update_impl`, which writes
+its live Derivates through the dispatcher (`p2._takein`, `setattr` of the
+scalar `dx` / `dy`, which marks the owner). While it runs,
+`UpdateManager._refreshing` names that owner, and `mark_dirty` returns at once
+(`_pull_refreshed`) for the owner itself, and for a part that is **dirty**,
+**unlinked**, and under one of the owner's **Derivate** parts. Every other
+`mark_dirty` walks as before; the frame's source writes still walk the full
+cone (the fence above is unchanged).
+
+Why it is sound: the owner is dirty (a resolve starts only then), so a walk
+went through it and on, by the upward structural edges, to its Derivate parts
+and their consumers. Every read of a Derivate of a dirty owner pulls the owner
+(`_ensure_fresh` → `_local_refresh_root()._resolve_structural()`, and
+`_ensure_derivate_scalar` for a scalar). So a consumer that is clean now has
+not read the part since that walk (a conditional formula that took the other
+branch), and the refresh changes nothing it holds. The refresh writes only
+Derivates; the owner's Defining parts, which a dependent may read without a
+pull, keep their values. A clean part (materialized or rewired after the walk)
+does not meet the rule and walks. A heading turn (`_pull_heading`) rewrites
+Defining points; it runs before the window opens and still notifies.
+`_refreshing` is saved and restored around each resolve, so a pull nested in
+the refresh (a child's linked `p1` pulling its parent) names its own owner.
+
+Before 2026-10-25 each refresh walked the cone again: once per Container
+Derivate and once per changed scalar Derivate. A tree of formula-linked
+`Line(p1=, length=, angle=)` branches (each `p1` / `angle` `@=` its parent:
+the natural fractal-tree program) walked ~n × depth nodes per frame (1023
+branches: ~106k visits, ~51 ms per drawn frame; a chain of n links walked
+n²/2). Now it visits 4 nodes per branch at every depth; depth 7 headless went
+from 11.3 to 5.7 ms, and other graphs (sierpinski, Rect trees, shallow fan-out,
+movers with sinks) measured within noise in an in-process A/B. Values were
+right before; only time showed it. Guards:
+`test_pull_no_invalidate.TestStructuralPullDoesNotRewalk` (walk visits per
+node flat as a tree or chain grows, values against an analytic tree with
+partial pulls), `TestStructuralPullKeepsSinksFresh` (conditional sink, sink on
+a scalar Derivate, a part made live while the owner is dirty, an eager
+refresh). A broader skip (every `mark_dirty` inside the window) also passed
+them, because `_update_impl` writes only the owner's Derivates. The rule stays
+as narrow as the argument above.
 
 ## Honest tradeoff
 
@@ -1568,6 +1613,9 @@ formulas: a pull resolves only the branch the formula read, so a still-dirty
 node can sit above clean sinks, and stopping the walk there leaves them stale
 (the case [`mark_dirty` must re-walk](#mark_dirty-must-re-walk) guards). Real
 v2 would need dynamic dependency versioning, not a patch on the boolean flag.
+Deep chains and trees are affordable only while each source write walks once:
+a pull that walks again turns the frame into n × depth (B1, and
+[A structural pull does not re-walk](#a-structural-pull-does-not-re-walk)).
 
 # Pose performance (A1–A4)
 

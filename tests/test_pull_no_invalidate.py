@@ -15,11 +15,18 @@ Bug class: a pull path reaching an invalidating write. Caught here by counting
 ``mark_dirty`` during reads (behaviour) and by an AST guard on the resolvers.
 Reactive Design: "Pull stores raw".
 
+Same class, 2026-10-25 (B9): a *structural* pull's Derivate refresh
+(``_update_impl`` writing ``p2`` / ``dx`` / ``dy`` through the dispatcher)
+re-walked the owner's cone, n × depth on a tree of linked Lines. Caught by
+counting nodes walked per frame as the tree grows. Reactive Design: "A
+structural pull does not re-walk".
+
     python -m unittest tests.test_pull_no_invalidate -v
 """
 from __future__ import annotations
 
 import ast
+import math
 import os
 import sys
 import unittest
@@ -204,6 +211,211 @@ class TestPullKeepsDownstreamFresh(PullCase):
             a.move_to(x, 2.0)
             _ = m.x  # pull the middle node before the Line reads it
             self.assertEqual((float(ln.p1.x), float(ln.p1.y)), (x + 5.0, 2.0))
+
+
+class _CountingSeen(set):
+    """``UpdateManager._dirty_seen`` stand-in: one ``add`` per node walked."""
+
+    def __init__(self):
+        super().__init__()
+        self.visits = 0
+
+    def add(self, item):
+        self.visits += 1
+        super().add(item)
+
+
+def _dirty_visits(fn) -> int:
+    um = get_scena_system().update_manager
+    orig = um._dirty_seen
+    um._dirty_seen = seen = _CountingSeen()
+    try:
+        fn()
+    finally:
+        um._dirty_seen = orig
+    return seen.visits
+
+
+def _tree_of_lines(st, depth, lines):
+    """The natural formula fractal: each branch's p1 / angle @= its parent's
+    (POINT_ANGLE_LENGTH Lines, so ``p2`` is a live Derivate source)."""
+
+    def branch(parent, d, side):
+        ln = Line(p1=(0.0, 0.0), length=1.0, angle=0.0)
+        if parent is None:
+            ln["angle"] @= lambda: 90.0 + float(st.sway)
+        else:
+            ln["p1"] @= lambda: parent.p2
+            ln["angle"] @= lambda: parent.angle + side * 20.0 + float(st.sway)
+        ln["length"] @= lambda: float(st.size) * 0.7 ** d
+        lines.append(ln)
+        if d < depth:
+            branch(ln, d + 1, -1.0)
+            branch(ln, d + 1, 1.0)
+
+    branch(None, 0, 0.0)
+
+
+def _expected_tips(st, depth):
+    out = []
+
+    def branch(x, y, ang, d, side):
+        a = 90.0 + float(st.sway) if d == 0 else ang + side * 20.0 + float(st.sway)
+        length = float(st.size) * 0.7 ** d
+        x2 = x + length * math.cos(math.radians(a))
+        y2 = y + length * math.sin(math.radians(a))
+        out.append((x2, y2))
+        if d < depth:
+            branch(x2, y2, a, d + 1, -1.0)
+            branch(x2, y2, a, d + 1, 1.0)
+
+    branch(0.0, 0.0, 0.0, 0, 0.0)
+    return out
+
+
+class TestStructuralPullDoesNotRewalk(PullCase):
+    """A structural pull refreshes the owner's Derivates through the
+    dispatcher; their cone is already dirty, so it must not be walked again.
+
+    Found 2026-10-25 writing a fractal tree of light (``Line`` branches, each
+    p1 / angle ``@=`` its parent): every branch's refresh re-walked its whole
+    subtree (``p2`` and the scalar Derivates ``dx`` / ``dy``), so a frame
+    walked ~n × depth nodes: 1023 branches, ~106k visits, ~51 ms. Values
+    were right; only time showed it. Reactive Design: "A structural pull does
+    not re-walk".
+    """
+
+    def _frame_visits(self, build, write, read):
+        build()
+        write(0)
+        read()  # settle
+        return _dirty_visits(lambda: (write(1), read()))
+
+    def _tree_visits_per_line(self, depth):
+        st = self.own(State(name=f"tree{depth}"))
+        st.sway, st.size = 0.0, 100.0
+        lines = []
+
+        def write(i):
+            st.sway = 3.0 * i
+
+        def read():
+            for ln in lines:
+                _ = ln.p1.x, ln.p2.x
+
+        visits = self._frame_visits(lambda: _tree_of_lines(st, depth, lines), write, read)
+        self.own(*lines)
+        return visits / len(lines)
+
+    def _chain_visits_per_line(self, n):
+        st = self.own(State(name=f"chain{n}"))
+        st.bend = 0.0
+        lines = [Line(p1=(0.0, 0.0), length=10.0, angle=0.0)]
+        for _ in range(n - 1):
+            prev = lines[-1]
+            ln = Line(p1=(0.0, 0.0), length=10.0, angle=0.0)
+            ln["p1"] @= lambda prev=prev: prev.p2
+            ln["angle"] @= lambda prev=prev: prev.angle + float(st.bend)
+            lines.append(ln)
+        self.own(*lines)
+
+        def write(i):
+            st.bend = 5.0 * i
+
+        def read():
+            _ = lines[-1].p2.x  # the tip pulls the whole chain
+
+        return self._frame_visits(lambda: None, write, read) / n
+
+    def test_tree_walk_is_linear_in_branches(self):
+        small, big = self._tree_visits_per_line(3), self._tree_visits_per_line(6)
+        # Linear: about the same visits per branch at any depth (n × depth
+        # grew it ~1.7× between these two).
+        self.assertLessEqual(big, small * 1.25, (small, big))
+
+    def test_chain_walk_is_linear_in_links(self):
+        small, big = self._chain_visits_per_line(8), self._chain_visits_per_line(32)
+        # n² before: ~4× more per link at 32 than at 8.
+        self.assertLessEqual(big, small * 1.25, (small, big))
+
+    def test_tree_values_follow_every_frame(self):
+        st = self.own(State(name="treev"))
+        st.sway, st.size = 0.0, 100.0
+        lines = []
+        _tree_of_lines(st, 4, lines)
+        self.own(*lines)
+        for i, sway in enumerate((0.0, 7.0, -3.0, -3.0, 12.0, 1.5)):
+            st.sway = sway
+            if i % 2:
+                _ = lines[-1].p2.x       # a partial pull (one leaf) first
+            if i % 3 == 2:
+                _ = lines[1].angle       # a Defining read of a dirty owner
+            st.size = 100.0 + i
+            for ln, (x, y) in zip(lines, _expected_tips(st, 4)):
+                self.assertAlmostEqual(float(ln.p2.x), x, places=9)
+                self.assertAlmostEqual(float(ln.p2.y), y, places=9)
+
+
+class TestStructuralPullKeepsSinksFresh(PullCase):
+    """The flip side: a sink of a refreshed Derivate that the walk did not
+    already cover must still hear the refresh."""
+
+    def _line(self, st):
+        ln = self.own(Line(p1=(0.0, 0.0), length=10.0, angle=0.0))
+        ln["angle"] @= lambda: float(st.a)
+        return ln
+
+    def test_conditional_sink_that_skipped_the_part(self):
+        st = self.own(State(name="cond"))
+        st.a, st.on = 0.0, False
+        ln = self._line(st)
+        s = self.own(Point())
+        s @= lambda: (float(ln.p2.x) if st.on else -1.0, 0.0)
+        for a, on in ((90.0, False), (0.0, True), (90.0, True), (180.0, False), (0.0, True)):
+            st.a = a
+            _ = s.x                      # may skip ln.p2 (no pull of ln)
+            _ = ln.p2.x                  # the structural pull, sink clean or dirty
+            st.on = on
+            want = 10.0 * math.cos(math.radians(a)) if on else -1.0
+            self.assertAlmostEqual(float(s.x), want, places=9)
+
+    def test_sink_on_a_derivate_scalar(self):
+        st = self.own(State(name="dx"))
+        st.a = 0.0
+        ln = self._line(st)
+        s = self.own(State(name="dxs"))
+        s.v = 0.0
+        s["v"] @= lambda: float(ln.dx) * 2.0
+        for a in (90.0, 0.0, 60.0, 60.0, 180.0):
+            st.a = a
+            _ = ln.p2.x                  # pull ln first, then the sink
+            self.assertAlmostEqual(float(s.v), 20.0 * math.cos(math.radians(a)), places=9)
+        s["v"].unlink()
+
+    def test_derivate_made_live_after_the_owner_got_dirty(self):
+        st = self.own(State(name="late"))
+        st.a = 0.0
+        ln = self._line(st)
+        st.a = 90.0                      # ln dirty; center not live yet
+        c = self.own(Point())
+        c @= lambda: ln.center           # link reads (pulls) the new part
+        for a in (0.0, 45.0, 45.0, 270.0):
+            st.a = a
+            _ = ln.p2.x
+            r = math.radians(a)
+            self.assertAlmostEqual(float(c.x), 5.0 * math.cos(r), places=9)
+            self.assertAlmostEqual(float(c.y), 5.0 * math.sin(r), places=9)
+
+    def test_eager_refresh_still_notifies(self):
+        # ``move_to`` runs ``_update_impl`` outside a pull: not covered.
+        ln = self.own(Line(p1=(0.0, 0.0), length=10.0, angle=0.0))
+        s = self.own(Point())
+        s @= lambda: ln.p2
+        for x in (1.0, 5.0, -2.0):
+            ln.move_to(x, 0.0)
+            _ = ln.p2.x
+            self.assertAlmostEqual(float(s.x), float(ln.p2.x), places=9)
+            self.assertAlmostEqual(float(ln.center.x), x, places=9)
 
 
 class TestPullResolversStoreRaw(unittest.TestCase):

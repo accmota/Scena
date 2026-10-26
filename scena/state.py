@@ -2795,6 +2795,11 @@ class Container():
             if owner_root is not None and owner_root._dirty:
                 owner_root._resolve_structural()
         self._resolving = True
+        # The refresh writes this node's Derivates through the dispatcher;
+        # their cone is already dirty (UpdateManager._pull_refreshed).
+        um = self._scena_system.update_manager
+        refreshing = um._refreshing
+        um._refreshing = self
         try:
             with self._no_update():
                 self._update_impl()
@@ -2803,6 +2808,7 @@ class Container():
         else:
             self._clear_subtree_dirty()
         finally:
+            um._refreshing = refreshing
             self._resolving = False
 
     def _refresh_after_raw_store(self) -> None:
@@ -6354,6 +6360,39 @@ class UpdateManager:
         # allocating a fresh seen-set + stack on every write that invalidates.
         self._dirty_stack: List = []
         self._dirty_seen: Set[int] = set()
+        # The owner whose ``_update_impl`` a structural pull is running
+        # (``Container._resolve_structural``), or None. See ``_pull_refreshed``.
+        self._refreshing = None
+
+    def _pull_refreshed(self, node) -> bool:
+        """True when ``node`` is the owner a structural pull is refreshing, or
+        a dirty, unlinked part under one of its Derivate parts.
+
+        Such a write stores what a read was about to compute; it changes
+        nothing a clean node has read. The walk that dirtied the owner went on
+        through its Derivate parts (upward edges) to their consumers, and
+        every read of a Derivate part of a dirty owner pulls that owner. So a
+        consumer still clean has not read the part since that walk (a
+        conditional formula that took the other branch) and holds no stale
+        value. Walking the cone again cost O(cone) per pulled node: n × depth
+        on a tree of linked Lines (Reactive Design, "A structural pull does
+        not re-walk"). A clean part (materialized or rewired after the walk)
+        still walks.
+        """
+        owner = self._refreshing
+        if node is owner:
+            return True
+        d = node.__dict__
+        if not d.get('_dirty') or d.get('_link') is not None:
+            return False
+        n = node
+        while True:
+            up = n._owner
+            if up is None:
+                return False
+            if up is owner:
+                return n.__dict__.get('_field_type') == FieldType.Derivate
+            n = up
 
     def mark_dirty(self, node) -> None:
         """Flag ``node`` and all transitive dependents as maybe-stale.
@@ -6371,6 +6410,8 @@ class UpdateManager:
             node = self.graph.nodes.get(node)
             if node is None:
                 return
+        if self._refreshing is not None and self._pull_refreshed(node):
+            return
 
         stack = self._dirty_stack
         seen = self._dirty_seen
