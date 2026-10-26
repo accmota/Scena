@@ -383,3 +383,4 @@ examples/tesla.py
 examples/tracks.py
 examples/trilhas.py
 examples/xyz.py
+examples/xyz2.py

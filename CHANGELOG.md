@@ -19,6 +19,9 @@ left out.
   built up step by step), `life.py` (the Game of Life with a grid that flies
   into place and cells that grow), `canopy.py` (a recursive tree of light
   over a parallax sky) and `pendulums.py` (a pendulum wave that plays notes).
+- A showcase example, `xyz2.py`: a ring of light and a vortex of glass
+  squares that twists into a star and takes sliding colours, in under 100
+  lines of code.
 
 ### Fixed
 
