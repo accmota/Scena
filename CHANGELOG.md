@@ -24,6 +24,21 @@ left out.
   used: a `Color` raised `'Color' object is not iterable` on the next frame,
   and a colour name drew the wrong colour. Every colour knob of every
   background and effect takes the forms `color=` takes.
+- The package says it runs on Python 3.13 and 3.14 (the classifiers named
+  only 3.12); the test suite passes on both.
+
+### Documentation
+
+- README: the gallery is recorded from the English examples and links them
+  (`ships_4_shield.py`, `race.py`, …), and the level snippet uses the English
+  level (`ninja_hazards.json`, `"floor"`, `"elevator"`). "And many more" shows
+  three showcases in place of the Portuguese-only examples. The level-editor
+  command named `levels/ninja_perigos.json`, which is not there in the
+  unzipped examples: it is `media/levels/ninja_hazards.json`.
+- `examples/README.md` opens with how to run the examples, and its tutorial
+  table gives the English title and file first.
+- `accmota.github.io/Scena/en/` and `/pt/` answered 404; they now lead to the
+  docs home.
 
 ## 0.10.0 — 2026-10-24
 

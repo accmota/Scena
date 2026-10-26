@@ -267,7 +267,8 @@ class TestReadmeClips(unittest.TestCase):
     def test_every_clip_file_is_shown_or_retired(self):
         """A dropped clip stays only while a released README (PyPI) loads it:
         it is listed in ``RETIRED``, never a stray file."""
-        files = {f[:-5] for f in os.listdir(mm.OUT_DIR) if f.endswith(".webp")}
+        from source_support import iter_files  # type: ignore
+        files = {os.path.basename(f)[:-5] for f in iter_files(str(mm.OUT_DIR), ".webp")}
         self.assertEqual(sorted(files - set(mm.CLIPS) - mm.RETIRED), [])
         self.assertEqual(sorted(mm.RETIRED - files), [], "a retired clip whose file is gone")
         self.assertEqual(sorted(mm.RETIRED & set(mm.CLIPS)), [])

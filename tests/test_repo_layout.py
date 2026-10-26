@@ -43,6 +43,15 @@ class TestAuthorSite(unittest.TestCase):
                 page = os.path.join(layout.DOCS, lang, part, "index.html")
                 self.assertTrue(os.path.isfile(page), page)
 
+    def test_each_language_folder_answers(self):
+        """``/Scena/en/`` was a 404: a reader who trims a URL to the language
+        folder lands on a page that sends them to the docs home."""
+        for lang in layout.LANGS:
+            page = os.path.join(layout.DOCS, lang, "index.html")
+            self.assertTrue(os.path.isfile(page), page)
+            with open(page, encoding="utf-8") as fh:
+                self.assertIn("../index.html", _HREF.findall(fh.read()), page)
+
     def test_the_landing_page_links_every_language(self):
         with open(os.path.join(layout.DOCS, "index.html"), encoding="utf-8") as fh:
             links = set(_HREF.findall(fh.read()))

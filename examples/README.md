@@ -1,60 +1,70 @@
 # Examples
 
-Beginner-style Scena games. Prefer these over smoke/bench when learning the API.
-They read like a beginner's code: flat classes, Portuguese names, game data in
-`st`, no advanced Python. A tutorial already translated also ends in an English
-twin of its file (English names, the same program), next to the Portuguese one.
+Games, tools and visual pieces made with Scena. Every file is a complete
+program: install Scena and run one.
+
+```bash
+pip install scena
+python examples/ships_4_shield.py
+```
+
+That is from a clone of this repository. Without one, download
+[`scena-examples.zip`](https://github.com/accmota/Scena/releases/latest/download/scena-examples.zip):
+the examples of the latest release, with the images and sounds they use.
+
+Each [tutorial](https://accmota.github.io/Scena/en/tutorial/) ends in one of
+these files. The tutorial games come twice, the same program with its names in
+English (`ships_4_shield.py`) and in Portuguese (`naves_4_escudo.py`), for the
+[English](https://accmota.github.io/Scena/en/tutorial/) and the
+[Portuguese](https://accmota.github.io/Scena/pt/tutorial/) tutorial. They are
+written the way a learner writes: flat code, game data in `st`, no advanced
+Python.
 
 ## Tutorial endpoints
 
-Each tutorial in [`docs/pt/tutorial/`](../docs/pt/tutorial/index.html) ends in one of these
-files: the file is the last step's code plus a docstring, nothing else
-(`tests/test_tutorials.py` compares them). Change the tutorial first; then copy
-its last step here. The English file is the English page's last step
-(`docs/en/tutorial/`); `tools/tutorial/tutorial_parity.py` holds it to the
-Portuguese one, name for name.
+The file is the tutorial's last step, plus a docstring that says what to try.
+The appendices (A to G) are reference pages of short programs and end in no
+file here.
 
-| Tutorial | File | English |
+| Tutorial | English | Portuguese |
 | --- | --- | --- |
-| 01 Primeiro script | `primeiro_script.py` | `first_script.py` |
-| 02 Pegar estrelas | `pegar_estrelas.py` | `catch_stars.py` |
-| 03 Geometria | `ponto_medio.py` | `midpoint.py` |
-| 04 UI Widgets | `cadeia_de_bolas.py`, `desenho.py`, `letreiro.py` | `ball_chain.py`, `drawing.py`, `banner.py` |
-| 05 Naves | `naves_1.py` | `ships_1.py` |
-| 06 Naves II · Classes | `bolhas.py`, `naves_2_classes.py` | `bubbles.py`, `ships_2_classes.py` |
-| 07 Naves III · Atlas, explosão, vidas | `naves_3_vidas.py` | `ships_3_lives.py` |
-| 08 Naves IV · Escudo | `naves_4_escudo.py` | `ships_4_shield.py` |
-| 09 Fórmulas | `formulas.py` | `formula_machine.py` |
-| 10 Bolas | `bolas.py` | `balls.py` |
-| 11 Interação | `interacao.py`, `ceu_estrelado.py` | `interaction.py`, `starry_sky.py` |
-| 12 Movimento | `movimento.py` | `movement.py` |
-| 13 Trilhas | `trilhas.py` | `tracks.py` |
-| 14 Órbitas | `orbitas.py` | `orbits.py` |
-| 15 Avião | `aviao.py` | `plane.py` |
-| 16 Avião II · Profundidade | `aviao_profundidade.py` | `plane_depth.py` |
-| 17 Avião III · Paisagem sem fim | `aviao_paisagem.py` | `plane_landscape.py` |
-| 18 Ninja | `ninja_1.py` | `ninja_1_run.py` |
-| 19 Ninja II · O mundo | `ninja_2_mundo.py` | `ninja_2_world.py` |
-| 20 Colisão | `colisao.py` | `collision.py` |
-| 21 Ligue 4 | `ligue4.py` | `connect_four.py` |
-| 22 Estúdio · Piano | `piano.py` | `studio_piano.py` |
-| 23 Estúdio II · Voz | `estudio_voz.py` | `studio_voice.py` |
-| 24 Naves V · Capítulos e sequências | `naves_5_modos.py` | `ships_5_modes.py` |
-| 25 Naves VI · Atos | `naves_6_atos.py` | `ships_6_acts.py` |
-| 26 Ninja III · O nível | `ninja_3_nivel.py` | `ninja_3_level.py` |
-| 27 Ninja IV · Perigos | `ninja_4_perigos.py` | `ninja_4_hazards.py` |
-| 28 Ninja V · Espada | `ninja_5_espada.py` | `ninja_5_sword.py` |
-| 29 Corredor infinito | `corredor.py` | `runner.py` |
-| 30 Giros | `barras_girando.py`, `osciloscopio.py` | `spinning_bars.py`, `oscilloscope.py` |
-| 31 Duelo | `duelo.py` | `duel.py` |
-| 32 Corrida | `corrida.py` | `race.py` |
-
-The appendices (`A-…` to `G-…` in the same folder) are reference pages made of
-short programs; they end in no file here.
+| [01 First script](https://accmota.github.io/Scena/en/tutorial/01-first-script.html) | `first_script.py` | `primeiro_script.py` |
+| [02 Catch stars](https://accmota.github.io/Scena/en/tutorial/02-catch-stars.html) | `catch_stars.py` | `pegar_estrelas.py` |
+| [03 Geometry](https://accmota.github.io/Scena/en/tutorial/03-geometry.html) | `midpoint.py` | `ponto_medio.py` |
+| [04 UI widgets](https://accmota.github.io/Scena/en/tutorial/04-ui-widgets.html) | `ball_chain.py`, `drawing.py`, `banner.py` | `cadeia_de_bolas.py`, `desenho.py`, `letreiro.py` |
+| [05 Ships](https://accmota.github.io/Scena/en/tutorial/05-ships.html) | `ships_1.py` | `naves_1.py` |
+| [06 Ships II · Classes](https://accmota.github.io/Scena/en/tutorial/06-ships-classes.html) | `bubbles.py`, `ships_2_classes.py` | `bolhas.py`, `naves_2_classes.py` |
+| [07 Ships III · Atlas, explosion, lives](https://accmota.github.io/Scena/en/tutorial/07-ships-lives.html) | `ships_3_lives.py` | `naves_3_vidas.py` |
+| [08 Ships IV · Shield](https://accmota.github.io/Scena/en/tutorial/08-ships-shield.html) | `ships_4_shield.py` | `naves_4_escudo.py` |
+| [09 Formulas](https://accmota.github.io/Scena/en/tutorial/09-formulas.html) | `formula_machine.py` | `formulas.py` |
+| [10 Balls](https://accmota.github.io/Scena/en/tutorial/10-balls.html) | `balls.py` | `bolas.py` |
+| [11 Interaction](https://accmota.github.io/Scena/en/tutorial/11-interaction.html) | `interaction.py`, `starry_sky.py` | `interacao.py`, `ceu_estrelado.py` |
+| [12 Movement](https://accmota.github.io/Scena/en/tutorial/12-movement.html) | `movement.py` | `movimento.py` |
+| [13 Tracks](https://accmota.github.io/Scena/en/tutorial/13-tracks.html) | `tracks.py` | `trilhas.py` |
+| [14 Orbits](https://accmota.github.io/Scena/en/tutorial/14-orbits.html) | `orbits.py` | `orbitas.py` |
+| [15 Plane](https://accmota.github.io/Scena/en/tutorial/15-plane.html) | `plane.py` | `aviao.py` |
+| [16 Plane II · Depth](https://accmota.github.io/Scena/en/tutorial/16-plane-depth.html) | `plane_depth.py` | `aviao_profundidade.py` |
+| [17 Plane III · Endless Landscape](https://accmota.github.io/Scena/en/tutorial/17-plane-landscape.html) | `plane_landscape.py` | `aviao_paisagem.py` |
+| [18 Ninja](https://accmota.github.io/Scena/en/tutorial/18-ninja.html) | `ninja_1_run.py` | `ninja_1.py` |
+| [19 Ninja II · The world](https://accmota.github.io/Scena/en/tutorial/19-ninja-world.html) | `ninja_2_world.py` | `ninja_2_mundo.py` |
+| [20 Collision](https://accmota.github.io/Scena/en/tutorial/20-collision.html) | `collision.py` | `colisao.py` |
+| [21 Connect Four](https://accmota.github.io/Scena/en/tutorial/21-connect-four.html) | `connect_four.py` | `ligue4.py` |
+| [22 Studio · Piano](https://accmota.github.io/Scena/en/tutorial/22-studio-piano.html) | `studio_piano.py` | `piano.py` |
+| [23 Studio II · Voice](https://accmota.github.io/Scena/en/tutorial/23-studio-voice.html) | `studio_voice.py` | `estudio_voz.py` |
+| [24 Ships V · Chapters and sequences](https://accmota.github.io/Scena/en/tutorial/24-ships-modes.html) | `ships_5_modes.py` | `naves_5_modos.py` |
+| [25 Ships VI · Acts](https://accmota.github.io/Scena/en/tutorial/25-ships-acts.html) | `ships_6_acts.py` | `naves_6_atos.py` |
+| [26 Ninja III · The level](https://accmota.github.io/Scena/en/tutorial/26-ninja-level.html) | `ninja_3_level.py` | `ninja_3_nivel.py` |
+| [27 Ninja IV · Hazards](https://accmota.github.io/Scena/en/tutorial/27-ninja-hazards.html) | `ninja_4_hazards.py` | `ninja_4_perigos.py` |
+| [28 Ninja V · Sword](https://accmota.github.io/Scena/en/tutorial/28-ninja-sword.html) | `ninja_5_sword.py` | `ninja_5_espada.py` |
+| [29 Endless Runner](https://accmota.github.io/Scena/en/tutorial/29-endless-runner.html) | `runner.py` | `corredor.py` |
+| [30 Spins](https://accmota.github.io/Scena/en/tutorial/30-spins.html) | `spinning_bars.py`, `oscilloscope.py` | `barras_girando.py`, `osciloscopio.py` |
+| [31 Duel](https://accmota.github.io/Scena/en/tutorial/31-duel.html) | `duel.py` | `duelo.py` |
+| [32 Race](https://accmota.github.io/Scena/en/tutorial/32-race.html) | `race.py` | `corrida.py` |
 
 ## Other examples
 
-No tutorial ends in these; each docstring says what to try.
+No tutorial ends in these; each docstring says what to try. Their names and
+comments are in Portuguese.
 
 | File | What it shows |
 | --- | --- |
@@ -87,13 +97,6 @@ names and comments are in English. Each docstring says what to try.
 | `polygon_ballet.py` | A floor of regular polygons in three movements: domino waves that change their sides and looks, rosettes, and their edges as string art. |
 | `string_theory.py` | Lines from simple rules: a times-table cardioid, moiré fans, Lissajous strings, harmonograph curves. Starts with a photosensitivity note (SPACE skips). |
 
-```bash
-python examples/naves_1.py
-```
-
-More games join this folder when they are ready (each one runs headless in
-`tests/test_scripts_run.py`, like these).
-
 ## Media and licenses
 
 The images and sounds in `media/` are not under Scena's MIT license. Each
@@ -102,3 +105,12 @@ lists every file's author and license. Most of it is CC0 (no conditions). A few
 sounds are CC-BY / CC-BY-SA: a game that ships them must credit their authors
 (credits screen or README). The credit lines, ready to copy, are in
 [`media/CREDITS.md`](media/CREDITS.md#attribution-required).
+
+## For contributors
+
+A tutorial endpoint is the page's last step plus a docstring, nothing else
+(`tests/test_tutorials.py` compares them): change the tutorial first, then copy
+its last step here. The English file is the English page's last step;
+`tools/tutorial/tutorial_parity.py` holds it to the Portuguese one, name for
+name. Every program here runs headless in `tests/test_scripts_run.py`; a new
+game joins this folder when it is ready.
