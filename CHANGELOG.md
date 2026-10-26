@@ -49,6 +49,11 @@ left out.
   at both ends.
 - `canvas.zap_at(style="corona")` draws a closed ring: a notch sat where the
   ring met itself, and the small ring of the first frames was misshapen.
+- Setting or tweening `scale` on a `Rect`, `Square`, `Circle`, `Ellipse`,
+  `RegularPolygon` or `Triangle` placed by its center is 1.5 to 4 times
+  faster: 2500 squares pulsing their scale went from 15 to 35 fps. It cost
+  about ten times a `width =` / `radius =` write, so a pulse, pop or birth
+  animation on many shapes was slow; the result is the same.
 
 ### Documentation
 

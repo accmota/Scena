@@ -4474,6 +4474,12 @@ class Graphic(Entity, ABC):
         anchor = anchors.get(name) if anchors else None
         return anchor is not None and anchor._link is not None
 
+    def _center_scale_sizes(self):
+        """The Defining sizes a scale about the center writes, alone, when the
+        shape's model places it by its center (``_scale_about_center_fast`` in
+        shapes.py); None: every scale goes through the kind's ``scale_by``."""
+        return None
+
     def _pull_property_anchor(self, name: str) -> None:
         """Pull a linked property-backed field (``angle`` / ``scale``) on read."""
         anchors = self.__dict__.get("_field_anchors")

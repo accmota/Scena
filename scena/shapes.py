@@ -34,7 +34,7 @@ from .state import (
 )
 from .transients import compose_draw_mods, draw_with_transients
 from .stamps import draw_body_with_stamps
-from .validate import HINT_EXTENT, HINT_SCALE, MIN_SCALE, clamp_magnitude, expect_bool, finite, magnitude, fixed_magnitude
+from .validate import HINT_EXTENT, HINT_SCALE, MIN_SCALE, clamp_magnitude, expect_bool, finite, magnitude, fixed_magnitude, number
 from .validate import expect_bool as _expect_flag
 from .validate import check_pointer_handler as _check_pointer_handler
 from .validate import refuse_async as _refuse_async
@@ -375,8 +375,6 @@ def _scale_geom_and_store(old: float, *, value=None, factor=None):
     Stored scale is exact, including 0. Geometry uses ``MIN_SCALE`` so a later
     ``scale_to`` can restore the collapsed shape.
     """
-    from .validate import HINT_SCALE, MIN_SCALE, magnitude
-
     old = float(old)
     if value is not None:
         store = fixed_magnitude(value, "scale", hint=HINT_SCALE)
@@ -460,9 +458,58 @@ def _scale_gate_at_call(obj, *, value=None, factor=None, about=None, force: bool
         gate(about, force)
 
 
+# A scale about the center of a size-defined model writes the sizes alone
+# (``_scale_about_center_fast``; D28 in Testing Design). False: every scale
+# goes through the kind's ``scale_by`` (oracle, A/B).
+_SCALE_CENTER_FAST = True
+
+
+def _scale_about_center_fast(obj, geom: float, store: float) -> bool:
+    """``scale =`` / ``scale_to`` / a scale tween about the center of a
+    size-defined model (``_center_scale_sizes``): the center stays, so only
+    the sizes and the pose store are written. The general ``scale_by``
+    re-derived the center twice, rewrote it unchanged and batched the whole
+    part subtree: ~15 us a write against ~1.5 us for ``width =`` (D28 in
+    Testing Design). Taken only where that path writes nothing else: nothing
+    linked on the shape (its ``scale``, a box formula) and no pull consumer on
+    its tree (the gate and the dirty walks stay on the general path, as the
+    rotate fast path does). The writes run under the shape's own batch flag,
+    as they did inside ``batch_update_self``: same coercion, same update()
+    after. False: take the general path."""
+    sizes = obj._center_scale_sizes()
+    if sizes is None:
+        return False
+    d = obj.__dict__
+    if d.get("_field_anchors") or d.get("_link") is not None:
+        return False                            # the general path refuses or links
+    if obj._requires_pull_invalidate():
+        return False
+    if geom == 1.0 and store == float(obj._scale):
+        return True                             # the verb is a no-op
+    if obj._in_batch_update:                    # an outer batch updates after
+        for name in sizes:
+            setattr(obj, name, _bare_num(getattr(obj, name)) * geom)
+        _pose_scale_set(obj, store)
+        return True
+    object.__setattr__(obj, '_in_batch_update', True)
+    try:
+        for name in sizes:
+            setattr(obj, name, _bare_num(getattr(obj, name)) * geom)
+        _pose_scale_set(obj, store)
+    finally:
+        object.__setattr__(obj, '_in_batch_update', False)
+        um = getattr(getattr(obj, '_scena_system', None), 'update_manager', None)
+        if um is None or not um.is_updating:
+            obj.update()
+    return True
+
+
 def _scale_to_via(obj, value, *, about, force):
     _fresh_pose(obj)
     geom, store = _scale_geom_and_store(obj._scale, value=value)
+    if (about is None and not force and _SCALE_CENTER_FAST
+            and _scale_about_center_fast(obj, geom, store)):
+        return obj
     obj.__dict__["_pending_scale_store"] = store
     try:
         return obj.scale_by(geom, about=about, force=force)
@@ -2531,7 +2578,6 @@ class Shape(Graphic, PaintState):
     @scale.setter
     def scale(self, value: float) -> None:
         """Alias for scale_to(value) about center. Prefer scale_to/scale_by when pivot ≠ center."""
-        from .validate import number
         self.scale_to(number(value, f"{type(self).__name__}.scale"))
 
     def scale_to(self, value: float, *extra, time: Optional[float] = None, ease: str = "linear", then=None, on_done=None, about: Optional[GeneralPoint] = None, force: bool = False, loops: object = 1, yoyo: bool = False) -> Union['Shape', 'Handle']:
@@ -6044,6 +6090,9 @@ class Circle(_HeadingFromGeometry, _DerivedRotationRoute, Shape):
         _pose_scale_set(self, store)
         return self
 
+    def _center_scale_sizes(self) -> Optional[Tuple[str, ...]]:
+        return ('radius',) if self.model is CircleModel.CENTER_RADIUS else None
+
     def _scale_gate(self, about, force: bool, pivot=None) -> None:
         if pivot is None:
             pivot = self._pivot_xy(about)
@@ -6651,6 +6700,11 @@ class Ellipse(_DerivedRotationRoute, Shape):
 
         _pose_scale_set(self, store)
         return self
+
+    def _center_scale_sizes(self) -> Optional[Tuple[str, ...]]:
+        if self.model is EllipseModel.FOCAL_POINTS:
+            return None
+        return ('width', 'height')
 
     def _scale_gate(self, about, force: bool, pivot=None) -> None:
         match self.model:
@@ -7907,6 +7961,14 @@ class _RadialPolygon(Polygon):
         _pose_scale_set(self, store)
         return self
 
+    def _center_scale_sizes(self) -> Optional[Tuple[str, ...]]:
+        model = self.model
+        if model is RegularPolygonModel.CENTER_RADIUS:
+            return ('radius',)
+        if model is RegularPolygonModel.CENTER_SIDE:
+            return ('side',)
+        return None
+
     def _scale_gate(self, about, force: bool, pivot=None) -> None:
         if self.model is RegularPolygonModel.VERTEX_SIDE:
             _ensure_writable(self.vertex, "scale_by", force=force,
@@ -9090,6 +9152,12 @@ class _RectBody(_DerivedRotationRoute, _RectFrame, _RectNames, Shape):
         _pose_scale_set(self, store)
         return self
 
+    def _center_scale_sizes(self) -> Optional[Tuple[str, ...]]:
+        # The kind's own lengths (Concave's rim) are parts: general path.
+        if self.model is RectModel.CENTER_WH and not self._SCALES_EXTRAS:
+            return ('width', 'height')
+        return None
+
     def _scale_gate(self, about, force: bool, pivot=None) -> None:
         if pivot is None:
             pivot = self._pivot_xy(about)
@@ -9569,6 +9637,10 @@ class Square(Rect):
         finally:
             if own:
                 self.__dict__.pop("_pending_scale_store", None)
+
+    def _center_scale_sizes(self) -> Optional[Tuple[str, ...]]:
+        # ``length`` is Defining; width / height are its Derivate mirrors.
+        return ('length',) if self.model is RectModel.CENTER_WH else None
 
     def _scale_gate(self, about, force: bool, pivot=None) -> None:
         _ensure_writable(self["length"], "scale_by", force=force)

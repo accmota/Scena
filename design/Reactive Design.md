@@ -1660,6 +1660,31 @@ shapes use the batched Attribute path. Unlinked mass motion also uses lazy
 `MovementController` — **Mass sprite hot path**. Tests:
 `tests/test_pose_fast_path.py`, `tests/test_pose_link_contract.py`.
 
+**Scale about the center (2026-10-26):** `scale =`, `scale_to` and every
+scale tween (`scale_to` / `scale_by` with `time=` tick through `scale_to`)
+about the center of a model placed by its center write only the model's size
+inputs and the pose store (`_scale_about_center_fast`): `width` / `height`
+(Rect, Ellipse by size), `length` (Square), `radius` (Circle by center),
+`radius` / `side` (RegularPolygon, Triangle). Each kind names them in
+`_center_scale_sizes()` (None on every other model and on Concave, whose rim
+is a part). The kind's `scale_by` re-derived the center twice
+(`_pivot_xy` + `_center_xy`, each an `_oriented_frame`), rewrote it unchanged
+and batched the whole part subtree: a Rect `scale =` cost ~14 µs against
+~1.4 µs for `width =`, and 2500 cells pulsing their scale spent 41 ms a frame
+in the process tick (now 21 ms; Square 52 → 16 ms). The fast path runs only
+where the general one would write nothing else: no `_field_anchors` and no
+whole-shape `_link` (a linked `scale`, a `box=` formula: the general path
+refuses or unlinks), no pull consumer on the tree (`_requires_pull_invalidate`
+false, as A1), `about=None`, `force=False`. The size writes run under the
+shape's own `_in_batch_update` flag, then `update()`, as inside
+`batch_update_self` (same clamp coercion, same refresh for a node-less shape);
+the parts are not flagged because none is written. `scale_by` itself and any
+`about=` keep the general path. Square's mirrors (`width` / `height`) are not
+written: reading one flags the tree for good, so after that every scale takes
+the general path. Switch `shapes._SCALE_CENTER_FAST` (False: the oracle).
+Guard: `tests/test_scale_center_fast.py` (D28 in
+[Testing Design](Testing%20Design.md#bug-catalogue)).
+
 **Cold `_center_xy` (required for A4):** public `Shape.move_to` always reads
 `_center_xy()` before `_move_to`. Line / Circle `TWO_POINTS` / Ellipse
 `FOCAL_POINTS` / RegularPolygon `VERTEX_SIDE` override `_center_xy` to use
