@@ -360,6 +360,69 @@ class TestPostFxStack(unittest.TestCase):
         hit = canvas.effects._hit_feedback()
         self.assertLess(hit._shake, 0.5)
 
+    def _wave_row_centres(self, hit):
+        """Row y=300 of an 800×600 plate: (warp centre x, band peak x, warp share behind x=400)."""
+        import numpy as np
+        import skia
+        src_s = skia.Surface(800, 600)
+        sc = src_s.getCanvas()
+        sc.clear(skia.ColorBLACK)
+        for x in range(0, 800, 8):
+            sc.drawRect(skia.Rect.MakeXYWH(x, 0, 4, 600), skia.Paint(Color=skia.ColorWHITE))
+        src = src_s.makeImageSnapshot()
+        base = src.toarray(colorType=skia.kRGBA_8888_ColorType)[300, :, 0].astype(float)
+        out = skia.Surface(800, 600)
+        hit._draw_shader(out.getCanvas(), src, 800, 600, 0.0)
+        row = out.makeImageSnapshot().toarray(colorType=skia.kRGBA_8888_ColorType)[300, :, 0]
+        diff = np.abs(row.astype(float) - base)
+        xs = np.arange(800)
+        warp = float((diff * xs).sum() / max(diff.sum(), 1e-6))
+        band = self._render(hit)[300, :, 0].astype(float)
+        return warp, float(band.argmax()), float(diff[:390].sum() / max(diff.sum(), 1e-6))
+
+    def test_wave_at_band_rides_the_warp_front(self):
+        # SH-E: the warp's crests moved toward the origin, on both sides of
+        # it, while the accent line marched one way: the line sat on nothing.
+        # Now one front (_wave_front) places the warp ridge and the band.
+        from scena.effects import _wave_front
+        canvas.effects.clear()
+        canvas.wave_at(400, 300, angle=0, shake=False)
+        hit = canvas.effects._hit_feedback()
+        seen = []
+        for dt in (0.15, 0.25):
+            hit.tick_frame(dt, canvas)
+            warp, band, behind = self._wave_row_centres(hit)
+            front, width, _ = _wave_front(hit._ripple_t / 0.9, 800, 600)
+            self.assertAlmostEqual(warp, 400 + front, delta=width * 0.4)
+            self.assertAlmostEqual(band, 400 + front, delta=width * 0.25)
+            self.assertLess(behind, 0.02)   # one-sided: nothing warps behind the source
+            seen.append(warp)
+        self.assertGreater(seen[1], seen[0] + 20)   # the front travels outward
+
+    def test_wave_front_moves_out_and_slows(self):
+        from scena.effects import _wave_front
+        fronts = [_wave_front(u / 10, 800, 600)[0] for u in range(11)]
+        steps = [b - a for a, b in zip(fronts, fronts[1:])]
+        self.assertTrue(all(s > 0 for s in steps))
+        self.assertTrue(all(b <= a for a, b in zip(steps, steps[1:])))
+
+    def test_corona_ring_has_no_seam(self):
+        # SH-E: the ring loop ran to i == n and drew vertex 0 again with
+        # another jitter, so a notch sat at the seam; jitter was a share of
+        # the final radius, so the small ring of the first frames was mangled.
+        from scena.effects import _corona_ring_points
+        for seed in (1.31, 2.62, 7.0):
+            for t in (0.0, 0.07, 0.31):
+                for ring_r in (6.0, 60.0):
+                    pts = _corona_ring_points(0.0, 0.0, ring_r, 12, seed, t)
+                    self.assertEqual(len(pts), 12)
+                    angs = sorted(math.atan2(y, x) % math.tau for x, y in pts)
+                    gaps = [b - a for a, b in zip(angs, angs[1:])] + [angs[0] + math.tau - angs[-1]]
+                    for g in gaps:
+                        self.assertAlmostEqual(g, math.tau / 12, delta=1e-6)
+                    for x, y in pts:
+                        self.assertLessEqual(abs(math.hypot(x, y) - ring_r), ring_r * 0.1 + 1e-9)
+
     def test_explosion_at_api(self):
         canvas.effects.clear()
         canvas.explosion_at(150, 250, amount=1.0)

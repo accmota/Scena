@@ -287,33 +287,41 @@ uniform float u_flash;
 uniform float u_mode;
 uniform float u_angle;
 uniform float u_span;
+uniform float u_front;
+uniform float u_band;
+uniform float u_half;
 
 half4 main(float2 coord) {
     float2 uv = coord / resolution;
     float aspect = resolution.y / max(resolution.x, 1.0);
+    // d is in widths on both axes: dot(d, dir) * resolution.x is pixels.
     float2 d = float2(uv.x - u_center.x, (uv.y - u_center.y) * aspect);
-    float span = max(u_span, 0.05);
-    float dist;
-    float2 n;
-    float wave_arg;
+    float2 disp;
     if (u_mode > 0.5) {
-        // Linear: displace along a single normal (no sign flip → no seam).
+        // Linear: one refracting ridge on the travelling front, the front the
+        // accent band is drawn on (u_front / u_band / u_half, in widths).
         float2 dir = float2(cos(u_angle), sin(u_angle));
-        float sd = dot(d, dir);
-        dist = abs(sd);
-        n = dir;
-        wave_arg = (sd / span) * 48.0 - (1.0 - u_progress) * 18.0;
+        float2 side = float2(-dir.y, dir.x);
+        float x = (dot(d, dir) - u_front) / max(u_band, 1e-4);
+        float along = 1.0 - smoothstep(u_half * 0.6, u_half, abs(dot(d, side)));
+        float rise = clamp(u_progress / 0.06, 0.0, 1.0);
+        float env = pow(max(0.0, 1.0 - u_progress), 1.5) * rise;
+        // Derivative of a Gaussian, peak 1: a push ahead and a pull behind.
+        float ridge = -x * exp(-x * x) * 2.3316;
+        disp = dir * ridge * along * env * u_strength * u_band * 0.3 * resolution.x;
     } else {
-        dist = length(d);
-        n = dist > 1e-4 ? d / dist : float2(0.0);
-        wave_arg = (dist / span) * 48.0 - (1.0 - u_progress) * 18.0;
+        float span = max(u_span, 0.05);
+        float dist = length(d);
+        float2 n = dist > 1e-4 ? d / dist : float2(0.0);
+        float wave_arg = (dist / span) * 48.0 - (1.0 - u_progress) * 18.0;
+        float env = max(0.0, 1.0 - u_progress);
+        env = env * env;
+        float wave = sin(wave_arg);
+        float fall = max(0.0, 1.0 - (dist / span) * 1.35);
+        float amp = fall * wave * env * u_strength;
+        disp = n * amp * resolution.x * 0.045;
     }
-    float env = max(0.0, 1.0 - u_progress);
-    env = env * env;
-    float wave = sin(wave_arg);
-    float fall = max(0.0, 1.0 - (dist / span) * 1.35);
-    float amp = fall * wave * env * u_strength;
-    float2 sample_xy = coord + n * amp * resolution.x * 0.045;
+    float2 sample_xy = coord + disp;
     half4 col = image.eval(sample_xy);
     col.rgb = mix(col.rgb, half3(1.0), half(clamp(u_flash, 0.0, 1.0)));
     return col;
@@ -1303,10 +1311,13 @@ def draw_ripple_shader(
     mode: float = 0.0,
     angle: float = 0.0,
     span: float = 1.0,
+    front: Tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> None:
     """Fullscreen hit-ripple / linear wave + optional white flash (HitFeedback).
 
     ``span`` scales the warp radius (1 = ``ripple_at``; explosion shock is smaller).
+    ``front`` is the linear wave's ``(distance, band, half_length)`` in pixels
+    (``effects._wave_front``), the same numbers the accent band is drawn with.
     """
     sh = image.makeShader(skia.TileMode.kClamp, skia.TileMode.kClamp)
     _ripple_builder.setChild("image", sh)
@@ -1318,7 +1329,25 @@ def draw_ripple_shader(
     _ripple_builder.setUniform("u_mode", float(mode))
     _ripple_builder.setUniform("u_angle", float(angle))
     _ripple_builder.setUniform("u_span", float(max(span, 0.05)))
+    wd = max(float(w), 1.0)
+    _ripple_builder.setUniform("u_front", float(front[0]) / wd)
+    _ripple_builder.setUniform("u_band", float(front[1]) / wd)
+    _ripple_builder.setUniform("u_half", float(front[2]) / wd)
     paint = skia.Paint(Shader=_ripple_builder.makeShader(), AntiAlias=False)
+    if mode > 0.5 and flash <= 0.0 and front[1] > 0.0:
+        # The linear ridge moves nothing past 3 band widths (exp(-9)) or past
+        # the band's length: the plain image, then the shader on that strip.
+        canvas.drawImage(image, 0, 0)
+        canvas.save()
+        m = canvas.getTotalMatrix()
+        canvas.translate(float(center_uv[0]) * w, float(center_uv[1]) * h)
+        canvas.rotate(math.degrees(float(angle)))
+        f, b, half = (float(v) for v in front)
+        canvas.clipRect(skia.Rect.MakeLTRB(f - 3.2 * b, -half, f + 3.2 * b, half), False)
+        canvas.setMatrix(m)
+        canvas.drawRect(skia.Rect.MakeWH(w, h), paint)
+        canvas.restore()
+        return
     canvas.drawRect(skia.Rect.MakeWH(w, h), paint)
 
 

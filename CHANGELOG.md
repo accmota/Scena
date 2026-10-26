@@ -42,6 +42,13 @@ left out.
   background and effect takes the forms `color=` takes.
 - The package says it runs on Python 3.13 and 3.14 (the classifiers named
   only 3.12); the test suite passes on both.
+- `canvas.wave_at` warps the picture where its band of light is: one ridge
+  that travels out from the point, on the side the wave goes to. The warp's
+  ripples moved toward the point, on both sides of it, while a hard grey
+  line crossed the screen apart from them. The band is now soft light, faded
+  at both ends.
+- `canvas.zap_at(style="corona")` draws a closed ring: a notch sat where the
+  ring met itself, and the small ring of the first frames was misshapen.
 
 ### Documentation
 

@@ -787,6 +787,62 @@ _RIPPLE_FALLOFF = 1.35
 _EXPLOSION_SHOCK_SPAN = 0.4
 
 
+def _wave_front(u: float, w: float, h: float) -> Tuple[float, float, float]:
+    """``wave_at`` front at progress ``u`` (0–1): ``(distance, band, half_length)`` px.
+
+    One source for the warp ridge (``_RIPPLE_SKSL`` linear mode) and the accent
+    band, so the two travel together. The front slows as it goes (a shock
+    spends itself); the band grows longer as it spreads.
+    """
+    short = max(1.0, min(float(w), float(h)))
+    u = max(0.0, min(1.0, float(u)))
+    eased = 1.0 - (1.0 - u) ** 2
+    return (
+        short * (0.03 + 0.62 * eased),
+        short * 0.07,
+        short * (0.2 + 0.4 * eased),
+    )
+
+
+# wave_at band across the front, in core widths from the front (− = behind):
+# a sharp leading edge and a longer glow trailing toward the source.
+_WAVE_BAND_STOPS = ((-6.0, 0.0), (-2.5, 0.15), (-0.8, 0.5), (0.0, 1.0), (0.8, 0.3), (2.0, 0.0))
+
+
+def _draw_wave_band(canvas, cx: float, cy: float, angle: float, u: float, w: float, h: float) -> None:
+    """``wave_at`` accent: light on the front of ``_wave_front``, faded at both ends."""
+    front, band, half = _wave_front(u, w, h)
+    rise = min(1.0, u / 0.06)
+    peak = 0.6 * (1.0 - u) ** 1.2 * rise
+    if peak < 1e-3:
+        return
+    core = band * 0.22
+    x0 = front + _WAVE_BAND_STOPS[0][0] * core
+    x1 = front + _WAVE_BAND_STOPS[-1][0] * core
+    span = x1 - x0
+    r, g, b = 0.85, 0.95, 1.0
+    across = skia.GradientShader.MakeLinear(
+        [skia.Point(x0, 0.0), skia.Point(x1, 0.0)],
+        [skia.Color4f(r, g, b, peak * a).toColor() for _, a in _WAVE_BAND_STOPS],
+        [(front + k * core - x0) / span for k, _ in _WAVE_BAND_STOPS],
+    )
+    along = skia.GradientShader.MakeLinear(
+        [skia.Point(0.0, -half), skia.Point(0.0, half)],
+        [0x00FFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00FFFFFF],
+        [0.0, 0.3, 0.7, 1.0],
+    )
+    paint = skia.Paint(
+        Shader=skia.Shaders.Blend(skia.BlendMode.kModulate, across, along),
+        AntiAlias=True,
+        BlendMode=skia.BlendMode.kPlus,
+    )
+    canvas.save()
+    canvas.translate(cx, cy)
+    canvas.rotate(math.degrees(angle))
+    canvas.drawRect(skia.Rect.MakeLTRB(x0, -half, x1, half), paint)
+    canvas.restore()
+
+
 def _zap_soft_disc_image():
     """White soft radial disc (premul) — same recipe as SpatialFx GlowSpot stamps."""
     global _ZAP_SOFT_DISC, _ZAP_SOFT_SAMPLING
@@ -1369,6 +1425,23 @@ def _draw_zap_fork(canvas, zap: dict, ox: float, oy: float, dx: float, t: float)
             )
 
 
+def _corona_ring_points(ox: float, oy: float, ring_r: float, n_arc: int, seed: float, t: float) -> list:
+    """The corona ring's ``n_arc`` vertices, once each (the caller closes the path).
+
+    Jitter is a share of the ring's current radius: a fraction of the final
+    radius mangles the small ring of the first frames. A vertex at ``tau``
+    would repeat vertex 0 with another hash and draw a notch at the seam.
+    """
+    pts = []
+    for i in range(n_arc):
+        ang = i / n_arc * math.tau + t * 3.5
+        j = (_frac_hash(i + 0.5, seed + t * 0.7) - 0.5) * ring_r * 0.12
+        j += math.sin(ang * 5.0 + t * 22.0) * ring_r * 0.04
+        r = ring_r + j
+        pts.append((ox + math.cos(ang) * r, oy + math.sin(ang) * r))
+    return pts
+
+
 def _draw_zap_corona(canvas, zap: dict, ox: float, oy: float, dx: float, t: float) -> None:
     """v3 — electric corona: expanding jagged ring + rim arcs (ElectricBolt family)."""
     p = zap["t"] / max(zap["duration"], 1e-3)
@@ -1391,14 +1464,7 @@ def _draw_zap_corona(canvas, zap: dict, ox: float, oy: float, dx: float, t: floa
     n_arc = 6 if survival else max(8, len(zap["parts"]))
     # Closed jagged corona path
     path = skia.Path()
-    for i in range(n_arc + 1):
-        u = i / n_arc
-        ang = u * math.tau + t * 3.5
-        j = (_frac_hash(i + 0.5, zap["seed"] + t * 0.7) - 0.5) * radius * 0.12
-        j += math.sin(ang * 5.0 + t * 22.0) * radius * 0.04
-        r = ring_r + j
-        x = ox + math.cos(ang) * r
-        y = oy + math.sin(ang) * r
+    for i, (x, y) in enumerate(_corona_ring_points(ox, oy, ring_r, n_arc, zap["seed"], t)):
         if i == 0:
             path.moveTo(x, y)
         else:
@@ -2846,6 +2912,8 @@ class HitFeedback(PostEffect):
                 mode=self._ripple_mode if need_ripple else 0.0,
                 angle=self._ripple_angle if need_ripple else 0.0,
                 span=self._ripple_span if need_ripple else 1.0,
+                front=_wave_front(progress, w, h)
+                if need_ripple and self._ripple_mode > 0.5 else (0.0, 0.0, 0.0),
             )
         if need_shake:
             canvas.restore()
@@ -2880,30 +2948,13 @@ class HitFeedback(PostEffect):
             )
             canvas.drawCircle(cx, cy, radius, paint)
 
-        # Linear wave accent: short glowing band along the front.
+        # Linear wave accent: a soft band of light on the warp's front.
         if self._ripple_shock and self._ripple_t < 0.9 and self._ripple_mode > 0.5:
-            u = self._ripple_t / 0.9
-            alpha = max(0.0, 1.0 - u)
-            cx = self._ripple_uv[0] * w + sox
-            cy = self._ripple_uv[1] * h + soy
-            # Progress pushes the front outward along the wave normal.
-            dist = (20.0 + u * min(w, h) * 0.4)
-            nx = math.cos(self._ripple_angle)
-            ny = math.sin(self._ripple_angle)
-            px, py = -ny, nx
-            half_len = min(w, h) * 0.55
-            x0 = cx + nx * dist - px * half_len
-            y0 = cy + ny * dist - py * half_len
-            x1 = cx + nx * dist + px * half_len
-            y1 = cy + ny * dist + py * half_len
-            paint = skia.Paint(
-                Style=skia.Paint.kStroke_Style,
-                StrokeWidth=3.0 + 5.0 * (1.0 - u),
-                Color4f=skia.Color4f(0.85, 0.95, 1.0, 0.32 * alpha),
-                AntiAlias=True,
-                BlendMode=skia.BlendMode.kPlus,
+            _draw_wave_band(
+                canvas,
+                self._ripple_uv[0] * w + sox, self._ripple_uv[1] * h + soy,
+                self._ripple_angle, self._ripple_t / 0.9, w, h,
             )
-            canvas.drawLine(x0, y0, x1, y1, paint)
 
         # Pyro pool: cinematic (screen-scaled) + local (design radius) bursts.
         for b in self._bursts:
