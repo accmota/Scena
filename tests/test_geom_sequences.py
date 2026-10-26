@@ -69,6 +69,7 @@ PINNED = [
     ("Rect spine cap", "rotated", "none", ["flip_x", "flip_y"]),             # Q1
     ("Rect center_wh", "rotated", "none", ["rotate_to timed", "move_by"]),   # Q2
     ("Ellipse center_wh noangle", "degenerate", "none", ["flip_x", "flip_y"]),  # GX1
+    ("Ellipse center_wh noangle", "degenerate", "none", ["flip_y"]),         # GX22
     ("Line point_point", "degenerate", "none", ["flip_x", "move_by"]),       # GX2
     ("Line tangent_angle", "degenerate", "none", ["flip_y", "move_by"]),     # GX3
     ("Line tangent_point", "mid_tween", "none", ["move_by timed", "rotate_by"]),  # GX4
@@ -142,6 +143,40 @@ class TestShadowArray(unittest.TestCase):
         self.assertFalse(new, f"new shadow violations:\n  {_fmt(new, found)}")
         self.assertFalse(stale, f"known patterns nothing matches (fixed: remove them): {stale}")
         self._reach_ok(reach, "K", sorted(A.K))
+
+
+class TestFlipAtHeadingFixedPoints(unittest.TestCase):
+    """GX22 class: a flip whose heading map fixes the heading (``flip_y`` at 0,
+    ``flip_x`` at 90) writes the same angle, and a part on the pivot does not
+    move, so no write refreshes what was derived before it. Every kind, at
+    each fixed point and its near miss (180, 270), from a fresh and a
+    degenerate base (tall where a width goes to 0), with every part read warm
+    (the shadow reads them), must still read the mirror. The arrays build at
+    ``P0``'s 17° and reach a fixed point only by a noangle row and chance."""
+
+    def test_every_kind_mirrors_at_a_fixed_heading(self):
+        found = {}
+        with fresh_world() as w:
+            for kind in sorted(A.K):
+                for base in ("fresh", "degenerate"):
+                    for r, axis in ((0.0, "y"), (180.0, "y"), (90.0, "x"), (270.0, "x")):
+                        G.reset_clock()
+                        made = S.make_subject(w, kind, base, "none", p={**G.P0, "r": r})
+                        if made is None or isinstance(made, dict):
+                            continue
+                        obj, _s, lk = made
+                        if not G.can_flip(obj):
+                            break
+                        if float(obj.angle) % 360.0 != r:
+                            try:        # a noangle row, or a builder that ignores r
+                                obj.rotate_to(r)
+                            except Exception:  # noqa: BLE001  (relational: refuses)
+                                continue
+                        s = S.Shadow(obj, kind)
+                        bad = S.run_step(obj, kind, s, lk, "flip_" + axis, "sorted")
+                        found.update({f"{k} (at {r:g})": v for k, v in bad.items()})
+        new = _unknown(found, KNOWN.SHADOW)
+        self.assertFalse(new, f"a flip at a fixed heading:\n  {_fmt(new, found)}")
 
 
 class ShadowMachine(RuleBasedStateMachine):

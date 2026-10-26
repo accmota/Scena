@@ -54,6 +54,9 @@ left out.
   faster: 2500 squares pulsing their scale went from 15 to 35 fps. It cost
   about ten times a `width =` / `radius =` write, so a pulse, pop or birth
   animation on many shapes was slow; the result is the same.
+- A tall `Ellipse` (height greater than width) at angle 0 mirrors its foci
+  on `flip_y`, and at angle 90 on `flip_x`: `fp1` and `fp2` read before the
+  flip kept their old places.
 
 ### Documentation
 

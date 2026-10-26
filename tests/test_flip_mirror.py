@@ -256,6 +256,23 @@ class TestFlipHeadingEdges(unittest.TestCase):
                         self.assertAlmostEqual(got[0], want[0], msg=f"{w}x{h} {flips}")
                         self.assertAlmostEqual(got[1], want[1], msg=f"{w}x{h} {flips}")
 
+    def test_a_tall_ellipse_mirrors_warm_foci_where_the_flip_keeps_the_heading(self):
+        # GX22: tall foci read the flip parity (GX1). flip_y at 0 and flip_x
+        # at 90 write the same angle, and the center is the pivot, so foci
+        # read before the flip stayed where they were (180, -90 and 270 turn
+        # the heading: controls). Width 0 is how the shadow machine found it
+        # (degenerate base, no angle=).
+        for w in (10, 0):
+            for ang, axis in ((0, "y"), (180, "y"), (90, "x"), (-90, "x"), (270, "x")):
+                e = Ellipse(center=(3, -2), width=w, height=30, angle=ang)
+                f1, f2 = xy(e.fp1), xy(e.fp2)          # warm
+                setattr(e, f"flip_{axis}", True)
+                for got, was in ((xy(e.fp1), f1), (xy(e.fp2), f2)):
+                    want = (6.0 - was[0], was[1]) if axis == "x" else (was[0], -4.0 - was[1])
+                    msg = f"w={w} angle={ang} flip_{axis}"
+                    self.assertAlmostEqual(got[0], want[0], msg=msg)
+                    self.assertAlmostEqual(got[1], want[1], msg=msg)
+
     def test_a_zero_length_line_flips_its_heading(self):
         # GX2: no point moves, so the derived heading kept its cached value.
         for build in (lambda: Line(p1=(0, 0), p2=(10, 0)), lambda: Line(p1=(0, 0), vec=(10, 0))):

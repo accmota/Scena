@@ -6387,6 +6387,19 @@ class Ellipse(_DerivedRotationRoute, Shape):
         self.c = c
         self.major_axis = 2.0 * a
 
+    def _mirror_geometry(self, axis: str, *, force: bool = False) -> None:
+        rot = float(self._rotation)
+        super()._mirror_geometry(axis, force=force)
+        # Tall foci read the flip parity (GX1), not only the Defining values.
+        # A flip whose heading map fixes the heading (0 under flip_y, 90 under
+        # flip_x) writes the same angle, and the center is its pivot: no write
+        # refreshed foci read before it, and they stayed put (GX22 in Testing
+        # Design). Same test as ``_apply_flip``'s ``turned != rot``.
+        if ((-rot if axis == "y" else 180.0 - rot) == rot
+                and self.model != EllipseModel.FOCAL_POINTS
+                and abs(_bare_num(self.width)) < abs(_bare_num(self.height))):
+            self.update()
+
     def _foci_heading(self) -> float:
         """Direction ``fp1 → fp2`` (Defining only), keeping the pose store's full turns."""
         x1, y1 = get_xy(self.fp1, bare=True)
