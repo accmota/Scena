@@ -12,9 +12,10 @@
 # (no window, no GL context, the offline audio mixer), so no display is needed.
 name: Tests
 
+# A branch named ci/<anything> runs it on push too, without a pull request.
 on:
   push:
-    branches: [main]
+    branches: [main, "ci/**"]
   pull_request:
   workflow_dispatch:
 
