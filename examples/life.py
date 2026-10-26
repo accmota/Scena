@@ -22,7 +22,6 @@ Controls
   RIGHT            one tick (when paused)
   UP / DOWN        faster / slower
   R                a new random soup
-  G                a glider gun
   C                clear
 
 Things to try
@@ -200,27 +199,6 @@ async def soup():
         await wait(0.03)
 
 
-GUN = ["........................O...........",
-       "......................O.O...........",
-       "............OO......OO............OO",
-       "...........O...O....OO............OO",
-       "OO........O.....O...OO..............",
-       "OO........O...O.OO....O.O...........",
-       "..........O.....O.......O...........",
-       "...........O...O....................",
-       "............OO......................"]
-
-
-def glider_gun():
-    for r in range(ROWS):
-        for c in range(COLS):
-            flip(r, c, False)
-    for i in range(len(GUN)):
-        for j in range(len(GUN[i])):
-            if GUN[i][j] == "O":
-                flip(ROWS - 3 - i, 2 + j, True)
-
-
 def cell_at(x, y):
     """(row, column) under the point, or None off the board."""
     c = int((x - LEFT) // CELL)
@@ -264,11 +242,9 @@ def update(dt):
                 flip(r, c, False)
     if keyp.once("R"):
         run_task(soup)
-    if keyp.once("G"):
-        glider_gun()
 
 
-hint = Text("click: flip · SPACE: run / pause · R: soup · G: glider gun · C: clear",
+hint = Text("click: flip · SPACE: run / pause · R: soup · C: clear",
             center=(640, 32), font_size=15, color=Color("light steel blue").with_alpha(0.6))
 
 run_task(build_grid)
