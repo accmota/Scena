@@ -89,7 +89,7 @@ for k in range(12):
 # ---- III  turtle walks: go forward, turn, again ----
 # a walk closes when one round of sizes does not turn a whole circle (4 x 90 would drift away)
 WALKS = [
-    ([10, 20, 30, 40, 50], 90, 4),     # sizes, turn, times: a square spiral
+    ([10, 20, 30, 40, 50], 60, 7),     # sizes, turn, times: a square spiral
     ([30, 60, 90, 30], 120, 3),        # a triangle that folds into itself
 ]
 
