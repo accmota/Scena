@@ -267,6 +267,27 @@ class TestSpawnOrder(unittest.TestCase):
         self.assertEqual(eq.e3_program(f"{TWINS}/shooter_order", WAIT, "wait"), [])
 
 
+class TestSwapCandidates(unittest.TestCase):
+    """E3 swaps only independent statements: one that fills a container
+    another reads stays put, however it fills it (LW12: ``pendulums.py``'s
+    loop of ``bobs.append`` and its ``Track`` through the bobs)."""
+
+    FILLS = ["box.append(Circle())", "box.extend([Circle()])", "box.insert(0, Circle())",
+             "box.add(Circle())", "box.update(a=Circle())", "box.setdefault('a', Circle())",
+             "box['a'] = Circle()", "box.remove(Circle())", "box.clear(); Circle()"]
+
+    def test_a_fill_and_a_reader_never_swap(self):
+        for fill in self.FILLS:
+            for reader in ("Track(points=[c.center for c in box])", "line = Line(p1=box[0])"):
+                src = f"box = []\nfor k in range(3):\n    {fill}\n{reader}\n"
+                with self.subTest(fill=fill, reader=reader):
+                    self.assertEqual(eq.swap_candidates(src), [])
+
+    def test_independent_constructions_still_swap(self):
+        src = "box = []\nCircle()\nbox.append(Rect())\nship = Ship()\nship.visual = Halo()\n"
+        self.assertEqual(eq.swap_candidates(src), [(1, 2), (2, 3)])
+
+
 
 _program_classes("TestSpawnOrderPrograms", eq.e3_program, eq.swap_candidates, True,
                  """E3 on the programs, one job of at most ``PROGRAM_RUNS_PER_JOB`` runs.""")

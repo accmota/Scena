@@ -368,6 +368,12 @@ def _names_read(node) -> set:
     return {n.id for n in ast.walk(node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
 
 
+# A call of one of these on a name fills or empties the container it names
+# (``bobs.append(bob)``): the name is written (LW12).
+_MUTATORS = frozenset({"append", "extend", "insert", "add", "update", "setdefault",
+                       "remove", "discard", "clear"})
+
+
 def _names_written(node) -> set:
     out = set()
     for n in ast.walk(node):
@@ -375,6 +381,12 @@ def _names_written(node) -> set:
             out.add(n.id)
         elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             out.add(n.name)
+        elif (isinstance(n, ast.Subscript) and isinstance(n.ctx, (ast.Store, ast.Del))
+              and isinstance(n.value, ast.Name)):
+            out.add(n.value.id)
+        elif (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+              and n.func.attr in _MUTATORS and isinstance(n.func.value, ast.Name)):
+            out.add(n.func.value.id)
     return out
 
 
