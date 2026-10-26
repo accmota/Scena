@@ -782,6 +782,11 @@ details.ask[open] summary { margin-bottom: 0.4rem; }
   margin: 3.5rem 0 0.45rem;
 }
 
+/* On the docs home the first list follows the lede, which already spaces it. */
+.index-wrap .lede + .index-section { margin-top: 0; }
+/* A closing line after the last card. */
+.index-wrap .card + .lede { margin-top: 2.5rem; }
+
 .card {
   display: block;
   background: var(--bg-elev);
