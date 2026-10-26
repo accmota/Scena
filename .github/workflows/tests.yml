@@ -61,6 +61,14 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # skia-python's Linux wheel loads the system's libEGL / libGL at import.
+      # A desktop Linux has them; the runner image does not.
+      - name: Linux libraries skia needs
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libegl1 libgl1
+
       # Into the runner's temp folder; setuptools' build/ and egg-info go too,
       # so the tests' source scans see the checkout alone.
       - name: Build the wheel
