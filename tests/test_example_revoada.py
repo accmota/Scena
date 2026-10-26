@@ -42,6 +42,7 @@ from program_support import ProgramRun  # noqa: E402
 PATH = "examples/revoada.py"
 SECOND = 60
 AWAY = (-500, -500)     # the falcon parked off screen
+OVERSHOOT = 60          # px past an edge that a turning bird may reach
 
 
 def xy(p):
@@ -106,7 +107,12 @@ class TestRevoadaRules(unittest.TestCase):
                 self.assertGreater(on["light"], off["light"])
 
     def test_birds_turn_back_at_the_edges(self):
-        self.assertGreater(self.fly(2, seconds=30)["lowest"], -20,
+        # The turn is a spring inside MARGEM (120 px), so a bird in a crowd can
+        # overshoot the edge before it comes back: seeds 1-28 on the Mac reach
+        # -46 px at worst (seed 5). The flock is chaotic: Linux's libm sends
+        # seed 2 to -24, the Mac to +0.7 (WP47). A bird that does not turn
+        # back is gone by thousands of px in 30 s (at least 90 px/s).
+        self.assertGreater(self.fly(2, seconds=30)["lowest"], -OVERSHOOT,
                            "a bird flew off the screen")
 
     def test_neighbours_share_a_colour(self):

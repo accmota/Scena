@@ -26,6 +26,16 @@ left out.
   "Showcases" to the tutorial table in `examples/README.md`): three parts
   (the Kaleidoscope part is gone), and its densest lines unpacked into
   `wheel_color(i)` and `on_ring(k)` and a three-line `update`; 99 lines.
+- GitHub tests every push to `main` and every pull request
+  (`.github/workflows/tests.yml`). The built wheel is installed and imported
+  on Windows, macOS and Linux with Python 3.12, 3.13 and 3.14; the quick
+  tier runs on Linux, and a smoke set of modules runs on the other cells.
+  What it covers and what it leaves out: `design/Testing Design.md`,
+  "Continuous integration".
+- The README's install section says that on Linux skia-python needs the
+  system's libEGL and libGL (`sudo apt install libegl1 libgl1` on Debian or
+  Ubuntu): without them `import scena` fails on a minimal system or in a
+  container.
 
 ## 0.10.1 — 2026-10-26
 

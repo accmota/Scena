@@ -243,6 +243,55 @@ class TestShard(unittest.TestCase):
         self.assertEqual([j.label for j in jobs], ["test_b", "test_c", "test_a"])
 
 
+class TestPart(unittest.TestCase):
+    """``--part K/N``: CI runs one tier as N runner jobs (Testing Design,
+    "Continuous integration"). A job in no part, or in two, is a test CI
+    silently skips or runs twice."""
+
+    def jobs(self, n=40):
+        out = [rt.Job(f"test_m{i:02d}", [f"tests.test_m{i:02d}"]) for i in range(n)]
+        for i, j in enumerate(out):
+            j.estimate = 60.0 if i % 7 == 0 else 1.0 + i % 3
+        return out
+
+    def test_every_job_in_exactly_one_part(self):
+        jobs = self.jobs()
+        for n in (1, 2, 3, 5):
+            with self.subTest(n=n):
+                parts = [rt.part(jobs, f"{k}/{n}") for k in range(1, n + 1)]
+                labels = [j.label for p in parts for j in p]
+                self.assertCountEqual(labels, [j.label for j in jobs])
+
+    def test_parts_agree_whatever_the_input_order(self):
+        jobs = self.jobs()
+        shuffled = list(reversed(jobs[::2])) + jobs[1::2]
+        for k in (1, 2, 3):
+            self.assertEqual([j.label for j in rt.part(jobs, f"{k}/3")],
+                             [j.label for j in rt.part(shuffled, f"{k}/3")])
+
+    def test_parts_balance_the_estimates_and_keep_slowest_first(self):
+        jobs = self.jobs()
+        loads = []
+        for k in (1, 2, 3):
+            mine = rt.part(jobs, f"{k}/3")
+            self.assertEqual(mine, sorted(mine, key=lambda j: -j.estimate))
+            loads.append(sum(j.estimate for j in mine))
+        self.assertLessEqual(max(loads) - min(loads), 60.0)
+
+    def test_bad_specs_are_refused(self):
+        for spec in ("0/3", "4/3", "3", "a/b", "1/0"):
+            with self.subTest(spec=spec), self.assertRaises(ValueError):
+                rt.part(self.jobs(), spec)
+
+    def test_main_runs_one_part(self):
+        out = io.StringIO()
+        mods = " ".join(f"test_mod_{i:02d}" for i in range(30))
+        with tempfile.TemporaryDirectory() as tmp:
+            rc = rt.main(["focused", mods, "--part", "2/3", "--plan"], out_root=tmp, stream=out)
+        self.assertEqual(rc, 0)
+        self.assertIn("tier focused part 2/3: 10 jobs", out.getvalue())
+
+
 class TestNormalize(unittest.TestCase):
     def test_spellings(self):
         for arg in ("test_shapes", "tests.test_shapes", "tests/test_shapes.py", "test_shapes.py"):

@@ -11,6 +11,7 @@ strategy, the rules, and the bug catalogue.
 | --- | --- |
 | Which kind of test to write | [Strategy](#strategy) |
 | Which tests to run, and when | [Test tiers](#test-tiers) |
+| What GitHub runs on a push or pull request, and what it leaves out | [Continuous integration](#continuous-integration) |
 | Harness helpers (world reset, census, probe) | [Harness map](#harness-map) |
 | A test found a bug — what now | [Bug loop](#bug-loop) (mandatory) |
 | Whole programs against a spec written from the docs; a divergence to triage | [Program model tests](#program-model-tests) |
@@ -1583,6 +1584,80 @@ Rules:
 - A module that starts and ends its own global state (new singleton, new registry)
   needs no runner change; a new **env switch** goes in `Tier` / `tier_env`.
 
+## Continuous integration
+
+`.github/workflows/tests.yml` runs on every push to `main`, on every pull request,
+on a push to a `ci/<anything>` branch (CI without a pull request) and by hand
+(`workflow_dispatch`). It checks the README's promise: Python 3.12–3.14 on Windows,
+macOS and Linux. Release builds are a separate workflow (`release.yml`, [Scena
+Design.md, "Compatibility and versions"](Scena%20Design.md#compatibility-and-versions)).
+
+| Cell | Python | Runs |
+| --- | --- | --- |
+| `ubuntu-latest` ×3 | 3.14 | the wheel import, then the whole **quick** tier in three parts (`quick --part K/3 -j 4`, one part per runner job) |
+| `ubuntu-latest` | 3.12, 3.13 | the wheel import, then the **smoke** modules (`SMOKE` in the workflow, `focused -j 4`) |
+| `macos-latest`, `windows-latest` | 3.12, 3.13, 3.14 | the same: the wheel import and the smoke modules |
+
+Why this shape (first runs, 2026-10-26). The runners are slow next to the Mac:
+quick took 151 s wall on the Mac (8 workers, 1 150 s summed) and 505–700 s on one
+4-vCPU Ubuntu runner (2 000–2 750 s summed), ~11–12 min with setup, for each
+Python. Quick on all three Pythons found nothing the 3.14 run did not (the same
+two failures, the same numbers), so quick runs once, on the corner the Mac never
+runs (Linux, the newest Python), split over three runner jobs. `run_tiers.py
+--part K/N` takes the K-th part of the plan: jobs go slowest first to the
+least-loaded part, label breaking ties, so the N runners that plan the same tree
+agree (`test_run_tiers.TestPart`). The CI has no `timings.json`, so there the
+parts balance by count: 116 jobs each, 150–243 s wall (580–930 s summed), 9 563
+tests in all, the Mac's count; the whole run took 4 min 48 s. Smoke took ~30 s on macOS and 70–80 s on Windows (a job
+there is ~2.3× its macOS time): quick on Windows would take ~11 min a cell.
+
+Every cell builds the wheel (out of the checkout: setuptools' `build/` would
+otherwise hold a second copy of `scena` for the source scans), installs it with the
+`test` extra, and imports `scena` and `scena_editor` **from site-packages**, with
+the working folder outside the checkout, plus `scena-editor --help`. A file the
+wheel leaves out, or a native dependency (skia-python, glfw, miniaudio, numpy) with
+no wheel for that Python and OS, fails there. The tests themselves then run from the
+checkout (`run_tiers.py` puts the repo root first on the children's path), so they
+test the source, not the wheel.
+
+Everything runs headless: no window (GLFW is never initialised), no GL context
+(post FX take the CPU path, `orchestration`'s "No context = headless"), audio
+through the offline mixer. No display server or GPU is needed. The one system
+dependency: skia-python's Linux wheel loads `libEGL.so.1` / `libGL.so.1` at
+import, which a desktop Linux has and the bare runner image does not (the first
+run failed `import skia` there), so the Ubuntu cells install `libegl1` and `libgl1`
+(the README's install section tells Linux users the same).
+Linux's GLFW (pyGLFW's wheel) is also built with C asserts on: a GLFW call with
+no window aborts the process (rc -6) where macOS and Windows return quietly
+(WP48). Never hand GLFW `fw._window` without checking it for `None`.
+
+The smoke set is one module per area that differs between platforms: the API
+surface, a frame, shapes, collision, drawing, text and fonts (`font_support` finds a
+system face on each OS), audio, level files, the editor's launch and strings, every
+example played headless (`test_scripts_run`), and the static Windows / Linux
+portability guards (`test_platform_portability`, the WP rows). A module that guards a
+platform difference belongs in `SMOKE`.
+
+What CI does **not** cover:
+
+- **gate and deep.** Canaries, the `ci` / `deep` Hypothesis profiles, `SLOW`
+  modules and the serial pass stay local (bug loop steps 5 and 8): their budget
+  (gate 4–14 min on 8 workers of a 10-core Mac, deep 2 h +) does not fit a push check, and the
+  Windows gate needs `-j 4` for memory (WP30).
+- **The whole quick tier on macOS and Windows.** Only `SMOKE` runs there; quick
+  runs locally on macOS before every change, and on Windows by hand.
+- **A real window, GPU, audio device or input device.** No cell opens a window or a
+  GL context, plays to a device or reads a gamepad; the live window, the GPU
+  scene-RT path, vsync and frame pacing are checked by hand.
+- **The Guia and tutorial pages in a browser**, and the Pages build (GitHub builds
+  Pages from `main:/docs` on its own).
+- **Timing.** A runner is slower and noisier than a dev machine: perf ratios
+  (`scripts/bench`) and wall budgets stay local; a test's absolute ms budget is a
+  catastrophe guard only (`tests/README.txt`, "Timing").
+
+A red cell is a finding like any other: the bug loop applies, and a platform-only
+failure gets a WP row (or its own class) in the [Bug catalogue](#bug-catalogue).
+
 
 # Bug loop
 
@@ -3098,9 +3173,9 @@ Found while spiking the level editor (Cmd+S / Cmd+O polled with `keyp.once`).
 | IN2 | A key written into a field raised: `st.nome = key` over `"x"` ("on_key receives 'X', not 'x'"), `t.text = key` on `Text("Aperte")` ("unknown key"); also a key inside a tuple / list / dict cell (user, 2026-10-13) | `st.nome = "x"`; `def on_key_down(key): st.nome = key` | `KeyName.__eq__` raises on a string `on_key` cannot deliver, to catch `key == "ESCAPE"`. The engine's change check (`old != new`) is such a compare, and Python asks the `str` subclass first even with the old value on the left. The strictness was tested only in the handler, never with the key as data | `test_key_name_fields`: every field kind × old values `"x"` / `"Aperte"` / `""` (st cell, bound st cell, `Text.text` direct and linked, ink first and later write, `Button.label`, `TextInput.text` / `.placeholder`), nested keys, a real key press; class guard `TestEveryStrFieldTakesAKey` (every public `str` field of Text, shapes, Sprite, widgets); canaries for each half. Fix: fields unwrap the key to `str` (`state._KEY_NAME`); the compare raises `KeyNameMismatch`, which change checks read as "changed" ([Scena Design](Scena%20Design.md), key specs). Lesson: a value with a loud `==` must not outlive the call it was made for, or every engine compare becomes its typo check |
 | IN3 | After a screenshot no key worked: `examples/affinity.py` ignored UP, DOWN, SPACE and 1 2 3 R T, also after a click on the window (user, 2026-10-21) | macOS: Cmd+Shift+4, take the shot, come back. Or press Cmd, then release it in another app's hotkey | The OS grabbed the keyboard while Cmd was down and the window never got Cmd's release. `keyp` held Cmd for good, and a held Cmd hides every bare play key (`keyp`, `once`, `on_key_down`). GLFW holds the key too, so `glfw.get_key` (the resync seed) agreed: no test sent an event whose `mods` disagreed with the held keys (the drivers sent `mods=0` under a held Ctrl) | `test_lost_modifier_release`: the repro (held and `once` keys, ups once, a click frees them); class guard `TestEveryModifierEveryEvent` (8 modifiers × play key press / repeat / release, unnamed key, button down / up; still-held modifiers stay; another family's event drops nothing); the macOS next press (a release with the flag set) and the X11 orphan release. Fix: `_drop_lost_modifiers(mods)` on every non-modifier key and button event, through the normal up (`_key_up`). The input drivers (`input_driver`, `program_support`) now send the held modifiers as `mods`, as the OS does. Lesson: a fake input source must carry the redundant state the OS sends (`mods`), or the engine's use of it is never tested |
 
-### WP — Windows / platform portability (2026-10-01, 2026-10-05, 2026-10-06, 2026-10-07, 2026-10-08, 2026-10-22)
+### WP — Windows / platform portability (2026-10-01, 2026-10-05, 2026-10-06, 2026-10-07, 2026-10-08, 2026-10-22, 2026-10-26)
 
-WP1–WP4: found by the quick tier on Windows 11 (12 jobs failed; the Mac passed the same tree). Tests only: the engine rendered correctly. WP5–WP9: the quick and gate tiers on the same machine, five days later. One shipped fix (the editor's Linux `.desktop` writer); the rest is tests and the runner. WP10–WP15: the next gate runs on that machine (2026-10-06); tests and the runner, plus one engine bug, A33. WP16–WP17: latent, found by a read-only audit of the suite for platform defaults after those fixes (nothing failed yet). WP18: the quick tier on the Mac (2 of 7 runs on 2026-10-07); the test only. WP19: the quick tier on Windows (2026-10-08, 1 of 182 jobs); tests only. WP20–WP26: the quick tier of the 0.9.0 release on a clean Windows 11 install (fresh clone, new venv, Python 3.12, skia-python 144.1; 5 of 311 jobs, on a slower machine: 623 s wall); two engine bugs (WP20, WP21, fixed in 0.9.1), the rest tests and test tooling. WP27: the next quick run there, with those fixes (1 of 311 jobs); the test only. WP28: a release check (`validate_guia.py --examples`) run with its output piped, before the 0.9.1 gate. WP29–WP30: the 0.9.1 gate on that machine (5 of 456 jobs: 16 GB, 12 threads). WP31: the next gate there, `-j 4` (1 of 456). WP32: the review of WP20's leftover (the message), on the Mac: the effects' cost measured, 2026-10-22. WP33: the review of WP31, on the Mac: run counts, 2026-10-22. WP34–WP35: the gate's other long jobs, on the Mac, 2026-10-23. WP36: the quick tier of the 0.9.1 merge into main, on the Mac, 2026-10-23.
+WP1–WP4: found by the quick tier on Windows 11 (12 jobs failed; the Mac passed the same tree). Tests only: the engine rendered correctly. WP5–WP9: the quick and gate tiers on the same machine, five days later. One shipped fix (the editor's Linux `.desktop` writer); the rest is tests and the runner. WP10–WP15: the next gate runs on that machine (2026-10-06); tests and the runner, plus one engine bug, A33. WP16–WP17: latent, found by a read-only audit of the suite for platform defaults after those fixes (nothing failed yet). WP18: the quick tier on the Mac (2 of 7 runs on 2026-10-07); the test only. WP19: the quick tier on Windows (2026-10-08, 1 of 182 jobs); tests only. WP20–WP26: the quick tier of the 0.9.0 release on a clean Windows 11 install (fresh clone, new venv, Python 3.12, skia-python 144.1; 5 of 311 jobs, on a slower machine: 623 s wall); two engine bugs (WP20, WP21, fixed in 0.9.1), the rest tests and test tooling. WP27: the next quick run there, with those fixes (1 of 311 jobs); the test only. WP28: a release check (`validate_guia.py --examples`) run with its output piped, before the 0.9.1 gate. WP29–WP30: the 0.9.1 gate on that machine (5 of 456 jobs: 16 GB, 12 threads). WP31: the next gate there, `-j 4` (1 of 456). WP32: the review of WP20's leftover (the message), on the Mac: the effects' cost measured, 2026-10-22. WP33: the review of WP31, on the Mac: run counts, 2026-10-22. WP34–WP35: the gate's other long jobs, on the Mac, 2026-10-23. WP36: the quick tier of the 0.9.1 merge into main, on the Mac, 2026-10-23. WP47–WP48: the first CI runs on GitHub's Ubuntu runners, 2026-10-26.
 
 | ID | Bug | Root cause | Guard |
 | --- | --- | --- | --- |
@@ -3150,6 +3225,8 @@ WP1–WP4: found by the quick tier on Windows 11 (12 jobs failed; the Mac passed
 | WP44 | Deep serial pass, every run: `test_rotated_path_draw` "nothing drawn" (2 of 7 scenes once, all 7 since), `test_sys_frame_contracts` `Vignette` / `GlowSpot.amount` "did not change the next frame"; now and then `test_post_targets_camera` pan (the dot's mapped pixel grey, an edge); all pass alone, in quick and in gate | `tools/video/record_game.record()` sets the framework's framebuffer metrics (`fb_width` / `fb_height` 320 x 180, `pixel_ratio` 2, `view_scale`, the letterbox pads), rebinds the canvas at that pixel ratio and pins its surface by an instance `_create_drawing_surface`, inside a `ProgramRun` world, and nothing gave them back: after `test_record_game` every `SystemWorld` drew at 2x into a 320 x 180 surface (shapes at (200, 150) land at (400, 300), off it). Found by the frame report below ("surface=(320, 180)", design 400 x 300 at ratio 2), after a bisect-free probe had blamed run-to-run order. The pan case runs before `test_record_game`: not this cause, still open | Class: `SystemWorld` gives back the framebuffer metrics (`system_support._FB_METRICS`), the canvas's pixel ratio and the `_create_drawing_surface` hook it found, as it does the design size (WP41); guards `test_prog_isolation.TestWorldGivesBackTheFramebuffer`, `test_record_game.TestSync.test_a_take_leaves_the_framework_as_it_found_it`. Evidence for the rest: `system_support.frame_report(world, *objs)` (camera, design and letterbox, surface, post stack, cover, cull, live and quarantined actors, layers, handles, each object's site, state and cull box, `PYTHONHASHSEED`) is in the failure message of the first two tests; guard `test_sys_frame_contracts.TestFrameReport`. Open: the pan case (add the report to `test_post_targets_camera` if it fails again) |
 | WP45 | WP43's gate (load average 55): `test_process.TestAsyncAwait.test_set_watchdog_off_skips_guard` `False is not true : []` (no SCENA ERROR); passed alone at `dev` and `ci` | The guarded half spun 80 ms against a 20 ms budget, but the watcher thread (`process._wd_watch`, polls every 5 ms) only trips once it runs: under that load it woke after the spin ended | The guarded spin lasts up to 5 s; the trip ends it at ~20 ms, so the cost is the same and the margin is no longer one the load can eat |
 | WP46 | Gate: `test_game_armada_deep.TestRandomPilots` `ccd.no_tunnel @frame 455 shot path (572.0, 310.0) -> (572.0, 410.0) crossed an enemy` (`vel_tiro` 6000, seed 2355); replays on the release tree, so not the change under test | The oracle tested the shot's path against the enemy's pose now. The enemy was diving (21 px a frame, (546.4, 316.2) -> (564.6, 304.7)) into the place the shot had just left: with both moving, their centres never came closer than 24.3 px (the enemy's radius 20.5, the deep threshold 10.25). The engine was right | `tests/games/armada.py` `_ccd` tests the shot's path relative to each enemy's own motion over the frame (its pose at the last check). The canary `test_swept_detection_off` (`_swept_contacts` planted empty) still fails on `ccd.no_tunnel` alone |
+| WP47 | First CI run on Ubuntu (Python 3.12, 3.13, 3.14 alike): `test_example_revoada.test_birds_turn_back_at_the_edges` `-24.18 not greater than -20`; the Mac reads +0.66 for the same seed | Not the engine. The flock is chaotic and Linux's libm rounds differently from the Mac's, so seed 2 flies another path. The turn back is a spring inside `MARGEM`, so a bird in a crowd overshoots the edge before it turns: seeds 1–28 on the Mac reach −46 px (seed 5). The −20 bound fitted one seed on one platform | The bound is 60 px (`OVERSHOOT`), from the seed sweep. A bird that never turns back is thousands of px out in 30 s. Class: a tolerance on a chaotic run is set from a sweep of seeds, not from one seed's value |
+| WP48 | First CI run on Ubuntu: `test_frame_probe` died with rc −6, `glfwSetWindowShouldClose: Assertion 'window != NULL' failed`; it passes on macOS and Windows | `scripts/bench/frame_probe.py` ended a timed run with `glfw.set_window_should_close(fw._window, True)`, and the test runs headless (`_window` is `None`). pyGLFW's Linux library is built with asserts on: a NULL window aborts the process, so no `except` catches it. The engine's own GLFW calls run only with a window (nothing in quick reached one headless) | The probe stops the loop itself when there is no window. Guard: the CI's Ubuntu cells run `test_frame_probe` (quick). Rule in [Continuous integration](#continuous-integration) |
 
 ### MR — media migration (2026-10-02)
 

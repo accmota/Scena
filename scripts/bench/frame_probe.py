@@ -535,11 +535,17 @@ class FrameProbe:
         if self.seconds is not None and self._t0 is not None and not self._stop_requested:
             if t - self._t0 >= self.seconds:
                 self._stop_requested = True
-                try:
-                    import glfw
-                    glfw.set_window_should_close(self.fw._window, True)
-                except Exception:
+                window = self.fw._window
+                if window is None:
+                    # Headless (tests). Linux's GLFW is built with asserts on:
+                    # a NULL window aborts the process instead of raising.
                     self.fw._running = False
+                else:
+                    try:
+                        import glfw
+                        glfw.set_window_should_close(window, True)
+                    except Exception:
+                        self.fw._running = False
         self._stack.clear()
         self._wait_t0 = None
         self._cur = {"t": t, "gc_ms": 0.0, "gc_gen": -1, "probe": probe_cost}
