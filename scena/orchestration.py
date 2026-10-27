@@ -3865,6 +3865,11 @@ class ScenaFramework:
             get_mixer().stop_device()
         except Exception:
             pass  # environment: no audio output device
+        try:
+            from .audio import close_open_streams
+            close_open_streams()    # while miniaudio lives (Sound Design, "Streams at exit")
+        except Exception:
+            pass
 
         def abandon_gpu_context():
             from .style import _drop_pins

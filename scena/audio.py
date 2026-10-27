@@ -4,6 +4,7 @@ Decode + intern live here. Mixing is ``audio_mixer`` (pure ``render()``).
 """
 from __future__ import annotations
 
+import atexit
 import hashlib
 import math
 import numbers
@@ -29,6 +30,7 @@ from .audio_mixer import (
 from . import audio_mixer as _audio_mixer
 from . import audio_effects as _audio_effects  # registers the mixer effect processor
 from . import stall as _stall
+from ._weakset import OrderedWeakSet
 from .closed import ClosedSurface
 from .process import (
     SCOPE_ENTITY,
@@ -331,12 +333,31 @@ def amp_db(x: float, floor: float = -60.0) -> float:
     return max(0.0, min(1.0, (db - fl) / (-fl)))
 
 
+# Every stream with a decoder open (a weak set in opening order: a finished, dropped stream
+# leaves it by itself). ``close_open_streams`` closes them before the
+# interpreter tears its modules down: a miniaudio stream still open then runs
+# its cleanup after miniaudio's globals are gone and prints "Exception ignored
+# ... 'NoneType' object has no attribute 'ma_decoder_uninit'" at exit
+# (music playing when the window closes; Sound Design, "Streams at exit").
+_OPEN_STREAMS = OrderedWeakSet()      # closed in the order they opened
+
+
+def close_open_streams() -> None:
+    """Close every open stream's decoder. Called when ``run()`` ends (after the
+    device stops) and at exit; a closed stream plays silence."""
+    for stream in list(_OPEN_STREAMS):
+        stream.close()
+
+
+atexit.register(close_open_streams)
+
+
 class StreamFileSource(FrameSource):
     """Pull PCM from ``miniaudio.stream_file``. Restarts the decoder on loop."""
 
     __slots__ = (
         "path", "loops", "lap", "duration", "_gen", "_buf", "_pos", "_src_pos",
-        "_eof", "_opened",
+        "_eof", "_opened", "_closed",
     )
 
     def __init__(self, path: str, loops: int = 1, duration: float = 0.0):
@@ -349,10 +370,13 @@ class StreamFileSource(FrameSource):
         self._src_pos = 0.0
         self._eof = False
         self._opened = False
+        self._closed = False
         self._gen = None
         self._open()
 
     def _open(self) -> None:
+        if self._closed:
+            return
         import miniaudio
         old = self._gen
         self._gen = miniaudio.stream_file(
@@ -363,11 +387,27 @@ class StreamFileSource(FrameSource):
         )
         self._opened = True
         self._eof = False
+        _OPEN_STREAMS.add(self)
         if old is not None:
             try:
                 old.close()
             except Exception:
                 pass
+
+    def close(self) -> None:
+        """Close the decoder (idempotent). The stream then plays silence and
+        never reopens, even on a loop."""
+        self._closed = True
+        self._eof = True
+        self._buf = np.zeros((0, 2), dtype=np.float32)     # nothing decoded plays on
+        self._pos = 0.0
+        gen, self._gen = self._gen, None
+        _OPEN_STREAMS.discard(self)
+        if gen is not None:
+            try:
+                gen.close()
+            except Exception:
+                pass        # a generator running on the device thread: it ends with it
 
     def remaining_seconds(self, pitch: float, sample_rate: int = SAMPLE_RATE) -> float:
         if self.loops < 0:
@@ -382,6 +422,9 @@ class StreamFileSource(FrameSource):
 
     def _refill(self, need: int) -> None:
         while (self._buf.shape[0] - int(self._pos)) < need + 2 and not self._eof:
+            if self._gen is None:
+                self._eof = True
+                break
             try:
                 chunk = self._gen.send(max(1024, need))
             except StopIteration:
@@ -416,7 +459,7 @@ class StreamFileSource(FrameSource):
             self._refill(int((n_frames - written) * p) + 4)
             available = self._buf.shape[0] - self._pos
             if available <= 1:
-                more = self.loops < 0 or (self.lap + 1) < self.loops
+                more = (self.loops < 0 or (self.lap + 1) < self.loops) and not self._closed
                 if more:
                     self.lap += 1
                     self._open()

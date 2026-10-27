@@ -1373,5 +1373,93 @@ class TestMiniaudioMarker(unittest.TestCase):
             self.assertFalse(req.marker.evaluate(e), e)
 
 
+class TestStreamsCloseBeforeExit(unittest.TestCase):
+    """A stream's decoder is closed before the interpreter tears miniaudio down.
+
+    Bug (2026-10-27, ``examples/guardian.py``): closing the window during
+    the music printed "Exception ignored in _samples_stream_generator ...
+    'NoneType' object has no attribute 'ma_decoder_uninit'": the live voice's
+    stream was finalized after miniaudio's globals were cleared. Bug class:
+    **a decoder still open at interpreter teardown** (Sound Design, "Streams
+    at exit"). Teardown order is luck, so the tests pin the mechanism: every
+    opened stream is tracked, the closer leaves no suspended decoder, and both
+    exits (``run()``'s cleanup, ``atexit``) call it.
+    """
+
+    MUSIC = "music/space.ogg"
+
+    def setUp(self):
+        try:
+            import miniaudio  # noqa: F401
+        except ImportError:
+            self.skipTest("no miniaudio: nothing streams")
+
+    def _stream(self, loops=-1):
+        from scena.audio import StreamFileSource
+        src = StreamFileSource(media(self.MUSIC), loops=loops, duration=82)
+        out, _ = src.pull(1024, 1.0)          # the decoder starts: its finally is armed
+        self.assertGreater(float(np.abs(out).max()), 0.0, "vacuous: the stream is silent")
+        return src
+
+    def test_an_open_stream_is_tracked_and_the_closer_ends_its_decoder(self):
+        import scena.audio as audio_mod
+        audio_mod = sys.modules["scena.audio"]
+        src = self._stream()
+        gen = src._gen
+        self.assertIsNotNone(gen.gi_frame, "vacuous: the decoder is not suspended")
+        self.assertIn(src, audio_mod._OPEN_STREAMS)
+        audio_mod.close_open_streams()
+        self.assertIsNone(gen.gi_frame, "the decoder is still suspended")
+        self.assertNotIn(src, audio_mod._OPEN_STREAMS)
+
+    def test_a_closed_stream_plays_silence_and_never_reopens(self):
+        src = self._stream(loops=-1)
+        src.close()
+        src.close()                             # idempotent
+        for _ in range(3):
+            out, _ = src.pull(4096, 1.0)
+            self.assertEqual(float(np.abs(out).max()), 0.0)
+        self.assertIsNone(src._gen, "a forever loop reopened the decoder")
+
+    def test_both_exits_close_the_streams(self):
+        import inspect
+        import scena.orchestration as orch
+        audio_mod = sys.modules["scena.audio"]
+        cleanup = inspect.getsource(orch.ScenaFramework._cleanup)
+        self.assertLess(cleanup.index("stop_device()"), cleanup.index("close_open_streams()"),
+                        "run()'s cleanup must close the streams after the device stops")
+        import atexit
+        calls = []
+        real = audio_mod.close_open_streams
+        # the registered handler is the module function: unregister finds it
+        atexit.unregister(real)
+        try:
+            atexit.register(lambda: calls.append(1))
+            atexit._run_exitfuncs()
+        finally:
+            atexit.register(real)
+        self.assertEqual(calls, [1], "vacuous: atexit did not run")
+        # registered again, and still the module's function
+        self.assertIs(audio_mod.close_open_streams, real)
+
+    def test_the_game_leaves_no_decoder_open_after_the_closer(self):
+        """The real case: Ring Guardian's music, after its story screen."""
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from program_support import ProgramRun
+        audio_mod = sys.modules["scena.audio"]
+        with ProgramRun("examples/guardian.py") as run:
+            run.step(30)
+            run.key_down("SPACE")
+            run.step(1)
+            run.key_up("SPACE")
+            run.step(120)
+            open_now = [s for s in audio_mod._OPEN_STREAMS
+                        if s._gen is not None and s._gen.gi_frame is not None]
+            self.assertTrue(open_now, "vacuous: no music is streaming")
+            audio_mod.close_open_streams()
+            left = [s.path for s in open_now if s._gen is not None]
+            self.assertEqual(left, [])
+
+
 if __name__ == "__main__":
     unittest.main()

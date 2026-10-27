@@ -39,6 +39,11 @@ left out.
   300 drawn objects and for at least half the growth to be off view (the shot
   that left the screen and was never destroyed), and the message says how
   many are off view.
+- Closing a game's window while music plays no longer prints "Exception
+  ignored in: <generator object _samples_stream_generator> ...
+  'NoneType' object has no attribute 'ma_decoder_uninit'". A streamed sound
+  (music, any file of 8 s or more) is now closed when `run()` ends, and at
+  exit, before Python unloads miniaudio.
 
 ### Changed
 

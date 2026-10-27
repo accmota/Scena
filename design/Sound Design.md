@@ -267,6 +267,25 @@ decode when transpose/effects need PCM.
 `Handle.remaining` on a stream uses the file's duration and how far the
 decoder has read (same lap math as a buffer). Forever loops stay `inf`.
 
+### Streams at exit
+
+A stream holds a miniaudio decoder in a suspended generator whose `finally`
+calls `lib.ma_decoder_uninit`. If the generator is still open when the
+interpreter tears its modules down, that `finally` can run after miniaudio's
+globals are `None` and Python prints "Exception ignored in
+`_samples_stream_generator` … 'NoneType' object has no attribute
+'ma_decoder_uninit'". It happened on every close of `examples/guardian.py`
+during its music (the live voice sits in the module-global mixer; whether it
+is freed before or after miniaudio depends on teardown order, so a smaller
+program got lucky).
+
+Rule: every `StreamFileSource` with an open decoder is in an `OrderedWeakSet`
+(`audio._OPEN_STREAMS`); `close_open_streams()` closes them. `run()`'s cleanup
+calls it right after `stop_device()` (no render thread pulls any more), and
+it is also an `atexit` handler (scripts that never reach `run()`'s cleanup).
+A closed stream plays silence and never reopens, even on a forever loop. A
+new decoder-holding source must join the set the same way.
+
 `reset_audio()` (tests) drops the decode cache, bake cache, asset warnings,
 the mixer, **and** the `audio` bus (`volume` 1, unmuted, `level_tau` 0.08).
 
