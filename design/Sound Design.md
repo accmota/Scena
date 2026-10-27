@@ -248,6 +248,23 @@ Handles (a ramp may span a small device block). A held voice, a muted voice,
 `CMD_FINISH` (already at 0), and a 0-frame render pop at once. A second cut
 during the ramp is a no-op.
 
+**The audio thread and the GIL.** The callback mixes in Python, so it runs
+only while it holds the GIL, and numpy gives the GIL up inside most calls on a
+block. Each take-back waits for the main thread up to the switch interval
+(default 5 ms; on Windows a 15.6 ms timer tick, since CPython waits there in
+whole milliseconds). A main thread that never sleeps (`canvas.framerate =
+"max"`, or frames that fill the vsync budget) stretched a 40 ms block to 37 ms
+of wall time at the median and 270 ms at p99: half the blocks missed the device,
+which played silence (`examples/pendulums.py` stuttered; Testing Design WP51).
+`start_device` lowers the interval to `AUDIO_SWITCH_INTERVAL` (0.5 ms; below
+1 ms the Windows wait rounds to 0, so the audio thread asks for the GIL back at
+once) and `stop_device` / `reset` restore it, unless something changed it
+meanwhile. An interval already lower is left alone. Measured on the Windows
+laptop: every block on time, fps unchanged. Fence: nothing added to the
+callback may wait on what the main thread holds for a frame (a lock, a queue
+it fills per frame). Guard: `test_audio.TestAudioThreadGil` (a 13-voice mix
+beside a thread that never sleeps runs faster than real time).
+
 A command `at_frame` past the end of the current block is **not dropped**.
 The mixer keeps it and applies it on a later block (`at_frame` minus the
 frames already rendered). A 0-frame `render` does not move level / spectrum

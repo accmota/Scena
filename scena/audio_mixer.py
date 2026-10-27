@@ -7,6 +7,7 @@ Tests call ``render()`` / ``Mixer.render_block`` with no device.
 from __future__ import annotations
 
 import math
+import sys
 import threading
 from collections import deque
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -24,6 +25,12 @@ MAX_BAKE_FRAMES = SAMPLE_RATE * 60 * 30
 # A cut (CMD_CANCEL) ramps an audible voice to silence over this many frames
 # (~5 ms) instead of dropping the waveform mid-cycle, which clicks.
 DECLICK_FRAMES = 220
+# While the device plays, the GIL switch interval is at most this (default
+# 5 ms). The mix gives the GIL up inside its numpy calls; with the main thread
+# busy (framerate "max", a heavy frame) each take-back waited a full interval,
+# a 15.6 ms timer tick on Windows, and blocks missed the device. Below 1 ms the
+# Windows wait rounds to 0: the audio thread asks for the GIL back at once.
+AUDIO_SWITCH_INTERVAL = 0.0005
 
 # miniaudio is installed only where it has a ready-made wheel (pyproject's
 # marker: none for Python 3.15 or ARM Windows / Linux yet; elsewhere pip
@@ -844,6 +851,9 @@ class Mixer:
         self.offline = True
         self._device = None
         self._generator = None
+        # (interval before start_device, interval it set): stop restores the
+        # first only while the second is still in force.
+        self._switch_interval: Optional[Tuple[float, float]] = None
         self._id_lock = threading.Lock()
         self._snaps = [_Snapshot(), _Snapshot()]
         self._snap_i = 0
@@ -1145,6 +1155,10 @@ class Mixer:
         self._device = device
         self._generator = g
         self.offline = False
+        before = sys.getswitchinterval()
+        if before > AUDIO_SWITCH_INTERVAL:      # an author's lower one stays
+            sys.setswitchinterval(AUDIO_SWITCH_INTERVAL)
+            self._switch_interval = (before, sys.getswitchinterval())
 
     def stop_device(self) -> None:
         dev = self._device
@@ -1156,6 +1170,10 @@ class Mixer:
                 dev.close()
             except Exception:
                 pass
+        saved = self._switch_interval
+        self._switch_interval = None
+        if saved is not None and sys.getswitchinterval() == saved[1]:
+            sys.setswitchinterval(saved[0])     # unless someone changed it since
 
     def reset(self) -> None:
         self.stop_device()
