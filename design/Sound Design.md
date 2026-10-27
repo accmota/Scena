@@ -16,6 +16,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | Mixer / threads / limiter | [Mixer](#mixer) |
 | Master bus | [Master](#master) |
 | Missing files / banner | [Assets](#assets) |
+| A voice that fails mid-play / what a broken sound does to the game | [Failure contract](#failure-contract) |
 | No miniaudio (Python 3.15, ARM) / silent install | [No miniaudio](#no-miniaudio) |
 | Analysis / mic / record / effects | [Analysis](#analysis), [Microphone](#microphone), [Effects](#effects) |
 | `@=` / `@when` on a level | [Levels as formula sources](#levels-as-formula-sources) |
@@ -98,7 +99,13 @@ hint on a non-sound handle — same precedent as `.velocity` on `after`.
   public `fade_out` is the natural end). Before 2026-10-21 a crossfade used
   `fade_out`, so a replaced `forever` loop ran its `on_done` (persona probes
   R5-1). An explicit `fade_in=` still wins for the
-  incoming ramp.
+  incoming ramp. While the crossfade takes the old voice away
+  (`Handle._sound_leaving`), a `fade_to` / `fade_out` on its Handle is a
+  no-op that returns the crossfade's tween: the ramp stays and ends in the
+  cut. `fade_to` used to cancel that ramp, and a replaced `forever` loop
+  played on beside the new one, out of its slot; `fade_out` turned the cut
+  into an end and ran `on_done` (AU15, found by the audio state machine,
+  2026-10-27).
 - Fades are author-requested only. A cut (`.cancel()`, `name=` replace, an
   owner ending under a sound that would not end by itself) is not a fade: the
   mixer only de-clicks it (~5 ms ramp, [Mixer](#mixer)). For a longer ramp the
@@ -290,6 +297,51 @@ decode when transpose/effects need PCM.
 `Handle.remaining` on a stream uses the file's duration and how far the
 decoder has read (same lap math as a buffer). Forever loops stay `inf`.
 
+One read of a miniaudio stream returns at most 16384 frames (`stream_file`
+allocates `max(frames_to_read, 16384)` and raises on a bigger ask), so
+`StreamFileSource._refill` asks for at most `_STREAM_READ_MAX` and loops. A
+block at `pitch` 10 asks for ~18 000 frames, and an offline 2 s hitch for
+88 200: the stream used to end there, silently (AU4).
+
+### Failure contract
+
+**A sound that fails ends alone; the game never sees an exception from audio,
+and every Handle ends.** What a running game sees for each failure:
+
+| Failure | Where it shows | The author sees |
+| --- | --- | --- |
+| missing, unreadable, empty or undecodable file; a folder; a broken link | `Sound(...)` / `play_sound(path)` ([Assets](#assets)) | one SCENA WARNING per file; silence of nominal length (1 s, or the file's); the Handle ticks, `on_done` runs |
+| a file named for another format (an Ogg saved as `.wav`, no extension) | `_load_asset` | it plays (the content picks the decoder) |
+| a format miniaudio cannot read (`.m4a`, `.aif`) | `_load_asset` | the warning names the formats Scena plays |
+| a streamed `Sound`'s file vanished before `play_sound(sound)` | `Sound._frame_source` | the warning; silence of the file's length |
+| a voice raises while mixing (a looping stream's file deleted before the next lap, a decode error mid-file, an effect that raises) | `render` on the device thread | that voice ends where it failed; one SCENA WARNING per kind ("A sound stopped while playing: 'x.ogg' (…). The other sounds keep playing."); its Handle ends (`on_done` runs, as a missing file's does); every other voice plays on |
+| an effect knob set to a non-number (`fx.cutoff = None`) | `AudioEffect.__setattr__` | `TypeError` at that line ([Effects](#effects)) |
+| no output device | `run()` → `start_device` | nothing: the mixer stays offline and the clock pumps it |
+| the game ends while sound plays | `run()`'s cleanup, `atexit` ([Streams at exit](#streams-at-exit)) | a quick, quiet exit |
+
+Mechanism. `render(..., faults=)` wraps each voice's pull and effect chain:
+a raise marks the voice finished at the segment start, drops it, and appends
+`(voice id, label, exception)` (`_source_label`: the file's name, else the
+source's kind). A cut voice's de-click ramp pulls its source too; a raise
+there drops the voice without a warning (it was being cut). `render_block`
+also guards the whole mix: anything else that raises ends every voice,
+including those started in that block (their `CMD_START` was drained), and
+returns silence. The callback must never raise: miniaudio then drops the
+generator, the device plays silence for the rest of the run, `offline`
+stays False so nothing pumps the mixer, and no Handle ends again (`on_done`
+and `await` hang). That was AU1, reached by a deleted looping file (AU2) or
+a knob set to `None` (AU11), and offline (headless, no device) the same
+exception was swallowed by the process tick every frame (AU6).
+
+Faults are reported on the main thread: `Mixer.take_faults()` (under
+`_finished_lock`), drained by `audio.report_faults` from `tick_audio` and
+from the idle tick (`Scheduler._tick_idle`, offline or live), and warned
+once per (label, exception kind, message) with `_warn_asset`. The guard costs
+nothing measurable (interleaved A/B of `render`: 16 voices +0.7 %, 64 voices
++0.4 %, both within noise). Guards: `tests/test_audio_stress.py`
+(`TestVoiceFaults`, `TestLiveDevice` on the NULL backend), the stress rules
+of `test_sys_hyp_audio`.
+
 ### Streams at exit
 
 A stream holds a miniaudio decoder in a suspended generator whose `finally`
@@ -304,10 +356,17 @@ program got lucky).
 
 Rule: every `StreamFileSource` with an open decoder is in an `OrderedWeakSet`
 (`audio._OPEN_STREAMS`); `close_open_streams()` closes them. `run()`'s cleanup
-calls it right after `stop_device()` (no render thread pulls any more), and
-it is also an `atexit` handler (scripts that never reach `run()`'s cleanup).
-A closed stream plays silence and never reopens, even on a forever loop. A
-new decoder-holding source must join the set the same way.
+calls it right after `stop_device()` (no render thread pulls any more). The
+`atexit` handler (`_shutdown_at_exit`, for an exit that skips `run()`'s
+cleanup) does the same two steps in the same order. It used to close the
+streams only, with the device thread still inside one: the close failed
+("generator already executing"), and the exit **hung** with a stream
+playing — every row of `tests/test_audio_exit.py` that ends without the
+cleanup (a script that just ends, an uncaught error, `sys.exit`, Ctrl+C) sat
+until killed (AU8, 2026-10-27). In a windowed game the device starts in
+`run()`, whose `finally` cleans up, so a second Ctrl+C during the cleanup
+was the way there. A closed stream plays silence and never reopens, even on
+a forever loop. A new decoder-holding source must join the set the same way.
 
 `reset_audio()` (tests) drops the decode cache, bake cache, asset warnings,
 the mixer, **and** the `audio` bus (`volume` 1, unmuted, `level_tau` 0.08).
@@ -335,6 +394,21 @@ WAV / FLAC / Ogg / MP3 (what miniaudio decodes). Missing or corrupt: warn
 (so `on_done` / `loops` still behave). The warning is a **SCENA WARNING**
 banner (amber), same Ctrl+Shift+E dismiss. Terminal
 `warnings.warn` still fires.
+
+`miniaudio.get_file_info` picks its decoder by the file's extension, and
+`decode_file` by its content. When the first fails, `_load_asset` tries the
+second and plays the file buffered if it decodes (an Ogg saved as `.wav`, a
+file with no extension: AU10); otherwise the warning ends "Scena plays WAV,
+FLAC, Ogg Vorbis and MP3: convert the file to one of them" (`_FORMATS`). A
+file whose header is valid but whose data is cut short plays what is there,
+with no warning (it is a short sound, not a broken one). A failed file is
+cached as silence until `reset_audio()`: fixing it on disk needs a restart.
+
+A streamed `Sound` opens its decoder at `play_sound`; if the file vanished
+since the `Sound` was made, `_frame_source` warns and plays silence of the
+file's length instead of raising `FileNotFoundError` into the author's line
+(AU3). The matrix of files × ways to play them is
+`test_audio_stress.TestBadAssets` (`tests/audio_stress_support.bad_assets`).
 
 ### No miniaudio
 
@@ -527,6 +601,15 @@ Curated catalog on a sound `Handle` and on a `Microphone`: `LowPass`
 `.clear`. Knobs are instance attributes read every mix block.
 **`h.effects.enabled = False` syncs immediately** — the mixer drops the
 chain, same as `live()` returning `()`.
+
+A live write of a knob (a number parameter of the effect's constructor:
+`_live_knobs`) that is not a real number — `None`, a string, a bool, a list,
+a function — raises `TypeError` at the author's line
+(`AudioEffect.__setattr__`). It used to be stored and raise on the device
+thread, which stopped every sound (AU11). Any real number passes, numpy
+scalars included (`fx.cutoff = 200 + 4000 * level`); range and finiteness
+stay the block's job, as below, so a live write never refuses a value the
+mix can play. (The constructor is stricter: `guard_init_numbers`.)
 
 Non-finite knobs do not crash the callback. Cutoff, size, mix, and drive
 fall back to their defaults, then clamp. `Echo` delay that is non-finite or

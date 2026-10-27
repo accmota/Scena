@@ -49,6 +49,7 @@ _PCM_CACHE: Dict[Tuple[str, bool], Tuple[Optional[np.ndarray], float, bool]] = {
 _BAKE_CACHE: Dict[Tuple[Any, ...], "Sound"] = {}
 _WARNED: set = set()
 _MISSING_DURATION_S = 1.0
+_FORMATS = "WAV, FLAC, Ogg Vorbis and MP3"     # what miniaudio decodes
 
 
 from .purity_check import _READING as _SOLVER_READING, refuse_if_solver_reading
@@ -111,9 +112,26 @@ def _load_asset(path: str, *, stream: Optional[bool], label: str) -> Tuple[Optio
         info = miniaudio.get_file_info(path)
         duration = float(getattr(info, "duration", 0.0) or 0.0) or _MISSING_DURATION_S
     except Exception as e:
+        # ``get_file_info`` picks the decoder by the extension; ``decode_file``
+        # reads the content. An Ogg saved as ``.wav`` (or a file with no
+        # extension) still plays, buffered (AU10).
+        try:
+            samples = pcm_from_decoded(miniaudio.decode_file(
+                path,
+                output_format=miniaudio.SampleFormat.FLOAT32,
+                nchannels=2,
+                sample_rate=SAMPLE_RATE,
+            ))
+        except Exception:
+            samples = None
+        if samples is not None and samples.shape[0] > 0:
+            packed = (samples, float(samples.shape[0]) / float(SAMPLE_RATE), False)
+            _PCM_CACHE[(abs_path, False)] = packed
+            return packed
         _warn_asset(
             label,
-            f"Could not read sound {label!r} ({e}). Playing silence. The handle still ticks.",
+            f"Could not read sound {label!r} ({e}). Playing silence. The handle still ticks. "
+            f"Scena plays {_FORMATS}: convert the file to one of them.",
         )
         samples = make_silence(duration)
         packed = (samples, duration, False)
@@ -349,7 +367,24 @@ def close_open_streams() -> None:
         stream.close()
 
 
-atexit.register(close_open_streams)
+def _shutdown_at_exit() -> None:
+    """``atexit``: stop the device, then close the streams (``run()``'s cleanup
+    order). Closing a stream the device thread is still pulling hung the exit
+    when ``run()``'s cleanup never ran (AU8)."""
+    try:
+        get_mixer().stop_device()
+    except Exception:
+        pass
+    close_open_streams()
+
+
+atexit.register(_shutdown_at_exit)
+
+
+# The most frames one read of a miniaudio stream returns: ``stream_file``
+# allocates ``max(frames_to_read, 16384)`` and raises on a bigger ask. A block
+# at ``pitch`` 10 asks for ~18 000, and the stream used to end there (AU4).
+_STREAM_READ_MAX = 16384
 
 
 class StreamFileSource(FrameSource):
@@ -426,13 +461,12 @@ class StreamFileSource(FrameSource):
                 self._eof = True
                 break
             try:
-                chunk = self._gen.send(max(1024, need))
+                chunk = self._gen.send(min(max(1024, need), _STREAM_READ_MAX))
             except StopIteration:
                 self._eof = True
                 break
-            except Exception:
-                self._eof = True
-                break
+            # Any other error (the file went bad mid-play) propagates: the
+            # mixer ends this voice and the main tick reports it (AU1).
             if isinstance(chunk, np.ndarray):
                 arr = np.asarray(chunk, dtype=np.float32)
                 if arr.ndim == 1:
@@ -682,7 +716,18 @@ class Sound(ClosedSurface):
     def _frame_source(self, loops: int) -> FrameSource:
         self._require_ready("play_sound")
         if self._is_stream and self._resolved and self._samples is None:
-            return StreamFileSource(self._resolved, loops=loops, duration=self.duration)
+            try:
+                return StreamFileSource(self._resolved, loops=loops, duration=self.duration)
+            except Exception as e:
+                # The file was there when the Sound was made and is gone or
+                # broken now: the missing-file silence, not an error in the
+                # author's play_sound line (AU3).
+                _warn_asset(
+                    self.path,
+                    f"Could not open sound {self.path!r} ({e}). Playing silence. "
+                    "The handle still ticks.",
+                )
+                return BufferSource(make_silence(self.duration), loops=loops)
         samples = self._samples if self._samples is not None else make_silence(self.duration)
         return BufferSource(samples, loops=loops)
 
@@ -989,8 +1034,30 @@ def play_sound_on(
 
 
 def tick_audio(world_dt: float) -> None:
-    """Pump the offline mixer (tests / headless) then no-op if a device is running."""
-    get_mixer().pump_dt(world_dt)
+    """Pump the offline mixer (tests / headless; a no-op while a device runs),
+    then report the voices that raised while rendering."""
+    mixer = get_mixer()
+    mixer.pump_dt(world_dt)
+    report_faults(mixer)
+
+
+def report_faults(mixer) -> None:
+    """Warn about the voices that raised while rendering (main thread: the
+    process tick, busy or idle)."""
+    if mixer._faults:
+        for _vid, label, e in mixer.take_faults():
+            _report_fault(label, e)
+
+
+def _report_fault(label: str, e: BaseException) -> None:
+    """One SCENA WARNING per kind of failure: the voice already ended (a cut
+    on the mixer, its Handle finishes) and every other sound plays on."""
+    detail = str(e).strip() or type(e).__name__
+    _warn_asset(
+        f"fault:{label}:{type(e).__name__}:{detail}",
+        f"A sound stopped while playing: {label!r} ({type(e).__name__}: {detail}). "
+        "The other sounds keep playing.",
+    )
 
 
 def install_audio() -> None:

@@ -6,12 +6,13 @@ Construct-to-place on ``h.effects`` / ``mic.effects`` — ``.add`` / ``.enabled`
 from __future__ import annotations
 
 import math
+import numbers
 from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 from .audio_mixer import SAMPLE_RATE, set_effect_processor
-from .closed import ClosedSurface
+from .closed import ClosedSurface, closed_setattr
 from .validate import expect_bool as _expect_flag
 
 _TAIL_FLOOR = 0.02
@@ -71,6 +72,20 @@ def max_tail_seconds(effects: Sequence[Any]) -> float:
     return min(_TAIL_CAP_S, max((_effect_tail_seconds(fx) for fx in effects), default=0.0))
 
 
+_KNOBS: dict = {}
+
+
+def _live_knobs(cls) -> frozenset:
+    """The numeric knobs of an effect class: its constructor's number parameters."""
+    hit = _KNOBS.get(cls)
+    if hit is None:
+        import inspect
+        from .validate import _sig_info
+        sig = inspect.signature(inspect.unwrap(cls.__init__))
+        hit = _KNOBS[cls] = frozenset(_sig_info(sig)[4])
+    return hit
+
+
 class AudioEffect(ClosedSurface):
     """One named processor. Does nothing until ``.add``'d onto a stack."""
 
@@ -85,6 +100,24 @@ class AudioEffect(ClosedSurface):
         self.enabled = True
         self._stack: Optional["AudioEffectStack"] = None
         self._state = None
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # A knob is read on the audio thread every block. A live write that is
+        # not a number raises here, at the author's line: ``fx.cutoff = None``
+        # was taken and raised on the device thread, which stopped every sound
+        # (AU11). A number out of range or non-finite stays legal: the block
+        # falls back and clamps (Sound Design, "Effects"). Numpy scalars pass.
+        if name[0] != "_" and name in _live_knobs(type(self)) and (
+            isinstance(value, bool) or not isinstance(value, numbers.Real)
+        ):
+            from .validate import _short_repr
+            raise TypeError(
+                f"{type(self).__name__}.{name} expected a number, got "
+                f"{type(value).__name__} {_short_repr(value)}"
+            )
+        closed_setattr(self, name, value)
+
+    __setattr__._scena_private_passthrough = True
 
     def _reset_state(self) -> None:
         self._state = None

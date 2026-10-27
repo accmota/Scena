@@ -7,6 +7,7 @@ Tests call ``render()`` / ``Mixer.render_block`` with no device.
 from __future__ import annotations
 
 import math
+import os
 import sys
 import threading
 from collections import deque
@@ -595,6 +596,12 @@ def _render_declick(voice: Voice, mix: np.ndarray, a: int, seg: int, sample_rate
     voice.declick_left = left - k
 
 
+def _source_label(source: Any) -> str:
+    """What a fault message names: the file a source reads, else its kind."""
+    path = getattr(source, "path", None)
+    return os.path.basename(path) if isinstance(path, str) and path else type(source).__name__
+
+
 def render(
     voices: Dict[int, Voice],
     n_frames: int,
@@ -607,6 +614,7 @@ def render(
     analysis: Optional[AnalysisState] = None,
     spectrum_bins: int = DEFAULT_SPECTRUM_BINS,
     compute_spectrum: bool = True,
+    faults: Optional[List[Tuple[int, str, BaseException]]] = None,
 ) -> RenderResult:
     """Mix ``n_frames``. Mutates voice positions. Commands apply in order.
 
@@ -616,6 +624,12 @@ def render(
     ``compute_spectrum=False`` skips ``spectrum_bands`` (FFT) while still updating
     loudness EMAs. Tests and the pure ``render()`` API default to ``True`` so
     spectrum assertions keep working without an interest latch.
+
+    A voice whose source or effects raise ends there (finished at the start of
+    the segment) and the rest of the mix goes on: ``(voice id, source label,
+    exception)`` is appended to ``faults`` for the main thread to report. On
+    the device thread an exception that escaped would stop the callback, and
+    every sound after it with it (Sound Design, "Failure contract").
     """
     n_frames = int(n_frames)
     if n_frames < 0:
@@ -682,7 +696,10 @@ def render(
         for vid, voice in live:
             if voice.finished:
                 if voice.declick_left > 0:
-                    _render_declick(voice, mix, a, seg, sample_rate)
+                    try:
+                        _render_declick(voice, mix, a, seg, sample_rate)
+                    except Exception:
+                        voice.declick_left = 0      # already cut and reported: drop it
                     if voice.declick_left <= 0:
                         voices.pop(vid, None)
                 continue
@@ -695,30 +712,38 @@ def render(
                     voice_dry[vid] = slot
                 slot[a:b] = frames
                 continue
-            frames, done_at = voice.source.pull(seg, voice.pitch)
-            if voice.draining:
-                # Source already exhausted; keep feeding silence through the chain.
-                frames = np.zeros((seg, 2), dtype=np.float32)
-                frames = _process_effects(frames, voice.effects, sample_rate)
-                voice.tail_left -= seg / float(sample_rate) if sample_rate else 0.0
-                finish_now = voice.tail_left <= 0.0
-                finish_at = seg if finish_now else None
-            else:
-                frames = _process_effects(frames, voice.effects, sample_rate)
-                finish_now = False
-                finish_at = None
-                if done_at is not None:
-                    tail = _effects_tail_seconds(voice.effects)
-                    already = (seg - int(done_at)) / float(sample_rate) if sample_rate else 0.0
-                    if tail > 0.0:
-                        voice.draining = True
-                        voice.tail_left = tail - already
-                        if voice.tail_left <= 0.0:
+            try:
+                frames, done_at = voice.source.pull(seg, voice.pitch)
+                if voice.draining:
+                    # Source already exhausted; keep feeding silence through the chain.
+                    frames = np.zeros((seg, 2), dtype=np.float32)
+                    frames = _process_effects(frames, voice.effects, sample_rate)
+                    voice.tail_left -= seg / float(sample_rate) if sample_rate else 0.0
+                    finish_now = voice.tail_left <= 0.0
+                    finish_at = seg if finish_now else None
+                else:
+                    frames = _process_effects(frames, voice.effects, sample_rate)
+                    finish_now = False
+                    finish_at = None
+                    if done_at is not None:
+                        tail = _effects_tail_seconds(voice.effects)
+                        already = (seg - int(done_at)) / float(sample_rate) if sample_rate else 0.0
+                        if tail > 0.0:
+                            voice.draining = True
+                            voice.tail_left = tail - already
+                            if voice.tail_left <= 0.0:
+                                finish_now = True
+                                finish_at = seg
+                        else:
                             finish_now = True
-                            finish_at = seg
-                    else:
-                        finish_now = True
-                        finish_at = int(done_at)
+                            finish_at = int(done_at)
+            except Exception as e:
+                voice.finished = True
+                finished.append((vid, a))
+                voices.pop(vid, None)
+                if faults is not None:
+                    faults.append((vid, _source_label(voice.source), e))
+                continue
             gL, gR = linear_pan_gains(voice.volume, voice.pan)
             wet = frames.astype(np.float64, copy=False)
             mix[a:b, 0] += wet[:, 0] * gL
@@ -858,6 +883,7 @@ class Mixer:
         self._snaps = [_Snapshot(), _Snapshot()]
         self._snap_i = 0
         self._finished_pending: List[int] = []
+        self._faults: List[Tuple[int, str, BaseException]] = []
         self._finished_lock = threading.Lock()
         # Idle short-circuit: once analysis has decayed to silence with no
         # voices/commands, skip render() entirely until work returns.
@@ -1069,17 +1095,35 @@ class Mixer:
             return self._render_idle_decay(n_frames)
 
         self._settled = False
-        result = render(
-            self.voices,
-            n_frames,
-            cmds,
-            sample_rate=self.sample_rate,
-            master_volume=self.master_volume,
-            muted=self.muted,
-            level_tau=self.level_tau,
-            analysis=self.analysis,
-            compute_spectrum=self._spectrum_wanted,
-        )
+        faults: List[Tuple[int, str, BaseException]] = []
+        try:
+            result = render(
+                self.voices,
+                n_frames,
+                cmds,
+                sample_rate=self.sample_rate,
+                master_volume=self.master_volume,
+                muted=self.muted,
+                level_tau=self.level_tau,
+                analysis=self.analysis,
+                compute_spectrum=self._spectrum_wanted,
+                faults=faults,
+            )
+        except Exception as e:
+            # Not one voice: the mix itself. End every voice (their Handles
+            # finish) and play silence; the callback must not raise, or the
+            # device stops pulling and no sound ends again (AU1).
+            ended = [vid for vid, v in self.voices.items() if not v.finished]
+            ended += [int(c[1]) for c in cmds        # started this block: never mixed
+                      if c[0] == CMD_START and int(c[1]) not in self.voices]
+            self.voices.clear()
+            with self._finished_lock:
+                self._finished_pending.extend(ended)
+                self._faults.append((0, "the mix", e))
+            return self._silent_result(n_frames)
+        if faults:
+            with self._finished_lock:
+                self._faults.extend(faults)
         for cmd in result.deferred:
             self.queue.push(cmd)
         self._last_limited = result.block
@@ -1113,6 +1157,14 @@ class Mixer:
         with self._finished_lock:
             out = self._finished_pending
             self._finished_pending = []
+            return out
+
+    def take_faults(self) -> List[Tuple[int, str, BaseException]]:
+        """``(voice id, source label, exception)`` of every voice that raised
+        while rendering since the last call (main thread: ``tick_audio``)."""
+        with self._finished_lock:
+            out = self._faults
+            self._faults = []
             return out
 
     def voice_finished(self, voice_id: int) -> bool:
@@ -1185,6 +1237,7 @@ class Mixer:
         self.level_tau = DEFAULT_LEVEL_TAU
         with self._finished_lock:
             self._finished_pending.clear()
+            self._faults.clear()
         self._snaps = [_Snapshot(), _Snapshot()]
         self._snap_i = 0
         with self._id_lock:

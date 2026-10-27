@@ -50,6 +50,31 @@ left out.
   'NoneType' object has no attribute 'ma_decoder_uninit'". A streamed sound
   (music, any file of 8 s or more) is now closed when `run()` ends, and at
   exit, before Python unloads miniaudio.
+- A sound that fails while it plays no longer stops all sound for the rest
+  of the game. A looping track whose file was deleted or moved, a file that
+  stops decoding halfway, or an effect that breaks used to print "Exception
+  ignored from cffi callback" and leave the game silent: no sound played or
+  ended again, so `on_done` and `await` on a sound never came. Now that
+  sound stops, one SCENA WARNING names it, every other sound plays on, and
+  its Handle ends as usual.
+- `play_sound(sound)` with a long `Sound` whose file was deleted since it
+  was made plays silence with a warning, as a missing file does; it raised
+  `FileNotFoundError`.
+- Music and other long sounds (8 s or more) no longer end at once at
+  `pitch=` above about 9, or after a frame that took more than ~0.4 s in a
+  game with no audio device.
+- A sound file saved under another format's extension (an Ogg named
+  `.wav`, a file with no extension) plays; it was silence. A format Scena
+  cannot read (`.m4a`, `.aif`) now says in its warning that Scena plays
+  WAV, FLAC, Ogg Vorbis and MP3.
+- Setting an effect's knob to something that is not a number
+  (`fx.cutoff = None`, `fx.drive = "8"`) raises a `TypeError` at that line.
+  It was taken, and stopped all sound at the next audio block.
+- `fade_to` or `fade_out` on the music a `crossfade=` is replacing (ducking
+  it during the swap) no longer keeps the old track playing for good beside
+  the new one, or runs its `on_done`: the crossfade still ends it.
+- A script that ends without `run()`'s cleanup while music streams (a
+  second Ctrl+C while the window closes) no longer hangs at exit.
 
 ### Changed
 

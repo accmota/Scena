@@ -33,6 +33,10 @@ frames of 1/HZ, or in alternating 5 ms / 28 ms frames (equation E1).
 ``--fingerprint``: after the frames, print ``SCRIPT FINGERPRINT <crc>`` — the
 kind, origin and pose of every live, unowned object (the E0 neutrality
 equation compares it with and without the recorder).
+
+``--live-audio`` (``tests/test_audio_exit.py``): the mixer plays on a real
+device thread (miniaudio's NULL backend, no speakers) instead of offline, and
+the process ends without ``run()``'s cleanup: the exit path ``atexit`` owns.
 """
 from __future__ import annotations
 
@@ -110,7 +114,8 @@ def _flag_value(argv, name):
 def main(argv) -> None:
     strict = "--strict" in argv
     fingerprint = "--fingerprint" in argv
-    argv = [a for a in argv if a not in ("--strict", "--fingerprint")]
+    live_audio = "--live-audio" in argv
+    argv = [a for a in argv if a not in ("--strict", "--fingerprint", "--live-audio")]
     laws_out, argv = _flag_value(argv, "--laws")
     if laws_out is not None:
         laws_out = os.path.abspath(laws_out)     # the script runs from its own cwd
@@ -162,6 +167,10 @@ def main(argv) -> None:
             print(f"SCRIPT FINGERPRINT {world_fingerprint()}", flush=True)
 
     scena.run = headless_run
+    if live_audio:
+        import miniaudio
+        from scena.audio_mixer import get_mixer
+        get_mixer().start_device(backends=[miniaudio.Backend.NULL])
     here = os.path.dirname(script)
     os.chdir(cwd_override or harness_cwd(script, root) or here)
     sys.path.insert(0, here)

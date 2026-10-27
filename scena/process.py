@@ -760,7 +760,7 @@ class Handle:
         "_motion_readout", "_last_dx", "_last_dy", "_last_dt",
         "_last_heading", "_last_u",
         "_voice_id", "_sound_volume", "_sound_pan", "_sound_pitch",
-        "_sound_loops", "_clip_duration", "_sound_effects", "_sound_fade_out",
+        "_sound_loops", "_clip_duration", "_sound_effects", "_sound_fade_out", "_sound_leaving",
         "_record", "_end_held",
         "_task", "_task_parent", "_cancel_reason",
         # A weak reference keeps nothing alive: the laws recorder ties a
@@ -883,6 +883,9 @@ class Handle:
         # The ``fade_out`` tween, while it is the voice's live fade (it ends
         # the sound, so the sound rings out when its owner ends).
         self._sound_fade_out = None
+        # A ``crossfade=`` replace is taking this sound away: its ramp ends in
+        # a cut, and no later fade can turn that into an end or stop it (AU15).
+        self._sound_leaving = False
         self._record = None
         # kind "task": the coroutine driver (a mode's async body, Actors
         # Design — Tasks). None for every other kind.
@@ -1219,6 +1222,10 @@ class Handle:
     def fade_to(self, volume, time=0.3, ease="linear"):
         """Ramp this voice's volume over ``time`` seconds of world clock."""
         self._require_sound("fade_to")
+        if self._sound_leaving:
+            # The crossfade's ramp stays: a new fade cancelled it, and a
+            # replaced forever loop played on beside the new one (AU15).
+            return self._sound_fade_out
         from .audio_mixer import require_finite
         start = float(self._sound_volume)
         end = require_finite("volume", volume, non_negative=True)
@@ -1244,6 +1251,8 @@ class Handle:
     def fade_out(self, time=0.3, ease="linear"):
         """Ramp to silence and stop (natural end — ``on_done`` fires)."""
         self._require_sound("fade_out")
+        if self._sound_leaving:
+            return self._sound_fade_out     # a crossfade cut: no on_done (AU15)
         return self._ramp_out(time, ease, natural=True)
 
     def _ramp_out(self, time, ease="linear", *, natural: bool):
@@ -1269,6 +1278,8 @@ class Handle:
                 get_mixer().finish_voice(self._voice_id)
             self._fire_once()
 
+        if not natural:
+            self._sound_leaving = True
         _preempt_tween_keys(("sound-fade", id(self)), quiet=True)
         tw = _start_tween(
             duration=duration,
@@ -3163,6 +3174,14 @@ class Scheduler:
             if world_dt > 0.0:
                 mixer.pump_dt(world_dt)
                 mixer.take_finished()  # no sound handle is left to report to
+                from .audio import report_faults
+                report_faults(mixer)   # a cut voice's source can still fail
+        else:
+            from . import audio_mixer
+            live = audio_mixer._mixer
+            if live is not None and live._faults:      # the device thread's
+                from .audio import report_faults
+                report_faults(live)
 
     def tick(self) -> None:
         # Idle: no timers, scripts, modes, or on_update — skip clock/list work.

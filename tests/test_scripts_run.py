@@ -29,6 +29,7 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 
+from tests.audio_stress_support import NOISE
 from tests.source_support import iter_files
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -110,8 +111,14 @@ def run_one(path):
     except subprocess.TimeoutExpired:
         return path, False, f"timed out after {TIMEOUT:.0f} s"
     ok = p.returncode == 0 and f"SCRIPT OK {FRAMES}" in p.stdout
-    if ok:
+    # A run that passed but printed what an author must never see at exit
+    # ("Exception ignored ... ma_decoder_uninit", a cffi callback traceback):
+    # Sound Design, "Failure contract".
+    noise = [ln for ln in (p.stderr or "").splitlines() if any(n in ln for n in NOISE)]
+    if ok and not noise:
         return path, True, ""
+    if ok:
+        return path, False, "\n    ".join(noise[:3])
     lines = [ln for ln in (p.stderr or "").splitlines() if ln.strip() and "GLFW" not in ln]
     tail = "\n    ".join(lines[-6:]) or f"exit {p.returncode}, no SCRIPT OK line"
     return path, False, tail
