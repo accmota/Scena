@@ -36,6 +36,7 @@ from .spatial_fx import tick_all_spatial_fx
 from .pacing import FramePacer, PaceMode, locked_interval
 from .gc_policy import freeze_world, run_pending_freeze, thaw_world
 from .level_source import LEVEL_SOURCES, sample_level_sources
+from ._glfw_platform import no_gl_context_message as _no_gl_context_message
 import warnings
 import traceback
 import weakref
@@ -3192,6 +3193,10 @@ class ScenaFramework:
 
     def _init_skia(self):
         self._context = skia.GrDirectContext.MakeGL()
+        if self._context is None:
+            # MakeGL returns None instead of raising; the surface would then
+            # fail with a message that hides the cause (scena/_glfw_platform.py).
+            raise RuntimeError(_no_gl_context_message())
         self._create_drawing_surface()
 
     def _create_drawing_surface(self):

@@ -354,6 +354,8 @@ Then, in any script: `from scena import *`.
 
 A Linux server or container may lack libEGL and libGL, which skia-python needs
 (Debian/Ubuntu: `sudo apt install libegl1 libgl1`).
+On a Wayland desktop (Ubuntu's default) Scena's window runs through XWayland,
+which Ubuntu includes.
 
 Sound uses [miniaudio](https://pypi.org/project/miniaudio/), which pip installs
 only where it has a ready-made package: Python 3.12 to 3.14 on macOS, Windows

@@ -7,6 +7,7 @@
 # ``scena.background_kinds.sky_palette``, ``scena.recipes.get_extrude_focus`` /
 # ``set_metal_light`` / ``get_metal_light``.
 
+from . import _glfw_platform  # noqa: F401  (before any module imports glfw)
 from ._version import __version__
 from .orchestration import (
     run, init, set_fx_auto,

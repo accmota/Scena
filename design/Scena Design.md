@@ -726,6 +726,24 @@ Hit order for pointer: widgets (view) → `ui` Graphics (view) → world Graphic
 Empty inactive post stack is identity. Depth: [Canvas Design.md](Canvas%20Design.md),
 [Effect System Design.md](Effect%20System%20Design.md).
 
+### Linux and Wayland
+
+The window draws through Skia on GLFW's OpenGL context, and on Linux
+skia-python's `GrDirectContext.MakeGL()` finds that context through GLX only.
+pyGLFW's Linux wheel carries an X11 and a Wayland GLFW build and, left alone,
+loads the Wayland one in a Wayland session (Ubuntu's default): its context is
+EGL, MakeGL returns None and nothing can draw. So `import scena` first sets
+`PYGLFW_LIBRARY_VARIANT=x11` on Linux when the user has not set it
+(`scena/_glfw_platform.py`, the first import in `scena/__init__.py`; the
+editor's `_engine.py` imports it before `glfw`). The X11 build runs through
+XWayland on a Wayland desktop; the window has a position again (Wayland gives
+none). The variant is read once, when `glfw` is first imported: a script that
+imports `glfw` before `scena` keeps pyGLFW's choice. `_init_skia` checks
+MakeGL's result and raises with the cause and the fix (a Wayland variant set
+by hand, glfw imported first, or a driver without OpenGL 3.2) instead of the
+later "Failed to create Skia surface" (WP52 in Testing Design). Native Wayland
+would need Skia built on an EGL interface; not done.
+
 
 # Where to go next
 
@@ -775,6 +793,7 @@ Do not read this appendix as a license to open the whole cluster.
 | --- | --- | --- | --- |
 | `from scena import …` | `__init__.py` | — | [API Guide](../docs/en/guide/index.html) |
 | `run()` / window / frame order | `orchestration.py` | — | [Datapath](#datapath) |
+| Linux GLFW build (X11 over Wayland) | `_glfw_platform.py` | `__init__.py` (first import), `orchestration.py` (`_init_skia`) | [Linux and Wayland](#linux-and-wayland) |
 | Frame pacing / VSync / world `dt` from the display | `pacing.py` | `_display_link.py` (macOS), `orchestration.py` (`_run_loop`, `set_glfw_fps`), `fx_auto.py` (ladder) | [Frame pacing and GC](#frame-pacing-and-gc) |
 | GC freeze after build | `gc_policy.py` | `orchestration.py` (`_begin_game`, `_cleanup`), `act.py` (`change`) | [Frame pacing and GC](#frame-pacing-and-gc) |
 | `Act` / `change_act` / `run(Titulo)` | `act.py` | `orchestration.py` (`_begin_game`), `registry.py` | [Act Design.md](Act%20Design.md) |

@@ -25,6 +25,12 @@ left out.
 
 ### Fixed
 
+- Games open on Linux desktops that use Wayland (Ubuntu's default). They
+  died in `run()` with "Failed to create Skia surface", after "Wayland: the
+  platform does not provide the window position". Scena now has GLFW run
+  through X11 there (XWayland, part of Ubuntu), which Skia can draw on. A
+  `PYGLFW_LIBRARY_VARIANT` you set yourself is kept. If the window still
+  cannot draw, the error now says why and what to try.
 - `pip install scena` no longer fails on Python 3.15 (or on Windows or Linux
   on ARM) for want of a C compiler. Sound's package, miniaudio, has no
   ready-made build there yet, so pip now installs it only where it has one

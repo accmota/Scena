@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Optional
 
+import scena._glfw_platform  # noqa: F401  (X11 GLFW build on Linux, before glfw loads)
 import glfw
 
 
