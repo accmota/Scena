@@ -376,13 +376,18 @@ class TestAudioThreadGil(unittest.TestCase):
         """Pendulums' worst moment: 13 voices, a thread that never sleeps.
 
         Before the fix one 40 ms block took ~2.5 s of wall time on the Windows
-        laptop (~3 ms alone); with it, ~7 ms.
+        laptop (~3 ms alone); with it, ~7 ms. A ratio, not a bound: the Mac
+        waits the 0.5 ms exactly (Windows rounds it to 0), ~590 ms a block at
+        the default and ~70 ms with the fix beside this pure-Python thread,
+        though real games keep every block on time there at both (WP51).
+        Interleaved, so load hits both sides alike.
         """
         import threading
         import time
 
         mixer = self.mixer
         mixer.start_device()
+        lowered = sys.getswitchinterval()   # what the device set
         for k in range(13):
             mixer.start_voice(samples=make_sine(220 + 30 * k, 5.0, amp=0.05),
                               pitch=1 + k / 20, pan=k / 13 - 0.5)
@@ -397,18 +402,23 @@ class TestAudioThreadGil(unittest.TestCase):
 
         worker = threading.Thread(target=busy, daemon=True)
         worker.start()
+        intervals = (0.005, lowered)        # CPython's default, the device's
+        walls = ([], [])
         try:
-            walls = []
-            for _ in range(5):
-                t0 = time.perf_counter()
-                mixer.render_block(frames)
-                walls.append(time.perf_counter() - t0)
+            for _ in range(3):
+                for interval, wall in zip(intervals, walls):
+                    sys.setswitchinterval(interval)
+                    t0 = time.perf_counter()
+                    mixer.render_block(frames)
+                    wall.append(time.perf_counter() - t0)
         finally:
+            sys.setswitchinterval(lowered)  # stop_device restores only its own
             stop.set()
             worker.join()
-        walls.sort()
-        self.assertLess(walls[2], frames / SAMPLE_RATE,
-                        f"mixing slower than real time beside a busy thread: {walls}")
+        default, fixed = (sorted(w)[1] for w in walls)
+        self.assertGreater(default / max(fixed, 1e-9), 3.0,
+                           f"the device's interval does not speed the mix beside a busy "
+                           f"thread: {walls}")
 
 
 from scena import Circle, Line, play_sound, Sound, clock

@@ -262,8 +262,14 @@ once) and `stop_device` / `reset` restore it, unless something changed it
 meanwhile. An interval already lower is left alone. Measured on the Windows
 laptop: every block on time, fps unchanged. Fence: nothing added to the
 callback may wait on what the main thread holds for a frame (a lock, a queue
-it fills per frame). Guard: `test_audio.TestAudioThreadGil` (a 13-voice mix
-beside a thread that never sleeps runs faster than real time).
+it fills per frame). On the Mac the wait is exact, not rounded: beside a
+pure-Python thread that never sleeps a block still takes ~70 ms (~590 ms at
+5 ms), but real games give the GIL up often enough (`pendulums.py` and Ring
+Guardian at `"max"`: every block on time at either interval, fps unchanged),
+so the interval stays 0.5 ms. Guard: `test_audio.TestAudioThreadGil` (a
+13-voice mix beside a thread that never sleeps runs over 3× faster at the
+device's interval than at CPython's default; a ratio, so it holds on both
+platforms and under load).
 
 A command `at_frame` past the end of the current block is **not dropped**.
 The mixer keeps it and applies it on a later block (`at_frame` minus the
