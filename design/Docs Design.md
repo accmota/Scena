@@ -11,6 +11,7 @@ hold them. Hub: [README.md](README.md). The landing page, its clips and videos:
 | Section shape, ids, vocabulary, Leitura/Escrita, parameter rows, catalogs, thumbnails | [Editing the Guia](#editing-the-guia) |
 | Keep the English Guide in step with the Guia | [The English Guide](#the-english-guide) |
 | Keep an English tutorial in step with its Portuguese twin | [The English tutorials](#the-english-tutorials) |
+| Titles, descriptions, hreflang, sitemap, link preview image | [Search and link previews](#search-and-link-previews) |
 
 ## Editing the Guia
 
@@ -322,3 +323,40 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   `--ready <key>` checks the page as if marked, and the units are marked.
   Translating finds Portuguese that is wrong (tutorial 01 said "about seventy"
   color names; there are over a hundred): fix the Portuguese, then mark.
+
+## Search and link previews
+
+Every page's `<title>` and a marked block right after it (`<!-- site head
+(tools/site/seo.py) -->` … `<!-- /site head -->`) are written by
+`tools/site/seo.py`, never by hand; so is `docs/sitemap.xml`. Run
+`python tools/site/seo.py` after adding, renaming or publishing a page, or
+after changing a tutorial's title or its card in the index; `test_site_seo`
+fails while one lags.
+
+- **What the block holds.** A description, the canonical address (a folder's
+  `index.html` is the folder: `…/Scena/en/guide/`), absolute `hreflang` links
+  to both twins plus `x-default` (the English page), and the link preview
+  (`og:*`, `twitter:card`, the image `docs/assets/og/scena.png`, 1200 × 630,
+  made by `tools/site/make_og_image.py` from two README clips).
+- **Where the text comes from.** A tutorial's title is its `Tutorial.mount`
+  title plus a tail ("Ships — Scena tutorial · 2D games in Python"), its
+  description its card in the language's index plus one sentence. The home,
+  the indexes and the Guides have fixed text in `FIXED` (in `seo.py`).
+  `tutorial.js` keeps the head's title.
+- **Two writers, one head.** `tutorial_parity.py --publish` owns the relative
+  twin link right after `<meta charset>` (which `tutorial.js` draws as the
+  language switch, picking the first alternate link that is not absolute);
+  `seo.py` owns the absolute ones. Each tool leaves the other's lines alone
+  (they once both matched every `hreflang` line).
+- **Hashes.** The translation hashes (`guia_parity.digest`, used by both
+  parity tools) leave out the `<title>` line and the block: the title is made
+  from the mount title, which is hashed, and the rest is made from the page.
+  Without that, rewriting the heads marked every English tutorial pending.
+- **Hidden pages** (`noindex`) get a title and a preview but no canonical, no
+  `hreflang`, and no sitemap entry; the twin of a hidden page names none
+  either. The two redirect pages (`docs/<lang>/index.html`) are left as they
+  are.
+- **No robots.txt.** Crawlers read it only at the host root
+  (`accmota.github.io/robots.txt`), which this project site does not own; a
+  copy in `docs/` would be ignored. With none, everything may be crawled. The
+  sitemap is submitted in Google Search Console and Bing Webmaster Tools.

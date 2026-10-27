@@ -32,6 +32,10 @@ Bug classes guarded:
   Python its program is (code only, the way ``cloc`` counts: no blank lines, no
   comments, no docstrings); a montage gives the range of its takes. The count
   is recomputed from the example and must match.
+* **The tutorial's chapter count goes stale.** Every "N chapters" in the
+  README is the number of chapter pages in ``docs/en/tutorial/`` (``NN-*.html``;
+  the interludes, ``NNi-*.html``, are not chapters). Tutorial 33 landed while
+  the README still said 32 (2026-10-26).
 
     python -m unittest tests.test_readme -v
 """
@@ -256,6 +260,28 @@ class TestReadmeLinks(unittest.TestCase):
             text = fh.read()
         self.assertRegex(text, r'readme\s*=\s*\{\s*file\s*=\s*"README\.md",\s*'
                                r'content-type\s*=\s*"text/markdown"\s*\}')
+
+
+class TestReadmeChapterCount(unittest.TestCase):
+    CHAPTER = re.compile(r"^\d+-.+\.html$")     # NNi- interludes do not match
+    CLAIM = re.compile(r"\b(\d+) chapters\b")
+
+    def chapters(self):
+        from source_support import iter_files
+        folder = os.path.join(ROOT, "docs", "en", "tutorial")
+        return sum(1 for p in iter_files(folder, ".html")
+                   if self.CHAPTER.match(os.path.basename(p)))
+
+    def test_every_chapter_count_matches_the_tutorial(self):
+        with open(README, encoding="utf-8") as fh:
+            claims = [int(n) for n in self.CLAIM.findall(fh.read())]
+        self.assertTrue(claims, "vacuous: the README names no chapter count")
+        for n in claims:
+            self.assertEqual(n, self.chapters(), "README.md: the tutorial's chapter count")
+
+    def test_interludes_are_not_chapters(self):
+        self.assertTrue(self.CHAPTER.match("33-hundred-lines.html"))
+        self.assertFalse(self.CHAPTER.match("25i-events-and-processes.html"))
 
 
 class TestReadmeClips(unittest.TestCase):

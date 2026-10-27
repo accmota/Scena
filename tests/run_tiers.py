@@ -10,6 +10,7 @@ Run from the repo root::
 
     python tests/run_tiers.py gate --plan      # print the jobs, run nothing
     python tests/run_tiers.py quick -j 4       # worker processes (default cpus - 2)
+    python tests/run_tiers.py quick --part 2/3 # the 2nd of 3 parts of the plan (CI)
 
 Why one process per module: Scena keeps ONE ScenaFramework per process, so a
 single ``unittest discover`` grows the heap module after module, and every
@@ -327,6 +328,26 @@ def plan(tier: Tier, modules: Iterable[str], *,
     return jobs
 
 
+def part(jobs: List[Job], spec: str) -> List[Job]:
+    """The ``K``-th of ``N`` parts of a plan (``spec`` "K/N", 1-based): CI runs
+    one tier as N runner jobs. Every job lands in exactly one part, whatever
+    the input order: jobs go slowest first (label breaks ties) to the part
+    with the least estimated work so far, so N machines that plan the same
+    tree agree. Slowest first is kept within the part."""
+    m = re.fullmatch(r"(\d+)/(\d+)", spec.strip())
+    if not m or not 1 <= int(m.group(1)) <= int(m.group(2)):
+        raise ValueError(f"--part wants K/N with 1 <= K <= N, got {spec!r}")
+    k, n = int(m.group(1)), int(m.group(2))
+    loads = [0.0] * n
+    mine: List[Job] = []
+    for job in sorted(jobs, key=lambda j: (-j.estimate, j.label)):
+        i = min(range(n), key=lambda i: (loads[i], i))
+        loads[i] += job.estimate
+        if i == k - 1:
+            mine.append(job)
+    return mine
+
+
 _RAN = re.compile(r"^Ran (\d+) tests? in", re.M)
 _STATUS = re.compile(r"^(?:OK|FAILED)\b.*$", re.M)
 
@@ -571,6 +592,8 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
     ap.add_argument("--profile", help="override the tier's Hypothesis profile (e.g. replay)")
     ap.add_argument("--timeout", type=float, help="seconds per job (default: per tier)")
     ap.add_argument("--plan", action="store_true", help="print the jobs and exit")
+    ap.add_argument("--part", metavar="K/N",
+                    help="run only the K-th of N parts of the plan (CI splits a tier over N jobs)")
     ap.add_argument("--sentinel", nargs="?", const="log", choices=("log", "1"),
                     help="run every job under the geometry sentinel (tests/geom_sentinel.py): "
                          "log violations (default) or raise them (1)")
@@ -591,6 +614,11 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
     env = tier_env(tier, args.profile)
     jobs = plan(tier, modules, list_ids=ids_lister(env),
                 timings=load_timings(timings_path), profile=args.profile)
+    if args.part:
+        try:
+            jobs = part(jobs, args.part)
+        except ValueError as e:
+            ap.error(str(e))
     if args.sentinel:
         jobs = [j for j in jobs if j.label.split(".")[0].split("[")[0] not in SENTINEL_EXCLUDE]
         extra = sentinel_env(args.sentinel)
@@ -604,7 +632,8 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
     if junk:
         print(f"warning: {junk} AppleDouble '._*' files (tree copied from macOS); "
               "see tests/README.txt", file=stream, flush=True)
-    print(f"tier {tier.name}: {len(jobs)} jobs, {args.jobs} workers, "
+    print(f"tier {tier.name}{f' part {args.part}' if args.part else ''}: "
+          f"{len(jobs)} jobs, {args.jobs} workers, "
           + " ".join(f"{k}={v}" for k, v in env.items()), file=stream, flush=True)
     if args.plan:
         for j in jobs:

@@ -17,6 +17,7 @@ examples/bubbles.py
 examples/cadeia_de_bolas.py
 examples/canopy.py
 examples/catch_stars.py
+examples/cem_linhas.py
 examples/ceu_estrelado.py
 examples/colisao.py
 examples/collision.py

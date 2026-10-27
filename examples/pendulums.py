@@ -80,7 +80,7 @@ for k in range(COUNT):
 
 # the wave: one smooth line through all the bobs
 wave = Track(points=[lambda b=b: b.center for b in bobs], smooth=1, line_width=2)
-wave.color = Color("white").with_alpha(0.45)     # the bobs carry the colours
+wave.color = Color("white").with_alpha(0.35)     # the bobs carry the colours
 wave["end"] @= lambda: min(1, st.swing / 40)
 # on the ring, the last bob joins the first
 seam = Line(p1=lambda: bobs[-1].center, p2=lambda: bobs[0].center, line_width=2)

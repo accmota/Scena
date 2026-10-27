@@ -10,6 +10,32 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Documentation
+
+- New tutorial 33, Cem linhas / 100 Lines (`examples/cem_linhas.py`,
+  `examples/hundred_lines.py`), 13 steps, in Portuguese and English: a
+  looping piece of light and music in fewer than 100 lines, built up from
+  one hexagon. It teaches `canvas.set_origin("center")` with
+  `vec_from_angle`, cells of `st` as the knobs of a piece, a track's
+  `begin` / `end` window, a script of `tween`s with and without `await`, a
+  screen effect switched on and off (`Prism`, `remove()`), and measuring the
+  bass of a song (`audio.spectrum`, `amp_db`) before a pulse uses it.
+- `hundred_lines.py` is now that tutorial's English endpoint (it moved from
+  "Showcases" to the tutorial table in `examples/README.md`): three parts
+  (the Kaleidoscope part is gone), and its densest lines unpacked into
+  `wheel_color(i)` and `on_ring(k)` and a three-line `update`; 99 lines.
+- GitHub tests every push to `main` and every pull request
+  (`.github/workflows/tests.yml`). The built wheel is installed and imported
+  on Windows, macOS and Linux with Python 3.12, 3.13 and 3.14; the quick
+  tier runs on Linux, and a smoke set of modules runs on the other cells.
+  What it covers and what it leaves out: `design/Testing Design.md`,
+  "Continuous integration".
+- The README's install section notes that a Linux server or container may
+  lack the libEGL and libGL that skia-python needs (`sudo apt install libegl1
+  libgl1` on Debian or Ubuntu).
+
 ## 0.10.1 — 2026-10-26
 
 ### Added

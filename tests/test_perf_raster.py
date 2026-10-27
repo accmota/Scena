@@ -1,7 +1,7 @@
 """The CPU raster probe (scripts/bench/perf_raster.py) measures the real field.
 
 The probe times ``Embers`` through the engine's own ``draw``, so its rows
-compare machines (WP47: the Windows machine's skia, built with MSVC, ran a
+compare machines (WP50: the Windows machine's skia, built with MSVC, ran a
 2000 x 1200 Embers frame in ~34 s). Bug class: **a probe blind to the
 engine**: a probe that stops drawing (a renamed uniform, a changed ``draw``
 signature) still prints a fast row. These tests draw at a tiny size and read

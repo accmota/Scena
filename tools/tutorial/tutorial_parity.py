@@ -131,7 +131,9 @@ def digest(text: str) -> str:
 # translation state.
 
 _NOINDEX = '<meta name="robots" content="noindex">'
-_MANAGED = re.compile(r'^(?:<meta name="robots" content="noindex">|<link rel="alternate" hreflang="[^"]*" href="[^"]*">)\n',
+# Only the relative twin link is this tool's: the absolute ones (with the
+# canonical, for search engines) are tools/site/seo.py's.
+_MANAGED = re.compile(r'^(?:<meta name="robots" content="noindex">|<link rel="alternate" hreflang="[^"]*" href="(?!https?:)[^"]*">)\n',
                       re.M)
 _LANG_TAG = {"pt": "pt-BR", "en": "en"}
 

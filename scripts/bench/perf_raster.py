@@ -8,7 +8,7 @@ frame is 2000 x 1200"). This probe prints what that costs on this machine:
 a plain translucent fill, a linear gradient, a trivial SkSL shader and the
 real ``Embers`` field (the engine's own ``draw``), in ms a frame and ns a
 pixel, with the machine and how its skia was built. Run it on each machine
-and compare the rows (WP47).
+and compare the rows (WP50).
 
     python scripts/bench/perf_raster.py
     python scripts/bench/perf_raster.py --size 2000x1200 --repeats 1

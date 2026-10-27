@@ -111,7 +111,7 @@ clean up. The label is a formula (`@=`): it keeps up with the score by itself.
   message that says what was wrong and suggests the closest right name.
 - **Documented end to end.** The [API Guide](https://accmota.github.io/Scena/en/guide/)
   covers the whole engine, and the [tutorial](https://accmota.github.io/Scena/en/tutorial/)
-  teaches it in 32 chapters, from a first three-line program to complete games.
+  teaches it in 33 chapters, from a first three-line program to complete games.
 
 ## What's in the box
 
@@ -350,6 +350,9 @@ pip install scena
 
 Then, in any script: `from scena import *`.
 
+A Linux server or container may lack libEGL and libGL, which skia-python needs
+(Debian/Ubuntu: `sudo apt install libegl1 libgl1`).
+
 To try the examples, download
 [`scena-examples.zip`](https://github.com/accmota/Scena/releases/latest/download/scena-examples.zip)
 (the examples of the latest release and the images and sounds they use), unzip it
@@ -363,7 +366,7 @@ python scena-examples/ships_4_shield.py
 
 Scena comes with comprehensive documentation.
 
-- **[Tutorial](https://accmota.github.io/Scena/en/tutorial/)**: 32 chapters that
+- **[Tutorial](https://accmota.github.io/Scena/en/tutorial/)**: 33 chapters that
   start from the basics and add one idea at a time: from the first shapes to a
   space shooter, bouncing balls, a side-scroller, a platformer, and much more.
 - **[API Guide](https://accmota.github.io/Scena/en/guide/)**: documents the whole

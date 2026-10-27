@@ -61,6 +61,14 @@ Found on the 0.9.0 quick tier, clean Windows install (2026-10-22; WP21, WP23):
   bytearray(...), ...)`` read freed memory (an engine bug: garbage in every
   sprite SDF's first pixels on Windows). The buffer of every borrowing call
   is a name.
+
+Found on the 0.10.1 quick tier on Windows (2026-10-27; WP49):
+
+* **An example's test timed a frame.** ``test_example_affinity`` held a
+  recipe switch under 1 s of wall clock; under the quick tier's load it read
+  1.12 s (idle: ~0.1 s). An example's or a game's test counts the work (the
+  example's lines, the points tried), never reads a clock: no
+  ``tests/test_example_*.py`` / ``tests/test_game_*.py`` calls one.
 """
 from __future__ import annotations
 
@@ -454,6 +462,47 @@ class TestTransientClockIsPinned(unittest.TestCase):
     def test_guard_sees_a_t0_write(self):
         self.assertTrue(_T0_WRITE.search("s._tx_state.life.t0 = now - 0.1"))
         self.assertFalse(_T0_WRITE.search("assert s._tx_state.life.t0 == now"))
+
+
+_CLOCKS = frozenset({"perf_counter", "perf_counter_ns", "monotonic", "monotonic_ns",
+                     "process_time", "thread_time"})
+
+
+def _clock(call: ast.Call):
+    """``"perf_counter"`` / ``"time.time"`` / … when ``call`` reads a clock."""
+    f = call.func
+    if isinstance(f, ast.Attribute) and f.attr == "time":
+        return "time.time" if isinstance(f.value, ast.Name) and f.value.id == "time" else None
+    name = _attr(call)
+    return name if name in _CLOCKS else None
+
+
+class TestExampleTestsReadNoClock(unittest.TestCase):
+    """An example's or a game's test counts work, never times it (WP49)."""
+
+    def test_example_and_game_tests_read_no_clock(self):
+        bad = []
+        for path in iter_files(TESTS, ".py"):
+            name = os.path.basename(path)
+            if not name.startswith(("test_example_", "test_game_")):
+                continue
+            for call in _calls(path):
+                if _clock(call):
+                    bad.append(f"tests/{name}:{call.lineno}: {_clock(call)}()")
+        self.assertEqual(
+            bad, [],
+            "count the work (the example's lines, the points tried), not the seconds: "
+            "a bound sized on an idle machine fails under the tiers' load:\n" + "\n".join(bad),
+        )
+
+    def test_guard_sees_each_spelling(self):
+        src = ("import time\nfrom time import perf_counter\n"
+               "time.perf_counter()\nperf_counter()\ntime.time()\ntime.monotonic()\n"
+               "time.process_time()\nrun.time\nclock.time()\nrun.step(1)\n")
+        found = [_clock(c) for c in ast.walk(ast.parse(src)) if isinstance(c, ast.Call)]
+        self.assertEqual([f for f in found if f],
+                         ["perf_counter", "perf_counter", "time.time", "monotonic",
+                          "process_time"])
 
 
 _NORMALIZERS = frozenset({"normpath", "abspath", "realpath"})

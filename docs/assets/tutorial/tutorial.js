@@ -423,10 +423,12 @@ const Tutorial = {
     const app = document.getElementById("app");
     const start = hashIndex(steps);
 
-    document.title = `${cfg.title} — Scena`;
+    // The head's <title> is written by tools/site/seo.py; keep it.
+    if (!document.title) document.title = `${cfg.title} — Scena`;
     // The twin page in the other language (tools/tutorial/tutorial_parity.py
-    // writes the head link once the English page is published).
-    const twin = document.querySelector('link[rel="alternate"][hreflang]');
+    // writes the relative head link once the English page is published; the
+    // absolute ones are seo.py's, for search engines).
+    const twin = document.querySelector('link[rel="alternate"][hreflang]:not([href^="http"])');
     const twinLang = twin ? twin.getAttribute("hreflang") : "";
     const langSwitch = twin
       ? `<a class="lang-switch" href="${esc(twin.getAttribute("href"))}" hreflang="${esc(twinLang)}" lang="${esc(twinLang)}">${T.otherLang}</a>`
