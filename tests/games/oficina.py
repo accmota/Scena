@@ -68,7 +68,7 @@ G.check(SINO_FX.duration >= SINO.duration - 1e-9, "bake.tail_kept",
         f"{SINO_FX.duration} < {SINO.duration}")
 G.equal(SINO.bake(transpose=5).duration, SINO.duration, "bake.transpose_keeps_length", tol=1e-3)
 G.equal(SINO.bake(pitch=2).duration, SINO.duration / 2, "bake.pitch_rate", tol=2e-3)
-ZUMBIDO = Sound("audio/fx3.wav")
+ZUMBIDO = Sound("audio/fx2.wav")
 
 st.tensao = 4.0
 st.ganho_a = 2

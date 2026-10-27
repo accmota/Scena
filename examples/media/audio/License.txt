@@ -10,7 +10,7 @@ credits: ../CREDITS.md):
   https://creativecommons.org/licenses/by/3.0/
   Free to use and modify, even commercially, if you credit the author.
 
-  Creative Commons Attribution 4.0 — CC-BY 4.0 (fx3.wav)
+  Creative Commons Attribution 4.0 — CC-BY 4.0 (fx1.wav)
   https://creativecommons.org/licenses/by/4.0/
   Free to use and modify, even commercially, if you credit the author.
 
@@ -102,10 +102,10 @@ The author asks: "credit me as dklon somewhere."
 
 ---
 
-gameover.wav
+loss.wav
 j1game_over_mono.wav by jivatma07 -- https://freesound.org/s/173859/ -- License: Creative Commons 0
 
-fx1.wav
+gameover.wav
 Game Over 04.wav by LilMati -- https://freesound.org/s/365782/ -- License: Creative Commons 0
 
 fx2.wav
@@ -113,7 +113,7 @@ Game Over Arcade by Mountain_Man -- https://freesound.org/s/382310/ -- License: 
 
 ---
 
-fx3.wav
+fx1.wav
 "8-bit Game Over" by Euphrosyyn
 https://freesound.org/s/442127/
 Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/

@@ -127,9 +127,13 @@ examples/media/explosions/fireball/Fireball_Effect_25.png
 examples/media/explosions/fireball/license.txt
 examples/media/explosions/license.txt
 examples/media/fonts/Licenses/LICENSE-Kranky.txt
+examples/media/fonts/Licenses/OFL-Bangers.txt
+examples/media/fonts/Licenses/OFL-Bungee.txt
 examples/media/fonts/Licenses/OFL-HennyPenny.txt
 examples/media/fonts/Licenses/OFL-JetBrainsMono.txt
 examples/media/fonts/Licenses/OFL-Metamorphous.txt
+examples/media/fonts/Licenses/OFL-Play.txt
+examples/media/fonts/Licenses/OFL-PressStart2P.txt
 examples/media/fonts/Licenses/OFL-Quantico.txt
 examples/media/fonts/Licenses/OFL-Rye.txt
 examples/media/fonts/Licenses/OFL-VastShadow.txt

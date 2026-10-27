@@ -8,6 +8,16 @@ license text next to it; an OFL font may not be sold on its own.
 
 SIL Open Font License 1.1 (Licenses/OFL-<name>.txt)
 
+Bangers-Regular.ttf
+  Copyright 2010 The Bangers Project Authors
+  (https://github.com/googlefonts/bangers). Design: Vernon Adams.
+  No Reserved Font Name.
+
+Bungee-Regular.ttf
+  Copyright 2023 The Bungee Project Authors (https://github.com/djrrb/Bungee).
+  Design: David Jonathan Ross. Bungee is a trademark of The Font Bureau.
+  No Reserved Font Name.
+
 HennyPenny-Regular.ttf
   Copyright (c) 2011-2012, Brownfox (www.brownfox.org),
   with Reserved Font Name "Henny Penny". Design: Olga Umpeleva.
@@ -15,6 +25,15 @@ HennyPenny-Regular.ttf
 Metamorphous-Regular.ttf
   Copyright (c) 2011-2012, Sorkin Type Co (www.sorkintype.com),
   with Reserved Font Name "Metamorphous". Design: James Grieshaber.
+
+Play-Regular.ttf, Play-Bold.ttf
+  Copyright (c) 2011, Jonas Hecksher, Playtypes, e-types AS (lasse@e-types.com),
+  with Reserved Font Names "Play", "Playtype" and "Playtype Sans".
+  Cyrillic expansion: Cyreal.
+
+PressStart2P-Regular.ttf
+  Copyright 2012 The Press Start 2P Project Authors (cody@zone38.net),
+  with Reserved Font Name "Press Start 2P". Design: CodeMan38.
 
 Quantico-Regular.ttf, Quantico-Bold.ttf, Quantico-Italic.ttf
   Copyright (c) 2011, Matthew Desmond (www.madtype.com),

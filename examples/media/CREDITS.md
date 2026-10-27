@@ -27,7 +27,7 @@ https://opengameart.org/content/laser-fire
 Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
 ```
 
-### `audio/fx3.wav`: CC-BY 4.0
+### `audio/fx1.wav`: CC-BY 4.0
 
 ```
 "8-bit Game Over" by Euphrosyyn
@@ -128,8 +128,12 @@ lines and sources are in `fonts/license.txt`.
 
 | Files | Author | License |
 |---|---|---|
+| `fonts/Bangers-Regular.ttf` | Vernon Adams | OFL 1.1 |
+| `fonts/Bungee-Regular.ttf` | David Jonathan Ross | OFL 1.1 |
 | `fonts/HennyPenny-Regular.ttf` | Brownfox (Olga Umpeleva) | OFL 1.1 |
 | `fonts/Metamorphous-Regular.ttf` | Sorkin Type Co (James Grieshaber) | OFL 1.1 |
+| `fonts/Play-*.ttf` | Jonas Hecksher (Playtypes, e-types) | OFL 1.1 |
+| `fonts/PressStart2P-Regular.ttf` | CodeMan38 | OFL 1.1 |
 | `fonts/Quantico-*.ttf` | Matthew Desmond (MADtype) | OFL 1.1 |
 | `fonts/Rye-Regular.ttf` | Sorkin Type Co (Nicole Fally) | OFL 1.1 |
 | `fonts/VastShadow-Regular.ttf` | Sorkin Type Co (Nicole Fally) | OFL 1.1 |
@@ -180,8 +184,8 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `audio/sfx-hit-2.wav` | OwlStorm | https://freesound.org/s/404792/ |
 | `audio/laser-big.wav` | mrspivey | https://freesound.org/s/805194/ |
 | `audio/explode.flac` | SamsterBirdies, qubodup (mix) | links in `audio/License.txt` |
-| `audio/gameover.wav` | jivatma07 | https://freesound.org/s/173859/ |
-| `audio/fx1.wav` | LilMati | https://freesound.org/s/365782/ |
+| `audio/gameover.wav` | LilMati | https://freesound.org/s/365782/ |
+| `audio/loss.wav` | jivatma07 | https://freesound.org/s/173859/ |
 | `audio/fx2.wav` | Mountain_Man | https://freesound.org/s/382310/ |
 | `audio/nota.wav` | made for Scena (synthesized by a script) | this repository; see `audio/License.txt` |
 | `synth/` | made for Scena (synthesized by a script) | this repository; see `synth/license.txt` |
