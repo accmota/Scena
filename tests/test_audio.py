@@ -1424,23 +1424,34 @@ class TestStreamsCloseBeforeExit(unittest.TestCase):
     def test_both_exits_close_the_streams(self):
         import inspect
         import scena.orchestration as orch
-        audio_mod = sys.modules["scena.audio"]
         cleanup = inspect.getsource(orch.ScenaFramework._cleanup)
         self.assertLess(cleanup.index("stop_device()"), cleanup.index("close_open_streams()"),
                         "run()'s cleanup must close the streams after the device stops")
-        import atexit
-        calls = []
-        real = audio_mod.close_open_streams
-        # the registered handler is the module function: unregister finds it
-        atexit.unregister(real)
-        try:
-            atexit.register(lambda: calls.append(1))
-            atexit._run_exitfuncs()
-        finally:
-            atexit.register(real)
-        self.assertEqual(calls, [1], "vacuous: atexit did not run")
-        # registered again, and still the module's function
-        self.assertIs(audio_mod.close_open_streams, real)
+        # The atexit side in a fresh process: a script that never calls run()
+        # still has its open streams closed at exit. (Not in this process:
+        # atexit._run_exitfuncs runs every handler here and then drops them
+        # all.)
+        import subprocess
+        import textwrap
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        script = textwrap.dedent("""
+            import sys
+            import scena
+            class Stream:
+                def close(self):
+                    print("closed at exit", flush=True)
+            stream = Stream()
+            sys.modules["scena.audio"]._OPEN_STREAMS.add(stream)
+        """)
+        out = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, encoding="utf-8", errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": root,
+                 "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout.strip(), "closed at exit",
+                         "close_open_streams is not an atexit handler")
 
     def test_the_game_leaves_no_decoder_open_after_the_closer(self):
         """The real case: Ring Guardian's music, after its story screen."""
