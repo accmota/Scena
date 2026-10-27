@@ -412,7 +412,7 @@ class TestChurn(AudioCase):
     """Group E: many sounds, fast replaces, repeated streams. Nothing leaks."""
 
     def test_a_thousand_sounds_in_one_frame(self):
-        laser = Sound(media("audio", "laser7.wav"))
+        laser = Sound(media("audio", "laser7.ogg"))
         hs = [play_sound(laser, volume=0.01, pitch=0.5 + (i % 10) / 10) for i in range(1000)]
         frames(60 * 3)
         self.assertTrue(all(h.done for h in hs))
@@ -423,7 +423,7 @@ class TestChurn(AudioCase):
         music = copy_media(self.tmp, "music", "space.ogg")
         before = open_fds()
         for i in range(240):
-            play_sound(music if i % 2 else media("audio", "laser7.wav"), name="music",
+            play_sound(music if i % 2 else media("audio", "laser7.ogg"), name="music",
                        crossfade=0.05 if i % 3 else 0)
             frames(1)
         frames(30)
@@ -476,7 +476,7 @@ class TestLiveDevice(AudioCase):
 
     def test_the_main_thread_hammers_handles_while_the_device_mixes(self):
         """G: every Handle verb at random, the GIL switching every microsecond."""
-        files = [Sound(media("audio", "laser7.wav")), Sound(media("audio", "explosion01.wav"))]
+        files = [Sound(media("audio", "laser7.ogg")), Sound(media("audio", "explosion01.ogg"))]
         rng = random.Random(7)
         saved = sys.getswitchinterval()
         with live_mixer(buffersize_msec=5) as mixer:

@@ -41,7 +41,7 @@ st.glow = 0.0
 st.chips = 0
 st.bright = 0
 
-BOOM = Sound("audio/laser7.wav")
+BOOM = Sound("audio/laser7.ogg")
 
 
 # -- the game: widgets, watches, script hooks ---------------------------------

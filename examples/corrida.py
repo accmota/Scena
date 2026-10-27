@@ -274,7 +274,7 @@ class Carro(Sprite, source=veiculos, height=46, art_angle=90, group="carros"):
         self.vel = Vec2(0, 0)
         self.collidable = False
         canvas.explosion_at(self, amount=0.5)
-        play_sound("audio/explosion02.wav", volume=0.6)
+        play_sound("audio/explosion02.ogg", volume=0.6)
         self.blink(1.5)
         await self.rotate_by(choice([360, -360]), time=0.8, ease="ease_out")
         await wait(0.7)
@@ -384,7 +384,7 @@ def pegou(carro, poder):
     if carro.tiros == 0:
         carro.tiros = 1
         carro.glow = True
-        play_sound("audio/fx1.wav")
+        play_sound("audio/fx1.ogg")
         lugar = tuple(poder.center)
         after(5, lambda: Poder(center=lugar))
         poder.destroy()
@@ -519,11 +519,11 @@ class Corrida(Act):
         for numero in ["3", "2", "1"]:
             self.aviso.text = numero
             self.aviso.pop()
-            play_sound("audio/nota.wav")
+            play_sound("audio/nota.ogg")
             await wait(1)
         self.aviso.text = "JÁ!"
         self.aviso.pop()
-        play_sound("audio/nota.wav", pitch=2)
+        play_sound("audio/nota.ogg", pitch=2)
         st.largou = True
         await wait(1)
         self.aviso.text = ""

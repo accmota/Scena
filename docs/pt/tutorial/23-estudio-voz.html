@@ -59,7 +59,7 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         self.tocar()
 
     def tocar(self):
-        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        play_sound("audio/nota.ogg", pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
 
     def apagar(self):
@@ -121,7 +121,7 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         self.tocar()
 
     def tocar(self):
-        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        play_sound("audio/nota.ogg", pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
 
     def apagar(self):
@@ -236,7 +236,7 @@ aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="
 class Gravador(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.som = "audio/nota.wav"
+        self.som = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):
@@ -268,7 +268,7 @@ run()
           text: "A tecla toca o som do gravador. <code>play_sound</code> aceita o nome de um arquivo ou um som gravado, e o <code>pitch=</code> vale para os dois."
         },
         {
-          at: "self.som = \"audio/nota.wav\"",
+          at: "self.som = \"audio/nota.ogg\"",
           text: "<code>self.som</code> é o som que o piano toca. Até a primeira gravação, é a nota de piano de sempre."
         },
         {
@@ -344,7 +344,7 @@ aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="
 class Gravador(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.som = "audio/nota.wav"
+        self.som = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):
@@ -476,7 +476,7 @@ aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="
 class Gravador(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.som = "audio/nota.wav"
+        self.som = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):
@@ -652,7 +652,7 @@ aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="
 class Gravador(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.som = "audio/nota.wav"
+        self.som = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):

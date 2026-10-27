@@ -19,28 +19,22 @@ credit block into your game's credits screen or into the README / credits
 file you distribute with it. If you change the file, say so (e.g. "trimmed,
 converted to OGG").
 
-### `audio/laser4.wav`, `audio/laser7.wav`: CC-BY 3.0
+### `audio/laser4.ogg`, `audio/laser7.ogg`: CC-BY 3.0
 
 ```
 "Laser Fire" by dklon
 https://opengameart.org/content/laser-fire
 Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Converted to OGG.
 ```
 
-### `audio/fx1.wav`: CC-BY 4.0
-
-```
-"8-bit Game Over" by Euphrosyyn
-https://freesound.org/s/442127/
-Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
-```
-
-### `audio/explosion01.wav`, `audio/explosion03.wav`, `audio/explosion07.wav`, `audio/explosion09.wav`: CC-BY-SA 3.0
+### `audio/explosion01.ogg`, `audio/explosion03.ogg`, `audio/explosion07.ogg`, `audio/explosion09.ogg`: CC-BY-SA 3.0
 
 ```
 "9 explosion sounds" by Unnamed (Viktor.Hahn@web.de)
 https://opengameart.org/content/9-explosion-sounds
 Licensed under CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
+Converted to OGG.
 ```
 
 Share-Alike applies to the sound itself: a modified version of one of these
@@ -178,16 +172,18 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `music/awesomeness.ogg` | mrpoly | https://opengameart.org/content/menu-music |
 | `music/vampires_piano.ogg` | TAD | https://opengameart.org/content/vampires-piano |
 | `audio/footstep_*`, `audio/impact*` | Kenney | https://www.kenney.nl ("Impact Sounds") |
-| `audio/explosion02.wav` | IdkMrGarcia | https://freesound.org/s/446625/ |
-| `audio/explosion04.wav` | Anomaex | https://freesound.org/s/490266/ |
-| `audio/projectile-hit.flac` | unfa | https://freesound.org/s/193429/ |
-| `audio/sfx-hit-2.wav` | OwlStorm | https://freesound.org/s/404792/ |
-| `audio/laser-big.wav` | mrspivey | https://freesound.org/s/805194/ |
-| `audio/explode.flac` | SamsterBirdies, qubodup (mix) | links in `audio/License.txt` |
-| `audio/gameover.wav` | LilMati | https://freesound.org/s/365782/ |
-| `audio/loss.wav` | jivatma07 | https://freesound.org/s/173859/ |
-| `audio/fx2.wav` | Mountain_Man | https://freesound.org/s/382310/ |
-| `audio/nota.wav` | made for Scena (synthesized by a script) | this repository; see `audio/License.txt` |
+| `audio/explosion02.ogg` | IdkMrGarcia | https://freesound.org/s/446625/ |
+| `audio/explosion04.ogg` | Anomaex | https://freesound.org/s/490266/ |
+| `audio/projectile-hit.ogg` | unfa | https://freesound.org/s/193429/ |
+| `audio/sfx-hit-2.ogg` | OwlStorm | https://freesound.org/s/404792/ |
+| `audio/laser-big.ogg` | mrspivey | https://freesound.org/s/805194/ |
+| `audio/explode.ogg` | SamsterBirdies, qubodup (mix) | links in `audio/License.txt` |
+| `audio/gameover.ogg` | LilMati | https://freesound.org/s/365782/ |
+| `audio/loss.ogg` | jivatma07 | https://freesound.org/s/173859/ |
+| `audio/fx2.ogg` | Mountain_Man | https://freesound.org/s/382310/ |
+| `audio/fx1.ogg` | monosfera | https://freesound.org/s/726256/ |
+| `audio/fx3.ogg` | DneproMan | https://freesound.org/s/334874/ |
+| `audio/nota.ogg` | made for Scena (synthesized by a script) | this repository; see `audio/License.txt` |
 | `synth/` | made for Scena (synthesized by a script) | this repository; see `synth/license.txt` |
 | `levels/` | made for Scena (level files) | this repository; see `levels/license.txt` |
 | `svg/` | made for Scena (drawn for Appendix G) | this repository; see `svg/license.txt` |

@@ -57,10 +57,10 @@ PALCO_FX = [BLOOM, VINHETA]
 SPACE = Sheet("shooter/sheet.xml")
 BOOM = Sheet("explosions/exp4.png", cols=12)
 BOOM.clip("explode", list(range(12)), fps=24)
-LASER = Sound("audio/laser4.wav").bake(Distortion(), Wavefold(), transpose=3)
-EXPLOSAO = Sound("audio/explosion02.wav")
-TRILHA_A = "audio/fx1.wav"
-TRILHA_B = "audio/fx2.wav"
+LASER = Sound("audio/laser4.ogg").bake(Distortion(), Wavefold(), transpose=3)
+EXPLOSAO = Sound("audio/explosion02.ogg")
+TRILHA_A = "audio/fx1.ogg"
+TRILHA_B = "audio/fx2.ogg"
 NAVES = ["playerShip1_red.png", "playerShip2_blue.png", "playerShip3_green.png"]
 AREA = canvas.game_view.inset(40)
 G.equal((AREA.left, AREA.bottom, AREA.right, AREA.top), (40, 40, W - 40, H - 40), "box.inset")

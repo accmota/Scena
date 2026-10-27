@@ -92,7 +92,7 @@ class Robo(Sprite, source=robo, group="robo", hitbox_shape="rect"):
         self.untag("robo")
         self.vel.x = 0
         self.play("quebrado", loops=1)
-        play_sound("audio/explosion02.wav")
+        play_sound("audio/explosion02.ogg")
         self.after(2, self.destroy)
 
 
@@ -165,12 +165,12 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect"):
         st.vidas -= 1
         canvas.shake(6)
         if st.vidas > 0:
-            play_sound("audio/sfx-hit-2.wav")
+            play_sound("audio/sfx-hit-2.ogg")
             self.center = fase["inicio"].center
             self.vel = Vec2(0, 0)
             self.blink(1)
         else:
-            play_sound("audio/gameover.wav")
+            play_sound("audio/gameover.ogg")
             aviso.text = "Fim de jogo"
 
 

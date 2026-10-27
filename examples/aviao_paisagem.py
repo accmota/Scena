@@ -98,7 +98,7 @@ class Aviao(Sprite, source=folha, height=40):
     def passou(self, porta):
         porta.destroy()
         st.pontos += 1
-        play_sound("audio/fx2.wav")
+        play_sound("audio/fx2.ogg")
 
     @collide_with("pilar")
     def bateu(self, pilar):
@@ -109,7 +109,7 @@ class Aviao(Sprite, source=folha, height=40):
         st.voando = False
         self.play("caindo")
         canvas.shake(6)
-        play_sound("audio/explosion02.wav")
+        play_sound("audio/explosion02.ogg")
         self.move_to_front()
         self.fogo = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
         aviso.text = "Aperte espaço"

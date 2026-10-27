@@ -95,7 +95,7 @@ def update(dt):
         now = 1 if swing(k) > 0 else -1
         if st.notes and now > 0 and last[k] < 0:      # crossed the middle, going out
             note = SCALE[k % 5] + 12 * (k // 5) - 12
-            play_sound("audio/nota.wav", pitch=2 ** (note / 12), volume=0.08, pan=bobs[k].center.x / 700)
+            play_sound("audio/nota.ogg", pitch=2 ** (note / 12), volume=0.08, pan=bobs[k].center.x / 700)
             bobs[k].pop(scale=1.8)
         last[k] = now
 

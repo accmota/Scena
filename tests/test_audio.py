@@ -53,7 +53,7 @@ class TestStage0Dependency(unittest.TestCase):
         backends = miniaudio.get_enabled_backends()
         self.assertIn(miniaudio.Backend.NULL, backends)
 
-        wav = Path(media("audio", "laser-big.wav"))
+        wav = Path(media("audio", "laser-big.ogg"))
         decoded = miniaudio.decode_file(
             str(wav),
             output_format=miniaudio.SampleFormat.FLOAT32,
@@ -642,18 +642,16 @@ class TestPlaySoundOwnership(PlaySoundTestCase):
         self.assertAlmostEqual(n_frames / _SR / 2.0, 0.1, places=3)
 
     def test_media_audio_every_format_decodes(self):
+        # Every bundled sound effect decodes and plays. audio/ is OGG (and one
+        # MP3) since 2026-10; synth/ keeps the WAVs. No bundled file is FLAC:
+        # test_flac_decodes writes one.
         import miniaudio
-        root = os.path.join(MEDIA, "audio")
-        files = [
-            os.path.basename(p)
-            for p in iter_files(root, ".wav", ".ogg", ".flac", ".mp3")
-        ]
-        self.assertTrue(any(n.endswith(".wav") for n in files))
-        self.assertTrue(any(n.endswith(".ogg") for n in files))
-        self.assertTrue(any(n.endswith(".flac") for n in files))
-        self.assertTrue(any(n.endswith(".mp3") for n in files))
-        for name in files:
-            path = os.path.join(root, name)
+        paths = [p for folder in ("audio", "synth")
+                 for p in iter_files(os.path.join(MEDIA, folder), ".wav", ".ogg", ".flac", ".mp3")]
+        for ext in (".wav", ".ogg", ".mp3"):
+            self.assertTrue(any(p.endswith(ext) for p in paths), ext)
+        for path in paths:
+            name = os.path.basename(path)
             decoded = miniaudio.decode_file(
                 path,
                 output_format=miniaudio.SampleFormat.FLOAT32,
@@ -662,6 +660,24 @@ class TestPlaySoundOwnership(PlaySoundTestCase):
             )
             self.assertGreater(decoded.num_frames, 0, name)
             h = play_sound(path)
+            self.assertFalse(h.cancelled)
+            h.cancel()
+
+    def test_flac_decodes(self):
+        # FLAC is one of the formats Scena names (_FORMATS) but no bundled
+        # file is one any more; soundfile writes it (skipped where absent).
+        try:
+            import soundfile
+        except ImportError:
+            self.skipTest("soundfile not installed (pip install soundfile)")
+        import tempfile
+        samples = _sine(440, 0.2, amp=0.4)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "tone.flac")
+            soundfile.write(path, samples, _SR, format="FLAC")
+            sound = Sound(path)
+            self.assertAlmostEqual(sound.duration, 0.2, places=3)
+            h = play_sound(sound)
             self.assertFalse(h.cancelled)
             h.cancel()
 
@@ -1324,7 +1340,7 @@ class TestSoundGuards(PlaySoundTestCase):
 
     def test_stream_remaining_uses_file_duration(self):
         from scena.audio import reset_audio
-        root = media("audio", "laser-big.wav")
+        root = media("audio", "laser-big.ogg")
         reset_audio()
         material = Sound(root, stream=True)
         h = play_sound(material)
@@ -1335,7 +1351,7 @@ class TestSoundGuards(PlaySoundTestCase):
 
     def test_stream_override_does_not_poison_heuristic(self):
         from scena.audio import reset_audio
-        root = media("audio", "laser-big.wav")
+        root = media("audio", "laser-big.ogg")
         reset_audio()
         Sound(root, stream=True)
         heuristic = Sound(root)
@@ -1383,9 +1399,9 @@ class TestWithoutMiniaudio(PlaySoundTestCase):
         done = []
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            h = play_sound(media("audio", "laser-big.wav"), on_done=lambda: done.append(1))
-            play_sound(media("audio", "laser-big.wav"))
-            Sound(media("audio", "laser-big.wav"))
+            h = play_sound(media("audio", "laser-big.ogg"), on_done=lambda: done.append(1))
+            play_sound(media("audio", "laser-big.ogg"))
+            Sound(media("audio", "laser-big.ogg"))
         msgs = self._scena_warnings(caught)
         self.assertEqual(len(msgs), 1, msgs)
         banner = last_author_error()
@@ -1446,7 +1462,7 @@ class TestWithoutMiniaudio(PlaySoundTestCase):
             warnings.simplefilter("ignore")
             import scena
             from scena.process import last_author_error
-            scena.play_sound("laser-big.wav")
+            scena.play_sound("laser-big.ogg")
             print(last_author_error()["message"][:9])
         """)
         out = subprocess.run(

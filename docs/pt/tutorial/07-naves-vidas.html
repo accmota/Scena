@@ -642,7 +642,7 @@ run()
     {
       title: "Som",
       body: `
-        <p>O jogo é mudo. <code>play_sound</code> (tocar som) toca um arquivo de som uma vez, e o jogo segue sem esperar o som acabar. O nome traz a subpasta, como nas imagens: <code>"audio/laser4.wav"</code>.</p>
+        <p>O jogo é mudo. <code>play_sound</code> (tocar som) toca um arquivo de som uma vez, e o jogo segue sem esperar o som acabar. O nome traz a subpasta, como nas imagens: <code>"audio/laser4.ogg"</code>.</p>
         <p>Cada som fica junto da coisa que o faz.</p>
       `,
       code: `from random import choice
@@ -669,7 +669,7 @@ placar["text"] @= lambda: f"Pontos {st.pontos}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
-        play_sound("audio/explosion01.wav")
+        play_sound("audio/explosion01.ogg")
         self.after(0.5, self.destroy)
 
 
@@ -713,7 +713,7 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
 
         if keyp("SPACE") and ready("tiro", 0.2):
             Tiro(center=(self.center.x, self.center.y + 28))
-            play_sound("audio/laser4.wav")
+            play_sound("audio/laser4.ogg")
 
     @collide_with("tiros_inimigos")
     def atingido(self, tiro):
@@ -762,11 +762,11 @@ run()
 `,
       notes: [
         {
-          at: "play_sound(\"audio/explosion01.wav\")",
+          at: "play_sound(\"audio/explosion01.ogg\")",
           text: "O estrondo fica com a explosão, no <code>setup</code> dela. Assim, toda <code>Explosao</code> que o jogo criar, de quem quer que seja, já nasce com o seu som."
         },
         {
-          at: "play_sound(\"audio/laser4.wav\")",
+          at: "play_sound(\"audio/laser4.ogg\")",
           text: "O laser fica com quem atira, logo depois de criar o <code>Tiro</code>."
         }
       ],
@@ -776,14 +776,14 @@ run()
       try: [
           {
             note: "Outros sons, um por vez, no lugar dos dois. <code>volume</code> 1 é o original; <code>pitch</code> (altura) 1.5 é mais agudo e mais rápido.",
-            code: `play_sound("audio/laser7.wav", volume=0.5)
-play_sound("audio/explosion03.wav", pitch=1.5)`
+            code: `play_sound("audio/laser7.ogg", volume=0.5)
+play_sound("audio/explosion03.ogg", pitch=1.5)`
           },
           {
             note: "Cada som um pouco diferente. <code>uniform</code> (uniforme) sorteia um número qualquer entre dois. Com o <code>pitch</code> sorteado a cada vez, cada tiro sai um pouco mais grave ou mais agudo, e a repetição para de cansar o ouvido: é um truque dos jogos. Pouca variação no laser, mais na explosão; demais, o som desafina. A primeira linha vai no topo, no lugar da importação; as outras, no lugar das duas linhas de som.",
             code: `from random import choice, uniform
-play_sound("audio/laser4.wav", pitch=uniform(0.9, 1.1))
-play_sound("audio/explosion01.wav", pitch=uniform(0.8, 1.2))`
+play_sound("audio/laser4.ogg", pitch=uniform(0.9, 1.1))
+play_sound("audio/explosion01.ogg", pitch=uniform(0.8, 1.2))`
           }
         ]
     },
@@ -857,7 +857,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
-        play_sound("audio/explosion01.wav")
+        play_sound("audio/explosion01.ogg")
         self.after(0.5, self.destroy)
 
 
@@ -901,7 +901,7 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
 
         if keyp("SPACE") and ready("tiro", 0.2):
             Tiro(center=(self.center.x, self.center.y + 28))
-            play_sound("audio/laser4.wav")
+            play_sound("audio/laser4.ogg")
 
     @collide_with("tiros_inimigos")
     def atingido(self, tiro):
@@ -911,7 +911,7 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
         st.vidas -= 1
         canvas.shake(8)
         self.blink(1.5)
-        play_sound("audio/sfx-hit-2.wav")
+        play_sound("audio/sfx-hit-2.ogg")
 
     def on_destroy(self):
         self.propulsor.destroy()
@@ -1052,7 +1052,7 @@ vidas["text"] @= lambda: f"x {st.vidas}"
 class Explosao(Sprite, source=explosao, height=90):
     def setup(self):
         self.play("explode", loops=1)
-        play_sound("audio/explosion01.wav")
+        play_sound("audio/explosion01.ogg")
         self.after(0.5, self.destroy)
 
 
@@ -1096,7 +1096,7 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
 
         if keyp("SPACE") and ready("tiro", 0.2):
             Tiro(center=(self.center.x, self.center.y + 28))
-            play_sound("audio/laser4.wav")
+            play_sound("audio/laser4.ogg")
 
     @collide_with("tiros_inimigos")
     def atingido(self, tiro):
@@ -1107,13 +1107,13 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45):
         canvas.shake(8)
         if st.vidas > 0:
             self.blink(1.5)
-            play_sound("audio/sfx-hit-2.wav")
+            play_sound("audio/sfx-hit-2.ogg")
         else:
             canvas.flash(0.4)
             canvas.explosion_at(self, amount=1.2)
             Fire(center=self.center, radius=30)
             Text(text="FIM DE JOGO", center=(500, 400), font_size=48)
-            play_sound("audio/gameover.wav")
+            play_sound("audio/gameover.ogg")
             self.destroy()
 
     def on_destroy(self):

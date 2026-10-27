@@ -642,7 +642,7 @@ def _author_objects():
         roots.append((f"{name}()", obj))
         made.append(obj)
     wav = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       "examples", "media", "audio", "explosion01.wav")
+                       "examples", "media", "audio", "explosion01.ogg")
     sound = scena.Sound(wav)
     roots.append(("Sound(file)", sound))
     roots.append(("play_sound()", scena.play_sound(sound)))   # .effects: AudioEffectStack

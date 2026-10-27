@@ -80,7 +80,7 @@ class ShieldBubble(Circle, radius=44, visual=Shield(style="plasma")):
     def absorbed(self, shot, info):
         shot.destroy()
         canvas.zap_at(info, color="sky blue")
-        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        play_sound("audio/sfx-hit-2.ogg", pitch=1.6)
         self.spend()
 
     # The shield shatters the whole asteroid: two pieces born
@@ -230,7 +230,7 @@ class Target(Circle, radius=16, visual=Sphere("gold"), group="target"):
     @collide_with("shots")
     def was_hit(self, shot, info):
         canvas.debris_at(self, color="gold", radius=60)
-        play_sound("audio/explosion02.wav", volume=0.6)
+        play_sound("audio/explosion02.ogg", volume=0.6)
         if shot.shooter:
             drop_power(tuple(self.center), tuple(shot.shooter.center))
         shot.destroy()
@@ -264,7 +264,7 @@ resolve("asteroids", "asteroids", bounce=1.0)
 def struck(ship, shot, info):
     shot.destroy()
     canvas.hit_at(info, color="orange")
-    play_sound("audio/sfx-hit-2.wav")
+    play_sound("audio/sfx-hit-2.ogg")
     ship.flash(0.1)
     ship.energy -= 10
 
@@ -279,7 +279,7 @@ def crashed(ship, asteroid, info):
 @collide("shots", "bolt")
 def burned(shot, bolt, info):
     canvas.zap_at(info, color="cyan")
-    play_sound("audio/fx2.wav", volume=0.5)
+    play_sound("audio/fx2.ogg", volume=0.5)
     shot.destroy()
 
 
@@ -287,7 +287,7 @@ def burned(shot, bolt, info):
 def smashed(shot, crate):
     canvas.burst_at(crate, radius=24)
     canvas.debris_at(crate, color="peru", radius=24)
-    play_sound("audio/explosion01.wav", volume=0.4)
+    play_sound("audio/explosion01.ogg", volume=0.4)
     shot.destroy()
     crate.destroy()
 
@@ -300,7 +300,7 @@ def caught(ship, power):
     else:
         ship.energy = min(100, ship.energy + 40)
     ship.pop()
-    play_sound("audio/fx1.wav")
+    play_sound("audio/fx1.ogg")
     power.destroy()
 
 
@@ -430,7 +430,7 @@ class Duel(Act):
         canvas.explosion_at(lost, amount=1.6)
         canvas.debris_at(lost, color="gray", radius=70)
         canvas.shake(14)
-        play_sound("audio/explosion04.wav")
+        play_sound("audio/explosion04.ogg")
         lost.destroy()
         self.after(3, lambda: change_act(Victory))
 

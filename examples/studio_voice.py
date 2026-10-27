@@ -58,7 +58,7 @@ notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, col
 class Recorder(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.sound = "audio/nota.wav"
+        self.sound = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):

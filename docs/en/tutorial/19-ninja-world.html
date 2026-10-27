@@ -855,7 +855,7 @@ class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
         self.untag("robot")
         self.vel.x = 0
         self.play("broken", loops=1)
-        play_sound("audio/explosion02.wav")
+        play_sound("audio/explosion02.ogg")
         self.after(2, self.destroy)
 
 
@@ -1088,7 +1088,7 @@ class Robot(Sprite, source=robot, group="robot", hitbox_shape="rect"):
         self.untag("robot")
         self.vel.x = 0
         self.play("broken", loops=1)
-        play_sound("audio/explosion02.wav")
+        play_sound("audio/explosion02.ogg")
         self.after(2, self.destroy)
 
 
@@ -1161,12 +1161,12 @@ class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
         st.lives -= 1
         canvas.shake(6)
         if st.lives > 0:
-            play_sound("audio/sfx-hit-2.wav")
+            play_sound("audio/sfx-hit-2.ogg")
             self.center = (100, 400)
             self.vel = Vec2(0, 0)
             self.blink(1)
         else:
-            play_sound("audio/gameover.wav")
+            play_sound("audio/gameover.ogg")
             notice.text = "GAME OVER"
 
 

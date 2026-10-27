@@ -80,7 +80,7 @@ class Escudo(Circle, radius=44, visual=Shield(style="plasma")):
     def segurou(self, tiro, info):
         tiro.destroy()
         canvas.zap_at(info, color="sky blue")
-        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        play_sound("audio/sfx-hit-2.ogg", pitch=1.6)
         self.gastar()
 
     # O escudo despedaça o asteroide inteiro: dois pedaços nascendo
@@ -230,7 +230,7 @@ class Alvo(Circle, radius=16, visual=Sphere("gold"), group="alvo"):
     @collide_with("tiros")
     def atingido(self, tiro, info):
         canvas.debris_at(self, color="gold", radius=60)
-        play_sound("audio/explosion02.wav", volume=0.6)
+        play_sound("audio/explosion02.ogg", volume=0.6)
         if tiro.dono:
             soltar_poder(tuple(self.center), tuple(tiro.dono.center))
         tiro.destroy()
@@ -264,7 +264,7 @@ resolve("asteroides", "asteroides", bounce=1.0)
 def acertou(nave, tiro, info):
     tiro.destroy()
     canvas.hit_at(info, color="orange")
-    play_sound("audio/sfx-hit-2.wav")
+    play_sound("audio/sfx-hit-2.ogg")
     nave.flash(0.1)
     nave.energia -= 10
 
@@ -279,7 +279,7 @@ def bateu(nave, asteroide, info):
 @collide("tiros", "raio")
 def queimou(tiro, raio, info):
     canvas.zap_at(info, color="cyan")
-    play_sound("audio/fx2.wav", volume=0.5)
+    play_sound("audio/fx2.ogg", volume=0.5)
     tiro.destroy()
 
 
@@ -287,7 +287,7 @@ def queimou(tiro, raio, info):
 def estourou(tiro, caixa):
     canvas.burst_at(caixa, radius=24)
     canvas.debris_at(caixa, color="peru", radius=24)
-    play_sound("audio/explosion01.wav", volume=0.4)
+    play_sound("audio/explosion01.ogg", volume=0.4)
     tiro.destroy()
     caixa.destroy()
 
@@ -300,7 +300,7 @@ def pegou(nave, poder):
     else:
         nave.energia = min(100, nave.energia + 40)
     nave.pop()
-    play_sound("audio/fx1.wav")
+    play_sound("audio/fx1.ogg")
     poder.destroy()
 
 
@@ -430,7 +430,7 @@ class Duelo(Act):
         canvas.explosion_at(perdeu, amount=1.6)
         canvas.debris_at(perdeu, color="gray", radius=70)
         canvas.shake(14)
-        play_sound("audio/explosion04.wav")
+        play_sound("audio/explosion04.ogg")
         perdeu.destroy()
         self.after(3, lambda: change_act(Vitoria))
 

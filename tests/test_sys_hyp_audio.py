@@ -89,7 +89,7 @@ class AudioMachine(RuleBasedStateMachine):
         self.ended = {}        # index -> on_done count when its owner ended
         self.slots = {}        # name -> index of the handle holding the slot
         self.replaced = set()  # indexes a named slot cut (never an on_done)
-        self.stream = Sound(media("audio", "laser-big.wav"), stream=True)
+        self.stream = Sound(media("audio", "laser-big.ogg"), stream=True)
         self.broken = {}       # id(Sound) -> pull at which its source raises
         self.keep = []         # those Sounds (an id is not reused while they live)
         real = Sound._frame_source

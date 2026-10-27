@@ -59,7 +59,7 @@ class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
         self.play_note()
 
     def play_note(self):
-        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        play_sound("audio/nota.ogg", pitch=self.note, on_done=self.dim)
         self.color = "gold"
 
     def dim(self):
@@ -121,7 +121,7 @@ class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
         self.play_note()
 
     def play_note(self):
-        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        play_sound("audio/nota.ogg", pitch=self.note, on_done=self.dim)
         self.color = "gold"
 
     def dim(self):
@@ -236,7 +236,7 @@ notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, col
 class Recorder(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.sound = "audio/nota.wav"
+        self.sound = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):
@@ -268,7 +268,7 @@ run()
           text: "The key plays the recorder's sound. <code>play_sound</code> takes a file name or a recorded sound, and <code>pitch=</code> works for both."
         },
         {
-          at: "self.sound = \"audio/nota.wav\"",
+          at: "self.sound = \"audio/nota.ogg\"",
           text: "<code>self.sound</code> is the sound the piano plays. Until the first recording, it is the usual piano note."
         },
         {
@@ -344,7 +344,7 @@ notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, col
 class Recorder(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.sound = "audio/nota.wav"
+        self.sound = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):
@@ -476,7 +476,7 @@ notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, col
 class Recorder(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.sound = "audio/nota.wav"
+        self.sound = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):
@@ -652,7 +652,7 @@ notice = Text(text="R records your voice", top_left=(20, 585), font_size=20, col
 class Recorder(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.sound = "audio/nota.wav"
+        self.sound = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):

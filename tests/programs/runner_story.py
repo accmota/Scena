@@ -69,9 +69,9 @@ haze = Rect(center=(W / 2, 30), width=W, height=60, color="steel blue",
             layer=below("clouds"))              # behind everything in the world
 
 # ---- sounds ----------------------------------------------------------------
-jump_snd = Sound("audio/laser4.wav", volume=0.6)
+jump_snd = Sound("audio/laser4.ogg", volume=0.6)
 coin_snd = Sound("audio/impactBell_heavy_000.ogg", volume=0.5)
-hit_snd = Sound("audio/sfx-hit-2.wav")
+hit_snd = Sound("audio/sfx-hit-2.ogg")
 
 # ---- HUD -------------------------------------------------------------------
 hud = Text(text="", top_left=(20, 580), font_size=20)
@@ -123,7 +123,7 @@ def running_exit(e):
 @on_mode
 async def outro(e):
     st.phase = "outro"
-    play_sound("audio/gameover.wav")
+    play_sound("audio/gameover.ogg")
     await hero.rotate_by(90, time=0.6)
     name_box.visible = True
     name_box.focus()

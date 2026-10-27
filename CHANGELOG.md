@@ -144,6 +144,17 @@ left out.
   shot that misses goes as soon as it leaves the screen. It has sound
   effects and music; its title and wave banners are in Bungee, the story in
   Play (Play Bold on the HUD).
+- The sounds in `examples/media/audio/` are now OGG Vorbis: the 18 that
+  were WAV or FLAC keep their names with `.ogg` (`audio/fx1.wav` is
+  `audio/fx1.ogg`, `audio/explode.flac` is `audio/explode.ogg`), so the
+  folder went from 7 MB to under 1 MB. The examples, the tutorials in
+  both languages and their credits use the new names. A script of your own
+  that plays an old name plays silence with a SCENA WARNING naming the
+  missing file: change `.wav` (or `.flac`) to `.ogg`. Three game-over
+  sounds also changed names to match what they sound like: `fx1.wav`'s
+  jingle is now `gameover.ogg`, and the old `gameover.wav` is `loss.ogg`.
+  `fx1.ogg` and `fx3.ogg` are new sounds, both CC0; the old `fx3.wav`, which
+  needed a credit (CC-BY 4.0), is gone.
 
 ## 0.10.1 — 2026-10-26
 

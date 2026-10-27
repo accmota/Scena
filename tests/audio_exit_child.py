@@ -49,10 +49,10 @@ def start(playing: str) -> None:
         path = write_wav(os.path.join(tempfile.mkdtemp(), "loop.wav"), 9.0, amp=0.05)
         play_sound(path, loops="forever", pitch=30.0)
     elif playing == "reverb":
-        play_sound(media("audio", "fx2.wav")).effects.add(Reverb())
+        play_sound(media("audio", "fx2.ogg")).effects.add(Reverb())
     elif playing == "many":
         for i in range(50):
-            play_sound(media("audio", "laser7.wav"), pitch=0.5 + i / 50)
+            play_sound(media("audio", "laser7.ogg"), pitch=0.5 + i / 50)
         play_sound(media("music", "the_field_of_dreams.ogg"))
 
 

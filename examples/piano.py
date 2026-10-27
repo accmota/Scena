@@ -1,6 +1,6 @@
 """Estúdio · Piano — tutorial 22.
 
-Um piano de oito teclas: uma nota só (audio/nota.wav) tocada em oito
+Um piano de oito teclas: uma nota só (audio/nota.ogg) tocada em oito
 alturas com pitch=; a tecla acende enquanto a nota soa (on_done=); um
 equalizador mostra o som do jogo em doze faixas (audio.spectrum).
 
@@ -32,7 +32,7 @@ class Tecla(Rect, width=110, height=300, color="#F2EFE6", group="teclas"):
         self.tocar()
 
     def tocar(self):
-        play_sound("audio/nota.wav", pitch=self.nota, on_done=self.apagar)
+        play_sound("audio/nota.ogg", pitch=self.nota, on_done=self.apagar)
         self.color = "gold"
 
     def apagar(self):

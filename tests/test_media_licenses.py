@@ -36,13 +36,14 @@ MEDIA_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ttf", ".otf",
              ".wav", ".ogg", ".mp3", ".flac")
 LICENSE_NAMES = {"license.txt", "licence.txt"}
 # File names in a license notice. No spaces or parentheses: they would swallow
-# "(laser4.wav" from "CC-BY 3.0 (laser4.wav, ...)"; name attribution files
+# "(laser4.ogg" from "CC-BY 3.0 (laser4.ogg, ...)"; name attribution files
 # without them.
 _MEDIA_NAME = re.compile(r"(?<![\w\-+@./])[\w\-+@]+\.(?:%s)\b"
                          % "|".join(e[1:] for e in MEDIA_EXT), re.IGNORECASE)
 # A link or the license's name: Freesound notices say "License: Attribution
-# 4.0" with no link (fx3.wav once slipped past a link-only check). A CC-BY file
-# sharing a block with CC0 files flags them all; split the block with "---".
+# 4.0" with no link (a CC-BY "8-bit Game Over", once in audio/, slipped past a
+# link-only check). A CC-BY file sharing a block with CC0 files flags them all;
+# split the block with "---".
 # OGA-BY (OpenGameArt's CC-BY without the DRM clause) needs credit too: the
 # mountains/ CraftPix files once named only "OGA-BY 3.0".
 _ATTRIBUTION = re.compile(r"creativecommons\.org/licenses/by(?:-sa)?/"

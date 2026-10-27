@@ -31,7 +31,7 @@ hud = SmokeHud(
 )
 
 # Short clip / long music piece from examples/media/audio (any file still works).
-st.clip = "laser-big.wav" if "laser-big.wav" in FILES else (FILES[0] if FILES else "laser-big.wav")
+st.clip = "laser-big.ogg" if "laser-big.ogg" in FILES else (FILES[0] if FILES else "laser-big.ogg")
 st.music = ("SuperHero_original_no_Intro.ogg" if "SuperHero_original_no_Intro.ogg" in FILES
             else (FILES[-1] if FILES else "Victory.mp3"))
 st.master = 1.0

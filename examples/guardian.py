@@ -247,9 +247,9 @@ class Ship(Triangle, group="ship"):
                 self.reload = COOLDOWN
             # one sound a volley; a new one cuts the last (name=)
             if self.powers["heavy"] > 0:
-                play_sound("audio/laser-big.wav", volume=0.3, pitch=1.8, name="shot")
+                play_sound("audio/laser-big.ogg", volume=0.3, pitch=1.8, name="shot")
             else:
-                play_sound("audio/laser7.wav", volume=0.3, name="shot")
+                play_sound("audio/laser7.ogg", volume=0.3, name="shot")
 
     def shoot(self, start, angle):
         # the aim helps: a narrow radar in front of the shot (4.5 degrees to
@@ -283,7 +283,7 @@ class Ship(Triangle, group="ship"):
             play_sound("audio/impactGeneric_light_003.ogg", volume=0.6, pitch=0.7)
             return
         canvas.ripple_at(CENTER, amount=0.4, radius=ORBIT + 120)
-        play_sound("audio/projectile-hit.flac", volume=0.8, pitch=0.6)
+        play_sound("audio/projectile-hit.ogg", volume=0.8, pitch=0.6)
         self.powers["shield"] = 0
         self.drop_shield()
 
@@ -307,7 +307,7 @@ class Ship(Triangle, group="ship"):
     @when(lambda self: st.ship_life <= 0)
     def destroyed(self):
         canvas.explosion_at(self, amount=1.4)
-        play_sound("audio/explosion09.wav")
+        play_sound("audio/explosion09.ogg")
         self.destroy()
 
     def on_destroy(self):
@@ -360,7 +360,7 @@ def zapped(shot, bullet):
     if not shot.pierce:
         shot.destroy()
     canvas.zap_at(bullet, color="white", radius=30)
-    play_sound("audio/projectile-hit.flac", volume=0.4, pitch=2, name="zap")
+    play_sound("audio/projectile-hit.ogg", volume=0.4, pitch=2, name="zap")
 
 
 # The rules of every enemy. Each enemy has its own life, its own worth (points) and
@@ -374,7 +374,7 @@ def hit(shot, enemy):
         shoot_down(enemy)
     else:
         canvas.hit_at(shot, color="white")
-        play_sound("audio/sfx-hit-2.wav", volume=0.4, name="hit")
+        play_sound("audio/sfx-hit-2.ogg", volume=0.4, name="hit")
         enemy.flash()
         enemy.scale_by(0.92)        # each shot shrinks it a little
 
@@ -473,7 +473,7 @@ class Arrow(Triangle, radius=24, base_ratio=0.6, group="enemies"):
 
     def blow_up(self):
         canvas.burst_at(self, radius=30)
-        play_sound("audio/explosion07.wav", volume=0.35, pitch=1.5, name="pop")
+        play_sound("audio/explosion07.ogg", volume=0.35, pitch=1.5, name="pop")
         self.destroy()
 
     def on_destroy(self):
@@ -511,7 +511,7 @@ class Mandala(RegularPolygon, n=5, radius=30, group="enemies"):
     def blow_up(self):
         canvas.burst_at(self, radius=60, amount=6)
         canvas.fireworks_at(self, color="violet", radius=80)
-        play_sound("audio/explosion02.wav", volume=0.6)
+        play_sound("audio/explosion02.ogg", volume=0.6)
         self.destroy()
 
     def on_destroy(self):
@@ -544,7 +544,7 @@ class Crystal(RegularPolygon, n=6, radius=30, group="enemies"):
     def blow_up(self):
         canvas.debris_at(self, color="turquoise", radius=60)
         canvas.burst_at(self, radius=60, amount=6)
-        play_sound("audio/explosion03.wav", volume=0.6, pitch=1.3)
+        play_sound("audio/explosion03.ogg", volume=0.6, pitch=1.3)
         self.destroy()
 
     def on_destroy(self):
@@ -568,7 +568,7 @@ class Mine(Circle, radius=20, color="dark red", group="mines"):
         canvas.burst_at(place, radius=BLAST, amount=6)
         canvas.ripple_at(place, amount=0.6, radius=2 * BLAST)
         # one deep boom for a whole chain (name=)
-        play_sound("audio/explosion01.wav", pitch=0.7, name="blast")
+        play_sound("audio/explosion01.ogg", pitch=0.7, name="blast")
         for neighbour in collision.query_circle(place, radius=BLAST, group="enemies"):
             if neighbour.active:        # a mine of the chain may have taken it
                 st.score += neighbour.worth
@@ -697,7 +697,7 @@ def announce(text):
     sign = lettering(Text(text, center=(640, 720), font=TITLE_FONT, font_size=36,
                           layer="ui"))
     sign.after(2, lambda: sign.fade_out(1, on_done=sign.destroy))
-    play_sound("audio/fx2.wav", volume=0.5)
+    play_sound("audio/fx2.ogg", volume=0.5)
 
 
 # The victory: the four lights of Arria flare into a four-point star. Ten
@@ -930,7 +930,7 @@ class Game(Act):
     @when(lambda self: st.ring_life <= 0)
     def ring_fell(self):
         canvas.explosion_at(CENTER, amount=2.5, flash=True)
-        play_sound("audio/explosion01.wav", pitch=0.5)
+        play_sound("audio/explosion01.ogg", pitch=0.5)
 
     @when(lambda self: st.ship_life <= 0 or st.ring_life <= 0)
     def lost(self):

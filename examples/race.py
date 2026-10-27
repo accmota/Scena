@@ -274,7 +274,7 @@ class Car(Sprite, source=vehicles, height=46, art_angle=90, group="cars"):
         self.vel = Vec2(0, 0)
         self.collidable = False
         canvas.explosion_at(self, amount=0.5)
-        play_sound("audio/explosion02.wav", volume=0.6)
+        play_sound("audio/explosion02.ogg", volume=0.6)
         self.blink(1.5)
         await self.rotate_by(choice([360, -360]), time=0.8, ease="ease_out")
         await wait(0.7)
@@ -384,7 +384,7 @@ def caught(car, power):
     if car.shots == 0:
         car.shots = 1
         car.glow = True
-        play_sound("audio/fx1.wav")
+        play_sound("audio/fx1.ogg")
         spot = tuple(power.center)
         after(5, lambda: PowerUp(center=spot))
         power.destroy()
@@ -519,11 +519,11 @@ class Race(Act):
         for number in ["3", "2", "1"]:
             self.notice.text = number
             self.notice.pop()
-            play_sound("audio/nota.wav")
+            play_sound("audio/nota.ogg")
             await wait(1)
         self.notice.text = "GO!"
         self.notice.pop()
-        play_sound("audio/nota.wav", pitch=2)
+        play_sound("audio/nota.ogg", pitch=2)
         st.started = True
         await wait(1)
         self.notice.text = ""

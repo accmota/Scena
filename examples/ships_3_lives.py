@@ -43,7 +43,7 @@ lives["text"] @= lambda: f"x {st.lives}"
 class Explosion(Sprite, source=explosion, height=90):
     def setup(self):
         self.play("explode", loops=1)
-        play_sound("audio/explosion01.wav")
+        play_sound("audio/explosion01.ogg")
         self.after(0.5, self.destroy)
 
 
@@ -87,7 +87,7 @@ class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
 
         if keyp("SPACE") and ready("shot", 0.2):
             Shot(center=(self.center.x, self.center.y + 28))
-            play_sound("audio/laser4.wav")
+            play_sound("audio/laser4.ogg")
 
     @collide_with("enemy_shots")
     def was_hit(self, shot):
@@ -98,13 +98,13 @@ class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
         canvas.shake(8)
         if st.lives > 0:
             self.blink(1.5)
-            play_sound("audio/sfx-hit-2.wav")
+            play_sound("audio/sfx-hit-2.ogg")
         else:
             canvas.flash(0.4)
             canvas.explosion_at(self, amount=1.2)
             Fire(center=self.center, radius=30)
             Text(text="GAME OVER", center=(500, 400), font_size=48)
-            play_sound("audio/gameover.wav")
+            play_sound("audio/gameover.ogg")
             self.destroy()
 
     def on_destroy(self):

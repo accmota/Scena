@@ -2,20 +2,20 @@
 Licenses (each file's license is listed below; full list and ready-to-copy
 credits: ../CREDITS.md):
 
+Scena converted the sounds that were WAV or FLAC at the source to Ogg Vorbis
+(2026-10); Kenney's sounds and the MP3 are as published. The links lead to
+the originals.
+
   Creative Commons 0 — CC0
   https://creativecommons.org/publicdomain/zero/1.0/
   You can copy, modify, distribute and perform the sound, even for commercial purposes, all without the need of asking permission to the author.
 
-  Creative Commons Attribution 3.0 — CC-BY 3.0 (laser4.wav, laser7.wav)
+  Creative Commons Attribution 3.0 — CC-BY 3.0 (laser4.ogg, laser7.ogg)
   https://creativecommons.org/licenses/by/3.0/
   Free to use and modify, even commercially, if you credit the author.
 
-  Creative Commons Attribution 4.0 — CC-BY 4.0 (fx1.wav)
-  https://creativecommons.org/licenses/by/4.0/
-  Free to use and modify, even commercially, if you credit the author.
-
   Creative Commons Attribution-ShareAlike 3.0 — CC-BY-SA 3.0
-  (explosion01.wav, explosion03.wav, explosion07.wav, explosion09.wav)
+  (explosion01.ogg, explosion03.ogg, explosion07.ogg, explosion09.ogg)
   https://creativecommons.org/licenses/by-sa/3.0/
   As CC-BY 3.0; modified versions of the sound must keep CC-BY-SA 3.0.
 
@@ -59,10 +59,10 @@ http://twitter.com/KenneyNL
 
 ---
 
-explosion01.wav
-explosion03.wav
-explosion07.wav
-explosion09.wav
+explosion01.ogg
+explosion03.ogg
+explosion07.ogg
+explosion09.ogg
 
 https://opengameart.org/content/9-explosion-sounds
 This work, made by Unnamed (Viktor.Hahn@web.de), is
@@ -71,19 +71,19 @@ http://creativecommons.org/licenses/by-sa/3.0/
 
 ---
 
-explosion02.wav: by IdkMrGarcia -- https://freesound.org/s/446625/ -- License: Creative Commons 0
+explosion02.ogg: by IdkMrGarcia -- https://freesound.org/s/446625/ -- License: Creative Commons 0
 
-explosion04.wav: by Anomaex -- https://freesound.org/s/490266/ -- License: Creative Commons 0
+explosion04.ogg: by Anomaex -- https://freesound.org/s/490266/ -- License: Creative Commons 0
 
-projectile-hit.flac: Projectile Hit by unfa -- https://freesound.org/s/193429/ -- License: Creative Commons 0
+projectile-hit.ogg: Projectile Hit by unfa -- https://freesound.org/s/193429/ -- License: Creative Commons 0
 
-sfx-hit-2.wav: Retro video game sfx - Hit 2 by OwlStorm -- https://freesound.org/s/404792/ -- License: Creative Commons 0
+sfx-hit-2.ogg: Retro video game sfx - Hit 2 by OwlStorm -- https://freesound.org/s/404792/ -- License: Creative Commons 0
 
-laser-big.wav: Laser Gun 02 by mrspivey -- https://freesound.org/s/805194/ -- License: Creative Commons 0
+laser-big.ogg: Laser Gun 02 by mrspivey -- https://freesound.org/s/805194/ -- License: Creative Commons 0
 
 ---
 
-explode.flac
+explode.ogg
 
 Astronomical Explosion by SamsterBirdies -- https://freesound.org/s/760509/ -- License: Creative Commons 0
 Beefy Explosions by SamsterBirdies -- https://freesound.org/s/745549/ -- License: Creative Commons 0
@@ -92,8 +92,8 @@ Windy Explosion.flac by qubodup -- https://freesound.org/s/182797/ -- License: C
 
 ---
 
-laser4.wav
-laser7.wav
+laser4.ogg
+laser7.ogg
 
 "Laser Fire" by dklon
 https://opengameart.org/content/laser-fire
@@ -102,24 +102,23 @@ The author asks: "credit me as dklon somewhere."
 
 ---
 
-loss.wav
+loss.ogg
 j1game_over_mono.wav by jivatma07 -- https://freesound.org/s/173859/ -- License: Creative Commons 0
 
-gameover.wav
+gameover.ogg
 Game Over 04.wav by LilMati -- https://freesound.org/s/365782/ -- License: Creative Commons 0
 
-fx2.wav
+fx2.ogg
 Game Over Arcade by Mountain_Man -- https://freesound.org/s/382310/ -- License: Creative Commons 0
 
+fx1.ogg
+zed_wipe_001 by monosfera -- https://freesound.org/s/726256/ -- License: Creative Commons 0
+
+fx3.ogg
+MA_SFX_SysEnter_2.wav by DneproMan -- https://freesound.org/s/334874/ -- License: Creative Commons 0
+
 ---
 
-fx1.wav
-"8-bit Game Over" by Euphrosyyn
-https://freesound.org/s/442127/
-Licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
-
----
-
-nota.wav
+nota.ogg
 A soft plucked note (C4, 1.2 s), synthesized for Scena (the Estúdio tutorials).
 Made for Scena -- License: Creative Commons 0

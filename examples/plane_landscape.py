@@ -98,7 +98,7 @@ class Plane(Sprite, source=sheet, height=40):
     def passed(self, door):
         door.destroy()
         st.score += 1
-        play_sound("audio/fx2.wav")
+        play_sound("audio/fx2.ogg")
 
     @collide_with("pillar")
     def crashed(self, pillar):
@@ -109,7 +109,7 @@ class Plane(Sprite, source=sheet, height=40):
         st.flying = False
         self.play("falling")
         canvas.shake(6)
-        play_sound("audio/explosion02.wav")
+        play_sound("audio/explosion02.ogg")
         self.move_to_front()
         self.fire = Fire(center=lambda: self.center + Vec2(-20, 8).rotate(self.angle), width=12, style="tongues")
         notice.text = "press SPACE"

@@ -1,6 +1,6 @@
 """Studio · Piano — tutorial 22.
 
-An eight-key piano: a single note (audio/nota.wav) played at eight
+An eight-key piano: a single note (audio/nota.ogg) played at eight
 pitches with pitch=; a key lights up while its note sounds (on_done=); an
 equalizer shows the game's sound in twelve bands (audio.spectrum).
 
@@ -32,7 +32,7 @@ class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
         self.play_note()
 
     def play_note(self):
-        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        play_sound("audio/nota.ogg", pitch=self.note, on_done=self.dim)
         self.color = "gold"
 
     def dim(self):

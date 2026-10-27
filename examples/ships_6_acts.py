@@ -49,7 +49,7 @@ new_game()
 class Explosion(Sprite, source=explosion, height=90):
     def setup(self):
         self.play("explode", loops=1)
-        play_sound("audio/explosion01.wav")
+        play_sound("audio/explosion01.ogg")
         self.after(0.5, self.destroy)
 
 
@@ -129,7 +129,7 @@ class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
     async def arriving(self):
         notice = Text(text="WATCH OUT: THE BOSS", center=(500, 400), font_size=40, color="tomato")
         notice.blink(2)
-        play_sound("audio/laser-big.wav", pitch=0.5)
+        play_sound("audio/laser-big.ogg", pitch=0.5)
         await wait(2)
         notice.destroy()
         await self.move_to(750, 600, time=2, ease="ease_out")
@@ -147,7 +147,7 @@ class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
     def volley(self):
         for dx in [-40, 0, 40]:
             EnemyShot(center=(self.center.x + dx, self.center.y - 50))
-        play_sound("audio/laser7.wav")
+        play_sound("audio/laser7.ogg")
 
     @collide_with("shots")
     def was_hit(self, shot, info):
@@ -164,7 +164,7 @@ class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
     async def dying(self):
         for turn in range(5):
             canvas.explosion_at(self.center + (uniform(-50, 50), uniform(-30, 30)), amount=0.6)
-            play_sound("audio/explosion02.wav")
+            play_sound("audio/explosion02.ogg")
             await wait(0.3)
         canvas.shake(14)
         Explosion(center=self.center)
@@ -185,7 +185,7 @@ class ShieldBubble(Circle, radius=38, visual=Shield(style="plasma")):
     @collide_with("enemy_shots")
     def blocked(self, shot, info):
         canvas.zap_at(info, color="sky blue")
-        play_sound("audio/sfx-hit-2.wav", pitch=1.6)
+        play_sound("audio/sfx-hit-2.ogg", pitch=1.6)
         shot.destroy()
         st.energy -= 20
 
@@ -209,7 +209,7 @@ class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="
 
         if keyp("SPACE") and ready("shot", 0.2):
             Shot(center=(self.center.x, self.center.y + 28))
-            play_sound("audio/laser4.wav")
+            play_sound("audio/laser4.ogg")
 
     @collide_with("enemy_shots")
     def was_hit(self, shot):
@@ -220,19 +220,19 @@ class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="
         canvas.shake(8)
         if st.lives > 0:
             self.blink(1.5)
-            play_sound("audio/sfx-hit-2.wav")
+            play_sound("audio/sfx-hit-2.ogg")
         else:
             canvas.flash(0.4)
             canvas.explosion_at(self, amount=1.2)
             Fire(center=self.center, radius=30)
-            play_sound("audio/gameover.wav")
+            play_sound("audio/gameover.ogg")
             self.destroy()
 
     @collide_with("powers")
     def caught(self, power):
         power.destroy()
         self.pop()
-        play_sound("audio/fx1.wav")
+        play_sound("audio/fx1.ogg")
         st.energy = 100
 
     @on_change(lambda self: st.energy)

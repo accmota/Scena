@@ -57,7 +57,7 @@ aviso = Text(text="R grava a sua voz", top_left=(20, 585), font_size=20, color="
 class Gravador(Circle, radius=10, color="dim gray"):
     def setup(self):
         self.mic = None
-        self.som = "audio/nota.wav"
+        self.som = "audio/nota.ogg"
 
     def on_update(self, dt):
         if keyp.once("R"):

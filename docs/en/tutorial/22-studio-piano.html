@@ -98,10 +98,10 @@ run()
       title: "The piano",
       body: [
         `
-        <p>Now the keys play. There is a single sound file, <code>"audio/nota.wav"</code>: one piano note, a C. All eight notes come out of it, played faster or slower:</p>
+        <p>Now the keys play. There is a single sound file, <code>"audio/nota.ogg"</code>: one piano note, a C. All eight notes come out of it, played faster or slower:</p>
         `,
         {
-          snip: `play_sound("audio/nota.wav", pitch=self.note)`
+          snip: `play_sound("audio/nota.ogg", pitch=self.note)`
         },
         `
         <p><code>pitch=</code> changes how high the sound plays. With <code>pitch=1</code>, the note comes out as it was recorded; with <code>pitch=2</code>, it plays twice as fast and comes out an octave higher, the next C. The other notes of the scale fit between the two:</p>
@@ -127,7 +127,7 @@ class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
             self.play_note()
 
     def play_note(self):
-        play_sound("audio/nota.wav", pitch=self.note)
+        play_sound("audio/nota.ogg", pitch=self.note)
 
 
 for i in range(8):
@@ -167,7 +167,7 @@ run()
         },
         {
           note: "Another instrument: any sound works as a note. A bell, in place of the <code>play_sound</code>:",
-          replaces: ['play_sound("audio/nota.wav"'],
+          replaces: ['play_sound("audio/nota.ogg"'],
           code: `play_sound("audio/impactBell_heavy_000.ogg", pitch=self.note)`
         }
       ]
@@ -192,7 +192,7 @@ class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
             self.play_note()
 
     def play_note(self):
-        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        play_sound("audio/nota.ogg", pitch=self.note, on_done=self.dim)
         self.color = "gold"
 
     def dim(self):
@@ -224,8 +224,8 @@ run()
       try: [
         {
           note: "Another way to write it: the key lights up for a fixed time, without waiting for the sound. In place of the <code>play_sound</code> line:",
-          replaces: ['play_sound("audio/nota.wav"'],
-          code: `play_sound("audio/nota.wav", pitch=self.note)
+          replaces: ['play_sound("audio/nota.ogg"'],
+          code: `play_sound("audio/nota.ogg", pitch=self.note)
 self.after(0.3, self.dim)`
         }
       ]
@@ -253,7 +253,7 @@ class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
         self.play_note()
 
     def play_note(self):
-        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        play_sound("audio/nota.ogg", pitch=self.note, on_done=self.dim)
         self.color = "gold"
 
     def dim(self):
@@ -341,7 +341,7 @@ class Key(Rect, width=110, height=300, color="#F2EFE6", group="keys"):
         self.play_note()
 
     def play_note(self):
-        play_sound("audio/nota.wav", pitch=self.note, on_done=self.dim)
+        play_sound("audio/nota.ogg", pitch=self.note, on_done=self.dim)
         self.color = "gold"
 
     def dim(self):
