@@ -24,6 +24,9 @@ fails if an atom becomes an actor. Also **a repulsion that pumps energy**: a
 1/d² core was so stiff near its floor that a 1/60 s step overshot and the
 atoms sped up (mean speed 1148 px/s five seconds into Ilhas, ~85 when
 calm); every recipe is checked to keep its calm speed.
+And **a placement that searches among every atom**: a recipe switch took
+seconds (a frozen window); the switch's own lines per atom placed are
+counted, not timed (a 1 s bound failed under the quick tier's load, WP49).
 
 The long runs (the chemistry, nobody piles up, the gap, every recipe's
 calm speed) are in ``test_example_affinity_deep`` (gate / deep; ~70 s).
@@ -55,6 +58,66 @@ def tap(run, key):
     run.step(1)
     run.key_up(key)
     run.step(1)
+
+
+SWITCHES = ("receita", "elementos_novos", "mistura")   # what 1 2 3 R and Rodar call
+LINES_PER_ATOM = 100    # the lattice spends 33-40; a search among every atom 165-640
+
+
+def switch_lines(run, limit):
+    """The lines of the example's own code that a switch runs in one frame
+    (``SWITCHES`` and what they call; not the world's step): its work, which
+    the machine's load does not change (a clock does, WP49). Counting stops
+    at ``limit``, so a runaway costs its own time and no tracing."""
+    path = os.path.normcase(run.ns["__file__"])
+    count = 0
+
+    def line(frame, event, arg):
+        nonlocal count
+        if event != "line":
+            return line
+        count += 1
+        if count >= limit:
+            sys.settrace(None)
+            return None
+        return line
+
+    def call(frame, event, arg):
+        if os.path.normcase(frame.f_code.co_filename) != path:
+            return None
+        while frame is not None:
+            if frame.f_code.co_name in SWITCHES:
+                return line
+            frame = frame.f_back
+        return None
+
+    old = sys.gettrace()
+    sys.settrace(call)
+    try:
+        run.step(1)
+    finally:
+        sys.settrace(old)
+    return count
+
+
+# the draft's search, planted in the example (compiled under its file name,
+# so its lines count): a point at random until no atom is near it
+RANDOM_SEARCH = '''
+class _BuscaAoAcaso:
+    def __init__(self, espaco):
+        self.espaco = espaco * 0.6
+    def __len__(self):
+        return 1
+    def pop(self):
+        while True:
+            x = uniform(CX - PRATO, CX + PRATO)
+            y = uniform(CY - PRATO, CY + PRATO)
+            if distance((x, y), (CX, CY)) < PRATO - 24 and all(
+                    distance((x, y), (a.x, a.y)) > self.espaco for a in atomos):
+                return x, y
+def lugares(espaco):
+    return _BuscaAoAcaso(espaco)
+'''
 
 
 def check_bonds(test, ns):
@@ -228,17 +291,35 @@ class TestAffinityControls(unittest.TestCase):
         """A draft looked for free spots at random among every atom: with the
         dish nearly full a switch took seconds and Scena's watchdog reported
         a frozen window (found by the quick tier, 2026-10-21). The atoms now
-        take points of a shuffled hex lattice (~0.1 s per switch)."""
-        import time
+        take points of a shuffled hex lattice (~0.1 s per switch).
+
+        The check counts the switch's own lines per atom placed, not the
+        seconds: a bound of 1 s read 1.12 s under the quick tier's load on a
+        slower machine (WP49)."""
         with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
             for key in ("1", "2", "3", "R"):
+                limit = LINES_PER_ATOM * 400        # more atoms than any recipe makes
                 run.key_down(key)
-                start = time.perf_counter()
-                run.step(1)
-                took = time.perf_counter() - start
+                lines = switch_lines(run, limit)
                 run.key_up(key)
                 run.step(1)
-                self.assertLess(took, 1.0, f"recipe {key} took {took:.2f} s")
+                placed = len(ns["atomos"])
+                self.assertLess(lines, LINES_PER_ATOM * placed,
+                                f"recipe {key}: {lines} lines for {placed} atoms")
+
+    def test_the_switch_check_catches_a_random_search(self):
+        """Canary: the draft's search planted back (a spot at random until no
+        atom is near) fails the check, even a mild one (~0.07 s more a
+        switch; at 0.68 of the lattice's spacing Coroas took 57 s)."""
+        with ProgramRun(PATH, seed=1) as run:
+            ns = run.ns
+            exec(compile(RANDOM_SEARCH, ns["__file__"], "exec"), ns)
+            run.key_down("1")
+            lines = switch_lines(run, LINES_PER_ATOM * 400)
+            run.key_up("1")
+            self.assertEqual(len(ns["atomos"]), 210)
+            self.assertGreaterEqual(lines, LINES_PER_ATOM * 210)
 
     def test_t_switches_the_trail(self):
         with ProgramRun(PATH, seed=1) as run:
