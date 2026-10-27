@@ -25,8 +25,8 @@ ORBIT = RADIUS + 26 # the ship flies outside the ring, just above its edge
 GATE = 600          # how far from the center enemies come out, from many sides
 FAR_GATE = 1000     # the farthest a portal opens, from one side
 CROSSING = 360      # how far from the center the mines cross the screen
-SHIP_LIFE = 12
-RING_LIFE = 40
+SHIP_LIFE = 16
+RING_LIFE = 25
 TURN = 160          # degrees per second
 SPREAD = 24         # degrees between the ship and each light
 COOLDOWN = 0.2      # seconds between two shots
@@ -36,7 +36,7 @@ AIM = 9             # the width of each shot's radar, in degrees
 FAN = 5             # degrees between the ship's shot and each light's (TRIPLE)
 BLAST = 208         # the radius of a mine's blast
 MINE_DAMAGE = 5     # the lives a diving mine takes from the ring or the ship
-SHIELD_HITS = 3     # the shots or enemies the shield stops before it breaks
+SHIELD_HITS = 4     # the shots or enemies the shield stops before it breaks
 PILL_CHANCE = 0.15  # the chance that a destroyed enemy drops a pill...
 PILL_GAP = 20       # ...if the last such pill fell at least this many seconds ago
 CLUSTER = 5         # enemies around one side before the next side (many sides)
@@ -126,8 +126,11 @@ def on_ring(angle, r=ORBIT):
     return CENTER + vec_from_angle(angle, r)
 
 
-# The play area stays fixed around the ring, even with the camera turning.
-canvas.playfield.set(left=-1160, bottom=-1400, right=2440, top=2200)
+# The play area is what the camera shows, plus a margin: a shot that leaves
+# the screen goes at once (Game.on_update moves it with the camera). Only
+# what has been on the screen leaves it: a portal or a mine that starts
+# off the screen comes in safely.
+MARGIN = 100
 
 @leave_playfield("shots", "bullets", "pills", "mines")
 def gone(thing):
@@ -138,6 +141,9 @@ class Shot(Sprite, source="space/laserBlue03.png", height=36, art_angle=90,
            group="shots"):
     def setup(self):
         self.glow = CheapGlow("deep sky blue", radius=8)
+        # a shot fired off the screen (the ship below the edge, wave 6)
+        # never enters it, so it never leaves it either: it ends in time
+        self.after(1.5, self.destroy)
         self.damage = 1
         self.pierce = False
 
@@ -317,12 +323,18 @@ class Ship(Triangle, group="ship"):
 # The enemy shots ("bullets"). Each enemy shoots its own way.
 class Bullet(Sprite, source="space/laserRed01.png", height=26, art_angle=90,
              group="bullets"):
+    def setup(self):
+        self.after(8, self.destroy)         # as the Shot: one fired off the screen
+
     def on_update(self, dt):
         self.move_by(distance=210 * dt)
 
 
 class Bolt(Sprite, source="space/laserGreen02.png", height=34, art_angle=90,
            group="bullets"):
+    def setup(self):
+        self.after(8, self.destroy)
+
     def on_update(self, dt):
         self.move_by(distance=310 * dt)
 
@@ -688,26 +700,34 @@ def announce(text):
     play_sound("audio/fx2.wav", volume=0.5)
 
 
-# The victory: the four lights of Arria flare into a four-point star, ten
-# hexagons open out of the ring, each turned a little more than the one
-# inside it, in the colors of the lights, and two lights run around the ring
-# (a window of a circle track, from begin to end, that moves).
-LIGHT_WHEEL = Colormap.from_colors("cyan", "magenta", "gold", "lime", "cyan")
+# The victory: the four lights of Arria flare into a four-point star. Ten
+# small hexagons, in the colors of the aurora, open over the ring, each turned
+# a little more than the one inside it; then they fly away up and to the
+# right of the screen, faster and faster, each one a moment behind the one inside it, so
+# the bundle stretches into a tail. Two lights run around the ring (a window
+# of a circle track, from begin to end, that moves).
+AURORA = Colormap.from_preset("aurora")
 
 def celebrate():
     start = clock.time
+    away = 55 - canvas.rotation          # up and to the right on the screen
 
-    def since():                     # seconds since the ring was saved
+    def since():                         # seconds since the ring was saved
         return clock.time - start
+
+    def flown(t):                        # how far the bundle is, t seconds in
+        return 0 if t < 2 else 280 * (t - 2) ** 2
 
     star = Starburst(center=CENTER, radius=10, points=4, color="gold", amount=0.6)
     tween(star["radius"], 170, time=2.5, ease="ease_out")
     for i in range(10):
-        hexagon = RegularPolygon(n=6, center=CENTER, line_width=3)
+        hexagon = RegularPolygon(n=6, line_width=3)
         hexagon.fill = None
-        hexagon["radius"] @= lambda i=i: RADIUS + 25 + 38 * i * min(1, since() / 3)
-        hexagon["angle"] @= lambda i=i: 15 * since() + 7 * i * min(1, since() / 3)
-        hexagon["line"] @= lambda i=i: LIGHT_WHEEL.get_color((0.2 * since() + i / 10) % 1)
+        hexagon.line = AURORA.get_color(i / 9)
+        hexagon["radius"] @= lambda i=i: (40 + 14 * i) * min(1, since() / 1.5)
+        hexagon["angle"] @= lambda i=i: 40 * since() + 9 * i
+        hexagon["center"] @= lambda i=i: CENTER + vec_from_angle(
+            away, flown(since() - 0.08 * i))
     for color, offset in (("gold", 0), ("dark orange", 0.5)):
         glint = Track.circle(center=CENTER, radius=ORBIT + 45, color=color, line_width=5)
         glint.glow = CheapGlow(color, radius=12)
@@ -880,6 +900,7 @@ class Game(Act):
         self.finish("THE RING IS SAFE")
 
     def on_update(self, dt):
+        canvas.playfield.set(canvas.game_view.outset(MARGIN))
         # the glow of the screen goes slowly back to what the wave asks for
         bloom.intensity = chase(bloom.intensity, st.glow, rate=1.5)
         st.pill_wait = max(0, st.pill_wait - dt)

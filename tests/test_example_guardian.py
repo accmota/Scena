@@ -24,7 +24,11 @@ of the screen (half off it on an "edge" wave) and the portal stays on the
 screen; the waves run one after the other to "THE RING IS SAFE", the camera
 turns only on the waves marked ``turn``, the embers come once (the wave marked
 ``party``) and the victory is geometric (``celebrate``: a four-point
-Starburst, opening hexagons, lights around the ring), with no embers;
+Starburst, ten small hexagons that open over the ring and then fly away,
+lights around the ring), with no embers; the playfield is the camera's view
+plus MARGIN, so a missed shot goes as soon as it leaves the screen, while
+what starts off the screen comes in safely, and a shot fired off the screen
+ends by its lifetime;
 the game plays sound (shots, hits, explosions, the ring's bell, music).
 
 Bug classes guarded: **an example that stops doing what its docstring says**
@@ -405,6 +409,68 @@ class TestGuardianPowers(unittest.TestCase):
             run.step(3 * SECOND)
             ns["shoot_down"](still(ns, "Arrow", 0, 500))
             self.assertEqual(len(dropped), 2)
+
+
+class TestGuardianPlayfield(unittest.TestCase):
+    def test_the_playfield_is_the_view_plus_the_margin(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            run.step(3 * SECOND)            # the first wave's camera move is over
+            view = ns["canvas"].game_view.outset(ns["MARGIN"])
+            field = ns["canvas"].playfield
+            for edge in ("left", "bottom", "right", "top"):
+                self.assertAlmostEqual(getattr(field, edge), getattr(view, edge), delta=1)
+
+    def test_a_missed_shot_goes_when_it_leaves_the_screen(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            ship.reload = 0
+            tap(run, "SPACE")
+            run.step(5)
+            self.assertEqual(count(ns, "shots"), 1, "vacuous: no shot")
+            run.step(SECOND)
+            self.assertEqual(count(ns, "shots"), 0, "a missed shot outlived the screen")
+
+    def test_a_shot_fired_off_the_screen_ends_in_time(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            shot = ns["Shot"](center=ns["on_ring"](270, 1500), angle=270)
+            run.step(SECOND)
+            self.assertTrue(shot.active, "it should not have left a screen it never entered")
+            run.step(SECOND)
+            self.assertFalse(shot.active, "a shot that never entered the screen lives on")
+
+    def test_what_starts_off_the_screen_comes_in(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            arrow = ns["Arrow"](center=ns["on_ring"](90, 1200))     # far above the view
+            bullet = ns["Bullet"](center=ns["on_ring"](90, 1100), angle=-90)
+            run.step(3 * SECOND)
+            self.assertTrue(arrow.active)
+            self.assertTrue(bullet.active, "a bullet coming in from off the screen was removed")
+
+
+class TestGuardianVictory(unittest.TestCase):
+    def test_the_hexagons_open_over_the_ring_then_fly_away(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            made = []
+            real = ns["RegularPolygon"]
+            ns["RegularPolygon"] = lambda *a, **k: made.append(real(*a, **k)) or made[-1]
+            ns["celebrate"]()
+            self.assertEqual(len(made), 10)
+            cx, cy = float(ns["CENTER"].x), float(ns["CENTER"].y)
+
+            def far():
+                return [math.dist((float(h.center.x), float(h.center.y)), (cx, cy)) for h in made]
+
+            run.step(int(1.5 * SECOND))
+            self.assertLess(max(far()), 1, "the bundle left before it opened")
+            self.assertLess(max(h.radius for h in made), ns["RADIUS"] * 1.5, "not compact")
+            run.step(int(2.5 * SECOND))
+            self.assertGreater(min(far()), 200, "the bundle did not fly away")
+            inner, outer = far()[0], far()[-1]
+            self.assertGreater(inner, outer, "no tail: the outer ones should follow behind")
 
 
 class TestGuardianWaves(unittest.TestCase):

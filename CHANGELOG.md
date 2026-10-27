@@ -106,14 +106,16 @@ left out.
   sits at the far side of the screen (half off it on wave 6); from many
   sides the enemies come in clusters; a shot that meets an enemy shot zaps
   both, and enemy shots now hurt the ring; some mines dive at the ring and
-  hit hard; the shield breaks after three hits; random pills come at most
+  hit hard; the shield breaks after four hits; random pills come at most
   one every 20 s, and waves 3, 4, 6 and 8 leave pills for the next one
   that last 25 s (wave 4 leaves heavy and triple shots for the polygons of
   wave 5); in the swarm of wave 6 a mine comes early, in the swarm's way;
   waves 2 and 5 have more enemies, 50 % faster; the arrows are slower and
   drawn as three translucent triangles whose wings breathe; the embers come
   once, after wave 6, and the victory is geometric (a four-point star,
-  hexagons opening out of the ring, lights running around it). It has sound
+  small hexagons in the aurora colors that open over the ring and fly away,
+  lights running around it); the playfield follows the camera, so a shot
+  that misses goes as soon as it leaves the screen. It has sound
   effects and music; its title and wave banners are in Bungee, the story in
   Play (Play Bold on the HUD).
 
