@@ -52,6 +52,8 @@ examples/media/audio/explosion01.wav
 examples/media/audio/explosion02.wav
 examples/media/audio/explosion03.wav
 examples/media/audio/explosion04.wav
+examples/media/audio/explosion07.wav
+examples/media/audio/explosion09.wav
 examples/media/audio/footstep_snow_001.ogg
 examples/media/audio/fx1.wav
 examples/media/audio/fx2.wav
@@ -64,6 +66,7 @@ examples/media/audio/laser-big.wav
 examples/media/audio/laser4.wav
 examples/media/audio/laser7.wav
 examples/media/audio/nota.wav
+examples/media/audio/projectile-hit.flac
 examples/media/audio/sfx-hit-2.wav
 examples/media/backgrounds/kn/License.txt
 examples/media/backgrounds/kn/bgElements_spritesheet.png
@@ -166,6 +169,8 @@ examples/media/levels/ninja_world.json
 examples/media/levels/race.json
 examples/media/levels/race_lightning.json
 examples/media/music/License.txt
+examples/media/music/battle_in_the_winter.ogg
+examples/media/music/space.ogg
 examples/media/music/super_hero_original_no_intro.ogg
 examples/media/ninja/Attack__000.png
 examples/media/ninja/Attack__001.png
@@ -296,6 +301,7 @@ examples/media/space/pill_red.png
 examples/media/space/pill_yellow.png
 examples/media/space/playerShip1_red.png
 examples/media/space/sfx_laser1.ogg
+examples/media/space/sfx_laser2.ogg
 examples/media/space/star_gold.png
 examples/media/space/ufoYellow.png
 examples/media/svg/foguete.svg

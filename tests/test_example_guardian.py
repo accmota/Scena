@@ -14,11 +14,15 @@ the ring one life, and so does an enemy that reaches the ring; with TRIPLE
 the lights shoot FAN degrees off the ship's line; pills give triple, rapid
 and heavy shots and a Portal shield that stops SHIELD_HITS hits or lasts
 DURATION seconds; a destroyed enemy drops at most one pill every PILL_GAP
-seconds, and the waves marked ``gifts`` leave those pills; from many sides
+seconds, and the waves marked ``gifts`` leave those pills, which last
+GIFT_DURATION (wave 4 leaves heavy and triple shots for the polygons); a
+wave's ``ambush`` mine is right in front of the ring that many seconds after
+its first enemy (the swarm of wave 6 has one); from many sides
 the enemies come in clusters; from one side the ring goes to the far side
 of the screen (half off it on an "edge" wave) and the portal stays on the
 screen; the waves run one after the other to "THE RING IS SAFE", the camera
-turns only on the waves marked ``turn``, and the embers come at most twice.
+turns only on the waves marked ``turn``, and the embers come at most twice;
+the game plays sound (shots, hits, explosions, the ring's bell, music).
 
 Bug classes guarded: **an example that stops doing what its docstring says**
 while it still builds and runs, and **a power-up that never ends** (the
@@ -109,6 +113,27 @@ def on_screen(ns, point):
 
 
 class TestGuardianStory(unittest.TestCase):
+    def test_the_game_plays_sound(self):
+        with ProgramRun(PATH) as run:
+            ns = run.ns
+            played = []
+            real = ns["play_sound"]
+            ns["play_sound"] = lambda source, **kw: played.append(source) or real(source, **kw)
+            run.step(SECOND)        # (the story's music started before the patch)
+            tap(run, "SPACE")
+            run.step(3)
+            ship = act().ship
+            act().waves.cancel()
+            ship.reload = 0
+            tap(run, "SPACE")
+            ns["shoot_down"](still(ns, "Arrow", 0, 500))
+            ns["hurt_ring"]()
+            ship.hurt()
+            for sound in ("music/battle_in_the_winter.ogg", "audio/laser7.wav",
+                          "audio/explosion07.wav", "audio/impactBell_heavy_000.ogg",
+                          "audio/impactPunch_heavy_001.ogg"):
+                self.assertIn(sound, played)
+
     def test_the_story_is_typed_and_space_starts_the_game(self):
         with ProgramRun(PATH) as run:
             ns = run.ns
@@ -350,12 +375,24 @@ class TestGuardianPowers(unittest.TestCase):
             self.assertIsNone(ship.shield)
             self.assertEqual(st.ring_life, ns["RING_LIFE"])
 
+    def test_a_gift_lasts_a_whole_wave(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            self.assertGreater(ns["GIFT_DURATION"], ns["DURATION"])
+            ns["leave_gifts"](["heavy"], ship.bearing)
+            run.step(int(5 * SECOND))
+            self.assertGreater(ship.powers["heavy"], 0, "the gift was not picked up")
+            run.step(int((ns["DURATION"] + 1) * SECOND))
+            self.assertGreater(ship.powers["heavy"], 0, "a gift lasts only DURATION")
+            run.step(int((ns["GIFT_DURATION"] - ns["DURATION"]) * SECOND))
+            self.assertEqual(ship.powers["heavy"], 0)
+
     def test_at_most_one_random_pill_every_pill_gap(self):
         with ProgramRun(PATH) as run:
             ns, ship = quiet(run)
             ns["PILL_CHANCE"] = 1
             dropped = []
-            ns["drop_pill"] = lambda place, power=None: dropped.append(power)
+            ns["drop_pill"] = lambda place, power=None, lasting=0: dropped.append(power)
             for k in range(8):
                 ns["shoot_down"](still(ns, "Arrow", 30 * k, 500))
             self.assertEqual(len(dropped), 1)
@@ -368,6 +405,37 @@ class TestGuardianPowers(unittest.TestCase):
 
 
 class TestGuardianWaves(unittest.TestCase):
+    def test_a_timed_mine_is_in_front_of_the_ring_on_time(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            ns["cross_mine"](330, 9)
+            mine = list(ns["group"]["mines"])[0]
+            front = ns["on_ring"](330, ns["CROSSING"])
+            run.step(9 * SECOND)
+            self.assertLess(math.dist((float(mine.center.x), float(mine.center.y)),
+                                      (float(front.x), float(front.y))), 10)
+            ambush = [wave for wave in ns["WAVES"] if wave.get("ambush")]
+            self.assertEqual([wave["name"] for wave in ambush], ["Swarm"])
+
+    def test_the_swarm_meets_its_ambush_mine(self):
+        """Wave 6 alone: when its mine is in front of the ring, the swarm is
+        around it (a shot there takes a good part of the wave)."""
+        with ProgramRun(PATH) as run:
+            ns = run.ns
+            ns["WAVES"][:] = [ns["WAVES"][5]]
+            ns["Ship"].hurt = lambda self, damage=1: None
+            start(run)
+            wave = ns["WAVES"][0]
+            run.step(int((1.5 + 2 + wave["ambush"]) * SECOND))
+            front = ns["on_ring"](wave["side"], ns["CROSSING"])
+            mine = min(ns["group"]["mines"], key=lambda m: math.dist(
+                (float(m.center.x), float(m.center.y)), (float(front.x), float(front.y))))
+            self.assertLess(math.dist((float(mine.center.x), float(mine.center.y)),
+                                      (float(front.x), float(front.y))), 40)
+            near = run.ns["collision"].query_circle(mine.center, radius=ns["BLAST"],
+                                                    group="enemies")
+            self.assertGreaterEqual(len(near), 15, "the swarm is not there yet")
+
     def test_many_sides_come_in_clusters(self):
         with ProgramRun(PATH) as run:
             ns, ship = quiet(run)
@@ -423,8 +491,9 @@ class TestGuardianWaves(unittest.TestCase):
             ns["Embers"] = lambda *a, **k: embers.append(1) or real_embers(*a, **k)
             gifts = []
             real_drop = ns["drop_pill"]
-            ns["drop_pill"] = lambda place, power=None: (
-                gifts.append(power) if power else None, real_drop(place, power))
+            ns["drop_pill"] = lambda place, power=None, lasting=ns["DURATION"]: (
+                gifts.append((power, lasting)) if power else None,
+                real_drop(place, power, lasting))
             start(run)
             ship = act().ship
             cx, cy = float(ns["CENTER"].x), float(ns["CENTER"].y)
@@ -470,9 +539,12 @@ class TestGuardianWaves(unittest.TestCase):
             self.assertGreater(ns["st"].score, 1000)
             self.assertLessEqual(len(embers), 2, "embers all the time")
             self.assertGreaterEqual(len(embers), 1)
-            planned = [p for wave in ns["WAVES"] for p in wave.get("gifts", [])]
+            planned = [(p, ns["GIFT_DURATION"]) for wave in ns["WAVES"]
+                       for p in wave.get("gifts", [])]
             self.assertEqual(gifts, planned)
             self.assertEqual(ns["WAVES"][2]["gifts"], ["triple", "shield"])
+            self.assertEqual(ns["WAVES"][3]["gifts"], ["heavy", "triple"],
+                             "no strong weapons before the polygons of wave 5")
             run.step(3 * SECOND)
             self.assertEqual(count(ns, "enemies"), 0)
 

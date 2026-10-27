@@ -24,12 +24,13 @@ Two kinds of mine. A crossing mine does not attack: it crosses the screen in
 front of the ring. A diving mine (dark, with a fast pulse) heads for the
 ring, and if it reaches the ring or the ship the damage is heavy
 (MINE_DAMAGE). A shot in any mine makes a big blast that destroys the
-enemies around it, and other mines blow up in a chain.
+enemies around it, and other mines blow up in a chain. In the swarm of
+wave 6 a mine comes early, right in the swarm's way: shoot it in time.
 
 Now and then a destroyed enemy drops a pill (at most one every PILL_GAP
-seconds), and some waves end with pills for the harder wave that follows.
-The pill drifts to the ring; fly the ship over it for a power, for a few
-seconds:
+seconds), and some waves end with pills for the harder wave that follows
+(these last GIFT_DURATION seconds, a whole wave). The pill drifts to the
+ring; fly the ship over it for a power, for a few seconds:
 
   blue     TRIPLE   the two lights shoot with the ship
   green    RAPID    shots twice as often
@@ -81,6 +82,7 @@ TURN = 160          # degrees per second
 SPREAD = 24         # degrees between the ship and each light
 COOLDOWN = 0.2      # seconds between two shots
 DURATION = 12       # seconds a power lasts
+GIFT_DURATION = 25  # seconds a power left at the end of a wave lasts
 AIM = 9             # the width of each shot's radar, in degrees
 FAN = 5             # degrees between the ship's shot and each light's (TRIPLE)
 BLAST = 208         # the radius of a mine's blast
@@ -89,7 +91,9 @@ SHIELD_HITS = 3     # the shots or enemies the shield stops before it breaks
 PILL_CHANCE = 0.15  # the chance that a destroyed enemy drops a pill...
 PILL_GAP = 20       # ...if the last such pill fell at least this many seconds ago
 CLUSTER = 5         # enemies around one side before the next side (many sides)
-FONT = "fonts/Quantico-Bold.ttf"
+FONT = "fonts/kenvector_future.ttf"     # the story, the waves, the end
+HUD_FONT = "fonts/Quantico-Bold.ttf"    # the numbers on the screen: plain digits
+MUSIC = 0.35        # the music's volume, under the effects
 
 # The sky: clouds that churn slowly and filaments on top. Both turn with
 # the camera, like the rest of the world.
@@ -148,6 +152,9 @@ def hurt_ring(damage=1):
     paint_core()
     ring.flash()
     canvas.shake(2 + 3 * damage)
+    # the ring rings: a deeper, louder bell for a heavy blow
+    play_sound("audio/impactBell_heavy_000.ogg", volume=0.4 + 0.12 * damage,
+               pitch=1.1 - 0.1 * damage, name="ring")
 
 
 def new_game():
@@ -208,17 +215,18 @@ class Pill(Sprite, height=30, group="pills"):
         self.rotate_by(360, time=2, loops="forever")
 
 
-def drop_pill(place, power=None):
+def drop_pill(place, power=None, lasting=DURATION):
     if power is None:
         power = choice(list(PILLS))
     pill = Pill(PILLS[power], center=place)
     pill.power = power
+    pill.lasting = lasting
 
 
 @collide("pills", "ship")
 def picked(pill, ship):
     pill.destroy()
-    ship.gain(pill.power)
+    ship.gain(pill.power, pill.lasting)
 
 
 @collide("pills", "ring")
@@ -280,6 +288,11 @@ class Ship(Triangle, group="ship"):
                 self.reload = COOLDOWN / 2
             else:
                 self.reload = COOLDOWN
+            # one sound a volley; a new one cuts the last (name=)
+            if self.powers["heavy"] > 0:
+                play_sound("audio/laser-big.wav", volume=0.3, pitch=1.8, name="shot")
+            else:
+                play_sound("audio/laser7.wav", volume=0.3, name="shot")
 
     def shoot(self, start, angle):
         # the aim helps: a narrow radar in front of the shot (4.5 degrees to
@@ -293,9 +306,10 @@ class Ship(Triangle, group="ship"):
         if self.powers["heavy"] > 0:
             shot.make_heavy()
 
-    def gain(self, power):
-        self.powers[power] = DURATION
+    def gain(self, power, lasting=DURATION):
+        self.powers[power] = lasting
         self.pop(scale=1.4)
+        play_sound("synth/coin.wav", volume=0.6)
         if power == "shield":
             # the shield is a portal around the ring and the ship
             self.shield_hits = SHIELD_HITS
@@ -309,8 +323,10 @@ class Ship(Triangle, group="ship"):
         self.shield_hits -= hits
         if self.shield_hits > 0:
             self.shield.amount = 1.2 * self.shield_hits / SHIELD_HITS
+            play_sound("audio/impactGeneric_light_003.ogg", volume=0.6, pitch=0.7)
             return
         canvas.ripple_at(CENTER, amount=0.4, radius=ORBIT + 120)
+        play_sound("audio/projectile-hit.flac", volume=0.8, pitch=0.6)
         self.powers["shield"] = 0
         self.drop_shield()
 
@@ -324,6 +340,7 @@ class Ship(Triangle, group="ship"):
         st.ship_life = max(0, st.ship_life - damage)
         self.blink(0.3)
         canvas.shake(5 + 3 * damage)
+        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.4 + 0.12 * damage)
 
     @when(lambda self: st.ship_life <= 3)
     def damaged(self):
@@ -333,6 +350,7 @@ class Ship(Triangle, group="ship"):
     @when(lambda self: st.ship_life <= 0)
     def destroyed(self):
         canvas.explosion_at(self, amount=1.4)
+        play_sound("audio/explosion09.wav")
         self.destroy()
 
     def on_destroy(self):
@@ -379,6 +397,7 @@ def zapped(shot, bullet):
     if not shot.pierce:
         shot.destroy()
     canvas.zap_at(bullet, color="white", radius=30)
+    play_sound("audio/projectile-hit.flac", volume=0.4, pitch=2, name="zap")
 
 
 # The rules of every enemy. Each enemy has its own life, its own worth (points) and
@@ -392,6 +411,7 @@ def hit(shot, enemy):
         shoot_down(enemy)
     else:
         canvas.hit_at(shot, color="white")
+        play_sound("audio/sfx-hit-2.wav", volume=0.4, name="hit")
         enemy.flash()
         enemy.scale_by(0.92)        # each shot shrinks it a little
 
@@ -472,9 +492,11 @@ class Arrow(Triangle, radius=26, base_ratio=0.8, group="enemies"):
 
     def shoot(self):
         Bullet(center=self.center, angle=self.angle)
+        play_sound("space/sfx_laser2.ogg", volume=0.15, name="enemy shot")
 
     def blow_up(self):
         canvas.burst_at(self, radius=30)
+        play_sound("audio/explosion07.wav", volume=0.35, pitch=1.5, name="pop")
         self.destroy()
 
     def on_destroy(self):
@@ -505,10 +527,12 @@ class Mandala(RegularPolygon, n=5, radius=30, group="enemies"):
     def shoot(self):
         for i in range(5):
             Bullet(center=self.center, angle=self.angle + 72 * i)
+        play_sound("space/sfx_laser2.ogg", volume=0.25, pitch=0.7, name="enemy shot")
 
     def blow_up(self):
         canvas.burst_at(self, radius=60, amount=6)
         canvas.fireworks_at(self, color="violet", radius=80)
+        play_sound("audio/explosion02.wav", volume=0.6)
         self.destroy()
 
     def on_destroy(self):
@@ -536,10 +560,12 @@ class Crystal(RegularPolygon, n=6, radius=30, group="enemies"):
         ship = group["ship"].nearest(self)
         if ship:
             Bolt(center=self.center, angle=heading(self, ship))
+            play_sound("space/sfx_laser1.ogg", volume=0.25, name="enemy shot")
 
     def blow_up(self):
         canvas.debris_at(self, color="turquoise", radius=60)
         canvas.burst_at(self, radius=60, amount=6)
+        play_sound("audio/explosion03.wav", volume=0.6, pitch=1.3)
         self.destroy()
 
     def on_destroy(self):
@@ -562,6 +588,8 @@ class Mine(Circle, radius=20, color="dark red", group="mines"):
         self.destroy()      # gone first, so the chain does not come back to it
         canvas.burst_at(place, radius=BLAST, amount=6)
         canvas.ripple_at(place, amount=0.6, radius=2 * BLAST)
+        # one deep boom for a whole chain (name=)
+        play_sound("audio/explosion01.wav", pitch=0.7, name="blast")
         for neighbour in collision.query_circle(place, radius=BLAST, group="enemies"):
             if neighbour.active:        # a mine of the chain may have taken it
                 st.score += neighbour.worth
@@ -595,13 +623,15 @@ def pick_side(side):
 
 # A mine crosses the screen from one end to the other, CROSSING from the
 # center, facing the side of the attack: it passes in front of the ring, far
-# from the group that comes.
-def cross_mine(side):
+# from the group that comes. With a time, it is right in front of the ring
+# that many seconds later (it flies faster or slower to get there).
+def cross_mine(side, time=None):
     side = pick_side(side)
     way = choice([90, -90])
     front = on_ring(side, CROSSING)
+    speed = 85 if time is None else 900 / time
     mine = Mine(center=front + vec_from_angle(side + way, 900))
-    mine.move_to(front + vec_from_angle(side - way, 900), speed=85,
+    mine.move_to(front + vec_from_angle(side - way, 900), speed=speed,
                  on_done=mine.destroy)
 
 
@@ -641,8 +671,11 @@ VIEWS = {"far": 0.55, "normal": 0.75, "close": 1.05}
 #            seconds (or for all to die)
 #   turn     (if any) the camera turns the side of the attack up
 #   mines    (if any) how many mines cross the screen during the wave
+#   ambush   (if any) a mine crosses right in front of the ring this many
+#            seconds after the first enemy comes out, in the wave's way
 #   divers   (if any) how many mines dive at the ring
-#   gifts    (if any) the pills left at the end, for the next wave
+#   gifts    (if any) the pills left at the end, for the next wave (they
+#            last GIFT_DURATION)
 #   party    (if any) gold embers when the wave is won
 WAVES = [
     dict(name="Arrows from the north", side=90, kinds=[Arrow], count=16,
@@ -653,13 +686,14 @@ WAVES = [
          every=0.45, view="normal", glow=0.6, end="clear",
          gifts=["triple", "shield"]),
     dict(name="Siege", side=None, kinds=[Arrow], count=30, every=0.45,
-         view="far", glow=0.8, end="clear", mines=3, divers=1),
+         view="far", glow=0.8, end="clear", mines=3, divers=1,
+         gifts=["heavy", "triple"]),
     dict(name="Polygons", side=[45, 165, 285], kinds=[Mandala, Crystal],
          count=14, every=0.8, cluster=2, view="far", glow=0.7, end="clear",
          divers=1),
     dict(name="Swarm", side=330, kinds=[Arrow], count=50, every=0.12,
-         view="normal", ring="edge", glow=1.0, end="clear", turn=True, mines=2,
-         gifts=["rapid", "heavy"], party=True),
+         view="normal", ring="edge", glow=1.0, end="clear", turn=True, mines=1,
+         ambush=8, gifts=["rapid", "heavy"], party=True),
     dict(name="Crown", side=None, kinds=[Mandala, Crystal], count=10, every=0.7,
          cluster=3, view="far", glow=1.0, end=12, mines=3, divers=1),
     dict(name="East", side=0, kinds=[Arrow, Arrow, Mandala, Crystal], count=20,
@@ -680,9 +714,10 @@ def lettering(letters, color="cyan", color2="magenta"):
 
 
 def announce(text):
-    sign = lettering(Text(text, center=(640, 720), font=FONT, font_size=44,
+    sign = lettering(Text(text, center=(640, 720), font=FONT, font_size=38,
                           layer="ui"))
     sign.after(2, lambda: sign.fade_out(1, on_done=sign.destroy))
+    play_sound("audio/fx2.wav", volume=0.5)
 
 
 # The portal a cluster comes out of, facing the ring.
@@ -695,7 +730,7 @@ def open_portal(side, gate):
 def leave_gifts(powers, bearing):
     for i, power in enumerate(powers):
         offset = 30 * (2 * i - len(powers) + 1)
-        drop_pill(on_ring(bearing + offset, 320), power)
+        drop_pill(on_ring(bearing + offset, 320), power, GIFT_DURATION)
 
 
 STORY = """You are Captain Arcos, leader of the forces of Arr.
@@ -716,25 +751,26 @@ class Intro(Act):
     def setup(self):
         canvas.zoom_to(0.9)
         canvas.pan_to(CENTER + Vec2(0, 290))     # the ring low on the screen
+        play_sound("music/space.ogg", volume=0.6, loops="forever", name="music")
         StarFly(color="light cyan", speed=0.4, density=0.6, alpha=0.6)
-        title = Text("RING GUARDIAN", center=(640, 728), font=FONT, font_size=72,
+        title = Text("RING GUARDIAN", center=(640, 728), font=FONT, font_size=66,
                      layer="ui")
         lettering(title, "gold", "orange red")
         title.line_width = 3
         title.glow = Glow("orange red")
         title.dissolve_in(2)
-        self.story = Text("", top_left=(300, 655), font=FONT, font_size=27)
+        self.story = Text("", top_left=(228, 655), font=FONT, font_size=23)
         lettering(self.story, "white", "light sky blue")
         self.letters = 0
-        for color, start in (("cyan", 0), ("magenta", 0.5)):
-            frame = Track(points=[(260, 680), (1020, 680), (1020, 362), (260, 362)],
+        for color, start in (("gold", 0), ("dark orange", 0.5)):
+            frame = Track(points=[(200, 680), (1080, 680), (1080, 425), (200, 425)],
                           closed=True, smooth=0, layer="ui", color=color, line_width=3)
             frame.glow = CheapGlow(color, radius=10)
             frame["begin"] @= lambda start=start: (start + clock.time * 0.12) % 1
             frame["end"] @= lambda start=start: (start + clock.time * 0.12 + 0.15) % 1
         self.prompt = Text("Press SPACE to start. Then keep pressing SPACE\n"
-                           "to shoot everything that moves.", center=(640, 315),
-                           font=FONT, font_size=24, align="center", layer="ui")
+                           "to shoot everything that moves.", center=(640, 370),
+                           font=FONT, font_size=20, align="center", layer="ui")
         lettering(self.prompt)
         # it blinks, once the story is all typed
         self.prompt["visible"] @= lambda: (self.letters == len(STORY)
@@ -754,13 +790,15 @@ class Game(Act):
         canvas.zoom_to(0.75)
         self.turn = 0           # the camera's turn, once its tween is over
         self.ship = Ship(radius=28, base_ratio=0.55)
-        self.board = lettering(Text("", top_left=(24, 784), font=FONT,
+        self.board = lettering(Text("", top_left=(24, 784), font=HUD_FONT,
                                     font_size=24))
         self.board["text"] @= lambda: (
             f"SHIP {st.ship_life}     RING {st.ring_life}     SCORE {st.score}")
-        self.panel = lettering(Text("", top_right=(1256, 784), font=FONT,
+        self.panel = lettering(Text("", top_right=(1256, 784), font=HUD_FONT,
                                     font_size=24), "gold", "orange red")
         self.over = False
+        self.music = play_sound("music/battle_in_the_winter.ogg", volume=MUSIC,
+                                loops="forever", crossfade=1.5, name="music")
         self.waves = self.run_task(self.director)
 
     # The camera for a wave. From one side, the ring goes toward the far side
@@ -796,6 +834,9 @@ class Game(Act):
                 self.turn = 90 - side
                 canvas.rotate_to(self.turn, time=2, ease="ease_in_out")
             gate = self.frame(wave)
+            if wave.get("ambush"):
+                # the enemies start in 2 seconds: the mine is in front ambush later
+                cross_mine(side, 2 + wave["ambush"])
             await wait(2)
 
             if one_side:
@@ -836,6 +877,8 @@ class Game(Act):
         await until_empty("enemies")
         canvas.fireworks_at(CENTER, color="cyan", radius=160)
         Embers(color="gold", density=1.5)
+        self.music.fade_out(1.5)
+        play_sound("audio/Victory.mp3")
         self.finish("THE RING IS SAFE")
 
     def on_update(self, dt):
@@ -853,16 +896,18 @@ class Game(Act):
     @when(lambda self: st.ring_life <= 0)
     def ring_fell(self):
         canvas.explosion_at(CENTER, amount=2.5, flash=True)
+        play_sound("audio/explosion01.wav", pitch=0.5)
 
     @when(lambda self: st.ship_life <= 0 or st.ring_life <= 0)
     def lost(self):
         self.waves.cancel()
+        self.music.fade_out(3)
         self.finish("GAME OVER")
 
     def finish(self, title):
         self.over = True
         self.after(1.5, lambda: lettering(Text(title + "\nPress R to play again",
                                                center=CENTER, font=FONT,
-                                               font_size=56, layer="ui")))
+                                               font_size=46, layer="ui")))
 
 run(Intro)

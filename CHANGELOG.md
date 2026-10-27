@@ -96,9 +96,12 @@ left out.
   sides the enemies come in clusters; a shot that meets an enemy shot zaps
   both, and enemy shots now hurt the ring; some mines dive at the ring and
   hit hard; the shield breaks after three hits; random pills come at most
-  one every 20 s, and waves 3, 6 and 8 leave pills for the next one; the
-  arrows are slower and drawn as two arrowheads that point the same way;
-  the embers come twice in a game.
+  one every 20 s, and waves 3, 4, 6 and 8 leave pills for the next one
+  that last 25 s (wave 4 leaves heavy and triple shots for the polygons of
+  wave 5); in the swarm of wave 6 a mine comes early, in the swarm's way;
+  the arrows are slower and drawn as two arrowheads that point the same way;
+  the embers come twice in a game. It has sound effects and music, and its
+  title, story and wave banners are in kenvector_future.
 
 ## 0.10.1 — 2026-10-26
 
