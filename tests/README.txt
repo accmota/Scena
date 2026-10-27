@@ -4,7 +4,7 @@ Running tests: use the tiered runner (one process per module, in parallel).
 Tiers and why: design/Testing Design.md, "Test tiers".
 
   python tests/run_tiers.py focused test_shapes     # after every edit (seconds)
-  python tests/run_tiers.py quick                   # before calling a change done (~50 s)
+  python tests/run_tiers.py quick                   # before calling a change done (~50 s Mac, ~11 min Windows laptop)
   python tests/run_tiers.py gate                    # bug-loop gate: all modules, ci, canaries
   python tests/run_tiers.py deep                    # nightly / milestone (2 h +)
   python tests/run_tiers.py gate --plan             # show the jobs, run nothing
@@ -80,6 +80,13 @@ SLOW (quick skips it; gate and deep run it): a module past ~15 s of CPU at dev
 measured alone (focused; its child processes count). timings.json holds the
 wall under a tier, ~2x that. Quick's wall is its summed job time over the
 workers (2026-10-10: ~410 s over 8 workers), so every module adds to it.
+The ~15 s is read on the Mac. On the Windows laptop (i5-1245U, 2 performance
++ 8 efficiency cores) quick is ~11 min (2026-10-27, 0.10.1: 348 jobs, 686 s
+wall, ~6 840 s summed over 10 workers): its skia wheel (MSVC) draws on the CPU
+at ~100 ns a pixel for a plain fill, so a test that draws a 2000 x 1200
+headless frame pays seconds a frame there, ~34 s with Embers (WP47).
+Do not move a module to SLOW on that machine's numbers; pin its frame
+instead. Compare machines with: python scripts/bench/perf_raster.py
 A host that sets PYTHONDONTWRITEBYTECODE (Claude Code does) would make every
 child compile scena from source; run_tiers.py caches the children's bytecode
 in .scena_test_runs/pycache instead (child_env).

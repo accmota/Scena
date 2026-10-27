@@ -4,7 +4,7 @@
 Run from the repo root::
 
     python tests/run_tiers.py focused test_shapes test_collision  # T0  < 30 s
-    python tests/run_tiers.py quick                               # T1  ~ 1 min
+    python tests/run_tiers.py quick                               # T1  ~ 1 min (Mac), ~ 11 min (Windows laptop)
     python tests/run_tiers.py gate                                # T2  ~ 5 min
     python tests/run_tiers.py deep                                # T3  2 h +
 
