@@ -688,6 +688,33 @@ def announce(text):
     play_sound("audio/fx2.wav", volume=0.5)
 
 
+# The victory: the four lights of Arria flare into a four-point star, ten
+# hexagons open out of the ring, each turned a little more than the one
+# inside it, in the colors of the lights, and two lights run around the ring
+# (a window of a circle track, from begin to end, that moves).
+LIGHT_WHEEL = Colormap.from_colors("cyan", "magenta", "gold", "lime", "cyan")
+
+def celebrate():
+    start = clock.time
+
+    def since():                     # seconds since the ring was saved
+        return clock.time - start
+
+    star = Starburst(center=CENTER, radius=10, points=4, color="gold", amount=0.6)
+    tween(star["radius"], 170, time=2.5, ease="ease_out")
+    for i in range(10):
+        hexagon = RegularPolygon(n=6, center=CENTER, line_width=3)
+        hexagon.fill = None
+        hexagon["radius"] @= lambda i=i: RADIUS + 25 + 38 * i * min(1, since() / 3)
+        hexagon["angle"] @= lambda i=i: 15 * since() + 7 * i * min(1, since() / 3)
+        hexagon["line"] @= lambda i=i: LIGHT_WHEEL.get_color((0.2 * since() + i / 10) % 1)
+    for color, offset in (("gold", 0), ("dark orange", 0.5)):
+        glint = Track.circle(center=CENTER, radius=ORBIT + 45, color=color, line_width=5)
+        glint.glow = CheapGlow(color, radius=12)
+        glint["begin"] @= lambda offset=offset: (offset + 0.4 * since()) % 1
+        glint["end"] @= lambda offset=offset: (offset + 0.4 * since() + 0.2) % 1
+
+
 # The portal a cluster comes out of, facing the ring.
 def open_portal(side, gate):
     return Portal(center=on_ring(side, gate), radius=120, tilt=60,
@@ -727,8 +754,8 @@ class Intro(Act):
         title.line_width = 3
         title.glow = Glow("orange red")
         title.dissolve_in(2)
-        # plain white: a gradient or an outline on this many letters costs
-        # more to draw than the whole game (each glyph becomes a path)
+        # plain white: an outline thickens small letters and fills their
+        # holes, and the title already wears the gradient
         self.story = Text("", top_left=(345, 655), font=TEXT_FONT, font_size=26,
                           color="white")
         self.letters = 0
@@ -847,7 +874,7 @@ class Game(Act):
                 await wait(2)
         await until_empty("enemies")
         canvas.fireworks_at(CENTER, color="cyan", radius=160)
-        Embers(color="gold", density=1.5)
+        celebrate()
         self.music.fade_out(1.5)
         play_sound("audio/Victory.mp3")
         self.finish("THE RING IS SAFE")
@@ -878,7 +905,7 @@ class Game(Act):
     def finish(self, title):
         self.over = True
         self.after(1.5, lambda: lettering(Text(title + "\nPress R to play again",
-                                               center=CENTER, font=TITLE_FONT,
+                                               center=(640, 660), font=TITLE_FONT,
                                                font_size=44, layer="ui")))
 
 run(Intro)

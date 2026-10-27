@@ -22,7 +22,9 @@ enemies move that much faster (waves 2 and 5: 1.5); from many sides
 the enemies come in clusters; from one side the ring goes to the far side
 of the screen (half off it on an "edge" wave) and the portal stays on the
 screen; the waves run one after the other to "THE RING IS SAFE", the camera
-turns only on the waves marked ``turn``, and the embers come at most twice;
+turns only on the waves marked ``turn``, the embers come once (the wave marked
+``party``) and the victory is geometric (``celebrate``: a four-point
+Starburst, opening hexagons, lights around the ring), with no embers;
 the game plays sound (shots, hits, explosions, the ring's bell, music).
 
 Bug classes guarded: **an example that stops doing what its docstring says**
@@ -512,6 +514,9 @@ class TestGuardianWaves(unittest.TestCase):
             embers = []
             real_embers = ns["Embers"]
             ns["Embers"] = lambda *a, **k: embers.append(1) or real_embers(*a, **k)
+            stars = []
+            real_star = ns["Starburst"]
+            ns["Starburst"] = lambda *a, **k: stars.append(1) or real_star(*a, **k)
             gifts = []
             real_drop = ns["drop_pill"]
             ns["drop_pill"] = lambda place, power=None, lasting=ns["DURATION"]: (
@@ -560,8 +565,10 @@ class TestGuardianWaves(unittest.TestCase):
             self.assertAlmostEqual(ns["canvas"].rotation, 90 - turns[-1], delta=1,
                                    msg="the camera did not turn to the last marked wave")
             self.assertGreater(ns["st"].score, 1000)
-            self.assertLessEqual(len(embers), 2, "embers all the time")
-            self.assertGreaterEqual(len(embers), 1)
+            parties = [wave["name"] for wave in ns["WAVES"] if wave.get("party")]
+            self.assertEqual(len(embers), len(parties), "embers outside the party waves")
+            self.assertEqual(parties, ["Swarm"])
+            self.assertEqual(len(stars), 1, "the victory did not celebrate")
             planned = [(p, ns["GIFT_DURATION"]) for wave in ns["WAVES"]
                        for p in wave.get("gifts", [])]
             self.assertEqual(gifts, planned)

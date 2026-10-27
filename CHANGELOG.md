@@ -106,8 +106,10 @@ left out.
   wave 5); in the swarm of wave 6 a mine comes early, in the swarm's way;
   waves 2 and 5 have more enemies, 50 % faster; the arrows are slower and
   drawn as three translucent triangles whose wings breathe; the embers come
-  twice in a game. It has sound effects and music; its title and wave
-  banners are in Bungee, the story in Play (Play Bold on the HUD).
+  once, after wave 6, and the victory is geometric (a four-point star,
+  hexagons opening out of the ring, lights running around it). It has sound
+  effects and music; its title and wave banners are in Bungee, the story in
+  Play (Play Bold on the HUD).
 
 ## 0.10.1 — 2026-10-26
 
