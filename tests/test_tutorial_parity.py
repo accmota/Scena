@@ -406,6 +406,56 @@ class TestPublishedHeads(unittest.TestCase):
                       (self.en / "index.html").read_text(encoding="utf-8"))
 
 
+class TestIndexOutline(unittest.TestCase):
+    """The two indexes keep one outline: picture, cards, section headings.
+
+    Bug class: one language's index drifts from the other's (the English
+    index had no appendix heading while the Portuguese one had).
+    """
+
+    PT = ('<img class="index-banner" src="b.webp" alt="x">\n'
+          '<a class="card" href="01-primeiro.html"></a>\n'
+          '<a class="card interlude" href="01i-grupos.html"></a>\n'
+          '<h2 class="index-section" id="apendices">Apêndices</h2>\n'
+          '<a class="card" href="A-depuracao.html"></a>\n')
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.pt, self.en = base / "pt", base / "en"
+        self.pt.mkdir()
+        self.en.mkdir()
+        (self.pt / "index.html").write_text(self.PT, encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def en_index(self, text):
+        (self.en / "index.html").write_text(text, encoding="utf-8")
+        return tp.index_errors(self.pt, self.en)
+
+    def test_twins_with_their_own_words_agree(self):
+        en = (self.PT.replace("primeiro", "first").replace("grupos", "groups")
+              .replace("apendices", "appendixes").replace("Apêndices", "Appendixes")
+              .replace("depuracao", "debug-keys"))
+        self.assertEqual(self.en_index(en), [])
+
+    def test_a_missing_section_heading_fails(self):
+        en = self.PT.replace('<h2 class="index-section" id="apendices">Apêndices</h2>\n', "")
+        errors = self.en_index(en)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("título de seção", errors[0])
+
+    def test_a_missing_picture_a_card_or_an_interlude_mark_fails(self):
+        for en in (self.PT.replace('<img class="index-banner" src="b.webp" alt="x">\n', ""),
+                   self.PT.replace('<a class="card" href="A-depuracao.html"></a>\n', ""),
+                   self.PT.replace("card interlude", "card")):
+            self.assertEqual(len(self.en_index(en)), 1, en)
+
+    def test_the_real_indexes_agree(self):
+        self.assertEqual(tp.index_errors(), [])
+
+
 class TestRealPages(unittest.TestCase):
     """The tool reads every real page, and its draft keeps every page whole."""
 

@@ -774,6 +774,15 @@ details.ask[open] summary { margin-bottom: 0.4rem; }
   margin-bottom: 2rem;
 }
 
+/* The picture under the tutorial index's lede: six games the tutorials build
+   (tools/site/make_tutorial_banner.py). */
+.index-wrap .index-banner {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-bottom: 2rem;
+}
+
 /* A second list on the index (the appendices), after the tutorials. */
 .index-wrap .index-section {
   font-size: 1.5rem;

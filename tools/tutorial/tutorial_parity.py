@@ -33,7 +33,10 @@ Checks (no option; ``tests/test_tutorial_parity.py`` runs them):
   - the heads follow the state (``head_errors``): an English page with every
     unit translated is published (no ``noindex``; its Portuguese twin links
     to it), one with pending units keeps ``noindex``; each English page and
-    each index names its twin.
+    each index names its twin;
+  - the two indexes keep one outline (``index_errors``): the picture, each
+    card by page key and kind (interlude, no page yet), each section heading,
+    in the same order.
 
 Commands (run from the repository root)::
 
@@ -192,6 +195,37 @@ def head_errors(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None
             errors.append(f"{path.parent.parent.name}/tutorial/{path.name}: o cabeçalho (noindex / "
                           f"link para a outra língua) não corresponde ao estado — rode --publish")
     return errors
+
+
+# The indexes' outline: the picture, each card (by page key) and each section
+# heading, in order. The two languages keep the same outline (the English
+# index once lost the appendix heading the Portuguese one had).
+_OUTLINE = re.compile(r'<img class="index-banner" src="([^"]*)"'
+                      r'|<a class="(card[^"]*)" href="([^"]*)"'
+                      r'|<div class="(card[^"]*)"'
+                      r'|<h2 class="index-section"')
+
+
+def index_outline(text: str) -> list[str]:
+    out = []
+    for m in _OUTLINE.finditer(text):
+        img, cls, href, div = m.groups()
+        out.append(f"imagem {img}" if img is not None else
+                   f"{cls} {page_key(href)}" if cls is not None else
+                   f"{div} (sem página)" if div is not None else "título de seção")
+    return out
+
+
+def index_errors(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR) -> list[str]:
+    """The two indexes differ in picture, cards or section headings."""
+    pi, ei = pt_dir / "index.html", en_dir / "index.html"
+    if not (pi.is_file() and ei.is_file()):
+        return []
+    po, eo = index_outline(pi.read_text(encoding="utf-8")), index_outline(ei.read_text(encoding="utf-8"))
+    for i, (a, b) in enumerate(zip(po + [None] * len(eo), eo + [None] * len(po))):
+        if a != b:
+            return [f"index.html: os índices divergem no item {i + 1}: pt tem {a or 'nada'}, en tem {b or 'nada'}"]
+    return []
 
 
 def sync_heads(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = None) -> list[Path]:
@@ -692,6 +726,7 @@ def check(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None = Non
         if name.split(":", 1)[0] not in en:
             errors.append(f"{name}: marcada como traduzida, mas a página em inglês não existe")
     errors += head_errors(pt_dir, en_dir, state)
+    errors += index_errors(pt_dir, en_dir)
     if pt_dir == PT_DIR:                      # the repository's own level files
         errors += check_levels(names)
     return errors
