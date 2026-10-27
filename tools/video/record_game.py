@@ -195,39 +195,128 @@ def program_code(source: str) -> str:
 
 CODE_MARK = (44, 49, 60)          # the band behind a highlighted line
 CODE_MARK_EDGE = (229, 192, 123)  # and its mark at the left edge
+CODE_MUTED = "#7f848e"            # the title, and the "…" that stands for code left out
+CODE_MAX_PT = 1 / 40              # font size, as a share of the panel's height: at most,
+CODE_MIN_PT = 1 / 72              # and the least that reads (20 px at 1440): below it, wrap
+CODE_WRAP_INDENT = 4              # a wrapped line's rest, this far past the line's indent
+
+
+def _code_lines(source: str) -> list:
+    """``source`` as Pygments tokens, one list of ``(ttype, text)`` per line."""
+    from pygments.lexers import PythonLexer
+    lines = [[]]
+    for ttype, text in PythonLexer().get_tokens(source.rstrip("\n") + "\n"):
+        for k, part in enumerate(text.split("\n")):
+            if k:
+                lines.append([])
+            if not part:
+                continue
+            last = lines[-1][-1] if lines[-1] else None
+            if last and last[0] == ttype and not part.isspace():    # a string, whole
+                lines[-1][-1] = (ttype, last[1] + part.expandtabs(4))
+            else:
+                lines[-1].append((ttype, part.expandtabs(4)))
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines
+
+
+def _wrap(lines: list, cols: int) -> list:
+    """The panel's rows: ``(line, tokens)`` each. A line longer than ``cols``
+    breaks before the token that does not fit (a token longer than a row
+    breaks inside, after a space when it has one), its rest
+    ``CODE_WRAP_INDENT`` past the line's indent."""
+    rows = []
+    for n, tokens in enumerate(lines):
+        text = "".join(part for _, part in tokens)
+        indent = min(len(text) - len(text.lstrip()) + CODE_WRAP_INDENT, cols // 2)
+        row, col = [], 0
+        for ttype, part in tokens:
+            while part:
+                room = cols - col
+                if len(part) <= room:
+                    row.append((ttype, part))
+                    col += len(part)
+                    break
+                if part.isspace():                     # a space at the edge: the row ends
+                    if col > indent:
+                        rows.append((n, row))
+                        row, col = [(None, " " * indent)], indent
+                    break
+                if col > indent and len(part) <= cols - indent:    # break before it
+                    rows.append((n, row))
+                    row, col = [(None, " " * indent)], indent
+                    continue
+                space = part.rfind(" ", 0, room)       # longer than a row: cut it
+                room = space + 1 if space > 0 else room
+                row.append((ttype, part[:room]))
+                rows.append((n, row))
+                row, col, part = [(None, " " * indent)], indent, part[room:]
+        rows.append((n, row))
+    return rows
+
+
+def code_fit(source: str, size: tuple, title: str = "", font_path: str | None = None):
+    """How ``code_panel`` sets ``source`` in ``size``: ``(pt, rows)``, the font
+    size and the rows (``_wrap``). The largest font that shows every line
+    whole, up to ``CODE_MAX_PT``; when that is below ``CODE_MIN_PT``, the
+    largest at which long lines wrap and every row still fits (a tall
+    program still gets a small font: ``buildup.fit`` folds code first)."""
+    from PIL import ImageFont
+    path = font_path or mono_font()
+    w, h = size
+    pad = round(h * 0.04)
+    lines = _code_lines(source)
+    extra = 2 if title else 0
+    char_w = ImageFont.truetype(path, 100).getlength("M") / 100    # per point of size
+
+    def fits(rows, cols):
+        return min((w - 2 * pad) / (max(cols, 1) * char_w),
+                   (h - 2 * pad) / ((len(rows) + extra) * 1.35))
+
+    longest = max((sum(len(p) for _, p in tokens) for tokens in lines), default=1)
+    whole = _wrap(lines, longest)
+    pt = max(4, min(int(fits(whole, longest)), round(h * CODE_MAX_PT)))
+    if pt >= round(h * CODE_MIN_PT):
+        return pt, whole
+    for wrapped in range(round(h * CODE_MAX_PT), pt, -1):
+        cols = int((w - 2 * pad) / (wrapped * char_w))
+        rows = _wrap(lines, cols)
+        if fits(rows, cols) >= wrapped:
+            return wrapped, rows
+    return pt, whole
+
+
+def mono_font() -> str:
+    """The system's monospace font (the repository ships none)."""
+    path = next((p for p in CODE_FONTS if os.path.exists(p)), None)
+    if path is None:
+        raise SystemExit("no monospace font found: pass a font file (--code-font)")
+    return path
 
 
 def code_panel(source: str, size: tuple, title: str = "", font_path: str | None = None,
                highlight=()):
     """An RGBA picture of ``source``, syntax-coloured (Pygments, ``CODE_STYLE``),
-    the largest font that fits every line in ``size``, ``title`` on top.
+    set by ``code_fit`` in ``size``, ``title`` on top.
     ``highlight``: line numbers (0-based) drawn on a band with a mark at the
-    left (a build-up's new lines)."""
+    left (a build-up's new lines); a wrapped line's band covers its rows.
+    A ``…`` (code left out) is drawn muted."""
     import numpy as np
     from PIL import Image, ImageDraw, ImageFont
-    from pygments.lexers import PythonLexer
     from pygments.styles import get_style_by_name
-    path = font_path or next((p for p in CODE_FONTS if os.path.exists(p)), None)
-    if path is None:
-        raise SystemExit("no monospace font found: pass a font file (--code-font)")
+    path = font_path or mono_font()
     w, h = size
     pad = round(h * 0.04)
-    lines = source.rstrip("\n").split("\n")
-    longest = max((len(line.expandtabs(4)) for line in lines), default=1)
-    rows = len(lines) + (2 if title else 0)
-    probe = ImageFont.truetype(path, 100)
-    char_w = probe.getlength("M") / 100            # per point of size
-    size_w = (w - 2 * pad) / (max(longest, 1) * char_w)
-    size_h = (h - 2 * pad) / (rows * 1.35)
-    # Always fits: a long program gets a small font (the layout is meant for
-    # one-screen programs; at 1440 px a 60-line one reads at about 20 px).
-    pt = max(4, min(int(size_w), int(size_h), round(h / 40)))
+    pt, rows = code_fit(source, size, title, path)
     font = ImageFont.truetype(path, pt)
     step = round(pt * 1.35)
     style = get_style_by_name(CODE_STYLE)
     default = "#abb2bf"
 
-    def color(ttype):
+    def color(ttype, part):
+        if part.strip() == "…":
+            return CODE_MUTED
         while ttype is not None:
             c = style.style_for_token(ttype).get("color")
             if c:
@@ -239,21 +328,22 @@ def code_panel(source: str, size: tuple, title: str = "", font_path: str | None 
     draw = ImageDraw.Draw(img)
     y = pad
     if title:
-        draw.text((pad, y), title, font=font, fill="#7f848e")
+        draw.text((pad, y), title, font=font, fill=CODE_MUTED)
         y += 2 * step
-    for k in highlight:
-        top = y + k * step - round(step * 0.12)
-        draw.rectangle((0, top, w, top + step - 1), fill=CODE_MARK + (255,))
-        draw.rectangle((0, top, max(3, pad // 4), top + step - 1), fill=CODE_MARK_EDGE + (255,))
-    x = pad
-    for ttype, text in PythonLexer().get_tokens(source):
-        for k, part in enumerate(text.split("\n")):
-            if k:
-                x, y = pad, y + step
-            if part:
-                part = part.expandtabs(4)
-                draw.text((x, y), part, font=font, fill=color(ttype))
-                x += font.getlength(part)
+    marked = set(highlight)
+    for k, (n, _) in enumerate(rows):
+        if n in marked:
+            top = y + k * step - round(step * 0.12)
+            draw.rectangle((0, top, w, top + step - 1), fill=CODE_MARK + (255,))
+            draw.rectangle((0, top, max(3, pad // 4), top + step - 1),
+                           fill=CODE_MARK_EDGE + (255,))
+    for _, tokens in rows:
+        x = pad
+        for ttype, part in tokens:
+            if part.strip():
+                draw.text((x, y), part, font=font, fill=color(ttype, part))
+            x += font.getlength(part)
+        y += step
     return np.asarray(img)
 
 
@@ -481,7 +571,7 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
            gpu: bool = True, seed: int = 0, progress: bool = True,
            source: str | None = None, layout: str | None = None,
            code_font: str | None = None, code_title: str | None = None,
-           code_highlight=()) -> dict:
+           code_highlight=(), code_at=None) -> dict:
     """Play ``program`` and hand each video frame and the sound to a sink.
 
     ``sink_factory(size, fps)`` builds the sink once the frame size is known.
@@ -496,6 +586,9 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
     ``layout``: ``"code"`` puts the program's code on the left of the frame
     (``code_panel``, ``CODE_SHARE`` of the width) and the game on the right;
     ``code_title`` (default: the file) heads it, ``code_highlight`` marks lines.
+    ``code_at(game, t)``: the panel changes during the take: it returns
+    ``(code, title, highlight)`` for each video frame (``t`` the pilot's
+    clock), the code as shown; it may end the take (``game.done``).
     """
     import numpy as np
     import skia
@@ -514,6 +607,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
         path = program
     if layout not in (None, "code"):
         raise ValueError(f"layout is None or 'code', got {layout!r}")
+    if code_at is not None and layout != "code":
+        raise ValueError("code_at needs layout='code'")
     text = source if source is not None else (REPO / path).read_text(encoding="utf-8")
     run = ProgramRun(path, source=source, seed=seed, draw=True)
     sink = None
@@ -540,11 +635,12 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
         canvas = np.empty((size[1], size[0], 4), dtype=np.uint8)
         canvas[...] = LETTERBOX + (255,)
         x0, y0 = panel_w + (size[0] - panel_w - gw) // 2, (size[1] - gh) // 2
-        if layout == "code":
-            title = code_title or (program if program.startswith("README") else path)
-            canvas[:, :panel_w] = code_panel(program_code(text), (panel_w, size[1]),
-                                             title=title, font_path=code_font,
-                                             highlight=code_highlight)
+        if layout == "code" and code_at is None:
+            whole = (program_code(text),
+                     code_title or (program if program.startswith("README") else path),
+                     tuple(code_highlight))
+            code_at = lambda game, t: whole  # noqa: E731
+        panels, shown = {}, None
         sink = sink_factory(size, fps)
         game = mm.Pilot(run)
         step = GAME_FPS // fps
@@ -583,6 +679,15 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
                     mx, my = game._at
                     px = draw_cursor(px, (mx * gw / dw, (dh - my) * gh / dh), cursor_scale)
                 canvas[y0:y0 + gh, x0:x0 + gw] = px
+                if code_at is not None:
+                    code, title, marks = code_at(game, (i - 1) / GAME_FPS)
+                    key = (code, title, tuple(marks))
+                    if key != shown:
+                        if key not in panels:
+                            panels[key] = code_panel(code, (panel_w, size[1]), title=title,
+                                                     font_path=code_font, highlight=marks)
+                        canvas[:, :panel_w] = panels[key]
+                        shown = key
                 if getattr(game, "still", False) and hasattr(sink, "mark_meant"):
                     sink.mark_meant()
                 sink.frame(canvas)

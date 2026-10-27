@@ -307,6 +307,50 @@ def play_naves(game, t, *, dodge=True, shields=True, aim=1.0, fire=1.0, pause_at
     game.hold(move, "SPACE" if bursts(m, t, fire) else None, *keys)
 
 
+# ── Ships (tutorial 05): the last step, played ─────────────────────────────
+
+def shoot_fleet(game, t, *, ship="ship", foes="enemies", threats="enemy_shots", fire=0.5,
+                reaction=0.15, careless_from=None, seed=0):
+    """Tutorial 05's last program, played: go under the nearest enemy and
+    fire in bursts (``fire``: the share of the time), stepping aside from an
+    enemy shot about to hit. From ``careless_from`` s on it stops dodging and
+    goes under the nearest shot (the run ends in the explosion)."""
+    m = memo(game)
+    if "rng" not in m:
+        m.update(rng=random.Random(seed), next=0.0, target=None, dodge=None)
+    game.cursor = False
+    ns = game.ns
+    hero = ns[ship]
+    if not hero:                                 # shot down
+        game.hold()
+        return
+    hx, hy = hero.center.x, hero.center.y
+    shots = list(ns["group"][threats])
+    shoot = "SPACE" if bursts(m, t, fire) else None
+    if careless_from is not None and t >= careless_from:
+        near = [s for s in shots if s.center.y > hy]
+        target = min(near, key=lambda s: s.center.y).center.x if near else hx
+        game.hold(steer(m, target - hx, start=6, stop=2), shoot)
+        return
+    danger = [s for s in shots if 0 < s.center.y - hy < 300 and abs(s.center.x - hx) < 50]
+    if danger:
+        s = min(danger, key=lambda s: s.center.y)
+        if m["dodge"] is None:
+            away = hx - s.center.x or m["rng"].choice((-1, 1))
+            away = 1 if hx < 120 else -1 if hx > 880 else away
+            m["dodge"] = "RIGHT" if away > 0 else "LEFT"
+        game.hold(m["dodge"], shoot)
+        return
+    m["dodge"] = None
+    if t >= m["next"]:
+        m["next"] = t + reaction * (0.7 + 0.6 * m["rng"].random())
+        live = list(ns["group"][foes])
+        m["target"] = (min(live, key=lambda f: abs(f.center.x - hx)).center.x
+                       if live else None)
+    move = steer(m, m["target"] - hx, start=10, stop=3) if m["target"] is not None else None
+    game.hold(move, shoot)
+
+
 # ── Avião III · Paisagem ────────────────────────────────────────────────────
 
 def fly_plane(game, t, *, flights=(60.0,), crashes=("pillar",), wait=3.5, seed=0):
@@ -1135,6 +1179,24 @@ def with_debug_keys(game, t, *, pilot, args=None, chords=()):
         hold(*extra)
 
 
-PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, fly_plane,
-                                  race, run_robot, play_connect4, duel_match, ninja_route,
-                                  slider_tour, tour, with_debug_keys)}
+def chain(game, t, *, parts=()):
+    """Pilots one after another: ``parts`` is ``(start, pilot, args)`` each,
+    in order, the first at 0. The last one started plays, on a clock from its
+    own start and with a memory of its own (two tours do not share theirs)."""
+    from record_game import load_pilot
+    m = memo(game)
+    k = max(i for i, part in enumerate(parts) if part[0] <= t)
+    start, pilot, args = parts[k]
+    if ("pilot", k) not in m:
+        m[("pilot", k)] = load_pilot(pilot)
+    fly = m[("pilot", k)]
+    game._memo = m.setdefault(("memo", k), {})
+    try:
+        fly(game, t - start, **(args or {}))
+    finally:
+        game._memo = m
+
+
+PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, shoot_fleet,
+                                  fly_plane, race, run_robot, play_connect4, duel_match,
+                                  ninja_route, slider_tour, tour, with_debug_keys, chain)}

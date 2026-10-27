@@ -22,9 +22,17 @@ Bug classes guarded:
 * **The code beside the game is not the program, or does not fit.** The
   code panel drops only the module docstring, and every line fits its
   width and height; the game is drawn right of it (``TestCodePanel``).
+* **Code too small to read.** A line longer than the panel wraps (inside
+  the panel, under its own indent, its mark on every row) rather than
+  shrinking the font below ``CODE_MIN_PT``; a step that is still too tall
+  folds what it leaves alone to ``…``, never a marked line, and every
+  tutorial step and demo chapter reads (``TestCodePanel``, ``TestFit``).
 * **A build-up marks the wrong lines.** Each step's marked lines are what it
   adds or changes since the step before (none for a step that only
-  explains), and every step spec names a real step (``TestBuildup``).
+  explains), and every step spec names a real step (``TestBuildup``). A
+  chapter build-up's picks resolve to the program's own code; its panel
+  follows the chapters and the last one ends the take (``TestChapters``);
+  chained pilots each keep their own clock and memory.
 * **A debug chord arrives as a plain key.** Ctrl+Shift+7 / 6 / 8 over a run
   switch the overlays in turn, each kept as the next comes, and the HUD's
   FPS says the video's rate, not the render's (``TestDebugKeys``).
@@ -332,6 +340,54 @@ class TestCodePanel(unittest.TestCase):
         self.assertLess(ink[:, 1].max(), size[0] - 2, "a line runs off the right edge")
         self.assertLess(ink[:, 0].max(), size[1] - 2, "lines run off the bottom")
 
+    def test_a_long_line_wraps_instead_of_shrinking(self):
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        size = (600, 1200)
+        least = round(size[1] * rg.CODE_MIN_PT)
+        code = "x = 1\n    " + " + ".join(f"value_{i}" for i in range(30)) + "\ny = 2\n"
+        pt, rows = rg.code_fit(code, size)
+        self.assertGreaterEqual(pt, least)
+        self.assertGreater(len(rows), 3, "the long line wraps")
+        self.assertEqual([n for n, _ in rows].count(1), len(rows) - 2)
+        text = ["".join(p for _, p in toks) for _, toks in rows]
+        self.assertEqual("".join(t.strip() for t in text[1:-1]).replace(" ", ""),
+                         code.splitlines()[1].replace(" ", ""), "nothing lost or doubled")
+        self.assertTrue(all(t.startswith(" " * 8) for t in text[2:-1]), "rest under its indent")
+        panel = rg.code_panel(code, size)
+        ink = np.argwhere((np.abs(panel[..., :3].astype(int) - rg.CODE_BG).sum(axis=2)) > 30)
+        self.assertLess(ink[:, 1].max(), size[0] - 2, "a row runs off the right edge")
+        panel = rg.code_panel(code, size, highlight=[1])
+        marks = np.flatnonzero((panel[:, :3, :3] == rg.CODE_MARK_EDGE).all(axis=2).any(axis=1))
+        step = round(pt * 1.35)
+        self.assertGreaterEqual(len(marks), (len(rows) - 2) * step - 2, "every row marked")
+
+    def test_code_can_change_during_a_take(self):
+        """``code_at``: the panel follows the take, and may end it."""
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        sinks = []
+
+        def code_at(game, t):
+            if t >= 0.3:
+                game.done = True
+            return ("a = 1\n", "first", ()) if t < 0.2 else ("b = 2\n" * 6, "second", (0,))
+
+        r = rg.record("examples/ping.py", lambda size, fps: sinks.append(_Memory(size, fps))
+                      or sinks[-1], source=_PING, size=(400, 180), gpu=False, progress=False,
+                      seconds=5.0, tail=0.2, layout="code", code_at=code_at)
+        frames = sinks[0].frames
+        panel_w = round(400 * rg.CODE_SHARE) // 2 * 2
+        self.assertEqual(r["ended"], "done")
+        self.assertLess(len(frames), 40)
+        first, last = frames[0][:, :panel_w], frames[-1][:, :panel_w]
+        self.assertFalse((first == last).all(), "the panel changed")
+        self.assertFalse((first[:, :3, :3] == rg.CODE_MARK_EDGE).all(axis=2).any())
+        self.assertTrue((last[:, :3, :3] == rg.CODE_MARK_EDGE).all(axis=2).any())
+        with self.assertRaises(ValueError):
+            rg.record("examples/ping.py", lambda size, fps: _Memory(size, fps), source=_PING,
+                      code_at=code_at)
+
     def test_game_sits_right_of_the_code(self):
         if _code_font() is None:
             self.skipTest("no monospace font on this system")
@@ -361,7 +417,7 @@ class TestBuildup(unittest.TestCase):
         import buildup
         cls.bu = buildup
         cls.steps = {bid: buildup.page_steps(b["page"], b.get("example"))
-                     for bid, b in tk.BUILDUPS.items()}
+                     for bid, b in tk.BUILDUPS.items() if "page" in b}
 
     def test_steps_and_titles_come_from_the_page(self):
         first = self.steps["first_script"]
@@ -398,13 +454,46 @@ class TestBuildup(unittest.TestCase):
 
     def test_every_step_spec_is_a_step_with_a_pilot(self):
         import inspect
-        for bid, b in tk.BUILDUPS.items():
+
+        def binds(pilot, args):
+            inspect.signature(rg.load_pilot(pilot)).bind(object(), 0.0, **args)
+            if pilot == "with_debug_keys":
+                binds(args["pilot"], args.get("args", {}))
+
+        for bid in self.steps:
+            b = tk.BUILDUPS[bid]
             for n in b["steps"]:
                 with self.subTest(buildup=bid, step=n):
                     self.assertTrue(1 <= n <= len(self.steps[bid]))
                     spec = self.bu.step_spec(bid, n)
-                    inspect.signature(rg.load_pilot(spec["pilot"])).bind(
-                        object(), 0.0, **spec["args"])
+                    binds(spec["pilot"], spec["args"])
+            if b.get("finale", {}).get("pilot"):
+                with self.subTest(buildup=bid, finale=True):
+                    binds(b["finale"]["pilot"], b["finale"].get("args", {}))
+
+    def test_every_build_up_plays_on_after_its_code(self):
+        """The last step plays on: a pilot of its own, or one that is not a
+        short timetable (a tour stops moving when its script ends)."""
+        for bid in self.steps:
+            with self.subTest(buildup=bid):
+                b = tk.BUILDUPS[bid]
+                last = self.bu.step_spec(bid, len(self.steps[bid]))
+                self.assertTrue(b.get("finale", {}).get("pilot")
+                                or last["pilot"] not in ("tour", "watch"))
+        self.assertGreaterEqual(self.bu.FINALE, 5)
+        self.assertLessEqual(self.bu.FINALE, 10)
+
+    def test_leave_playfield_is_shown_in_debug_view(self):
+        """Ships step 7 (@leave_playfield): hitboxes and the debug zoom on,
+        then off again before the step ends (the chords toggle and cycle)."""
+        steps = self.steps["ships_1"]
+        n = next(n for n, _, code in steps if "@leave_playfield" in code)
+        spec = self.bu.step_spec("ships_1", n)
+        self.assertEqual(spec["pilot"], "with_debug_keys")
+        keys = [k for when, k in spec["args"]["chords"] if when < spec["seconds"]]
+        self.assertEqual(keys.count("7") % 2, 0, "hitboxes off again")
+        self.assertEqual(keys.count("8") % 3, 0, "zoom back to 100 % (100, 50, 25)")
+        self.assertGreater(keys.count("8"), 0)
 
     def test_highlight_marks_only_its_lines(self):
         if _code_font() is None:
@@ -422,6 +511,139 @@ class TestBuildup(unittest.TestCase):
             self.assertEqual(rows.max() - rows.min() + 1, len(rows), "one band")
         self.assertEqual(len(first), len(third))
         self.assertEqual(third.min() - first.min(), 2 * len(first), "two lines lower")
+
+
+class TestFit(unittest.TestCase):
+    """What the panel shows when a program is too long to read whole."""
+
+    @classmethod
+    def setUpClass(cls):
+        import buildup
+        cls.bu = buildup
+
+    def test_short_code_is_whole(self):
+        code = "from scena import *\n\ndef f():\n    a = 1\n    b = 2\n    c = 3\n\nrun()\n"
+        self.assertEqual(self.bu.fit(code, [3]), (code, [3]))
+
+    def test_folds_what_the_step_leaves_alone(self):
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        body = "".join(f"    v{i} = {i}\n" for i in range(30))
+        code = ("from scena import *\n\ninit(width=100, height=100)\n"
+                + "".join(f"r{i} = Rect()\n" for i in range(10))
+                + "\n\ndef old():\n" + body + "\n\ndef new():\n" + body + "\n\nrun()\n")
+        lines = code.splitlines()
+        marked = [k for k, line in enumerate(lines) if line.startswith("def new")]
+        marked += [marked[0] + 3]
+        shown, marks = self.bu.fit(code, marked, "Step 2 · New")
+        out = shown.splitlines()
+        self.assertEqual([out[k] for k in marks], [lines[k] for k in marked], "marks follow")
+        self.assertIn("def old():", out)
+        self.assertEqual(out[out.index("def old():") + 1], "    …", "the untouched body folds")
+        self.assertIn("run()", out)
+        self.assertIn("from scena import *", out)
+        self.assertGreaterEqual(rg.code_fit(shown, self.bu.panel_size(), "Step 2 · New")[0],
+                                round(self.bu.panel_size()[1] * rg.CODE_MIN_PT))
+
+    def test_every_tutorial_step_reads(self):
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        size = self.bu.panel_size()
+        least = round(size[1] * rg.CODE_MIN_PT)
+        for bid, b in tk.BUILDUPS.items():
+            if "page" not in b:
+                continue
+            steps = self.bu.page_steps(b["page"], b.get("example"))
+            for n, title, code in steps:
+                with self.subTest(buildup=bid, step=n):
+                    before = steps[n - 2][2] if n > 1 else ""
+                    heading = f"Step {n} · {title}"
+                    marked = self.bu.new_lines(before, code)
+                    shown, marks = self.bu.fit(rg.program_code(code), marked, heading)
+                    self.assertEqual(len(marks), len(marked), "a marked line folded")
+                    self.assertGreaterEqual(rg.code_fit(shown, size, heading)[0], least - 1)
+
+
+class TestChapters(unittest.TestCase):
+    """Chapter build-ups: a demo's run, the code of the part on screen."""
+
+    @classmethod
+    def setUpClass(cls):
+        import buildup
+        cls.bu = buildup
+
+    SRC = ('"""Doc."""\nfrom scena import *\n\nN = 3\nM = 4\n\n\n'
+           '# ---- part one ----\n\n# the stars\ndef stars(n):\n    """Doc."""\n'
+           '    a = n\n    return a\n\n\nclass Ball(Circle):\n    """A ball."""\n\n'
+           '    def setup(self):\n        self.v = 0\n\n    def on_update(self, dt):\n'
+           '        self.v += dt\n\n\nasync def show():\n    await wait(1)\n'
+           '    while True:\n        # one\n        stars(1)\n        # two\n'
+           '        stars(2)\n        # three\n        stars(3)\n\n\nrun_task(show)\nrun()\n')
+
+    def test_excerpt_picks_slices_and_folds(self):
+        ex = self.bu.excerpt
+        self.assertEqual(ex(self.SRC, ("N", "M")), "N = 3\nM = 4\n")
+        self.assertEqual(ex(self.SRC, ("stars",)),
+                         '# the stars\ndef stars(n):\n    """Doc."""\n    a = n\n    return a\n')
+        self.assertEqual(ex(self.SRC, ("stars", "N"), ("stars",)),
+                         "# the stars\ndef stars(n): …\n\nN = 3\n")
+        self.assertEqual(ex(self.SRC.replace("# the stars\n", ""), ("stars", "N"), ("stars",)),
+                         "def stars(n): …\nN = 3\n", "one-line blocks stack")
+        self.assertEqual(ex(self.SRC, ("Ball",), ("Ball.__doc__", "Ball.setup")),
+                         "class Ball(Circle):\n    def setup(self): …\n\n"
+                         "    def on_update(self, dt):\n        self.v += dt\n")
+        self.assertEqual(ex(self.SRC, (("show", "# two", "# three"),)),
+                         "async def show():\n        …\n        # two\n        stars(2)\n"
+                         "        …\n")
+        self.assertEqual(ex(self.SRC, (("show", "# three", None), "run_task", "run")),
+                         "async def show():\n        …\n        # three\n        stars(3)\n"
+                         "\nrun_task(show)\nrun()\n")
+        with self.assertRaises(ValueError):
+            ex(self.SRC, ("nothing",))
+
+    def test_every_chapter_reads(self):
+        if _code_font() is None:
+            self.skipTest("no monospace font on this system")
+        size = self.bu.panel_size()
+        least = round(size[1] * rg.CODE_MIN_PT)
+        for bid, b in tk.BUILDUPS.items():
+            if "chapters" not in b:
+                continue
+            panels = self.bu.chapter_panels(bid)
+            self.assertEqual(len(panels), len(b["chapters"]))
+            self.assertGreaterEqual(len(panels), 2)
+            for code, title, _ in panels:
+                with self.subTest(buildup=bid, chapter=title):
+                    compile(code.replace("…", "pass"), title, "exec")
+                    self.assertGreaterEqual(rg.code_fit(code, size, title)[0], least - 2)
+
+    def test_chain_keeps_each_pilot_apart(self):
+        import pilots
+        seen = []
+
+        def first(game, t):
+            pilots.memo(game).setdefault("who", "first")
+            seen.append(("first", round(t, 2), pilots.memo(game)["who"]))
+
+        def second(game, t):
+            pilots.memo(game).setdefault("who", "second")
+            seen.append(("second", round(t, 2), pilots.memo(game)["who"]))
+
+        class Game:
+            pass
+
+        game = Game()
+        saved = dict(pilots.PILOTS)
+        pilots.PILOTS.update(first=first, second=second)
+        try:
+            for t in (0.0, 0.5, 1.0, 1.5):
+                pilots.chain(game, t, parts=((0.0, "first", {}), (1.0, "second", {})))
+        finally:
+            pilots.PILOTS.clear()
+            pilots.PILOTS.update(saved)
+        self.assertEqual(seen, [("first", 0.0, "first"), ("first", 0.5, "first"),
+                                ("second", 0.0, "second"), ("second", 0.5, "second")])
+        self.assertNotIn("who", pilots.memo(game), "the chain's own memory stays apart")
 
 
 class TestDebugKeys(unittest.TestCase):

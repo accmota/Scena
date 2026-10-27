@@ -239,6 +239,11 @@ TAKES = {
 # step's code beside the step running, from the English pages. ``steps``: per
 # step (from 1) a pilot, its args and seconds; a step not listed plays 4 s
 # with no input. ``example``: on a page that ends in two programs, whose steps.
+# ``finale``: after the last step's own seconds the game plays on
+# (``buildup.FINALE``) with this pilot and args (none: the step's pilot goes on).
+# A chapter build-up (``chapters``) is one run of a demo: ``(title, picks,
+# folds)`` each (``buildup.excerpt``), the next one on screen when ``key(game)``
+# changes; the last, the storyboard as the demo loops, ends the take.
 _EN = "docs/en/tutorial/"
 _BAR = dict(paddle="bar", group="stars", fall=220, speed=380, half=56)
 _SWEEP = (("hold", 0.5, 1.5, "LEFT"), ("hold", 1.5, 3.3, "RIGHT"), ("hold", 3.3, 4.0, "LEFT"))
@@ -251,6 +256,10 @@ _TRIPS = (("click", 1.0, (750, 220)), ("click", 2.6, (250, 500)), ("click", 4.2,
 
 def _tour(seconds, *script):
     return dict(pilot="tour", seconds=seconds, args=dict(script=script))
+
+
+def _finale(*script):
+    return dict(pilot="tour", args=dict(script=script))
 
 
 BUILDUPS = {
@@ -271,7 +280,10 @@ BUILDUPS = {
                   ("glide", 2.2, 2.8, (890, 620)), ("key", 2.9, "D"),
                   ("glide", 3.1, 3.7, (850, 330)), ("key", 3.8, "D")),
         13: _tour(5.0, ("hold", 1.0, 2.4, "RIGHT")),   # past x = 800: the @when fires
-    }),
+    }, finale=_finale(("hold", 0.3, 1.0, "LEFT"), ("click", 2.0, "@circle"),   # the star back
+                      ("click", 3.0, "@triangle"), ("glide", 3.4, 4.0, (620, 610)),
+                      ("key", 4.2, "D"), ("glide", 4.4, 4.9, (770, 560)), ("key", 5.1, "D"),
+                      ("hold", 5.6, 6.4, "UP"), ("click", 7.2, "@rectangle"))),
     "catch_stars": dict(page=_EN + "02-catch-stars.html", program="examples/catch_stars.py",
                         steps={
         1: _tour(4.5, ("hold", 0.8, 1.8, "LEFT"), ("hold", 2.2, 3.6, "RIGHT")),
@@ -289,13 +301,25 @@ BUILDUPS = {
         8: _tour(7.0, ("path", 0.8, 4.4, "orbit", (500, 350, 280, 180, 0.3)),
                  ("rpress", 1.0, 4.2),           # the right button: follow the mouse
                  ("click", 5.2, (300, 220))),
-    }),
+    }, finale=_finale(("click", 1.0, (780, 560)), ("click", 2.8, (220, 200)),
+                      ("key", 3.6, "SPACE"),
+                      ("path", 4.2, 7.8, "orbit", (500, 350, 260, 170, 0.3)),
+                      ("rpress", 4.4, 7.6))),
     "ships_1": dict(page=_EN + "05-ships.html", program="examples/ships_1.py", steps={
         **{n: _tour(4.5, *_SWEEP) for n in (1, 2, 3, 4)},
-        **{n: _tour(4.5, *_SWEEP_FIRE) for n in (5, 6, 7)},
+        **{n: _tour(4.5, *_SWEEP_FIRE) for n in (5, 6)},
+        # @leave_playfield: hitboxes and the view frame (7), the debug zoom
+        # (8: 50 %, then 25 %, then back to 100 %) show the shots leave the
+        # screen and go; then the overlays off again.
+        7: dict(pilot="with_debug_keys", seconds=9.0, args=dict(
+            pilot="tour", args=dict(script=_LONG_SWEEP_FIRE + (("hold", 7.0, 8.4, "SPACE"),)),
+            chords=((1.0, "7"), (1.6, "8"), (4.4, "8"), (7.2, "8"), (7.8, "7")))),
         8: dict(seconds=4.0), 9: dict(seconds=4.0), 10: dict(seconds=4.0),
         11: dict(seconds=5.0), 12: dict(seconds=5.0),          # the fleet moves
-        **{n: _tour(7.0, *_LONG_SWEEP_FIRE) for n in (13, 14, 15, 16)},
+        **{n: _tour(7.0, *_LONG_SWEEP_FIRE) for n in (13, 14, 15)},
+        # the last: played to the end of the finale, then hit (the new @collide)
+        16: dict(pilot="shoot_fleet", seconds=7.0,
+                 args=dict(fire=0.5, careless_from=11.5, seed=16)),
     }),
     "ninja_1_run": dict(page=_EN + "18-ninja.html", program="examples/ninja_1_run.py", steps={
         1: dict(seconds=3.0), 2: dict(seconds=3.0),            # gravity: it falls away
@@ -304,7 +328,9 @@ BUILDUPS = {
         **{n: _tour(6.0, ("hold", 0.5, 4.0, "RIGHT"), ("key", 1.0, "UP"),
                     ("key", 2.3, "UP"), ("hold", 4.3, 5.4, "LEFT"), ("key", 4.6, "UP"))
            for n in (5, 6)},
-    }),
+    }, finale=_finale(("hold", 0.3, 2.5, "RIGHT"), ("key", 0.8, "UP"), ("key", 2.0, "UP"),
+                      ("hold", 3.0, 5.5, "LEFT"), ("key", 3.4, "UP"), ("key", 4.6, "UP"),
+                      ("hold", 6.0, 7.5, "RIGHT"), ("key", 6.4, "UP"))),
     "balls": dict(page=_EN + "10-balls.html", program="examples/balls.py", steps={
         1: dict(seconds=3.0),
         **{n: dict(seconds=4.5) for n in (2, 3, 4, 5, 6, 7)},
@@ -313,18 +339,49 @@ BUILDUPS = {
                  *[("scroll", 1.0 + 0.2 * k, 1) for k in range(5)],
                  *[("scroll", 3.2 + 0.2 * k, -1) for k in range(5)]),
         10: dict(seconds=6.0),
-    }),
+    }, finale=_finale(("glide", 0.3, 1.2, "@chosen"),       # zoom in where the gold ball is, out
+                      *[("scroll", 1.4 + 0.2 * k, 1) for k in range(4)],
+                      *[("scroll", 5.6 + 0.2 * k, -1) for k in range(4)])),
     "spinning_bars": dict(page=_EN + "30-spins.html", example="spinning_bars.py",
                           program="examples/spinning_bars.py", steps={
         8: _tour(6.0, ("drag", "Speed", 26, 60, 1.0, 2.0), ("drag", "Spin", -1.5, 2.0, 2.6, 3.6),
                  ("key", 4.4, "M")),
-    }),
+    }, finale=_finale(("drag", "Speed", 60, 15, 1.0, 2.5), ("drag", "Spin", 2.0, -2.5, 3.4, 5.0),
+                      ("key", 5.8, "M"), ("drag", "Speed", 15, 35, 6.4, 7.6))),
     "oscilloscope": dict(page=_EN + "30-spins.html", example="oscilloscope.py",
                          program="examples/oscilloscope.py", steps={
         5: _tour(4.5, ("click", 1.2, "@ball")),               # the click switches it on
         6: _tour(7.0, ("click", 1.0, "@ball"), ("drag", "tx1", 6, 2, 2.0, 3.0),
                  ("drag", "ty1", 6, -3, 3.5, 4.5), ("drag", "n", 4, 2, 5.0, 6.0)),
-    }),
+    }, finale=_finale(("drag", "tx1", 2, 7, 1.0, 2.5), ("drag", "ty1", -3, 5, 3.2, 4.7),
+                      ("drag", "n", 2, 5, 5.4, 6.6))),
+    # The demos: one run each, the code of the part on screen.
+    "old_school": dict(program="examples/old_school.py", seconds=240,
+                       key=lambda game: game.ns["st"].t0 or None,   # new_part() sets it
+                       chapters=(
+        ("I  Starfield", ("starfield",)),
+        ("II  Sine scroller", ("MESSAGE", "SPACING", "SCROLL", "scroll_place", "scroller")),
+        ("III  Copper bars", ("COPPER", "drop_ghost", "copper_bars")),
+        # the shades made once (PAINTS) are a speed-up, not the effect
+        ("IV  Twister", ("ROWS", "RADIUS", "STEPS", "LIGHT", "Row", "twister"),
+         ("Row.__doc__", "Row.setup")),
+        ("V  Rotozoomer", ("rotozoomer",)),
+        ("VI  Plasma", ("plasma",)),
+        ("VII  Vector balls", ("BALLS", "BALL_COLORS", "cube_point", "sphere_point", "ring_point",
+                               "blend3", "Ball", "vector_balls"),
+         ("cube_point", "sphere_point", "ring_point", "blend3", "Ball.__doc__")),
+        ("VIII  Power off", ("power_off",)),
+        ("The storyboard", ("light", "play_sound", "new_part", "cut", "show", "update",
+                            "run_task", "run")),
+    )),
+    "demo100": dict(program="examples/demo100.py", seconds=120,
+                    key=lambda game: (game.ns["st"].sway > 0, game.ns["st"].spin > 1),
+                    chapters=(
+        ("I  Open", ("turn", "reach", "make_rings", ("show", "# I  Open", "# II  Dance"))),
+        ("II  Dance", ("st", "reach", ("show", "# II  Dance", "# III  Storm"))),
+        ("III  Storm", ("turn", ("show", "# III  Storm", "# back to the start"))),
+        ("The storyboard", ("show", "run_task", "run")),
+    )),
 }
 
 

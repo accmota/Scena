@@ -119,8 +119,8 @@ Guards: `tests/test_readme.py`.
   glide starts early and would pull a click off its button, or end the
   editor's band select over nothing.
 - **"This code → this game".** A take with `layout="code"` shows the
-  program's code (no module docstring; Pygments colours; the largest font
-  that fits every line, so meant for one-screen programs) on the left 40 %
+  program's code (no module docstring; Pygments colours; see "Code that
+  reads" below) on the left 40 %
   of the frame and the game on the right; the 01, 02 and catch-the-stars
   takes have a `code` twin. The font is the system's monospace (Menlo,
   DejaVu Sans Mono, Consolas): the repository ships none.
@@ -137,6 +137,31 @@ Guards: `tests/test_readme.py`.
   (`docs/en/tutorial/`, "Step N"; a Portuguese page says "Passo N"). A page
   that ends in two programs (`30-spins`: the bars, then the oscilloscope)
   gives each build-up its own steps (`example=`), numbered from 1.
+  The last step plays on `buildup.FINALE` (8 s) once its code is
+  complete (no lines marked): `finale=` gives that part its own pilot
+  (`pilots.chain` runs one pilot after another, each on its own clock and
+  memory), or the step's pilot goes on (Ships: `shoot_fleet` plays, then
+  stops dodging and is hit, the step's new `@collide`). Ships step 7
+  (`@leave_playfield`) turns on hitboxes and the debug zoom (50 %, 25 %),
+  then off again, so the shots are seen leaving the screen and going.
+- **Code that reads.** The panel's font is the largest that fits, up to
+  1/40 of its height; below `CODE_MIN_PT` (1/72, 20 px at 1440) long
+  lines wrap (at a token, or at a space inside a long string; the rest
+  under the line's indent) instead of shrinking the font. A step still
+  too tall (`buildup.fit`) loses its double blank lines, then folds what
+  the step leaves alone to `…` (an untouched def's body, a run of
+  untouched top-level lines; never an import, `init`, `run` or a marked
+  line), the biggest first, until it reads.
+- **Chapter build-ups** (`chapters=` in `BUILDUPS`: `old_school`,
+  `demo100`) are one run of a demo, the panel showing the code of the
+  part on screen: `buildup.excerpt` picks top-level definitions by name,
+  a slice of the storyboard between two of its comments (`…` for the
+  rest), and folds (`"name"`: header and `…`; `"name.__doc__"`: no
+  docstring). The next chapter starts when the build-up's `key(game)`
+  changes (Old School: `st.t0`, set by `new_part`); the last one, the
+  storyboard as the demo loops, plays `FINALE` s and ends the take.
+  Output `recordings/buildup/<id>.mp4`. A renamed function or comment in
+  the demo fails `TestChapters` (the picks must resolve).
 - **Debug mode on video.** `pilots.with_debug_keys` plays another pilot's
   run and adds Ctrl+Shift chords at set times (`ninja_5_espada/debug`:
   7 hitboxes, then 6 processes; `naves_6_atos/debug`: 7, then 8 debug
