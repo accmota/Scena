@@ -1,0 +1,868 @@
+"""Ring Guardian.
+
+A ring of light floats in space, with four living lights in the middle. The
+guardian's ship flies around the ring and shoots outward; waves of geometric
+enemies come out of portals. Twice in the game the camera turns the side of
+the attack up; the marks around, like the hours of a clock, show where it
+turned.
+
+Two lives: the ship's and the ring's. If either one runs out, the game ends.
+An enemy shot costs the ship or the ring one life, and so does an enemy that
+reaches the ring. A shot of yours that meets an enemy shot zaps them both.
+
+The attacks come in waves, written in a table (WAVES): where they come from,
+which enemies, how many, how close the camera shows the ring, the glow of
+the screen, when the next wave starts, whether the camera turns, the mines,
+and the pills left for the next wave. To invent a wave, write one more.
+
+From one side, the ring goes to the far side of the screen and leaves the
+room for the fight (on an "edge" wave only its top half shows). From many
+sides, the enemies come in clusters: a few around one side, then a few
+around another.
+
+Two kinds of mine. A crossing mine does not attack: it crosses the screen in
+front of the ring. A diving mine (dark, with a fast pulse) heads for the
+ring, and if it reaches the ring or the ship the damage is heavy
+(MINE_DAMAGE). A shot in any mine makes a big blast that destroys the
+enemies around it, and other mines blow up in a chain.
+
+Now and then a destroyed enemy drops a pill (at most one every PILL_GAP
+seconds), and some waves end with pills for the harder wave that follows.
+The pill drifts to the ring; fly the ship over it for a power, for a few
+seconds:
+
+  blue     TRIPLE   the two lights shoot with the ship
+  green    RAPID    shots twice as often
+  yellow   HEAVY    bigger shots that take 2 lives and go through
+  red      SHIELD   a portal around the ring stops SHIELD_HITS shots or enemies
+
+Things to try
+-------------
+  A new wave       one more dict in WAVES (20 crystals from all sides?)
+  The two lights   change SPREAD and the chase rate: glued to the ship, or a
+                   long tail when it moves
+  A new power      a pill that gives the ship life back (st.ship_life += 3)
+  A new enemy      a class with life, worth and blow_up(), in the
+                   "enemies" group. Two ideas:
+                   Constellation: three stars (Circle) joined by Line,
+                   spinning, that spiral down, drop mines and blow up in a
+                   bolt (canvas.zap_at, style="fork");
+                   Orbiter: a small ball with a Halo that goes into orbit,
+                   shoots inward, then dives and implodes
+                   (implode and canvas.ripple_at)
+
+Controls
+--------
+  SPACE          starts; then shoots (an enemy almost in front, inside AIM,
+                 pulls the shot)
+  LEFT / RIGHT   the ship flies around the ring
+  R              plays again, after the end
+
+Run
+---
+    python examples/guardian.py
+"""
+
+from random import choice, uniform
+from scena import *
+
+init(width=1280, height=800, title="Ring Guardian")
+
+CENTER = Vec2(640, 400)
+RADIUS = 115        # the middle of the ring
+BAND = 16           # the width of the ring
+ORBIT = RADIUS + 26 # the ship flies outside the ring, just above its edge
+GATE = 600          # how far from the center enemies come out, from many sides
+FAR_GATE = 1000     # the farthest a portal opens, from one side
+CROSSING = 360      # how far from the center the mines cross the screen
+SHIP_LIFE = 12
+RING_LIFE = 40
+TURN = 160          # degrees per second
+SPREAD = 24         # degrees between the ship and each light
+COOLDOWN = 0.2      # seconds between two shots
+DURATION = 12       # seconds a power lasts
+AIM = 9             # the width of each shot's radar, in degrees
+FAN = 5             # degrees between the ship's shot and each light's (TRIPLE)
+BLAST = 208         # the radius of a mine's blast
+MINE_DAMAGE = 5     # the lives a diving mine takes from the ring or the ship
+SHIELD_HITS = 3     # the shots or enemies the shield stops before it breaks
+PILL_CHANCE = 0.15  # the chance that a destroyed enemy drops a pill...
+PILL_GAP = 20       # ...if the last such pill fell at least this many seconds ago
+CLUSTER = 5         # enemies around one side before the next side (many sides)
+FONT = "fonts/Quantico-Bold.ttf"
+
+# The sky: clouds that churn slowly and filaments on top. Both turn with
+# the camera, like the rest of the world.
+ChurningClouds(color="royal blue", color2="dark magenta", alpha=0.7,
+               speed=0.25, rotation_response=1)
+FilamentField(color="teal", alpha=0.45, rotation_response=1)
+bloom = Bloom(intensity=0.6)
+Vignette()
+
+
+# The ring: a disc with the colors of the wheel, a black disc on top (the
+# hole) and two edges of light.
+ring = Circle(center=CENTER, radius=RADIUS + BAND / 2, group="ring")
+ring.fill = Gradient("deep sky blue", "medium purple", "magenta",
+                     "deep sky blue", type="sweep")
+ring.rotate_by(360, time=40, loops="forever")   # the color wheel turns
+Circle(center=CENTER, radius=RADIUS - BAND / 2, color="black")
+for r in (RADIUS - BAND / 2, RADIUS + BAND / 2):
+    Circle(center=CENTER, radius=r, visual=Halo("cyan", style="line"))
+
+
+# Fixed marks around, like the hours of a clock: when the camera turns,
+# they turn with it and show where.
+for hour in range(12):
+    size = 6 if hour % 3 == 0 else 3
+    Circle(center=CENTER + vec_from_angle(30 * hour, 330), radius=size,
+           color=Color("white").with_alpha(0.35))
+
+
+# The core: the four lights of Arria dance in figure eights that cross in
+# the center. Where they meet, the colors add up and the light turns white.
+COLORS = ["magenta", "cyan", "gold", "lime"]
+LIGHTS = []
+for i in range(4):
+    eight = Track.eight(width=130, height=45, center=CENTER, angle=45 * i)
+    guide = Point(CENTER.x, CENTER.y)
+    guide.move_along(eight, time=4 + 1.3 * i, loops="forever")
+    LIGHTS.append(GlowSpot(center=lambda guide=guide: guide.center, radius=32,
+                           color=COLORS[i]))
+core = Orb(center=CENTER, radius=10, color="white", glow=1.4)
+tween(core["radius"], 12, time=3, loops="forever", yoyo=True, ease="ease_in_out")
+
+
+# The core shows the ring's life: the lights dim and the center turns red.
+def paint_core():
+    strength = st.ring_life / RING_LIFE
+    for light in LIGHTS:
+        light.amount = 0.2 + 0.8 * strength
+    core.color = lerp(Color("white"), Color("orange red"), 1 - strength)
+
+
+def hurt_ring(damage=1):
+    if st.ring_life <= 0:
+        return
+    st.ring_life = max(0, st.ring_life - damage)
+    paint_core()
+    ring.flash()
+    canvas.shake(2 + 3 * damage)
+
+
+def new_game():
+    st.ship_life = SHIP_LIFE
+    st.ring_life = RING_LIFE
+    st.score = 0
+    st.glow = 0.5       # the glow of the screen that the wave asks for
+    st.pill_wait = 0    # seconds before a destroyed enemy may drop a pill
+    paint_core()
+
+new_game()
+
+
+# A point of the ring. The angle never goes back to 0: after three laps it
+# is 1080, and everything still works. So the lights that follow the ship
+# never take the long way round when it passes from 359 to 360.
+def on_ring(angle, r=ORBIT):
+    return CENTER + vec_from_angle(angle, r)
+
+
+# The play area stays fixed around the ring, even with the camera turning.
+canvas.playfield.set(left=-1160, bottom=-1400, right=2440, top=2200)
+
+@leave_playfield("shots", "bullets", "pills", "mines")
+def gone(thing):
+    thing.destroy()
+
+
+class Shot(Sprite, source="space/laserBlue03.png", height=36, art_angle=90,
+           group="shots"):
+    def setup(self):
+        self.glow = CheapGlow("deep sky blue", radius=8)
+        self.damage = 1
+        self.pierce = False
+
+    def make_heavy(self):
+        self.damage = 2
+        self.pierce = True          # goes through the enemy and on
+        self.scale_to(1.5)
+        self.glow = CheapGlow("gold", radius=14)
+
+    def on_update(self, dt):
+        self.move_by(distance=800 * dt)    # forward, where it points
+
+
+# The power pills: each color gives a power.
+PILLS = {
+    "triple": "space/pill_blue.png",
+    "rapid": "space/pill_green.png",
+    "heavy": "space/pill_yellow.png",
+    "shield": "space/pill_red.png",
+}
+
+class Pill(Sprite, height=30, group="pills"):
+    def setup(self):
+        self.glow = CheapGlow("white", radius=10)
+        self.move_to(CENTER, speed=50)          # drifts slowly to the ring
+        self.rotate_by(360, time=2, loops="forever")
+
+
+def drop_pill(place, power=None):
+    if power is None:
+        power = choice(list(PILLS))
+    pill = Pill(PILLS[power], center=place)
+    pill.power = power
+
+
+@collide("pills", "ship")
+def picked(pill, ship):
+    pill.destroy()
+    ship.gain(pill.power)
+
+
+@collide("pills", "ring")
+def missed(pill, ring):
+    pill.destroy()              # nobody took it: lost
+
+
+# The ship is two triangles of the same hue: a long one and a wide, low
+# one, half transparent. Hurt, the ship heats up: the hue goes from blue to
+# orange through purple and red (the hue wraps: 1.05 is 0.05).
+def ship_color(saturation, alpha=1):
+    damage = 1 - st.ship_life / SHIP_LIFE
+    return Color.from_hsv(0.56 + 0.49 * damage, saturation, 1, alpha)
+
+class Ship(Triangle, group="ship"):
+    def setup(self):
+        self.bearing = 90       # where the ship is on the ring (and where it points)
+        self.reload = 0
+        self["color"] @= lambda: ship_color(0.85)
+        self.glow = True
+        self.wing = Triangle(center=lambda: self, angle=lambda: self.angle,
+                             radius=16, base_ratio=1.35)
+        self.wing["color"] @= lambda: ship_color(0.45, alpha=0.6)
+        # the two lights follow the ship, one on each side, a little late
+        self.light_a = self.light_b = self.bearing
+        self.lights = [GlowSpot(radius=18, color="aqua"),
+                       GlowSpot(radius=18, color="aqua")]
+        self.sparks = None
+        # the seconds left before each power ends (0 = off)
+        self.powers = {"triple": 0, "rapid": 0, "heavy": 0, "shield": 0}
+        self.shield = None
+        self.shield_hits = 0
+
+    def on_update(self, dt):
+        if keyp("LEFT"):
+            self.bearing += TURN * dt
+        if keyp("RIGHT"):
+            self.bearing -= TURN * dt
+        self.center = on_ring(self.bearing)
+        self.angle = self.bearing
+        self.light_a = chase(self.light_a, self.bearing + SPREAD, rate=5)
+        self.light_b = chase(self.light_b, self.bearing - SPREAD, rate=5)
+        self.lights[0].center = on_ring(self.light_a)
+        self.lights[1].center = on_ring(self.light_b)
+
+        for power in self.powers:
+            self.powers[power] = max(0, self.powers[power] - dt)
+        if self.shield and self.powers["shield"] == 0:
+            self.drop_shield()
+
+        self.reload -= dt
+        if keyp("SPACE") and self.reload <= 0:
+            self.shoot(on_ring(self.bearing, ORBIT + 34), self.bearing)
+            if self.powers["triple"] > 0:
+                # the lights shoot almost parallel to the ship, a little apart
+                self.shoot(on_ring(self.light_a), self.bearing + FAN)
+                self.shoot(on_ring(self.light_b), self.bearing - FAN)
+            if self.powers["rapid"] > 0:
+                self.reload = COOLDOWN / 2
+            else:
+                self.reload = COOLDOWN
+
+    def shoot(self, start, angle):
+        # the aim helps: a narrow radar in front of the shot (4.5 degrees to
+        # each side); if it finds an enemy, the shot goes right at the nearest
+        targets = collision.query_sector(start, angle=angle, radius=800,
+                                         spread=AIM, group="enemies")
+        if targets:
+            target = min(targets, key=lambda enemy: distance(start, enemy))
+            angle = heading(start, target)
+        shot = Shot(center=start, angle=angle)
+        if self.powers["heavy"] > 0:
+            shot.make_heavy()
+
+    def gain(self, power):
+        self.powers[power] = DURATION
+        self.pop(scale=1.4)
+        if power == "shield":
+            # the shield is a portal around the ring and the ship
+            self.shield_hits = SHIELD_HITS
+            if self.shield is None:
+                self.shield = Portal(center=CENTER, radius=ORBIT + 55,
+                                     color="orange red", group="shield")
+            self.shield.amount = 1.2
+
+    # Each hit on the shield dims it; the last one breaks it.
+    def shield_hit(self, hits=1):
+        self.shield_hits -= hits
+        if self.shield_hits > 0:
+            self.shield.amount = 1.2 * self.shield_hits / SHIELD_HITS
+            return
+        canvas.ripple_at(CENTER, amount=0.4, radius=ORBIT + 120)
+        self.powers["shield"] = 0
+        self.drop_shield()
+
+    def drop_shield(self):
+        self.shield.destroy()
+        self.shield = None
+
+    def hurt(self, damage=1):
+        if st.ship_life <= 0:
+            return
+        st.ship_life = max(0, st.ship_life - damage)
+        self.blink(0.3)
+        canvas.shake(5 + 3 * damage)
+
+    @when(lambda self: st.ship_life <= 3)
+    def damaged(self):
+        self.sparks = Sparks(center=lambda: self.center, radius=18, rate=60,
+                             amount=1.5, color="orange")
+
+    @when(lambda self: st.ship_life <= 0)
+    def destroyed(self):
+        canvas.explosion_at(self, amount=1.4)
+        self.destroy()
+
+    def on_destroy(self):
+        self.wing.destroy()
+        for light in self.lights:
+            light.destroy()
+        if self.sparks:
+            self.sparks.destroy()
+        if self.shield:
+            self.shield.destroy()
+
+
+# The enemy shots ("bullets"). Each enemy shoots its own way.
+class Bullet(Sprite, source="space/laserRed01.png", height=26, art_angle=90,
+             group="bullets"):
+    def on_update(self, dt):
+        self.move_by(distance=210 * dt)
+
+
+class Bolt(Sprite, source="space/laserGreen02.png", height=34, art_angle=90,
+           group="bullets"):
+    def on_update(self, dt):
+        self.move_by(distance=310 * dt)
+
+
+@collide("bullets", "ship")
+def bullet_on_ship(bullet, ship):
+    bullet.destroy()
+    canvas.hit_at(bullet, color="orange")
+    ship.hurt()
+
+
+@collide("bullets", "ring")
+def bullet_on_ring(bullet, ring):
+    bullet.destroy()
+    canvas.zap_at(bullet, color="cyan", radius=18)
+    hurt_ring()
+
+
+# A shot that meets an enemy shot: both go, in a zap (a HEAVY shot goes on).
+@collide("shots", "bullets")
+def zapped(shot, bullet):
+    bullet.destroy()
+    if not shot.pierce:
+        shot.destroy()
+    canvas.zap_at(bullet, color="white", radius=30)
+
+
+# The rules of every enemy. Each enemy has its own life, its own worth (points) and
+# its own way to blow up (blow_up); the rest is the same for all.
+@collide("shots", ["enemies", "mines"])
+def hit(shot, enemy):
+    if not shot.pierce:
+        shot.destroy()
+    enemy.life -= shot.damage
+    if enemy.life <= 0:
+        shoot_down(enemy)
+    else:
+        canvas.hit_at(shot, color="white")
+        enemy.flash()
+        enemy.scale_by(0.92)        # each shot shrinks it a little
+
+
+def shoot_down(enemy):
+    st.score += enemy.worth
+    bloom.intensity += 0.25         # each explosion lights up the screen a moment
+    if st.pill_wait <= 0 and chance(PILL_CHANCE):
+        drop_pill(enemy.center)
+        st.pill_wait = PILL_GAP
+    enemy.blow_up()
+
+
+# The shield stops SHIELD_HITS shots or enemies, then breaks. A diving
+# mine breaks it at once.
+@collide("bullets", "shield")
+def bullet_on_shield(bullet, shield):
+    bullet.destroy()
+    canvas.hit_at(bullet, style="disc", color="orange")
+    group["ship"].nearest(shield).shield_hit()
+
+
+@collide("enemies", "shield")
+def enemy_on_shield(enemy, shield):
+    shoot_down(enemy)
+    group["ship"].nearest(shield).shield_hit()
+
+
+@collide("mines", "shield")
+def mine_on_shield(mine, shield):
+    mine.blow_up()
+    group["ship"].nearest(shield).shield_hit(SHIELD_HITS)
+
+
+@collide("enemies", "ring")
+def invaded(enemy, ring):
+    hurt_ring()
+    enemy.blow_up()
+
+
+@collide("enemies", "ship")
+def rammed(enemy, ship):
+    ship.hurt()
+    enemy.blow_up()
+
+
+@collide("mines", "ring")
+def mine_on_ring(mine, ring):
+    mine.blow_up()
+    hurt_ring(MINE_DAMAGE)
+
+
+@collide("mines", "ship")
+def mine_on_ship(mine, ship):
+    mine.blow_up()
+    ship.hurt(MINE_DAMAGE)
+
+
+# Arrow: two arrowheads that point the same way, a translucent red one and
+# a smaller orange one that adds its light on top (blend). It flies straight at the
+# ring, shoots once on the way and throws itself on the ring.
+class Arrow(Triangle, radius=26, base_ratio=0.8, group="enemies"):
+    life = 1
+    worth = 10
+
+    def setup(self):
+        self.angle = heading(self, CENTER)
+        self.color = Color("orange red").with_alpha(0.8)
+        self.tip = Triangle(center=lambda: self.center + vec_from_angle(self.angle, 6),
+                            angle=lambda: self.angle, radius=13, base_ratio=0.8,
+                            color="dark orange")
+        self.tip.blend = "add"
+        if chance(0.7):                  # not every arrow shoots
+            self.after(uniform(1.2, 2), self.shoot)
+
+    def on_update(self, dt):
+        self.move_by(distance=110 * dt)
+
+    def shoot(self):
+        Bullet(center=self.center, angle=self.angle)
+
+    def blow_up(self):
+        canvas.burst_at(self, radius=30)
+        self.destroy()
+
+    def on_destroy(self):
+        self.tip.destroy()
+
+
+# Mandala: two half transparent pentagons, turning against each other, with
+# a light behind. It stops away from the ring and shoots five bullets around.
+class Mandala(RegularPolygon, n=5, radius=30, group="enemies"):
+    life = 3
+    worth = 30
+
+    def setup(self):
+        self.color = Color("orchid").with_alpha(0.4)
+        self.pair = RegularPolygon(n=5, radius=30, center=lambda: self,
+                                   angle=lambda: 36 - self.angle)
+        self.pair.color = Color("deep sky blue").with_alpha(0.4)
+        self.light = GlowSpot(center=lambda: self.center, radius=46,
+                              color="medium purple", amount=0.4)
+        side = heading(CENTER, self) + uniform(-30, 30)   # each in its own place
+        self.move_to(on_ring(side, 420), time=3, ease="ease_out")
+        self.every(2.4, self.shoot)
+        self.after(12, lambda: self.move_to(CENTER, speed=40))   # then it comes down
+
+    def on_update(self, dt):
+        self.rotate_by(50 * dt)
+
+    def shoot(self):
+        for i in range(5):
+            Bullet(center=self.center, angle=self.angle + 72 * i)
+
+    def blow_up(self):
+        canvas.burst_at(self, radius=60, amount=6)
+        canvas.fireworks_at(self, color="violet", radius=80)
+        self.destroy()
+
+    def on_destroy(self):
+        self.pair.destroy()
+        self.light.destroy()
+
+
+# Crystal: a jelly hexagon with a triangle inside. Slow and tough, and it
+# aims at the ship.
+class Crystal(RegularPolygon, n=6, radius=30, group="enemies"):
+    life = 5
+    worth = 50
+
+    def setup(self):
+        self.visual = Gel("turquoise")
+        self.inside = Triangle(center=lambda: self, angle=lambda: -self.angle,
+                               radius=13, color="aquamarine")
+        self.move_to(CENTER, speed=36)
+        self.every(2.0, self.shoot)
+
+    def on_update(self, dt):
+        self.rotate_by(30 * dt)
+
+    def shoot(self):
+        ship = group["ship"].nearest(self)
+        if ship:
+            Bolt(center=self.center, angle=heading(self, ship))
+
+    def blow_up(self):
+        canvas.debris_at(self, color="turquoise", radius=60)
+        canvas.burst_at(self, radius=60, amount=6)
+        self.destroy()
+
+    def on_destroy(self):
+        self.inside.destroy()
+
+
+# Mine: a circle with rings that pulse slowly. A shot in it makes a big blast
+# that destroys the enemies around; the other mines near it blow up too, in a
+# chain. It is in the "mines" group, not in "enemies": the wave does not wait
+# for it.
+class Mine(Circle, radius=20, color="dark red", group="mines"):
+    life = 1
+    worth = 20
+
+    def setup(self):
+        self.visual = Halo("orange red", style="pulse", rings=2, speed=0.5)
+
+    def blow_up(self):
+        place = (self.center.x, self.center.y)
+        self.destroy()      # gone first, so the chain does not come back to it
+        canvas.burst_at(place, radius=BLAST, amount=6)
+        canvas.ripple_at(place, amount=0.6, radius=2 * BLAST)
+        for neighbour in collision.query_circle(place, radius=BLAST, group="enemies"):
+            if neighbour.active:        # a mine of the chain may have taken it
+                st.score += neighbour.worth
+                canvas.debris_at(neighbour, color="silver", radius=50)
+                neighbour.destroy()
+        for mine in collision.query_circle(place, radius=BLAST, group="mines"):
+            if mine.active:
+                st.score += mine.worth
+                mine.blow_up()
+
+
+# A diving mine: darker, with a fast pulse, and it heads for the ring.
+class DivingMine(Mine):
+    worth = 40
+
+    def setup(self):
+        self.color = "maroon"
+        self.visual = Halo("red", style="pulse", rings=3, speed=1.6)
+        self.move_to(CENTER, speed=45)
+
+
+# The side of the attack: a wave says one angle, a list of angles, or None
+# (any side).
+def pick_side(side):
+    if side is None:
+        return uniform(0, 360)
+    if isinstance(side, list):
+        return choice(side)
+    return side
+
+
+# A mine crosses the screen from one end to the other, CROSSING from the
+# center, facing the side of the attack: it passes in front of the ring, far
+# from the group that comes.
+def cross_mine(side):
+    side = pick_side(side)
+    way = choice([90, -90])
+    front = on_ring(side, CROSSING)
+    mine = Mine(center=front + vec_from_angle(side + way, 900))
+    mine.move_to(front + vec_from_angle(side - way, 900), speed=85,
+                 on_done=mine.destroy)
+
+
+def dive_mine(side, gate):
+    DivingMine(center=on_ring(pick_side(side) + uniform(-20, 20), 0.9 * gate))
+
+
+# The side of each cluster of a wave. One side: always that one. A list: one
+# side after the other. None: anywhere, but away from the last cluster.
+def next_side(side, cluster, last):
+    if side is None:
+        return last + uniform(100, 260)
+    if isinstance(side, list):
+        return side[cluster % len(side)]
+    return side
+
+
+def arrive(kind, side, gate, spread):
+    kind(center=on_ring(side + uniform(-spread, spread), gate))
+
+
+# How close the camera shows the ring in each wave (the zoom): far to see
+# every side, close for a big ring.
+VIEWS = {"far": 0.55, "normal": 0.75, "close": 1.05}
+
+# The waves, one after the other.
+#   side     where they come from (an angle on the ring); a list of angles;
+#            None = from anywhere (in clusters, see CLUSTER)
+#   kinds    the enemies, drawn one by one (repeat a kind to make it commoner)
+#   count    how many enemies; every: the seconds between one and the next
+#   cluster  (if any) how many come around each side, when there are many
+#   view     far, normal or close (VIEWS)
+#   ring     (if any) "edge": from one side, only the top half of the ring
+#            shows on the screen
+#   glow     the strength of the Bloom
+#   end      "clear" waits for every enemy to die; a number waits that many
+#            seconds (or for all to die)
+#   turn     (if any) the camera turns the side of the attack up
+#   mines    (if any) how many mines cross the screen during the wave
+#   divers   (if any) how many mines dive at the ring
+#   gifts    (if any) the pills left at the end, for the next wave
+#   party    (if any) gold embers when the wave is won
+WAVES = [
+    dict(name="Arrows from the north", side=90, kinds=[Arrow], count=16,
+         every=0.45, view="close", glow=0.5, end="clear"),
+    dict(name="Mandalas", side=210, kinds=[Mandala], count=5, every=1.2,
+         view="normal", glow=0.9, end=10, mines=2),
+    dict(name="Southern mix", side=270, kinds=[Arrow, Arrow, Crystal], count=18,
+         every=0.45, view="normal", glow=0.6, end="clear",
+         gifts=["triple", "shield"]),
+    dict(name="Siege", side=None, kinds=[Arrow], count=30, every=0.45,
+         view="far", glow=0.8, end="clear", mines=3, divers=1),
+    dict(name="Polygons", side=[45, 165, 285], kinds=[Mandala, Crystal],
+         count=14, every=0.8, cluster=2, view="far", glow=0.7, end="clear",
+         divers=1),
+    dict(name="Swarm", side=330, kinds=[Arrow], count=50, every=0.12,
+         view="normal", ring="edge", glow=1.0, end="clear", turn=True, mines=2,
+         gifts=["rapid", "heavy"], party=True),
+    dict(name="Crown", side=None, kinds=[Mandala, Crystal], count=10, every=0.7,
+         cluster=3, view="far", glow=1.0, end=12, mines=3, divers=1),
+    dict(name="East", side=0, kinds=[Arrow, Arrow, Mandala, Crystal], count=20,
+         every=0.45, view="close", glow=1.2, end="clear", turn=True, divers=1,
+         gifts=["triple", "shield"]),
+    dict(name="Storm", side=None, kinds=[Arrow, Arrow, Arrow, Mandala, Crystal],
+         count=45, every=0.35, view="far", glow=1.2, end="clear", mines=4,
+         divers=2),
+]
+
+
+# The lettering: the game's font, letters in a gradient with the colors of
+# the ring and a dark outline.
+def lettering(letters, color="cyan", color2="magenta"):
+    letters.fill = Gradient(color, color2, angle=-90)
+    letters.line = "black"
+    return letters
+
+
+def announce(text):
+    sign = lettering(Text(text, center=(640, 720), font=FONT, font_size=44,
+                          layer="ui"))
+    sign.after(2, lambda: sign.fade_out(1, on_done=sign.destroy))
+
+
+# The portal a cluster comes out of, facing the ring.
+def open_portal(side, gate):
+    return Portal(center=on_ring(side, gate), radius=120, tilt=60,
+                  angle=side + 90, color="magenta", amount=0.8)
+
+
+# The pills a wave leaves behind: they come down on both sides of the ship.
+def leave_gifts(powers, bearing):
+    for i, power in enumerate(powers):
+        offset = 30 * (2 * i - len(powers) + 1)
+        drop_pill(on_ring(bearing + offset, 320), power)
+
+
+STORY = """You are Captain Arcos, leader of the forces of Arr.
+The forces of the evil General Zorg are attacking
+from the Delta dimension. Your ship is the guardian
+of the four lights of Arria. They must be protected
+at all costs, because they are lights that shine
+and your ship is in front of them.
+Your mission is clear: shoot everything that moves."""
+
+LETTERS = 45        # letters a second, as the story is typed
+
+
+# Before the first game: the story, typed under the title, with the four
+# lights of Arria low on the screen. Two sparks of light run around the
+# frame (a window of the track, from begin to end, that moves).
+class Intro(Act):
+    def setup(self):
+        canvas.zoom_to(0.9)
+        canvas.pan_to(CENTER + Vec2(0, 290))     # the ring low on the screen
+        StarFly(color="light cyan", speed=0.4, density=0.6, alpha=0.6)
+        title = Text("RING GUARDIAN", center=(640, 728), font=FONT, font_size=72,
+                     layer="ui")
+        lettering(title, "gold", "orange red")
+        title.line_width = 3
+        title.glow = Glow("orange red")
+        title.dissolve_in(2)
+        self.story = Text("", top_left=(300, 655), font=FONT, font_size=27)
+        lettering(self.story, "white", "light sky blue")
+        self.letters = 0
+        for color, start in (("cyan", 0), ("magenta", 0.5)):
+            frame = Track(points=[(260, 680), (1020, 680), (1020, 362), (260, 362)],
+                          closed=True, smooth=0, layer="ui", color=color, line_width=3)
+            frame.glow = CheapGlow(color, radius=10)
+            frame["begin"] @= lambda start=start: (start + clock.time * 0.12) % 1
+            frame["end"] @= lambda start=start: (start + clock.time * 0.12 + 0.15) % 1
+        self.prompt = Text("Press SPACE to start. Then keep pressing SPACE\n"
+                           "to shoot everything that moves.", center=(640, 315),
+                           font=FONT, font_size=24, align="center", layer="ui")
+        lettering(self.prompt)
+        # it blinks, once the story is all typed
+        self.prompt["visible"] @= lambda: (self.letters == len(STORY)
+                                           and clock.time % 1.2 < 0.85)
+
+    def on_update(self, dt):
+        self.letters = min(len(STORY), self.letters + LETTERS * dt)
+        shown = STORY[:int(self.letters)]
+        if self.story.text != shown:
+            self.story.text = shown
+        if keyp.once("SPACE"):
+            change_act(Game)
+
+
+class Game(Act):
+    def setup(self):
+        canvas.zoom_to(0.75)
+        self.turn = 0           # the camera's turn, once its tween is over
+        self.ship = Ship(radius=28, base_ratio=0.55)
+        self.board = lettering(Text("", top_left=(24, 784), font=FONT,
+                                    font_size=24))
+        self.board["text"] @= lambda: (
+            f"SHIP {st.ship_life}     RING {st.ring_life}     SCORE {st.score}")
+        self.panel = lettering(Text("", top_right=(1256, 784), font=FONT,
+                                    font_size=24), "gold", "orange red")
+        self.over = False
+        self.waves = self.run_task(self.director)
+
+    # The camera for a wave. From one side, the ring goes toward the far side
+    # of the screen, all of it in view (or only its top half, on an "edge"
+    # wave), and the portal to the near edge. Otherwise the ring stays in the
+    # middle. Returns how far from the center the enemies come out.
+    def frame(self, wave):
+        zoom = VIEWS[wave["view"]]
+        side = wave["side"]
+        canvas.zoom_to(zoom, time=2, ease="ease_in_out")
+        if side is None or isinstance(side, list):
+            canvas.pan_to(CENTER, time=2, ease="ease_in_out")
+            return GATE
+        # on the screen, the side's angle includes the camera's turn
+        way = vec_from_angle(side + self.turn, 1)
+        edge = min(640 / max(abs(way.x), 0.01), 400 / max(abs(way.y), 0.01))
+        if wave.get("ring") == "edge":
+            shift = edge
+        else:
+            shift = min(0.6 * edge, edge - (ORBIT + 50) * zoom)
+        canvas.pan_to(on_ring(side, shift / zoom), time=2, ease="ease_in_out")
+        return min((edge + shift) / zoom - 60, FAR_GATE)
+
+    # The director: tells the story of the game, one wave after the other.
+    async def director(self):
+        await wait(1.5)
+        for number, wave in enumerate(WAVES):
+            side = wave["side"]
+            one_side = not (side is None or isinstance(side, list))
+            announce(f"WAVE {number + 1}   {wave['name']}")
+            st.glow = wave["glow"]
+            if wave.get("turn"):
+                self.turn = 90 - side
+                canvas.rotate_to(self.turn, time=2, ease="ease_in_out")
+            gate = self.frame(wave)
+            await wait(2)
+
+            if one_side:
+                # a wind blows from the side of the attack to the ring (on the
+                # screen, the angle includes the camera's turn)
+                wind = WindStreaks(angle=side + 180 + self.turn,
+                                   density=0.9, alpha=0.6)
+                self.after(2.5, wind.remove)
+            for i in range(wave.get("mines", 0)):
+                self.after(1 + 3 * i, lambda: cross_mine(side))
+            for i in range(wave.get("divers", 0)):
+                self.after(4 + 6 * i, lambda: dive_mine(side, gate))
+            # from one side, the whole wave is one cluster
+            cluster = wave["count"] if one_side else wave.get("cluster", CLUSTER)
+            aim = uniform(0, 360)
+            portal = None
+            for i in range(wave["count"]):
+                if i % cluster == 0:        # a new cluster: a new side, a new portal
+                    aim = next_side(side, i // cluster, aim)
+                    if portal:
+                        self.after(1, portal.destroy)
+                    portal = open_portal(aim, gate)
+                arrive(choice(wave["kinds"]), aim, gate, 15 if one_side else 30)
+                await wait(wave["every"])
+            self.after(1, portal.destroy)
+
+            if wave["end"] == "clear":
+                await until_empty("enemies")
+                await wait(1.5)
+            else:
+                await race(wait(wave["end"]), until_empty("enemies"))
+            if wave.get("party"):
+                embers = Embers(color="gold", density=1.2)    # a big wave won
+                self.after(3, embers.remove)
+            if wave.get("gifts"):
+                leave_gifts(wave["gifts"], self.ship.bearing)
+                await wait(2)
+        await until_empty("enemies")
+        canvas.fireworks_at(CENTER, color="cyan", radius=160)
+        Embers(color="gold", density=1.5)
+        self.finish("THE RING IS SAFE")
+
+    def on_update(self, dt):
+        # the glow of the screen goes slowly back to what the wave asks for
+        bloom.intensity = chase(bloom.intensity, st.glow, rate=1.5)
+        st.pill_wait = max(0, st.pill_wait - dt)
+        # the powers that are on, in the corner of the screen
+        on = [power.upper() for power, time_left in self.ship.powers.items()
+              if time_left > 0 and st.ship_life > 0]
+        self.panel.text = "   ".join(on)
+        if self.over and keyp.once("R"):
+            new_game()
+            change_act(Game)        # straight to the game: the story was told
+
+    @when(lambda self: st.ring_life <= 0)
+    def ring_fell(self):
+        canvas.explosion_at(CENTER, amount=2.5, flash=True)
+
+    @when(lambda self: st.ship_life <= 0 or st.ring_life <= 0)
+    def lost(self):
+        self.waves.cancel()
+        self.finish("GAME OVER")
+
+    def finish(self, title):
+        self.over = True
+        self.after(1.5, lambda: lettering(Text(title + "\nPress R to play again",
+                                               center=CENTER, font=FONT,
+                                               font_size=56, layer="ui")))
+
+run(Intro)

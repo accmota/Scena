@@ -416,8 +416,8 @@ E1_EXCLUDED = {
                        "LW10",
     "demo100.py": "ACADEMIC (as naves_5_modos): the rings built one await wait(0.1) apart, the "
                   "show a chain of waits and tweens; LW10",
-    "guardiao.py": "ACADEMIC (as naves_5_modos): a wave's enemies come one await wait(cada) "
-                   "apart; LW10",
+    "guardian.py": "ACADEMIC (as naves_5_modos): a wave's enemies come one await "
+                   "wait(every) apart; LW10",
     "loom.py": "ACADEMIC (as naves_5_modos): each throw starts from the last one's on_done "
                "(after → move_along → beat → after); LW10",
     "pulse.py": "harness: beats are heard in the spectrum, and the headless run's offline "

@@ -37,7 +37,7 @@ examples/first_script.py
 examples/formula_machine.py
 examples/formulas.py
 examples/genesis.py
-examples/guardiao.py
+examples/guardian.py
 examples/hundred_lines.py
 examples/interacao.py
 examples/interaction.py

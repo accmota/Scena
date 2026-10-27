@@ -153,8 +153,8 @@ def literal_paths(src: str) -> Iterator[Tuple[int, str, str]]:
                 if kw.arg in PATH_KEYWORDS and s is not None and _is_media(s):
                     yield from emit(kw.value, "engine", s)
         # A table of files a script picks from at run time: the values of a
-        # dict (``PILULAS = {"duplo": "space/pill_blue.png", …}`` in
-        # guardiao.py). A frame name is a ``frame=`` keyword, never a value here.
+        # dict (``PILLS = {"triple": "space/pill_blue.png", …}`` in
+        # guardian.py). A frame name is a ``frame=`` keyword, never a value here.
         if isinstance(node, ast.Dict):
             for item in node.values:
                 s = _const(item)

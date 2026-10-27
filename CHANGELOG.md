@@ -51,6 +51,17 @@ left out.
 - The README's install section notes that a Linux server or container may
   lack the libEGL and libGL that skia-python needs (`sudo apt install libegl1
   libgl1` on Debian or Ubuntu).
+- The ring defence example is now in English: `examples/guardiao.py`
+  (Guardião do Anel) is `examples/guardian.py` (Ring Guardian), code and
+  screen text. It opens on a story screen, typed under a gradient title,
+  with lights running round a frame. Play changes: from one side the ring
+  sits at the far side of the screen (half off it on wave 6); from many
+  sides the enemies come in clusters; a shot that meets an enemy shot zaps
+  both, and enemy shots now hurt the ring; some mines dive at the ring and
+  hit hard; the shield breaks after three hits; random pills come at most
+  one every 20 s, and waves 3, 6 and 8 leave pills for the next one; the
+  arrows are slower and drawn as two arrowheads that point the same way;
+  the embers come twice in a game.
 
 ## 0.10.1 — 2026-10-26
 
