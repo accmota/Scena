@@ -380,6 +380,12 @@ class TestSetColorShowsWhereColorIsTaken(unittest.TestCase):
                     self.assertGreater(changed, 500, "takes color= but set_color did not show")
                     self.assertEqual(warned, [])
                     self.assertNotEqual(look._color_role, "D")
+                elif _NO_COLOR.get(cls.__name__) == "pixels":
+                    # A pixel operator works on the body, which keeps the
+                    # object's color (EmissiveBloom on a Shape, 2026-10-27).
+                    self.assertGreater(changed, 500, "the body's color did not show")
+                    self.assertEqual(warned, [])
+                    self.assertNotEqual(look._color_role, "D")
                 else:
                     self.assertEqual(changed, 0, "takes no color but set_color showed")
                     self.assertEqual(look._color_role, "D")

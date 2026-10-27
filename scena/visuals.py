@@ -535,8 +535,9 @@ class Visual:
     costume / silhouette body). Body-replacing looks leave this False and raise
     on assignment unless opted in.
 
-    ``_sprite_only``: when True, legal only on Sprite (pixel-body looks). Shape
-    assignment raises — use Glow / Halo / Rim, or a Sprite.
+    ``_sprite_only``: when True, legal only on Sprite (looks that change the
+    image's pixels: HueShift, Grayscale, Recolor). Shape assignment raises —
+    use Glow / Halo / Rim, or a Sprite.
 
     ``_sprite_takes_color``: when False, a seeded instance (``Beat("red")``)
     raises on ``Sprite.visual`` — its ``color=`` paints a Shape body and a
@@ -2859,23 +2860,28 @@ class Grayscale(CompiledVisual):
 
 
 class Aura(CompiledVisual):
-    """Pixel-accurate SDF fringe (inner+outer band, no hard stroke). Sprite-only.
+    """Soft band along the outline (inner+outer, no hard stroke). Shape and Sprite.
 
-    Not Halo (bloom + sharp rim) and not Rim (glow + lip + core). Dual-host
-    outline lighting stays ``Halo`` / ``Rim``.
+    Not Halo (bloom + sharp rim) and not Rim (glow + lip + core). On a Sprite
+    the band is an SDF of the art's pixels; on a Shape, the outline stroked and
+    blurred to the same Gaussian of the distance (``_draw_shape_aura``).
+
+    An outline look (Role B): on a Shape, ``Aura()`` follows the outline
+    (``.line``) and ``Aura("red")`` dyes it, as ``Rim`` does. A Sprite has no
+    outline color: the band is the seed, else a light cyan.
 
     Args:
-        color: Band color (default: follows the object).
+        color: Band color (default: follows the object's outline; light cyan
+            on a Sprite).
         amount: Strength.
         width: Band thickness (default 0.35).
     """
 
-    _color_role = "C"
+    _color_role = "B"
     _allows_sprite = True
-    _sprite_only = True
     _needs_sprite_path = True
     _needs_sprite_sdf = True
-    _is_multipass = True  # custom render: SDF quad + blit
+    _is_multipass = True  # custom render: band (SDF quad / blurred outline) + body
     _fidelity_sensitive = True
 
     def __new__(
@@ -2907,40 +2913,99 @@ class Aura(CompiledVisual):
         self.color = color
         self.amount = float(amount)
         self.width = max(0.05, float(width))
+        self._seed = None if color is None else _as_color(color)
         if color is None:
             self._rgba = (0.45, 0.85, 1.0, 1.0)
         else:
-            c = _as_color(color)
+            c = self._seed
             self._rgba = (
                 float(c.rgb[0]), float(c.rgb[1]), float(c.rgb[2]),
                 float(c.rgb[3]) if len(c.rgb) > 3 else 1.0,
             )
         self._ready = True
 
+    def _unseed(self) -> Optional["Aura"]:
+        if self._seed is None:
+            return None
+        return type(self)(None, self.amount, width=self.width)
+
     @property
     def _batch_key(self) -> tuple:
-        return (
-            "aura", tuple(round(x, 3) for x in self._rgba),
-            round(self.amount, 2), round(self.width, 2),
-        )
+        ckey = ("host",) if self._seed is None else tuple(round(x, 3) for x in self._rgba)
+        return ("aura", ckey, round(self.amount, 2), round(self.width, 2))
 
     def _apply(self, shape) -> None:
         shape.fill_filter = None
         shape.line_filter = None
+        from .entity import is_sprite_family
+        if self._seed is not None and not is_sprite_family(shape):
+            from .recipes import _write_role_color
+            _write_role_color(shape, "B", self._rgba)
+
+    def _identity_patch(self, shape) -> None:
+        from .entity import is_sprite_family
+        if self._seed is not None and not is_sprite_family(shape):
+            _identity_patch_seed(shape, self._rgba, channel="auto")
 
     def _render(self, shape, skia_canvas) -> None:
         from .fx_quality import fidelity_is_survival
-        draw = getattr(shape, "_draw_sprite_aura", None)
-        if callable(draw) and not fidelity_is_survival():
-            draw(skia_canvas, self)
+        if not fidelity_is_survival():
+            draw = getattr(shape, "_draw_sprite_aura", None)
+            if callable(draw):
+                draw(skia_canvas, self)
+            else:
+                _draw_shape_aura(shape, skia_canvas, self)
         shape._geometry_draw(skia_canvas)
 
 
-class EmissiveBloom(CompiledVisual):
-    """Bright-pass bloom of this sprite's pixels. Sprite-only; heroes / few.
+def _draw_shape_aura(shape, skia_canvas, look) -> None:
+    """Aura on a Shape: its outline, stroked and blurred, added under the body.
 
-    Interned ImageFilter (luminance gate + blur) on ``fill_filter``.
-    Low quality drops the blur.
+    The Sprite shader paints ``exp(-d² / (w² · 0.42))`` of the signed distance
+    ``d`` to the edge, ``d`` in half-extents of the art: a Gaussian of
+    sigma ``w · √0.21`` half-extents centred on the edge. A stroke of width
+    ``2.5 σ`` blurred by ``0.69 σ`` has that variance and a peak of ~0.93, so
+    the band matches with no SDF bake: the outline is the shape's own
+    geometry (``_geometry_draw`` with only a stroke), drawn each frame, so
+    motion, rotation and resizing cost nothing extra.
+    """
+    import skia
+    from .style import _local_half_extents
+    hx, hy = _local_half_extents(shape)
+    sigma = max(look.width, 0.02) * math.sqrt(0.21) * max(hx, hy)
+    if not sigma > 0.0:
+        return
+    # The outline's live color (a seed was written there by ``_apply``).
+    r, g, b, a = sample_outline_rgba(shape) or look._rgba
+    stroke = skia.Paint(
+        AntiAlias=True, Style=skia.Paint.kStroke_Style, StrokeWidth=2.5 * sigma,
+        StrokeJoin=skia.Paint.kRound_Join, StrokeCap=skia.Paint.kRound_Cap,
+        MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 0.69 * sigma),
+    )
+    stroke.setColor4f(skia.Color4f(r, g, b, 1.0))
+    layer = skia.Paint(BlendMode=skia.BlendMode.kPlus)
+    strength = float(look.amount) * a
+    if abs(strength - 1.0) > 1e-6:
+        layer.setColorFilter(skia.ColorFilters.Matrix([
+            1, 0, 0, 0, 0,
+            0, 1, 0, 0, 0,
+            0, 0, 1, 0, 0,
+            0, 0, 0, strength, 0,
+        ]))
+    skia_canvas.saveLayer(None, layer)
+    try:
+        shape._geometry_draw(skia_canvas, None, stroke)
+    finally:
+        skia_canvas.restore()
+
+
+class EmissiveBloom(CompiledVisual):
+    """Bright-pass bloom: the bright parts of the body glow. Shape and Sprite;
+    heroes / few.
+
+    Interned ImageFilter (luminance gate + blur) on ``fill_filter`` (and on a
+    Shape's ``line_filter``, so its outline blooms too). Low quality drops the
+    blur.
 
     Args:
         intensity: Strength (default 1.35).
@@ -2949,7 +3014,6 @@ class EmissiveBloom(CompiledVisual):
 
     _color_role = "C"
     _allows_sprite = True
-    _sprite_only = True
     _fidelity_sensitive = True
     _is_multipass = False
 
@@ -2976,13 +3040,14 @@ class EmissiveBloom(CompiledVisual):
         from .fx_quality import fidelity_is_survival
         from .style import BlendMode
         from .filters import EmissiveFilter
-        shape.line_filter = None
+        from .entity import is_sprite_family
         if fidelity_is_survival() or self.intensity <= 0:
-            shape.fill_filter = None
+            bloom = None
         else:
-            shape.fill_filter = EmissiveFilter(
-                intensity=self.intensity, sigma=self.sigma,
-            )
+            bloom = EmissiveFilter(intensity=self.intensity, sigma=self.sigma)
+        shape.fill_filter = bloom
+        # A Sprite has no outline; a Shape's outline is part of its body.
+        shape.line_filter = None if is_sprite_family(shape) else bloom
         shape.blend = BlendMode.NORMAL
 
 

@@ -13,9 +13,11 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scena.leak_detector import (
+    CLIMB_TAIL,
     HISTORY_LEN,
     LeakSampler,
     MIN_OBJECT_STEP,
+    MIN_OBJECTS_TO_WARN,
     SAMPLE_EVERY_FRAMES,
     SAMPLE_EVERY_SECONDS,
     format_leak_message,
@@ -360,6 +362,114 @@ class TestDrawnPartsGrowInAGame(unittest.TestCase):
             for d in made:
                 if not d._destroyed:
                     d.destroy()
+
+
+class TestObjectsWarnOnlyWhenItMatters(unittest.TestCase):
+    """"objects rising" fired on games: a spawner of ~6/s whose objects live
+    ~20 s climbs like a leak for 13 s and warned at ~100 objects (2026-10-27).
+    A new "objects" hit now needs MIN_OBJECTS_TO_WARN drawn objects and half
+    the growth off view (the shot that left the screen, never destroyed)."""
+
+    STEP = 3 * MIN_OBJECT_STEP
+
+    def _climb(self, s, base, **kw):
+        hit = None
+        for i in range(HISTORY_LEN + 2):
+            e = base + i * self.STEP
+            hit = s.sample(e, 80 + e, **kw) or hit
+        return hit
+
+    def test_spawner_of_six_a_second_is_quiet(self):
+        s = LeakSampler()
+        hits = []
+        for i in range(30):                       # 45 s at 1.5 s a sample
+            t = i * 1.5
+            n = 20 + int(6 * min(t, 20.0))
+            hits.append(s.sample(n, n * 5, live=n))
+        self.assertEqual([h for h in hits if h], [])
+
+    def test_below_the_floor_never_collects(self):
+        s = LeakSampler()
+        calls = []
+
+        def recount():
+            calls.append(1)
+            return s._history[-1]
+        self.assertIsNone(self._climb(s, 10, recount=recount))
+        self.assertLess(10 + (HISTORY_LEN + 1) * self.STEP, MIN_OBJECTS_TO_WARN)
+        self.assertEqual(calls, [])
+
+    def test_growth_on_screen_is_quiet(self):
+        s = LeakSampler()
+        self.assertIsNone(self._climb(s, MIN_OBJECTS_TO_WARN, off_view=lambda: 0))
+
+    def test_growth_off_view_warns_and_says_so(self):
+        s = LeakSampler()
+        hit = self._climb(s, MIN_OBJECTS_TO_WARN, off_view=lambda: 10_000)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "objects")
+        self.assertIn("10000 of them off view", hit[1])
+        self.assertIn("possible missing destroy()", hit[1])
+
+    def test_without_a_view_walk_the_floor_still_applies(self):
+        s = LeakSampler()
+        self.assertIsNone(self._climb(s, 10))
+        s = LeakSampler()
+        hit = self._climb(s, MIN_OBJECTS_TO_WARN)
+        self.assertEqual(hit[0], "objects")
+
+    def test_an_on_screen_climb_is_walked_every_few_samples(self):
+        s = LeakSampler()
+        walks = []
+
+        def off_view():
+            walks.append(len(s._history))
+            return 0
+        for i in range(HISTORY_LEN + 3 * (CLIMB_TAIL + 1)):
+            e = MIN_OBJECTS_TO_WARN + i * self.STEP
+            s.sample(e, 80 + e, off_view=off_view)
+        self.assertEqual(len(walks), 4)
+
+
+class TestObjectsOffViewInAGame(unittest.TestCase):
+    """The framework's sampler, drawn objects on and off the view."""
+
+    def setUp(self):
+        from scena import init
+        from scena.orchestration import ScenaFramework
+        init(width=400, height=300)
+        self.fw = ScenaFramework.get_instance()
+        self.fw._leak_sampler.reset()
+        self.fw._leak_sampler.advance = lambda now=None: True
+        clear_author_error()
+        self.made = []
+
+    def tearDown(self):
+        del self.fw._leak_sampler.advance
+        self.fw._leak_sampler.reset()
+        clear_author_error()
+        for d in self.made:
+            if not d._destroyed:
+                d.destroy()
+
+    def _waves(self, where):
+        from scena import Circle
+        per = MIN_OBJECTS_TO_WARN // (HISTORY_LEN - 2)
+        for wave in range(HISTORY_LEN + 3):
+            for i in range(per):
+                self.made.append(Circle(center=where(wave, i), radius=2))
+            self.fw._tick_leak_detector()
+
+    def test_a_pile_on_screen_is_quiet(self):
+        self._waves(lambda w, i: (20 + (i * 7) % 360, 20 + (w * 13 + i) % 260))
+        self.assertIsNone(last_author_error())
+
+    def test_shots_that_left_the_screen_warn(self):
+        self._waves(lambda w, i: (5000 + w * 40 + i, 150))
+        err = last_author_error()
+        self.assertIsNotNone(err)
+        self.assertIn("objects rising", err["message"])
+        self.assertIn("off view", err["message"])
 
 
 class TestWarningChannel(unittest.TestCase):

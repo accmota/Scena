@@ -2673,8 +2673,27 @@ class ScenaFramework:
                     n += 1
             return n
 
+        def off_view() -> int:
+            # Drawn objects whose draw box misses their layer's view window:
+            # the cull's own test (fails open: unknown geometry is in view).
+            from .canvas import _cull_keeps
+            from .registry import UI_LAYER
+            from .shapes import Point
+            draw = self._scena_draw
+            n = 0
+            for layer in draw.registry.layers.iter_draw_order():
+                if layer.name == UI_LAYER:
+                    continue
+                vb = draw._cull_view_for(layer)
+                for obj in layer._objects:
+                    if obj is not None and not isinstance(obj, Point) and not _cull_keeps(obj, vb):
+                        n += 1
+            return n
+
         e, g, live = count()
-        hit = sampler.sample(e, g, recount=recount, live=live, off_screen=off_screen)
+        hit = sampler.sample(
+            e, g, recount=recount, live=live, off_screen=off_screen, off_view=off_view,
+        )
         if hit is None:
             return
         _kind, message = hit

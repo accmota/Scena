@@ -3192,7 +3192,7 @@ heroi = Sprite(folha, hitbox_shape="rect", hitbox_source=("parado", "correndo"))
           <table>
             <thead><tr><th>Valor</th><th>Encaixe</th><th>Quando usar</th></tr></thead>
             <tbody>
-              <tr><td><code>"auto"</code></td><td>Testa círculo, círculos, elipse, duas elipses, casco convexo e retângulo, e fica com o melhor ajuste pelo menor custo. Prefere errar para dentro: toque fantasma é pior que toque perdido.</td><td>Naves, inimigos, objetos soltos.</td></tr>
+              <tr><td><code>"auto"</code></td><td>Testa círculo, elipse, duas elipses, casco convexo e retângulo, e fica com o melhor ajuste pelo menor custo. Prefere errar para dentro: toque fantasma é pior que toque perdido.</td><td>Naves, inimigos, objetos soltos.</td></tr>
               <tr><td><code>"rect"</code></td><td>A caixa da silhueta: cobre toda a arte, base plana.</td><td>Quem anda — plataforma.</td></tr>
               <tr><td><code>"ellipse"</code></td><td>Elipse na caixa da silhueta. Quase quadrada vira círculo.</td><td>Corpos ovais.</td></tr>
               <tr><td><code>"circle"</code></td><td>Círculo que cobre a arte.</td><td>Bolas, moedas.</td></tr>
@@ -10607,7 +10607,10 @@ loja["enabled"] @= lambda: st.moedas >= 10    # cinza até ter 10 moedas
 jogar.label_text.glow = True                  # o Text do rótulo: controle fino
 # Arte por estado (kits de UI): troca a imagem em vez do efeito padrão
 sair = SpriteButton("sair.png", hover="sair_hover.png", pressed="sair_down.png",
-                    center=(400, 100), label="Sair", label_inset=(0, 0, 0, 6))</pre>
+                    center=(400, 100), label="Sair", label_inset=(0, 0, 0, 6))
+# Uma arte, várias cores: gire o matiz (é um Sprite)
+vender = SpriteButton("botao.png", center=(400, 40), label="Vender")
+vender.hue = 0.33                             # um terço do círculo: vermelho vira verde</pre>
       </div>
       <details class="spec" open>
       <summary>Construtor</summary>
@@ -10657,6 +10660,7 @@ sair = SpriteButton("sair.png", hover="sair_hover.png", pressed="sair_down.png",
         </div>
       </details>
       <p class="gotcha"><code>label</code> é o atalho de string (como no <a href="#ui-button">Button</a>); <code>label_text</code> é o objeto. A área de clique é o contorno convexo da arte em repouso: cantos transparentes não clicam, buracos dentro da arte clicam, e o crescer/encolher do hover não mexe na área. O efeito é só desenho — <code>botao.scale</code>, <code>width</code> e o hitbox de colisão não mudam.</p>
+      <p class="gotcha"><strong>Uma arte, várias cores.</strong> <code>.hue</code> gira todas as cores da arte no círculo de matiz (<code>0.33</code>: vermelho vira verde; ver <a href="#aparencia-selos">Complementos</a>). Para trocar uma cor por outra exata: <code>botao.visual = Recolor("red", to="green")</code>. Arte branca ou cinza não tem matiz, e nenhum dos dois a colore: desenhe a arte base colorida. O rótulo não muda de cor; hover, aperto e o cinza de desligado continuam por cima.</p>
     </section>
 
     <section class="section prose" id="ui-slider">

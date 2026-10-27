@@ -1109,8 +1109,8 @@
       "section": "aparencia-visual",
       "sectionTitle": "Visual",
       "anchor": "visual-aura",
-      "oneLiner": "A band of light that follows the Sprite's silhouette exactly, inside and outside the edge, with no hard stroke. Sprite only.",
-      "search": "aura fringe sdf sprite silhouette light",
+      "oneLiner": "A band of light hugging the outline, inside and outside the edge, with no hard stroke. On a Sprite it follows the image's exact silhouette; on a Shape, the shape's outline (it turns and resizes with it). With no color it follows the Shape's outline ( .line ); a color dyes the outline too, as Rim does.",
+      "search": "aura fringe sdf sprite shape silhouette outline light",
       "family": "visual",
       "catalog": true,
       "params": [
@@ -1118,7 +1118,7 @@
           "name": "color",
           "pass": 1,
           "type": "",
-          "def": "follows the object",
+          "def": "follows the outline",
           "doc": "Color of the light"
         },
         {
@@ -1146,8 +1146,8 @@
       "section": "aparencia-visual",
       "sectionTitle": "Visual",
       "anchor": "visual-emissivebloom",
-      "oneLiner": "The Sprite's bright parts glow and leak light around them (bloom), like lamps or glowing eyes. Sprite only; it is expensive — use it on a few (heroes, bosses).",
-      "search": "emissivebloom bloom sprite glow",
+      "oneLiner": "The object's bright parts glow and leak light around them (bloom), like lamps or glowing eyes: a Sprite's bright pixels, a light-colored Shape's body and outline. A dark color barely glows. It is expensive — use it on a few (heroes, bosses).",
+      "search": "emissivebloom bloom sprite shape glow",
       "family": "visual",
       "catalog": true,
       "params": [
@@ -6767,7 +6767,7 @@
       "section": "aparencia-filtros",
       "sectionTitle": "Filters",
       "anchor": "filter-emissive",
-      "oneLiner": "Makes the bright parts of the object glow and leak light around them (bloom), on the inside ( fill_filter ) or on the outline ( line_filter ). For a Sprite, the ready-made visual is EmissiveBloom .",
+      "oneLiner": "Makes the bright parts of the object glow and leak light around them (bloom), on the inside ( fill_filter ) or on the outline ( line_filter ). The ready-made visual (Shape or Sprite) is EmissiveBloom : inside and outline together.",
       "search": "emissivefilter bloom filter",
       "family": "filter",
       "catalog": true,

@@ -3192,7 +3192,7 @@ hero = Sprite(hero_sheet, hitbox_shape="rect", hitbox_source=("idle", "running")
           <table>
             <thead><tr><th>Value</th><th>Fit</th><th>When to use</th></tr></thead>
             <tbody>
-              <tr><td><code>"auto"</code></td><td>Tries a circle, circles, an ellipse, two ellipses, a convex hull and a rectangle, and keeps the best fit for the lowest cost. It prefers to err on the inside: a phantom touch is worse than a missed one.</td><td>Ships, enemies, loose objects.</td></tr>
+              <tr><td><code>"auto"</code></td><td>Tries a circle, an ellipse, two ellipses, a convex hull and a rectangle, and keeps the best fit for the lowest cost. It prefers to err on the inside: a phantom touch is worse than a missed one.</td><td>Ships, enemies, loose objects.</td></tr>
               <tr><td><code>"rect"</code></td><td>The silhouette's box: covers all the art, flat base.</td><td>Anything that walks — platformers.</td></tr>
               <tr><td><code>"ellipse"</code></td><td>An ellipse in the silhouette's box. Nearly square becomes a circle.</td><td>Oval bodies.</td></tr>
               <tr><td><code>"circle"</code></td><td>A circle that covers the art.</td><td>Balls, coins.</td></tr>
@@ -10607,7 +10607,10 @@ shop_btn["enabled"] @= lambda: st.coins >= 10    # gray until you have 10 coins
 start_btn.label_text.glow = True                  # the label's Text: fine control
 # Art per state (UI kits): swaps the image instead of the default effect
 quit_btn = SpriteButton("quit.png", hover="quit_hover.png", pressed="quit_down.png",
-                    center=(400, 100), label="Quit", label_inset=(0, 0, 0, 6))</pre>
+                    center=(400, 100), label="Quit", label_inset=(0, 0, 0, 6))
+# One art, many colors: turn the hue (it is a Sprite)
+sell_btn = SpriteButton("button.png", center=(400, 40), label="Sell")
+sell_btn.hue = 0.33                               # a third of the circle: red becomes green</pre>
       </div>
       <details class="spec" open>
       <summary>Constructor</summary>
@@ -10657,6 +10660,7 @@ quit_btn = SpriteButton("quit.png", hover="quit_hover.png", pressed="quit_down.p
         </div>
       </details>
       <p class="gotcha"><code>label</code> is the string shortcut (as in <a href="#ui-button">Button</a>); <code>label_text</code> is the object. The click area is the convex outline of the art at rest: transparent corners do not click, holes inside the art do, and the hover's growing/shrinking does not change the area. The effect is drawing only — <code>btn.scale</code>, <code>width</code> and the collision hitbox do not change.</p>
+      <p class="gotcha"><strong>One art, many colors.</strong> <code>.hue</code> turns every color of the art around the hue circle (<code>0.33</code>: red becomes green; see <a href="#aparencia-selos">Add-ons</a>). To swap one color for an exact other: <code>btn.visual = Recolor("red", to="green")</code>. White or gray art has no hue, and neither one colors it: draw the base art in color. The label keeps its color; hover, press and the turned-off gray still apply on top.</p>
     </section>
 
     <section class="section prose" id="ui-slider">

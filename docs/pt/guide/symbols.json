@@ -1109,8 +1109,8 @@
       "section": "aparencia-visual",
       "sectionTitle": "Visual",
       "anchor": "visual-aura",
-      "oneLiner": "Uma faixa de luz que acompanha exatamente a silhueta do Sprite, por dentro e por fora da borda, sem traço duro. Só Sprite.",
-      "search": "aura franja sdf sprite",
+      "oneLiner": "Uma faixa de luz colada ao contorno, por dentro e por fora da borda, sem traço duro. Num Sprite segue a silhueta exata da imagem; numa Shape, o contorno da forma (gira e muda de tamanho com ela). Sem cor, segue o contorno ( .line ) da Shape; com cor, tinge o contorno também, como Rim .",
+      "search": "aura franja sdf sprite shape contorno",
       "family": "visual",
       "catalog": true,
       "params": [
@@ -1118,7 +1118,7 @@
           "name": "color",
           "pass": 1,
           "type": "",
-          "def": "segue o objeto",
+          "def": "segue o contorno",
           "doc": "Cor da luz"
         },
         {
@@ -1146,8 +1146,8 @@
       "section": "aparencia-visual",
       "sectionTitle": "Visual",
       "anchor": "visual-emissivebloom",
-      "oneLiner": "As partes claras do Sprite brilham e vazam luz em volta (bloom), como lâmpadas ou olhos acesos. Só Sprite; é caro — use em poucos (heróis, chefes).",
-      "search": "emissivebloom bloom sprite",
+      "oneLiner": "As partes claras do objeto brilham e vazam luz em volta (bloom), como lâmpadas ou olhos acesos: os pixels claros de um Sprite, o corpo e o contorno de uma Shape de cor clara. Uma cor escura quase não brilha. É caro — use em poucos (heróis, chefes).",
+      "search": "emissivebloom bloom sprite shape",
       "family": "visual",
       "catalog": true,
       "params": [
@@ -6767,7 +6767,7 @@
       "section": "aparencia-filtros",
       "sectionTitle": "Filtros",
       "anchor": "filter-emissive",
-      "oneLiner": "Faz as partes claras do objeto brilharem e vazarem luz em volta (bloom), no interior ( fill_filter ) ou no contorno ( line_filter ). Para um Sprite, o visual pronto é EmissiveBloom .",
+      "oneLiner": "Faz as partes claras do objeto brilharem e vazarem luz em volta (bloom), no interior ( fill_filter ) ou no contorno ( line_filter ). O visual pronto (Shape ou Sprite) é EmissiveBloom : interior e contorno juntos.",
       "search": "emissivefilter bloom filtro",
       "family": "filter",
       "catalog": true,

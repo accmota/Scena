@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -422,15 +423,43 @@ class TestChooseAutoCollider(unittest.TestCase):
         col = _choose_auto_collider(dumbbell, force_kind="boxes")
         self.assertEqual(col.kind, "boxes")
 
-    def test_two_disks_prefer_circles_when_rotating(self):
+    def test_two_disks_get_one_prim_not_multi_circle(self):
+        """Auto never emits multi-circle (0.10.x: it won 5 of 851 media
+        frames, all at recall ~0.76, for ~1 ms a bake). Two disjoint disks
+        are the case it served: auto now covers one of them; the lab force
+        still covers both. Real art with islands (a ninja's loose sword,
+        muzzle flashes) never got multi-circle either."""
         m = np.zeros((32, 32), dtype=bool)
         yy, xx = np.ogrid[:32, :32]
         m[(xx - 8) ** 2 + (yy - 8) ** 2 <= 6 ** 2] = True
         m[(xx - 23) ** 2 + (yy - 23) ** 2 <= 6 ** 2] = True
         col = _choose_auto_collider(m)
-        self.assertIn(col.kind, ("circles", "circle"))
-        n = len(col.circles) if col.circles else (1 if col.circle else 0)
-        self.assertGreaterEqual(n, 2)
+        self.assertNotEqual(col.kind, "circles")
+        self.assertLessEqual(len(col.circles or ()), 1)
+        forced = _choose_auto_collider(m, force_kind="circles")
+        self.assertEqual(forced.kind, "circles")
+        self.assertGreaterEqual(len(forced.circles), 2)
+
+    def test_auto_emits_at_most_one_circle_or_rect(self):
+        """No auto pick carries more than one circle or one rect, on shapes
+        that once drew multi-circle / multi-rect covers."""
+        yy, xx = np.ogrid[:32, :32]
+        disks = np.zeros((32, 32), dtype=bool)
+        for cx, cy in ((7, 7), (24, 7), (7, 24), (24, 24)):
+            disks[(xx - cx) ** 2 + (yy - cy) ** 2 <= 5 ** 2] = True
+        cross = np.zeros((32, 32), dtype=bool)
+        cross[2:30, 12:20] = True
+        cross[12:20, 2:30] = True
+        L = np.zeros((32, 32), dtype=bool)
+        L[:, :8] = True
+        L[24:, :] = True
+        bead = np.zeros((32, 32), dtype=bool)
+        for cx in (6, 16, 26):
+            bead[(xx - cx) ** 2 + (yy - 16) ** 2 <= 5 ** 2] = True
+        for mask in (disks, cross, L, bead):
+            col = _choose_auto_collider(mask)
+            self.assertLessEqual(len(col.circles or ()), 1)
+            self.assertLessEqual(len(col.boxes or ()), 1)
 
     def test_near_round_fitted_ellipse_demotes_to_circle(self):
         from scena.atlas import ellipse_as_circle, fit_ellipse
@@ -489,6 +518,18 @@ class TestChooseAutoCollider(unittest.TestCase):
         fr = sh._frame_at(sh.names.index("laserRed09.png"))
         col = auto_collider_for_frame(sh.image, fr)
         self.assertEqual(col.kind, "ellipses")
+
+    def test_player_ship_picks_two_ellipses(self):
+        """Wings + body: one prim leaves ~40 % of the ship out (a circle at
+        recall 0.60); the two-ellipse gate must let the fit run here."""
+        from scena.atlas import auto_collider_for_frame
+        from scena.sprite import Sheet
+
+        sh = Sheet(media("shooter", "sheet.xml"))
+        fr = sh._frame_at(sh.names.index("playerShip1_red.png"))
+        col = auto_collider_for_frame(sh.image, fr)
+        self.assertEqual(col.kind, "ellipses")
+        self.assertGreaterEqual(col.recall, 0.8)
 
     def test_greedy_caps_at_five(self):
         from scena.atlas import greedy_rects, greedy_circles, _AUTO_RECT_CAP, _AUTO_CIRCLE_CAP
@@ -1288,3 +1329,59 @@ class TestAtlasFileCache(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTwoEllipseGate(unittest.TestCase):
+    """Two ellipses run last and only when they can still win. The skip is
+    exact: the pick is the same as with the fit always run, frame for frame
+    (shooter atlas: ships, lasers, meteors, UI) and on synthetic masks."""
+
+    def _masks(self):
+        from scena.atlas import _display_mask
+        from scena.sprite import Sheet
+
+        sh = Sheet(media("shooter", "sheet.xml"))
+        out = [_display_mask(sh.image, sh._frame_at(i)) for i in range(len(sh.names))]
+        yy, xx = np.ogrid[:32, :32]
+        disk = np.zeros((32, 32), dtype=bool)
+        disk[(xx - 15.5) ** 2 + (yy - 15.5) ** 2 <= 14 ** 2] = True
+        plus = np.zeros((32, 32), dtype=bool)
+        plus[2:30, 12:20] = True
+        plus[12:20, 2:30] = True
+        x = np.zeros((32, 32), dtype=bool)
+        for i in range(32):
+            x[i, max(0, i - 3):i + 3] = True
+            x[i, max(0, 28 - i):31 - i] = True
+        bar = np.zeros((32, 32), dtype=bool)
+        bar[12:20, 2:30] = True
+        return [m for m in out + [disk, plus, x, bar] if m.size and m.any()]
+
+    def test_skip_never_changes_the_pick(self):
+        import scena.atlas as atlas
+
+        masks = self._masks()
+        gated = [_choose_auto_collider(m) for m in masks]
+        with mock.patch.object(atlas, "_two_ellipse_can_win", return_value=True):
+            full = [_choose_auto_collider(m) for m in masks]
+        for g, f in zip(gated, full):
+            self.assertEqual(
+                (g.kind, g.precision, g.recall), (f.kind, f.precision, f.recall),
+            )
+        self.assertIn("ellipses", {f.kind for f in full})
+
+    def test_skips_when_a_cheap_fit_is_already_good(self):
+        import scena.atlas as atlas
+
+        yy, xx = np.ogrid[:32, :32]
+        disk = np.zeros((32, 32), dtype=bool)
+        disk[(xx - 15.5) ** 2 + (yy - 15.5) ** 2 <= 14 ** 2] = True
+        with mock.patch.object(atlas, "fit_two_ellipses", wraps=atlas.fit_two_ellipses) as spy:
+            _choose_auto_collider(disk)
+        spy.assert_not_called()
+
+    def test_ceiling(self):
+        from scena.atlas import _two_ellipse_can_win
+
+        self.assertTrue(_two_ellipse_can_win([], 4.0, 0.05))
+        self.assertTrue(_two_ellipse_can_win([(0.79, 1.0, None)], 4.0, 0.05))
+        self.assertFalse(_two_ellipse_can_win([(0.80, 1.0, None)], 4.0, 0.05))

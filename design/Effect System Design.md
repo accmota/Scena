@@ -328,6 +328,40 @@ Five rules:
 
 **Which visuals take `color=` (2026-10-05, 0.6.0).** A visual takes `color` (first positional on Recipes / compiled looks) when it paints a color of its own — body, rim, glow, trail — **or redraws the host body** (`Beat`, `Liquify`: seeded → Role A like `Neon`, unseeded → Role E, motion over the host). It takes none when the color is not the author's to pick: procedural materials (`Flame`, `Swell`, `Water` — Role D, the material is the color) and pixel operators (`Grayscale`, `HueShift(to=)`, `Recolor(key=, to=)`, `EmissiveBloom` — the colors they take are named for what they do). Contract test: `tests/test_visual_color_param.py` (`TestWhoTakesColor`) — a new visual either takes `color` or joins its `_NO_COLOR` list with a reason. `Beat(0.1)` / `Liquify(5)` (old positional `amount`) raise `TypeError` naming `amount=` (`_refuse_number_as_color`). A seeded `Beat` on `Sprite.visual` raises (`Visual._sprite_takes_color = False`): `color=` paints a Shape body and a Sprite keeps its pixels — tint with `.hue = HueShift(to=…)`.
 
+**Which looks wear which host (2026-10-27).** One rule, checked by `tests/test_shape_pixel_looks.py` and the
+`.visual` matrix: **a look that paints the body is Shape-only** (`Paint`,
+`Fill`, `Stroke`, `Neon`, `Gel`, `Sphere`, `Water`, `Liquify`, `InsetRim`,
+`Bolt`: on a Sprite they would hide the image); **a look that changes an
+image's pixels is Sprite-only** (`Recolor`, stamps `.hue` / `.gray`: a Shape's
+color is chosen, and a Texture fill has `Texture(shift=)`); **everything else
+wears both**. `Aura` and `EmissiveBloom` were Sprite-only with no reason of
+principle and now wear a Shape:
+
+- **Aura on a Shape** (`visuals._draw_shape_aura`). The Sprite band is
+  `exp(-d² / (w² · 0.42))` of the signed distance `d` to the edge (in
+  half-extents of the art): a Gaussian of sigma `w · √0.21` centred on the
+  edge. A Shape's outline stroked `2.5 σ` wide and blurred by `0.69 σ`
+  (`MaskFilter`) has that variance and a peak of ~0.93, so no SDF bake: the
+  stroke is the shape's own `_geometry_draw(canvas, None, stroke)`, in a
+  `kPlus` layer whose alpha matrix carries `amount`, under the body. Motion,
+  rotation and resizing cost nothing extra (an SDF of a 96 px mask is ~4.4
+  ms: a world-aligned bake would rebake on every turn). `σ` reads
+  `style._local_half_extents` (Defining geometry, never cold Derivates). Cost
+  on CPU raster ≈ `.glow` (~0.2 ms per object at 800×600). Role B, as `Rim`:
+  `Aura()` follows `.line` on a Shape, `Aura("red")` writes the outline and
+  dyes the identity, `set_color` unseeds it (`_unseed` keeps `width`). A
+  Sprite has no outline color: seed, else light cyan, as before. Limit: the
+  band reaches ~0.5 of the half-extent past the edge, and the cull adds
+  `_MULTIPASS_CULL_PAD` (80), so a shape over ~330 units across can lose its
+  band at the screen edge before its body leaves (the Sprite quad has the
+  same limit).
+- **EmissiveBloom on a Shape**: the same `EmissiveFilter` on `fill_filter`
+  and on `line_filter` (a Line is all outline); a Sprite keeps `line_filter =
+  None`. It has no `color=` (a pixel operator), and on a Shape `set_color`
+  shows because the body keeps the object's color (`_NO_COLOR` reason
+  `"pixels"` in `test_visual_color_param`). Cost is the filter's: ~0.5 ms per
+  object on CPU raster; heroes / few, as on a Sprite.
+
 **Omitted color, and `set_color` (2026-10-13).** One rule for every look: **a look that takes `color=` shows `set_color`; a look that takes none paints its own colors and warns.** Leaving the color out means the look's default:
 
 | Kind | No `color` | `color=X` | `set_color(Y)` while on |
@@ -1247,7 +1281,7 @@ The isolation grid showed `tick_ms` / `flush_ms` ≈ 0 and the same `draw_ms` fo
 
 | Idea | Why not |
 | --- | --- |
-| Scene / layer **image cache** of unchanged shapes | Static ≈ moving `draw_ms`; Laser pulses and ElectricField path effects animate with no geometry change; ADD into movers is not a SrcOver blit; `destroy()` leaves a hole in the plate |
+| Scene / layer **image cache** of unchanged shapes | Static ≈ moving `draw_ms`; Laser pulses and ElectricField path effects animate with no geometry change; ADD into movers is not a SrcOver blit; `destroy()` leaves a hole in the plate. The display-list variant (an `SkPicture` per still layer) answers the last two but not the first two; measured and declined 2026-10-27, see below |
 | Per-shape bake to a sprite | Leaves N blits and breaks pulse / ADD; look-pass grouping already is the display list |
 | Author-facing "static decal" / "cache this shape" | A hidden caste of objects; wins stay inside the draw walk |
 | World primitives for axis-aligned Rect / Ellipse as the Neon lead | Rotated fleets skip the win; more per-kind draw cases. Kind-pure buckets are the cheap related fix |
@@ -1255,6 +1289,28 @@ The isolation grid showed `tick_ms` / `flush_ms` ≈ 0 and the same `draw_ms` fo
 | "Always prefer CheapGlow over Glow" | A clustered fleet (n=80) drew batched `Glow` in 0.79 ms vs CheapGlow 1.34. CheapGlow is the **sparse** fleet tool (§5.2) |
 | Lower `fx_quality` to fix a high-path cliff | A perceptible fidelity cut (medium drops the bloom); medium/low numbers are diagnostic only |
 | Graph epoch / `mark_dirty` gating | `flush_ms` ≈ 0: not a graph problem |
+
+**Layer display list (`SkPicture`), measured 2026-10-27.** The variant records a still layer once (cull off, R-tree) and replays it with the current CTM. A replay runs the recorded draw commands, so blend modes (ADD looks, author `blend=`) stay right, a pan or a parallax CTM does not invalidate it, and a `destroy()` re-records instead of leaving a hole. Prototype: N still decorations on layer `-1`, 10 movers on `default`, camera panning every frame, in-process interleaved A/B (M4, ms per frame):
+
+| Still objects | Live draw | Replay draw | Submit + present | Frame work |
+| ---: | ---: | ---: | ---: | ---: |
+| 30 | 0.20 | 0.08 | +0.07 | −8 % |
+| 100 | 0.43 | 0.10 | +0.11 | −27 % |
+| 300 | 1.08 | 0.15 | +0.09 | −58 % |
+| 1000 | 4.6 | 0.40 | −0.1 | −80 % |
+
+A recording costs ~1.4× a live draw (1.5 ms for 300). The win is real, but only for a layer of 100 or more objects where nothing changes, and that layer is rare in the taught games: level tiles share `default` with the actors (`examples/ninja_3_nivel.py`: draw 0.29 of 1.2 ms work), the `ui` layer holds changing Text, and parallax layers hold about 10 objects, below the ~30 where the replay's GPU cost eats the gain.
+
+Declined for the risk: a missed invalidation is a stale frame with no error. A layer changes through more doors than any revision sees today: visuals that read the clock (`_clock()` in Recipes, SkSL time uniforms), draws that bake the camera (the `shape_fx_scale` RT reads `getTotalMatrix`, effects read `world_to_view_scale`), links pulled at draw time with no write (`refresh_linked_channels`, the pull in `_blit_plain`), kinds the pose revision does not trust (Line, Polygon, Text, linked bodies, playing clips, transients), shared look or Gradient objects mutated in place, and global knobs. It would also be a third draw path, the bug class of PB7 / PB8 / HP10 ([Testing Design](Testing%20Design.md#bug-catalogue)).
+
+Reopen when a profile on the target machine shows a real game draw-bound on still objects. The safe shape then:
+- a display list (`SkPicture`), never a raster plate;
+- an allow-list: a layer is cached only when **every** member is a plain blit (`_plain_blit`) with a trusted pose, no link, no playing clip and no transient, so a new look draws live by default;
+- a pull check per frame against the `(pose_rev, _look_rev)` keys the cull cache already reads (~0.3 µs per object against ~3.6 µs to draw it) rather than a pushed layer version, which taxes every write;
+- hysteresis: record after K still frames, as `_cull_seen` does;
+- a verify mode that draws live and replayed and compares pixels, on in the test tiers.
+
+Caching still runs *inside* a layer (the level's tiles below the player) would cover the common case but meets the look-pass grouping, which relaxes z among one look across the layer.
 
 ### Look-pass bucket keys / `_world_stroke_kind`
 

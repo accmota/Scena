@@ -56,8 +56,6 @@ _AUTO_ELLIPSE_CIRCLE_RATIO = 1.08
 # and clear this absolute floor (avoids weak H+V splits on L-shapes).
 _AUTO_TWO_ELLIPSE_MIN_GAIN = 0.05
 _AUTO_TWO_ELLIPSE_MIN_RECALL = 0.75
-# Multi-circle prefixes (k≥2) need at least this recall to be candidates.
-_AUTO_CIRCLE_GATE = 0.75
 # If any candidate clears the quality bar at high precision, discard severe undershoot.
 _AUTO_RECALL_RAIL = True
 _AUTO_RECALL_FLOOR = 0.75
@@ -1470,6 +1468,24 @@ def _ellipses_collider(
     )
 
 
+def _two_ellipse_can_win(
+    candidates: Sequence[Tuple[float, float, "AutoCollider"]], cost: float, lam: float,
+) -> bool:
+    """False when no two-ellipse fit could be picked over ``candidates``.
+
+    Quality is at most 1, so two ellipses score at most ``1 − λ × cost``, and
+    their cost is the highest of the pool, so a tie goes to the other one.
+    The recall rail keeps that other one: utility ≥ ``1 − λ × cost`` needs
+    quality ≥ 0.85, so recall ≥ 0.765 ≥ ``_AUTO_RECALL_FLOOR``, and a
+    candidate below the floor scores below the ceiling. Skipping the fit
+    never changes the pick (``test_atlas.TestTwoEllipseGate``).
+    """
+    if not candidates:
+        return True
+    best = max(c[0] for c in candidates)
+    return best < 1.0 - lam * cost
+
+
 def _choose_auto_collider(
     mask: np.ndarray,
     *,
@@ -1480,7 +1496,10 @@ def _choose_auto_collider(
     Auto always assumes the sprite may rotate: multi-rect is never a candidate
     (would become multi-OBB/SAT); a 1-rect is offered only if its recall already
     clears ``_AUTO_QUALITY_BAR``. Authors who want a cheap AABB use
-    ``hitbox="rect"``.
+    ``hitbox="rect"``. Multi-circle is not a candidate either: on the media
+    corpus it won 5 of 851 frames, all at recall ~0.76, and cost ~1 ms per
+    bake (a hull covers those). Two ellipses run last, and only when they can
+    still win (``_two_ellipse_can_win``).
 
     ``force_kind`` (lab/debug): ``"circle"``, ``"circles"``, ``"ellipse"``,
     ``"ellipses"``, ``"poly"``, ``"box"`` (single largest rect), ``"boxes"``
@@ -1493,7 +1512,6 @@ def _choose_auto_collider(
     filled = fill_holes(mask)
     lam = float(_AUTO_COST_LAMBDA)
     circle_cap = int(_AUTO_CIRCLE_CAP)
-    circle_gate = float(_AUTO_CIRCLE_GATE)
     recall_rail = bool(_AUTO_RECALL_RAIL)
     recall_floor = float(_AUTO_RECALL_FLOOR)
 
@@ -1660,14 +1678,11 @@ def _choose_auto_collider(
             ),
         )
 
-    circs = greedy_circles(filled, max_circles=circle_cap)
-    for k in range(1, len(circs) + 1):
-        prefix = circs[:k]
-        prec, rec = _circle_coverage(filled, prefix)
-        # Multi-circle with poor recall is a prim explosion without coverage.
-        if k >= 2 and rec < circle_gate:
-            continue
-        _add(k * _AUTO_COST_CIRCLE, _quality_score(prec, rec), _circles_collider(prefix, prec, rec))
+    # The largest inscribed disk only: multi-circle is not an auto candidate.
+    circs = greedy_circles(filled, max_circles=1)
+    if circs:
+        prec, rec = _circle_coverage(filled, circs)
+        _add(_AUTO_COST_CIRCLE, _quality_score(prec, rec), _circles_collider(circs, prec, rec))
 
     ell = fit_ellipse(filled)
     if ell is not None:
@@ -1693,14 +1708,6 @@ def _choose_auto_collider(
                 ),
             )
 
-    two = fit_two_ellipses(filled)
-    if two is not None:
-        pair, prec, rec = two
-        _add(
-            2.0 * _AUTO_COST_ELLIPSE, _quality_score(prec, rec),
-            _ellipses_collider(pair, prec, rec),
-        )
-
     hull = fit_hull(filled)
     if hull is not None:
         verts, prec, rec = hull
@@ -1709,16 +1716,24 @@ def _choose_auto_collider(
             AutoCollider(kind="poly", poly=verts, precision=prec, recall=rec),
         )
 
-    rects = greedy_rects(filled)
+    rects = greedy_rects(filled, max_rects=1)
     # Never multi-rect (would become multi-OBB under rotation). Single rect
     # only when recall already clears the quality bar.
     if rects:
-        rec, prec = _rect_coverage(filled, rects[:1])
+        rec, prec = _rect_coverage(filled, rects)
         if rec >= _AUTO_QUALITY_BAR:
             _add(
                 _rect_runtime_cost(1), _quality_score(prec, rec),
-                _boxes_collider(rects[:1], prec, rec),
+                _boxes_collider(rects, prec, rec),
             )
+
+    # Last: the costliest fit (~half the bake) runs only when it can still win.
+    two_cost = 2.0 * _AUTO_COST_ELLIPSE
+    if _two_ellipse_can_win(candidates, two_cost, lam):
+        two = fit_two_ellipses(filled)
+        if two is not None:
+            pair, prec, rec = two
+            _add(two_cost, _quality_score(prec, rec), _ellipses_collider(pair, prec, rec))
 
     if not candidates:
         return AutoCollider(kind="none")

@@ -44,6 +44,11 @@ MIN_GRAPH_DELTA = 40
 # Registry-object leak: most samples must each add this many objects. Casual
 # spawn / button clicks are +1..+4; a per-frame construct is tens–hundreds.
 MIN_OBJECT_STEP = 8
+# Drawn-object climb: no warning below this many drawn objects. A spawner of
+# ~6/s whose objects live ~20 s climbs like a leak for 13 s and warned at ~100
+# objects (2026-10-27); a real leak passes this in under a minute, and below
+# it costs nothing.
+MIN_OBJECTS_TO_WARN = 300
 # Graph climb with near-flat objects: allow ± this many entities.
 OBJECT_FLAT_SLACK = 3
 # Orphan-node pile-on: many graph nodes per new (or zero) objects.
@@ -130,10 +135,12 @@ def leak_signal(history: Sequence[Tuple[int, int]]) -> Optional[str]:
 
 def format_leak_message(kind: str, entities: int, graph_nodes: int,
                         entities0: int, graph0: int,
-                        live: Optional[int] = None, live0: Optional[int] = None) -> str:
+                        live: Optional[int] = None, live0: Optional[int] = None,
+                        off_view: Optional[int] = None) -> str:
     if kind == "objects":
+        where = "" if off_view is None else f", {off_view} of them off view"
         return (
-            f"objects rising ({entities0}→{entities}); "
+            f"objects rising ({entities0}→{entities}){where}; "
             f"possible missing destroy()"
         )
     if kind == "roster":
@@ -156,12 +163,14 @@ class LeakSampler:
         self._frame = 0
         self._sample_at: Optional[float] = None
         self._active_kind: Optional[str] = None
+        self._objects_quiet = 0
 
     def reset(self) -> None:
         self._history.clear()
         self._frame = 0
         self._sample_at = None
         self._active_kind = None
+        self._objects_quiet = 0
 
     def advance(self, now: Optional[float] = None) -> bool:
         """Return True iff this frame should sample.
@@ -190,6 +199,7 @@ class LeakSampler:
         recount: Optional[Callable[[], Tuple[int, ...]]] = None,
         live: Optional[int] = None,
         off_screen: Optional[Callable[[], int]] = None,
+        off_view: Optional[Callable[[], int]] = None,
     ) -> Optional[Tuple[str, str]]:
         """Record one sample. Returns ``(kind, message)`` only on a new hit.
 
@@ -198,6 +208,13 @@ class LeakSampler:
 
         ``off_screen`` (roster items whose object is on no layer) runs only
         before a new ``"roster"`` hit (a walk of the whole roster).
+
+        A new ``"objects"`` hit needs ``MIN_OBJECTS_TO_WARN`` drawn objects
+        and, when ``off_view`` is given (drawn objects outside their layer's
+        view, a walk of the draw lists), at least half the growth off view.
+        The leak it is for is a shot that left the screen and was never
+        destroyed; objects piling up on screen are a game the author can see
+        (a spawner, a painting, a build), not a missing ``destroy()``.
 
         ``recount`` runs only when a new hit is about to fire: it collects
         cyclic garbage and returns fresh ``(entities, graph_nodes)``, which
@@ -213,6 +230,14 @@ class LeakSampler:
             row += (int(live),)
         self._history.append(row)
         kind = leak_signal(list(self._history))
+        if kind == "objects" and kind != self._active_kind:
+            # Before the collection: a climb too small to matter, or one the
+            # last walk found on screen (re-walked every CLIMB_TAIL samples).
+            if self._history[-1][0] < MIN_OBJECTS_TO_WARN:
+                kind = None
+            elif self._objects_quiet > 0:
+                self._objects_quiet -= 1
+                kind = None
         if kind is not None and kind != self._active_kind and recount is not None:
             self._history[-1] = tuple(int(v) for v in recount())
             kind = leak_signal(list(self._history))
@@ -224,6 +249,12 @@ class LeakSampler:
             grew = self._history[-1][2] - self._history[0][2]
             if off_screen() < grew / 2:
                 kind = None
+        n_off_view = None
+        if kind == "objects" and kind != self._active_kind and off_view is not None:
+            n_off_view = int(off_view())
+            if n_off_view < (self._history[-1][0] - self._history[0][0]) / 2:
+                kind = None
+                self._objects_quiet = CLIMB_TAIL
         if kind is None:
             self._active_kind = None
             return None
@@ -235,4 +266,4 @@ class LeakSampler:
         e1, g1 = last[:2]
         l0 = first[2] if len(first) > 2 else e0
         l1 = last[2] if len(last) > 2 else e1
-        return kind, format_leak_message(kind, e1, g1, e0, g0, l1, l0)
+        return kind, format_leak_message(kind, e1, g1, e0, g0, l1, l0, n_off_view)

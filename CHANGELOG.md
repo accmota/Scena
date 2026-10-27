@@ -12,6 +12,17 @@ left out.
 
 ## Unreleased
 
+### Added
+
+- `Aura` and `EmissiveBloom` work on Shapes, not only on Sprites:
+  `ship.visual = Aura("cyan")` draws a soft band along any shape's outline
+  (it turns and resizes with the shape), and `EmissiveBloom()` makes a
+  light-colored shape's body and outline glow. On a Shape, `Aura()` follows
+  the outline color and `Aura("red")` dyes the outline, as `Rim` does. The
+  rule is now short: looks that paint the body (`Neon`, `Gel`, …) are for
+  Shapes, looks that change an image's pixels (`Recolor`, `.hue`, `.gray`)
+  are for Sprites, and every other look works on both.
+
 ### Fixed
 
 - `pip install scena` no longer fails on Python 3.15 (or on Windows or Linux
@@ -22,8 +33,29 @@ left out.
   1 second of silence, Handles keep time (`on_done`, `await`), and
   `Microphone()` is a silent mic. For sound there, use Python 3.14 or run
   `python -m pip install miniaudio` (it needs a C compiler).
+- The "objects rising; possible missing destroy()" SCENA WARNING no longer
+  fires on games that simply make a lot of objects. A spawner of ~6 a second
+  whose objects lived ~20 s got it at about 100 objects. It now waits for
+  300 drawn objects and for at least half the growth to be off view (the shot
+  that left the screen and was never destroyed), and the message says how
+  many are off view.
+
+### Changed
+
+- `hitbox_shape="auto"` computes a Sprite's hitbox about 40 % faster (on
+  load, or per frame with `hitbox_source="each"`) and never makes a hitbox
+  of several circles. Several circles won on 5 of 851 test images, each
+  leaving about a quarter of the art outside, and now get a convex outline
+  that covers it. Art in separate pieces (two disks) gets one shape; cover it
+  with atlas boxes or `sprite.add_hitbox(…)`. Every other image gets the same
+  hitbox as before, two ellipses included (ships, lasers).
 
 ### Documentation
+
+- The Guia's SpriteButton section shows one art in many colors: `.hue`
+  turns every color of the button's art, `.visual = Recolor("red",
+  to="green")` swaps one color for an exact other (white or gray art has no
+  hue to turn).
 
 - The README's install section recommends Python 3.14 and says when Scena
   installs without sound; the Guia's `play_sound` section has the same note.

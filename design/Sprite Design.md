@@ -348,7 +348,7 @@ at `Sheet`; an atlas filename as `source` is the same error), `sheet.cycle`,
   `art_angle`).
 - `hitbox` — Sprite collider. Four knobs: `hitbox_shape=` (primitive), `hitbox_source=` (which art), `hitbox_anchor=` / `hitbox_scale=` (shaping). Default `"auto"` is a rotation-safe utility pick, baked from the **reference set** on collision enroll and **frozen** while the clip plays unless `hitbox_source="each"` (every cell) or `"clip"` (once per clip switch). Under `"auto"` those two lock **kind** on the first bake and refit params only. Walkers should pick `"rect"`. Extra detection-only colliders are **hitbox parts** (`sprite.add_hitbox(group=…)`) — see [Hitbox parts](#hitbox-parts). Full contract: **Auto hitbox** below. Author surface: [API Guide](../docs/en/guide/index.html#spr-hit). Collision: [Collision Design.md](Collision%20Design.md#sprite-colliders).
 - Appearance stamps — `.glow` / `.shadow` / `.hue` / `.gray` / `.tail` (Sprite family: Sprite, Svg, SpriteButton, author subclasses — dispatch is `entity.is_sprite_family`, never the class name); Shape drops `.hue` / `.gray`; Text `.glow` only. Sugar `True` / color / number / object; Tail `True` follows motion.
-- Overlay / path / material looks via `Visual._allows_sprite` (see [API Guide](../docs/en/guide/index.html#aparencia-visual)). Pixel looks on `.visual` (`Recolor`, `Aura`, `EmissiveBloom`) are `_sprite_only`. **HueShift** is a stamp (`.hue`) or `Texture(..., shift=HueShift(...))` — not `.visual`. Remaining body looks (`Neon`, `Water`, `Gel`, …) and `Paint` / Gradient as `.visual` → **`TypeError`**. `_replaces_sprite_body` materials (`Metal`, `Flame`, `Swell`, `Aurora`, `Wave`) fill the silhouette instead of blitting.
+- Overlay / path / material looks via `Visual._allows_sprite` (see [API Guide](../docs/en/guide/index.html#aparencia-visual)). Pixel looks on `.visual` (`Recolor`; stamps `.hue` / `.gray`) are `_sprite_only`: they change the image's pixels. `Aura` and `EmissiveBloom` wear a Shape too since 2026-10-27 ([Effect System Design.md — Shape visuals, "Which looks wear which host"](Effect%20System%20Design.md#31b-shape-visuals-shapevisual)). **HueShift** is a stamp (`.hue`) or `Texture(..., shift=HueShift(...))` — not `.visual`. Remaining body looks (`Neon`, `Water`, `Gel`, …) and `Paint` / Gradient as `.visual` → **`TypeError`**. `_replaces_sprite_body` materials (`Metal`, `Flame`, `Swell`, `Aurora`, `Wave`) fill the silhouette instead of blitting.
 - **`Svg`** — Sprite subclass whose body is rasterized from SVG. First positional `source` is markup if it contains `<`, otherwise a filename (same resolve as Sprite). `.svg` always stores markup (file contents after load, never the path). Writing `.svg` uses the same rule; same stored markup → no-op. Missing file / parse failure: warn once, checker, stay valid (setter keeps last good body). `svg = None` clears to the checker, as `Svg(None)` builds it. Private single-frame sheet (never interned — live unique strings would leak). Still only: catalog kwargs (`cols=` / `atlas=` / `fps=`), `play`, and `strip` raise `TypeError` (`frame=` other than `0` too). Same hitbox knobs as Sprite (`"all"` / `"each"` are one-frame no-ops). `clone()` recopies markup into a new private sheet (later writes do not affect the source). Bitmap body: camera zoom softens; no live `SVGDOM.render` each frame. Author surface: [API Guide — Svg](../docs/en/guide/index.html#spr-svg). Smoke: `scripts/smoke/sprite_fx.py` (compass/car cell). Tests: `tests/test_svg.py`.
 - Interned **FrameFx** cache (silhouette path + optional SDF, max side 96) shared like auto hitbox. Assigning `.visual` warms the **current clip or cell**. `prepare_fx(*looks)` bakes every cell. See **FrameFx** below.
 - `SPRITE_BODY` fill sentinel so filter batching sees a fill channel; draw always blits the bitmap.
@@ -640,12 +640,13 @@ do not raise.
 | `hitbox_anchor=` | `"center"`, `"bottom"`, `"top"`, `"left"`, `"right"`, or `(ax, ay)` | `"center"` | fixed point on the baked hitbox for scale, pin, and `.tilt` |
 
 **Naming:** naming a shape means **cover the art with that shape** (recall-first).
-`"auto"` is the precision-first utility fitter. Multi-prim kinds (`circles`,
-`ellipses`, `boxes`) stay internal — `"auto"` may still emit them when they win.
+`"auto"` is the precision-first utility fitter. Multi-prim kinds stay internal: `"auto"` may emit
+the two-ellipse pair when it wins; `circles` (several) and `boxes` come only from
+the lab forces and atlas boxes.
 
 | Kind | Fit | Notes |
 |------|-----|-------|
-| `"auto"` | `_choose_auto_collider` utility | Unchanged policy/constants; may emit multi-circle / two-ellipse / hull / 1-rect |
+| `"auto"` | `_choose_auto_collider` utility | May emit circle / ellipse / two-ellipse / hull / 1-rect; never multi-circle or multi-rect |
 | `"rect"` | Silhouette AABB (`fit_bbox`) | Recall 1.0; flat bottom; **not** inscribed `greedy_rects`. Platformer workhorse |
 | `"ellipse"` | Ellipse in the silhouette bbox | Tightening of a design-box ellipse; near-square demotes to circle (`max/min ≤ 1.08`) |
 | `"circle"` | `fit_circle` (`best_effort=True`) | For roundish things; a bbox-derived circle is ambiguous for tall art |
@@ -1108,11 +1109,11 @@ Each returns geometry in **mask space** (y-down) plus `(precision, recall)`.
 | Fitter | Idea | Notes |
 |--------|------|-------|
 | `fit_circle` | Trimmed-mean centroid; percentile radii; max recall among precision ≥ 0.90 | Analytic area `πr²` |
-| `greedy_circles` | Largest inscribed disks; prefixes 1…cap are separate candidates | `k≥2` need recall ≥ `_AUTO_CIRCLE_GATE` (0.75); cheapest rotated prim |
+| `greedy_circles` | Largest inscribed disks | Auto offers the **first disk only**; lab `force_kind="circles"` keeps the greedy cover (cap 5) |
 | `fit_ellipse` | PCA angle + grid `(ru,rv)`; same precision floor | `ellipse_to_local` **negates** mask angle (y-up) |
 | `fit_two_ellipses` | H+V arm split, diagonal nearest-line split, residual | Cost 4; plus/T/X; strict recall floors + redundant-pair reject |
 | `fit_bbox` | Occupied AABB of the mask | Author `"rect"`; recall 1.0 |
-| `fit_hull` | Convex hull ≤ 8 verts; cheapest vertex whose chord still covers every occupied centre | Rasterized recall. Bridges notches; concavity guard |
+| `fit_hull` | Convex hull, simplified toward 8 verts: drops the cheapest vertex whose chord still covers every occupied centre | Rasterized recall. The cap is soft: when no drop keeps every centre inside, the extra verts stay (9–12 seen on the media corpus). Bridges notches; concavity guard |
 | `greedy_rects` | Largest **inscribed** opaque AABB prefixes | Auto offers **1-rect only** if recall ≥ 0.90; **not** author `"rect"` |
 
 ### Metrics and selection
@@ -1137,9 +1138,18 @@ With `_AUTO_PRECISION_EXP = 1.5`, `_AUTO_QUALITY_BAR = 0.90`, `_AUTO_COST_LAMBDA
 Ties break to lowest cost. Hulls with precision &lt; 0.92 get an extra quality
 penalty (`_hull_quality`).
 
-**Hard rails:** multi-rect never a candidate; 1-rect needs recall ≥ 0.90;
-multi-circle (`k≥2`) needs recall ≥ 0.75; if any candidate has recall and
-precision ≥ 0.90, discard winners with recall &lt; `_AUTO_RECALL_FLOOR` (0.75).
+**Hard rails:** multi-rect and multi-circle never candidates; 1-rect needs
+recall ≥ 0.90; if any candidate has recall and precision ≥ 0.90, discard
+winners with recall &lt; `_AUTO_RECALL_FLOOR` (0.75).
+
+**Two-ellipse gate.** The two-ellipse fit is half the bake, so it runs last
+and only while it can still win (`_two_ellipse_can_win`). Quality is at most
+1, so the pair scores at most `1 − λ × 4` = 0.80; its cost is the highest, so
+a tie goes to the other candidate; that candidate (quality ≥ 0.85, recall ≥
+0.765) survives the recall rail, and one below the rail floor scores under
+0.80. Skipping never changes the pick: identical on all 851 media frames
+(the fit ran on 411), `test_atlas.TestTwoEllipseGate`. A new cost or quality
+term must keep that argument true or drop the gate.
 
 **Policy history (why utility won):** cheapest-with-recall-gate favored bad
 hulls; quality-then-near-tie-cost still let hulls edge out cheap rects; current
@@ -1153,7 +1163,6 @@ and circle×circle are fast paths; OBB / POLY / ELLIPSE use SAT):
 | Candidate | Cost |
 |-----------|------|
 | 1 circle | 1 |
-| k circles | k |
 | Ellipse | 2 |
 | Two ellipses | 4 |
 | Hull (poly) | `2 + 0.1 × max(0, verts − 4)` |
@@ -1183,13 +1192,13 @@ Circle / ellipse / hull transform with the sprite pose.
    the sprite's one scale, so `play()` can change the drawn cell without resizing the collider.
 2. **Multiple candidates** — no single primitive fits disks, bars, L, crosses, and X.
 3. **Precision over recall** — phantom collisions hurt more than a sliver of missed alpha.
-4. **Coverage via analytic prims** — two ellipses (H+V / diagonal) for T/plus/X instead of multi-OBB; multi-circle when utility says so.
+4. **Coverage via analytic prims** — two ellipses (H+V / diagonal) for T/plus/X instead of multi-OBB or multi-circle.
 5. **Hole fill before fit** — outline / ring art feels solid without manual boxes.
-6. **Adaptive counts + prefixes** — “one cheap circle” can beat “perfect hull”.
+6. **Cheap beats perfect** — “one cheap circle” can beat “perfect hull”.
 7. **Utility, not quality-then-cost** — runtime cost is in the primary score.
 8. **Always rotation-safe** — no author `may_rotate`; multi-rect never in auto.
 9. **One internal policy** — λ / gates / two-ellipse are fixed constants in `atlas.py`.
-10. **Cap at 5** — greedy multi-circle (and lab multi-rect) never emit more than five prims.
+10. **One prim, or two ellipses** — auto emits one circle, ellipse, hull or rect, or the two-ellipse pair. Multi-circle and multi-rect left auto (multi-circle won 5 of 851 media frames, all at recall ~0.76, a hull covers them; it cost ~1 ms a bake). The lab forces (`circles` / `boxes`) still cap at five.
 11. **Atlas JSON/XML boxes** — author override when auto is wrong or already authored.
 12. **Proxy broad phase** — one AABB per collider, then prim narrow. Under rotation,
     that proxy prefers a cheap closed-form bound (never tighter than exact) over
@@ -1230,7 +1239,8 @@ Circle / ellipse / hull transform with the sprite pose.
 | Thin diagonal scratches | May still get a low-precision hull |
 | Downsample | ≤32 px can miss 1–2 px details on large frames |
 | Utility undershoot | Cheaper shapes can sit below the 90% recall bar if quality drop &lt; `λ × Δcost` |
-| Fit CPU | Greedy circles ~3–4 ms/frame load; collision runtime is the optimization target |
+| Fit CPU | ~4.5 ms per frame bake on the media corpus (was ~7.3 with multi-circle, multi-rect and an ungated two-ellipse fit); cached per image. Collision runtime is the optimization target |
+| Disjoint islands | Art in separate pieces (a loose sword, two disks, muzzle flashes) gets one prim: a hull across the gap or a circle on one piece. Cover it with atlas boxes or `sprite.add_hitbox(…)` |
 | Semi-transparent art | Threshold + nearest downsample define “solid” |
 | Union `"all"` on a character sheet | Registered clips (walk + jump + …) still enlarge the box; narrow with `hitbox_scale` and `"bottom"`. On a shared atlas with **no** clips, `"all"` is the construct frame |
 | Cause 5 — round / polygonal bottoms | An ellipse or hull is a poor walker: one contact point, slanted SAT faces. Teach `hitbox_shape="rect"` for bodies that stand. `"auto"` + `"each"` / `"clip"` locks kind so a walk cycle does not flip hull → ellipse → circle |
@@ -1246,7 +1256,7 @@ Circle / ellipse / hull transform with the sprite pose.
 | `_AUTO_PRECISION_EXP` | 1.5 | Precision exponent in quality |
 | `_AUTO_HULL_MAX_VERTS` | 8 | Max hull vertices after simplification |
 | `_AUTO_HULL_PRECISION_GUARD` | 0.92 | Extra hull quality penalty below this |
-| `_AUTO_RECT_CAP` / `_AUTO_CIRCLE_CAP` | 5 | Max greedy rects / circles |
+| `_AUTO_RECT_CAP` / `_AUTO_CIRCLE_CAP` | 5 | Max greedy rects / circles (lab forces; auto asks for one) |
 | `_AUTO_TWO_ELLIPSE_MIN_GAIN` | 0.05 | Min recall gain vs single ellipse (strict) |
 | `_AUTO_TWO_ELLIPSE_MIN_RECALL` | 0.75 | Absolute recall floor for two-ellipse (strict) |
 | `_AUTO_RECT_TARGET` | 0.95 | Stop rects/circles when recall reaches this |
@@ -1255,7 +1265,7 @@ Circle / ellipse / hull transform with the sprite pose.
 | `_AUTO_COST_CIRCLE` / `_ELLIPSE` / `_HULL` | 1 / 2 / 2 | Base costs (+0.1 per hull vert above 4) |
 | `_AUTO_COST_OBB` | 3 | Auto 1-rect candidate cost |
 | `_AUTO_COST_LAMBDA` | 0.05 | λ in utility |
-| `_AUTO_CIRCLE_GATE` / `_AUTO_RECALL_FLOOR` | 0.75 | Multi-circle gate / recall-rail floor |
+| `_AUTO_RECALL_FLOOR` | 0.75 | Recall-rail floor |
 | `_AUTO_ELLIPSE_CIRCLE_RATIO` | 1.08 | Ellipse → circle when axes within this ratio |
 
 **Tuning workflow:** visual review (`app_hitbox_lab.py`, keys `0–6` force kind,
@@ -1265,17 +1275,20 @@ Circle / ellipse / hull transform with the sprite pose.
 
 ### Corpus results (sprite_tests)
 
-**375 frames** (Kenney `sheet.png` + `rollingBall_sheet.png` + standalone PNGs).
-Default auto: avg recall **0.970**, avg precision **0.972**; 46 below 90% recall,
-22 below 90% precision. Pick distribution (approx.): hull8 **257**, circle **44**,
-ell2 **24**, hull4–7 **40**, ellipse **10**.
+**851 frames** (every PNG in `examples/media` up to 1024 px, plus the
+`shooter` and `k-rolling-ball` atlases; 2026-10-27). Default auto: avg recall
+**0.878**, avg precision **0.942** (backgrounds and loose art pull recall
+down); 373 below 90% recall, 29 below 90% precision. Picks: ellipse **293**,
+circle **192**, hull4 **144**, hull8 **101**, 1-rect **28**, hull9–12 **38**,
+hull5–7 **31**, two ellipses **24** (player ships, lasers, life icons: one
+prim leaves 15–60 % of them out).
 
 Live-app bench (`app_hitbox_bench.py`, 100 overlapping sprites, full Scena loop)
 illustrates **cost ordering** (earlier pass; re-run after large policy changes):
 
 - **rect1** is the speed ceiling (one AABB / one OBB) — not a quality substitute.
 - **Multi-rect** is the speed floor once anything spins (many OBB/SAT pairs).
-- **Multi-circle** is middling — circle×circle stays fast, but ~5× prim count costs.
+- **Multi-circle** (lab only since it left auto) is middling — circle×circle stays fast, but ~5× prim count costs.
 - **Default auto** lands in the cheap band (near circle/ellipse FPS), never emits
   multi-rect; two-ellipse adds at most two SAT ellipses on T/plus/X art.
 - Forced modes are ablations; auto optimizes utility, not max FPS.

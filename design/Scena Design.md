@@ -626,7 +626,20 @@ of the roster (~2 ms per 6000 items) counts the items whose object is on no
 layer, and growth that sits mostly in drawn objects' parts stays quiet
 (`leak_detector.LeakSampler.sample(off_screen=)`;
 `tests/test_leak_detector.py`, `TestPartsOfDrawnObjectsAreNotOrphans`,
-`TestDrawnPartsGrowInAGame`).
+`TestDrawnPartsGrowInAGame`). The drawn-object signal (`"objects"`, "possible
+missing destroy()") fired on ordinary games: a spawner of ~6/s whose objects
+live ~20 s climbs like a leak for 13 s and warned at ~100 objects
+(2026-10-27). A new `"objects"` hit now needs `MIN_OBJECTS_TO_WARN` (300) drawn
+objects, checked before the collection, and at least half the growth **off
+view**: one walk of the draw lists with the cull's own test (`_cull_keeps`
+against each layer's `_cull_view_for`, `ui` skipped; ~3 ms per 6000 objects).
+The leak it is for is a shot that left the screen and was never destroyed;
+objects piling up on screen are a game the author sees. A climb found on screen
+is walked again only every `CLIMB_TAIL` samples, and the message counts the
+objects off view (`sample(off_view=)`; `TestObjectsWarnOnlyWhenItMatters`,
+`TestObjectsOffViewInAGame`). Every SCENA WARNING also goes to the console:
+`process.report_author_warning` calls `warnings.warn(…, RuntimeWarning)`, so an
+agent running the game reads it on stderr.
 
 ## Clocks
 

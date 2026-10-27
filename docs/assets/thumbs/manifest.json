@@ -1237,7 +1237,7 @@
  "visual-aura": {
   "card": "thumbs/visual-aura.card.webp",
   "h": 300,
-  "hash": "8dc736a6f9f14b4d",
+  "hash": "f15fb440cdae5e12",
   "scene": "sprite",
   "src": "thumbs/visual-aura.webp",
   "w": 480
@@ -1342,7 +1342,7 @@
  "visual-emissivebloom": {
   "card": "thumbs/visual-emissivebloom.card.webp",
   "h": 300,
-  "hash": "3560c9cc452a7612",
+  "hash": "d5f5a4f9ef37aa3e",
   "scene": "sprite",
   "src": "thumbs/visual-emissivebloom.webp",
   "w": 480

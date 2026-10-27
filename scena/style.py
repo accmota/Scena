@@ -1295,7 +1295,7 @@ class PaintState:
             raise TypeError(stamp_visual_hint(value))
         # Every refusal before any write: a rejected look used to strip the
         # current one first (HP3).
-        # Pixel-body looks are Sprite-only (HueShift / Recolor / Aura / EmissiveBloom).
+        # Pixel looks are Sprite-only (HueShift / Grayscale / Recolor).
         from .entity import is_sprite_family, scena_kind
         if getattr(value, "_sprite_only", False) and not is_sprite_family(self):
             name = type(value).__name__

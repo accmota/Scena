@@ -350,6 +350,49 @@ class TestFeelPixels(ButtonTestCase):
         self.assertAlmostEqual(b._feel_at(self.t[0] + 0.4)[0], 1.0)
 
 
+class TestOneArtManyColors(ButtonTestCase):
+    """One PNG, buttons of several colors: ``.hue`` (a stamp, as on any
+    Sprite) and ``.visual = Recolor(…)`` color the body under the feel; the
+    state art and the disabled gray still apply (Guia, SpriteButton)."""
+
+    def test_hue_turns_the_red_art_green(self):
+        b = self.make()
+        r, g, bl, _a = _center_rgba(*_render(b))
+        self.assertGreater(r, 150)
+        b.hue = 1 / 3
+        r, g, bl, _a = _center_rgba(*_render(b))
+        self.assertGreater(g, 80)
+        self.assertLess(r, 40)
+        self.assertLess(bl, 40)
+
+    def test_hue_applies_to_the_hover_art(self):
+        hover = self.art("hover.png", lambda c: _disc(c, color=skia.ColorSetARGB(255, 240, 80, 80)))
+        b = self.make(hover=hover)
+        b.hue = 1 / 3
+        self.hover_at(self.o, self.o)
+        self.tick(0.5)
+        self.assertTrue(b.pointer_hover)
+        r, g, _bl, _a = _center_rgba(*_render(b))
+        self.assertEqual(b._art_state, "hover")
+        self.assertGreater(g, r)
+
+    def test_recolor_swaps_one_hue_exactly(self):
+        from scena import Recolor
+        b = self.make()
+        b.visual = Recolor(key="red", to="green")
+        r, g, bl, _a = _center_rgba(*_render(b))
+        self.assertGreater(g, 200)
+        self.assertLess(r, 40)
+
+    def test_disabled_gray_covers_the_hue(self):
+        b = self.make()
+        b.hue = 1 / 3
+        b.enabled = False
+        self.tick(1.0)
+        r, g, bl, _a = _center_rgba(*_render(b))
+        self.assertLess(max(r, g, bl) - min(r, g, bl), 12)
+
+
 class TestDrawRoutes(ButtonTestCase):
     def test_draws_solo_through_the_canvas(self):
         from scena.canvas import _must_solo_draw

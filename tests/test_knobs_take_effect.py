@@ -60,8 +60,7 @@ NOT_ON_A_SHAPE = {
     "Recipe": "the base class",
     **{n: "a stamp (shape.glow / .shadow / .tail / sprite.gray / .hue): test_stamps"
        for n in ("Glow", "CheapGlow", "Shadow", "Tail", "Grayscale", "HueShift")},
-    **{n: "sprite-only (needs a bitmap body): test_visuals"
-       for n in ("Aura", "EmissiveBloom", "Recolor")},
+    "Recolor": "sprite-only (changes an image's pixels): test_visuals",
 }
 
 # Knobs whose default is None / unset: the value to try instead.

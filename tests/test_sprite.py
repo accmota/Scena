@@ -2724,13 +2724,13 @@ class TestSpriteOverlays(unittest.TestCase):
         msg = str(ctx.exception).lower()
         self.assertIn("stamp", msg)
         self.assertIn("shift=", msg)
-        for look in (Recolor(), Aura(), EmissiveBloom()):
-            with self.assertRaises(TypeError) as ctx:
-                c.visual = look
-            msg = str(ctx.exception).lower()
-            self.assertIn("sprite-only", msg)
-            if type(look).__name__ == "Recolor":
-                self.assertIn("shift=", msg)
+        # Aura and EmissiveBloom wear a Shape too since 2026-10-27
+        # (test_shape_pixel_looks); Recolor changes an image's pixels.
+        with self.assertRaises(TypeError) as ctx:
+            c.visual = Recolor()
+        msg = str(ctx.exception).lower()
+        self.assertIn("sprite-only", msg)
+        self.assertIn("shift=", msg)
         c.visual = Rim()
         self.assertIsInstance(c.visual, Rim)
 
