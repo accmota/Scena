@@ -300,6 +300,117 @@ class TestDeclick(unittest.TestCase):
         self.assertEqual(voices, {})
 
 
+def _fake_miniaudio():
+    """A ``miniaudio`` whose playback device opens no hardware."""
+    import types
+
+    fake = types.ModuleType("miniaudio")
+
+    class SampleFormat:
+        FLOAT32 = 1
+
+    class _Device:
+        def __init__(self, **kwargs):
+            pass
+
+        def start(self, gen):
+            self._gen = gen
+
+        def close(self):
+            pass
+
+    fake.SampleFormat = SampleFormat
+    fake.PlaybackDevice = _Device
+    return fake
+
+
+class TestAudioThreadGil(unittest.TestCase):
+    """The device callback mixes in Python: it must win the GIL from a busy main thread.
+
+    The mix gives the GIL up inside its numpy calls. With the default 5 ms
+    switch interval (a 15.6 ms tick on Windows) every take-back waited for the
+    main thread, and at ``canvas.framerate = "max"`` about half the 40 ms
+    blocks missed the device (``examples/pendulums.py`` stuttered).
+    """
+
+    def setUp(self):
+        from unittest.mock import patch
+
+        saved = sys.getswitchinterval()
+        self.addCleanup(sys.setswitchinterval, saved)
+        sys.setswitchinterval(0.005)
+        modules = patch.dict(sys.modules, {"miniaudio": _fake_miniaudio()})
+        modules.start()
+        self.addCleanup(modules.stop)
+        self.mixer = Mixer()
+        self.addCleanup(self.mixer.stop_device)
+
+    def test_device_lowers_the_switch_interval_and_stop_restores_it(self):
+        from scena.audio_mixer import AUDIO_SWITCH_INTERVAL
+
+        self.mixer.start_device()
+        self.assertAlmostEqual(sys.getswitchinterval(), AUDIO_SWITCH_INTERVAL)
+        self.mixer.stop_device()
+        self.assertAlmostEqual(sys.getswitchinterval(), 0.005)
+
+    def test_a_lower_interval_already_set_is_kept(self):
+        sys.setswitchinterval(0.0001)
+        lower = sys.getswitchinterval()     # stored in microseconds, so 9.9e-05
+        self.mixer.start_device()
+        self.assertEqual(sys.getswitchinterval(), lower)
+        self.mixer.stop_device()
+        self.assertEqual(sys.getswitchinterval(), lower)
+
+    def test_stop_keeps_an_interval_changed_while_playing(self):
+        self.mixer.start_device()
+        sys.setswitchinterval(0.002)
+        self.mixer.stop_device()
+        self.assertAlmostEqual(sys.getswitchinterval(), 0.002)
+
+    def test_reset_restores_the_interval(self):
+        self.mixer.start_device()
+        self.mixer.reset()
+        self.assertAlmostEqual(sys.getswitchinterval(), 0.005)
+
+    def test_mix_keeps_up_with_a_busy_thread(self):
+        """Pendulums' worst moment: 13 voices, a thread that never sleeps.
+
+        Before the fix one 40 ms block took ~2.5 s of wall time on the Windows
+        laptop (~3 ms alone); with it, ~7 ms.
+        """
+        import threading
+        import time
+
+        mixer = self.mixer
+        mixer.start_device()
+        for k in range(13):
+            mixer.start_voice(samples=make_sine(220 + 30 * k, 5.0, amp=0.05),
+                              pitch=1 + k / 20, pan=k / 13 - 0.5)
+        frames = 1764                       # the 40 ms block the device asks for
+        mixer.render_block(frames)          # START commands, first-touch costs
+        stop = threading.Event()
+
+        def busy():
+            n = 0
+            while not stop.is_set():
+                n += 1
+
+        worker = threading.Thread(target=busy, daemon=True)
+        worker.start()
+        try:
+            walls = []
+            for _ in range(5):
+                t0 = time.perf_counter()
+                mixer.render_block(frames)
+                walls.append(time.perf_counter() - t0)
+        finally:
+            stop.set()
+            worker.join()
+        walls.sort()
+        self.assertLess(walls[2], frames / SAMPLE_RATE,
+                        f"mixing slower than real time beside a busy thread: {walls}")
+
+
 from scena import Circle, Line, play_sound, Sound, clock
 from scena.audio import SAMPLE_RATE as _SR
 from scena.process import (

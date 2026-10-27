@@ -51,6 +51,13 @@ left out.
 
 ### Fixed
 
+- Sound no longer stutters while the main thread is busy, as at
+  `canvas.framerate = "max"` (`examples/pendulums.py` lost about half its
+  audio on a Windows laptop). The mixer, which runs in Python on the audio
+  thread, waited for the main thread up to 15 ms at a time on every block;
+  while a sound device plays, Scena now lowers Python's thread switch
+  interval (`sys.setswitchinterval`) to 0.5 ms and restores it on exit. A
+  program that sets a lower interval itself keeps it.
 - A shape whose `scale` follows a formula (`sq["scale"] @= lambda: st.k`)
   reads its new size at once: `sq.length`, `width`, `radius`, a corner or a
   point read right after the source moved gave the size from before until
