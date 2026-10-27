@@ -232,16 +232,19 @@ def build_upright_text_path(text, x: float, y: float, font) -> skia.Path:
 def _paint_for_upright_string(paint, x: float, y: float):
     """Re-anchor auto-fit shaders after ``translate(x, y) · scale(1, -1)``.
 
-    Prefer :func:`build_upright_text_path` + ``drawPath`` for Shape-like
-    materials. This keeps ``draw_string_upright`` correct for widget chrome.
+    The local matrix is the inverse of that move, ``scale(1, -1) ·
+    translate(-x, -y)``, so the shader samples the caller's frame: a Text's
+    Gradient / Texture spans its box as on a Shape. The other order shifts
+    the material by ``2y`` (it went unseen while no caller passed a shader
+    with ``y`` far from 0).
     """
     shader = paint.getShader()
     if shader is None:
         return paint
     out = skia.Paint(paint)
     m = skia.Matrix()
-    m.setTranslate(-float(x), -float(y))
-    m.preScale(1.0, -1.0)
+    m.setScale(1.0, -1.0)
+    m.preTranslate(-float(x), -float(y))
     if hasattr(shader, "makeWithLocalMatrix"):
         out.setShader(shader.makeWithLocalMatrix(m))
     return out

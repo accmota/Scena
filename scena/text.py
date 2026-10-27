@@ -632,11 +632,12 @@ class Text(Graphic, PaintState):
         c = self.__dict__.get("text")
         return c if c is not None else Text.__dict__["text"].cell(self)
 
-    def _needs_outline_path(self) -> bool:
+    def _has_shader_ink(self) -> bool:
         """True when fill/line is a shader material (Gradient / Texture / …).
 
-        Solid Color + optional Glow can use GPU ``drawString`` (glyph atlas).
-        Path outlines exist so shaders share the Shape local frame.
+        Shader ink draws from the glyph atlas like solid ink (the material's
+        frame is the paint's local matrix); what changes is the box: a single
+        line is its tight ink, so the material spans the letters as on a Shape.
         """
         fill = self._fill
         if fill is not None and not isinstance(fill, Color):
@@ -663,7 +664,9 @@ class Text(Graphic, PaintState):
         return self
 
     def _glyph_path0(self) -> skia.Path:
-        """Origin-space glyph outlines, rebuilt only when ink/font change."""
+        """Origin-space glyph outlines, rebuilt only when ink/font change.
+
+        Only measured (the tight ink box of shader ink); never drawn."""
         content = self._displayed_text()
         key = (content, float(self._font_size), id(self._skia_font))
         if getattr(self, "_gp0_key", None) != key:
@@ -673,7 +676,6 @@ class Text(Graphic, PaintState):
             self._gp0_bounds = None
             if path is not None and not path.isEmpty():
                 self._gp0_bounds = path.computeTightBounds()
-            self._gp_box_key = None
         return self._gp0
 
     def _glyph_box_size(self) -> tuple[float, float]:
@@ -685,7 +687,7 @@ class Text(Graphic, PaintState):
         content = self._displayed_text()
         if _has_line_breaks(content):
             return self._broken_box_size(content)
-        need_path = self._needs_outline_path()
+        need_path = self._has_shader_ink()
         key = (content, float(self._font_size), id(self._skia_font), need_path)
         if getattr(self, "_box_key", None) == key:
             return self._box_wh
@@ -717,29 +719,6 @@ class Text(Graphic, PaintState):
         self._box_key = key
         self._box_wh = (w, h)
         return self._box_wh
-
-    def _glyph_path_in_box(self, local_x1: float, local_y1: float) -> skia.Path:
-        """Glyph path with tight ink filling the local box from ``(local_x1, local_y1)``.
-
-        Probe paths are built at baseline 0; Skia ``Rect.top()`` is min-y
-        (visual bottom in y-up), ``left()`` is min-x.
-        """
-        path0 = self._glyph_path0()
-        if path0 is None or path0.isEmpty():
-            return path0 if path0 is not None else skia.Path()
-        b = self._gp0_bounds
-        x1 = float(local_x1)
-        y1 = float(local_y1)
-        box_key = (self._gp0_key, round(x1, 2), round(y1, 2))
-        if getattr(self, "_gp_box_key", None) == box_key:
-            return self._gp_box
-        m = skia.Matrix()
-        m.setTranslate(x1 - float(b.left()), y1 - float(b.top()))
-        out = skia.Path()
-        out.addPath(path0, m)
-        self._gp_box = out
-        self._gp_box_key = box_key
-        return out
 
     def _layout_box_size(self) -> tuple[float, float, float]:
         """Return ``(box_w, box_h, glyph_w)`` — fixed width or content width."""
@@ -1044,17 +1023,6 @@ class Text(Graphic, PaintState):
             float(rgba[0]), float(rgba[1]), float(rgba[2]), float(alpha),
         ))
         return paint
-
-    def _draw_path_glow(self, skia_canvas, glyph_path: skia.Path, glow) -> None:
-        """Filterless ADD halo on glyph outlines (shader / Gradient hosts)."""
-        if glyph_path.isEmpty():
-            return
-        metrics = self._text_glow_metrics(glow)
-        if metrics is None:
-            return
-        _kind, rgba, layers, _max_w = metrics
-        for width, alpha in layers:
-            skia_canvas.drawPath(glyph_path, self._tint_glow_paint(rgba, width, alpha))
 
     def _draw_string_glow(self, skia_canvas, text: str, x: float, y: float, glow) -> None:
         """Same ADD ladder via glyph atlas (no path tessellation)."""
@@ -1504,23 +1472,6 @@ class Text(Graphic, PaintState):
         pin scales with it, so every part stays with the drawing."""
         return self._pinned_pose_verb(super().scale_by, factor, args, kwargs, "scale_by")
 
-    def _broken_glyph_path(
-        self, lines, local_x1: float, local_y1: float, box_w: float, line_h: float, font,
-    ) -> skia.Path:
-        """One outline path: each hard-break line in its metric slot (y-up)."""
-        out = skia.Path()
-        n = len(lines)
-        for i, line in enumerate(lines):
-            if not line:
-                continue
-            y_min = local_y1 + (n - 1 - i) * line_h
-            baseline = text_baseline_in_box(y_min, line_h, font)
-            glyph_x = local_x1 + self._glyph_x_in_box(box_w, measure_text(font, line))
-            piece = build_upright_text_path(line, glyph_x, baseline, font)
-            if piece is not None and not piece.isEmpty():
-                out.addPath(piece)
-        return out
-
     def _draw_broken_lines(
         self, skia_canvas, content: str, local_x1: float, local_y1: float,
         box_w: float, fill, stroke, glow,
@@ -1530,19 +1481,6 @@ class Text(Graphic, PaintState):
         font = self._skia_font
         line_h = text_line_height(font)
         n = len(lines)
-        if self._needs_outline_path():
-            glyph_path = self._broken_glyph_path(
-                lines, local_x1, local_y1, box_w, line_h, font,
-            )
-            empty = glyph_path.isEmpty()
-            if fill is not None and not empty:
-                if glow is not None:
-                    self._draw_path_glow(skia_canvas, glyph_path, glow)
-                skia_canvas.drawPath(glyph_path, fill)
-            if stroke is not None and not empty:
-                stroke.setStyle(skia.Paint.kStroke_Style)
-                skia_canvas.drawPath(glyph_path, stroke)
-            return
         for i, line in enumerate(lines):
             if not line:
                 continue
@@ -1620,17 +1558,20 @@ class Text(Graphic, PaintState):
             self._draw_broken_lines(
                 skia_canvas, content, local_x1, local_y1, box_w, fill, stroke, glow,
             )
-        elif self._needs_outline_path():
-            # Shader materials: local-space glyph path (Gradient/Texture frame).
-            glyph_path = self._glyph_path_in_box(glyph_x, local_y1)
-            empty = glyph_path is None or glyph_path.isEmpty()
-            if fill is not None and not empty:
-                if glow is not None:
-                    self._draw_path_glow(skia_canvas, glyph_path, glow)
-                skia_canvas.drawPath(glyph_path, fill)
-            if stroke is not None and not empty:
-                stroke.setStyle(skia.Paint.kStroke_Style)
-                skia_canvas.drawPath(glyph_path, stroke)
+        elif self._has_shader_ink():
+            # Shader materials: same glyph atlas, ink placed as the tight box.
+            self._glyph_path0()
+            ink = self._gp0_bounds
+            if ink is not None:
+                x = glyph_x - float(ink.left())
+                baseline = local_y1 - float(ink.top())
+                if fill is not None:
+                    if glow is not None:
+                        self._draw_string_glow(skia_canvas, content, x, baseline, glow)
+                    draw_string_upright(skia_canvas, content, x, baseline, self._skia_font, fill)
+                if stroke is not None:
+                    stroke.setStyle(skia.Paint.kStroke_Style)
+                    draw_string_upright(skia_canvas, content, x, baseline, self._skia_font, stroke)
         else:
             # Solid Color (± Glow): GPU glyph atlas, same as old Label.
             if content:

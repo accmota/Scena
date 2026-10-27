@@ -47,6 +47,11 @@ left out.
 
 ### Changed
 
+- Text with a `Gradient` or `Texture` fill or outline draws as fast as
+  plain text: a 7-line story with a gradient and an outline went from
+  ~130 to ~400 fps. Dense lettering in a gradient (an intro, a story
+  screen) no longer needs to be plain to keep the frame rate.
+
 - `hitbox_shape="auto"` computes a Sprite's hitbox about 40 % faster (on
   load, or per frame with `hitbox_source="each"`) and never makes a hitbox
   of several circles. Several circles won on 5 of 851 test images, each
