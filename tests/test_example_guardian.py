@@ -25,7 +25,10 @@ screen; the waves run one after the other to "THE RING IS SAFE", the camera
 turns only on the waves marked ``turn``, the embers come once (the wave marked
 ``party``) and the victory is geometric (``celebrate``: a four-point
 Starburst, ten small hexagons that open over the ring and then fly away,
-lights around the ring), with no embers; the playfield is the camera's view
+lights around the ring), with no embers; a defeat sets the ring on fire
+(``burn``: a Sunburst swelling in the ring, Sparks, a fire of tongues where
+the ship is and two blazes on the ring, all leaning out, the two blazes
+nearer the ship when the ring is half off the screen); the playfield is the camera's view
 plus MARGIN, so a missed shot goes as soon as it leaves the screen, while
 what starts off the screen comes in safely, and a shot fired off the screen
 ends by its lifetime;
@@ -471,6 +474,58 @@ class TestGuardianVictory(unittest.TestCase):
             self.assertGreater(min(far()), 200, "the bundle did not fly away")
             inner, outer = far()[0], far()[-1]
             self.assertGreater(inner, outer, "no tail: the outer ones should follow behind")
+
+
+class TestGuardianDefeat(unittest.TestCase):
+    def fires(self, run):
+        """Record the fire effects the defeat makes: (kind, keywords)."""
+        ns = run.ns
+        made = []
+        for name in ("Sunburst", "Fire", "Sparks"):
+            def record(real=ns[name], name=name, **kw):
+                made.append((name, kw))
+                return real(**kw)
+            ns[name] = record
+        return made
+
+    def check(self, ns, made, bearing, spread):
+        made = [(name, kw) for name, kw in made if not callable(kw["center"])]   # not the ship's sparks
+        kinds = sorted(name for name, kw in made)
+        self.assertEqual(kinds, ["Fire", "Fire", "Fire", "Sparks", "Sunburst"])
+        center = ns["CENTER"]
+        for name, kw in made:
+            if name != "Fire":
+                self.assertEqual(kw["center"], center, name)
+        fires = {(kw["style"], round(kw["angle"] - bearing)) for name, kw in made
+                 if name == "Fire"}
+        self.assertEqual(fires, {("tongues", 0), ("blaze", -spread), ("blaze", spread)})
+        for name, kw in made:       # on the ring, leaning out
+            if name == "Fire":
+                along = ns["on_ring"](kw["angle"], ns["RADIUS"])
+                self.assertLess(math.dist((float(kw["center"].x), float(kw["center"].y)),
+                                          (float(along.x), float(along.y))), 1e-6)
+
+    def test_the_ring_burns_when_it_falls(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            made = self.fires(run)
+            ship.bearing = 30
+            run.step(1)
+            ns["st"].ring_life = 0
+            run.step(SECOND)
+            self.assertTrue(act().over)
+            self.check(ns, made, 30, 120)
+
+    def test_the_ring_burns_when_the_ship_falls_and_the_blazes_stay_on_screen(self):
+        with ProgramRun(PATH) as run:
+            ns, ship = quiet(run)
+            made = self.fires(run)
+            act().edge = True       # the ring half off the screen (wave 6)
+            bearing = ship.bearing
+            ns["st"].ship_life = 0
+            run.step(SECOND)
+            self.assertTrue(act().over)
+            self.check(ns, made, bearing, 65)
 
 
 class TestGuardianWaves(unittest.TestCase):

@@ -139,8 +139,9 @@ left out.
   drawn as three translucent triangles whose wings breathe; the embers come
   once, after wave 6, and the victory is geometric (a four-point star,
   small hexagons in the aurora colors that open over the ring and fly away,
-  lights running around it); the playfield follows the camera, so a shot
-  that misses goes as soon as it leaves the screen. It has sound
+  lights running around it), and a defeat sets the ring on fire (a fireball,
+  sparks, flames leaning out of it); the playfield follows the camera, so a
+  shot that misses goes as soon as it leaves the screen. It has sound
   effects and music; its title and wave banners are in Bungee, the story in
   Play (Play Bold on the HUD).
 

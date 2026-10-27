@@ -735,6 +735,21 @@ def celebrate():
         glint["end"] @= lambda offset=offset: (offset + 0.4 * since() + 0.2) % 1
 
 
+# The defeat: a fireball swells in the ring, with sparks in its heart; the
+# ring burns where the ship was and on two sides, the flames leaning out (the
+# two sides come closer to the ship when the ring is half off the screen).
+def burn(bearing, edge):
+    ball = Sunburst(center=CENTER, radius=20, color="orange red")
+    tween(ball["radius"], RADIUS, time=1.5, ease="ease_out")
+    Sparks(center=CENTER, radius=90, rate=90, amount=1.5, color="gold")
+    Fire(center=on_ring(bearing, RADIUS), style="tongues", width=70, length=120,
+         angle=bearing)
+    spread = 65 if edge else 120
+    for side in (-spread, spread):
+        Fire(center=on_ring(bearing + side, RADIUS), style="blaze", width=60,
+             length=140, angle=bearing + side)
+
+
 # The portal a cluster comes out of, facing the ring.
 def open_portal(side, gate):
     return Portal(center=on_ring(side, gate), radius=120, tilt=60,
@@ -814,6 +829,7 @@ class Game(Act):
         self.panel = lettering(Text("", top_right=(1256, 784), font=HUD_FONT,
                                     font_size=24), "gold", "orange red")
         self.over = False
+        self.edge = False       # the ring half off the screen
         self.music = play_sound("music/battle_theme_a.ogg", volume=MUSIC,
                                 loops="forever", crossfade=1.5, name="music")
         self.waves = self.run_task(self.director)
@@ -848,6 +864,7 @@ class Game(Act):
             announce(f"WAVE {number + 1}   {wave['name']}")
             st.glow = wave["glow"]
             st.pace = wave.get("pace", 1)
+            self.edge = wave.get("ring") == "edge"
             if wave.get("turn"):
                 self.turn = 90 - side
                 canvas.rotate_to(self.turn, time=2, ease="ease_in_out")
@@ -920,6 +937,7 @@ class Game(Act):
     @when(lambda self: st.ship_life <= 0 or st.ring_life <= 0)
     def lost(self):
         self.waves.cancel()
+        burn(self.ship.bearing, self.edge)
         self.music.fade_out(3)
         self.finish("GAME OVER")
 
