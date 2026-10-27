@@ -16,6 +16,7 @@ Today’s baseline — [Scena Design.md](Scena%20Design.md#design-documents-are-
 | Mixer / threads / limiter | [Mixer](#mixer) |
 | Master bus | [Master](#master) |
 | Missing files / banner | [Assets](#assets) |
+| No miniaudio (Python 3.15, ARM) / silent install | [No miniaudio](#no-miniaudio) |
 | Analysis / mic / record / effects | [Analysis](#analysis), [Microphone](#microphone), [Effects](#effects) |
 | `@=` / `@when` on a level | [Levels as formula sources](#levels-as-formula-sources) |
 | Locating code | [Router](#router) |
@@ -293,6 +294,32 @@ WAV / FLAC / Ogg / MP3 (what miniaudio decodes). Missing or corrupt: warn
 banner (amber), same Ctrl+Shift+E dismiss. Terminal
 `warnings.warn` still fires.
 
+### No miniaudio
+
+miniaudio (decoder and device) has wheels only for some Pythons and
+platforms (1.71: CPython 3.10–3.14 on macOS, Windows x86 / x64, Linux
+x86_64). Elsewhere pip builds it from the sdist and, without a C compiler,
+the whole `pip install scena` fails. So `pyproject.toml` lists it with a
+marker for exactly that wheel set, and the engine runs without it:
+
+- `audio_mixer.miniaudio_module()` probes the import once (a failed import
+  searches the whole path); `reset_mixer` probes again (tests block it with
+  `sys.modules["miniaudio"] = None`).
+- `start_device` returns and the mixer stays **offline**: `tick_audio`
+  pumps it, so Handles tick, `on_done` / `await` / `loops` behave, analysis
+  reads 0.
+- Every file is the missing-file silence (nominal 1 s). One SCENA WARNING
+  for the whole game (`NO_MINIAUDIO_MESSAGE`: use Python 3.14, or `python -m
+  pip install miniaudio`), on the first decode or `play_sound` (`where`
+  `play_sound`) or `Microphone()` (silent mic, `backends=` unchecked). A
+  game that never plays a sound sees nothing.
+
+Fence: do not cap `requires-python` for a missing wheel (pip would pick an
+older Scena with no cap and fail the same way), and do not move miniaudio to
+an extra (3.12–3.14 users would lose sound by default). When miniaudio
+ships wheels for more, widen the marker (`tests/test_audio.py`
+`TestMiniaudioMarker` lists the cases) and the README / Guia note.
+
 ## Analysis
 
 `.level` / `.spectrum(bins=)` on `audio` (master mix), a sound `Handle` (one
@@ -365,7 +392,8 @@ a mixer reset) gets `update()`. `.level` stays a live read; the node only says
 that line. `mic.available` (read-only) is `True` while a device is open, `False`
 when none opened or after `close()` (2026-10-23: a game had only the warning
 to tell). No device: one SCENA WARNING and a silent mic (`.level` stays 0;
-a timed `record` still finishes, filled with zeros). There is no input or
+a timed `record` still finishes, filled with zeros). No miniaudio: the same silent mic, with
+[its own warning](#no-miniaudio). There is no input or
 output picker — Scena follows the system default.
 `play_sound(mic)` monitors via the same pluggable `FrameSource` seam as a
 decoded buffer — construction does not imply monitor. `.level` / `.spectrum`

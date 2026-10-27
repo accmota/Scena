@@ -1,5 +1,5 @@
 # Tests on every push to main and every pull request: the README's promise
-# (Python 3.12-3.14 on Windows, macOS and Linux), checked on GitHub's runners.
+# (Python 3.12-3.15 on Windows, macOS and Linux), checked on GitHub's runners.
 # What each cell runs and what CI does not cover: design/Testing Design.md,
 # "Continuous integration".
 #
@@ -48,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.12", "3.13", "3.14"]
+        python: ["3.12", "3.13", "3.14", "3.15"]
         part: [""]          # "" = smoke; "K/3" = that part of the quick tier
         exclude:
           - os: ubuntu-latest
@@ -105,6 +105,16 @@ jobs:
           print("scena", scena.__version__, "on Python", sys.version.split()[0])
           EOF
           scena-editor --help > /dev/null
+
+      # No miniaudio wheel for Python 3.15: the wheel above must have
+      # installed and imported without it (the marker in pyproject.toml).
+      # The audio tests need it, so build it from source (the runners have a
+      # C compiler).
+      - name: miniaudio from source (no wheel for this Python)
+        if: matrix.python == '3.15'
+        run: |
+          python -c "import importlib.util, sys; sys.exit('miniaudio was installed: check the marker' if importlib.util.find_spec('miniaudio') else 0)"
+          python -m pip install miniaudio
 
       - name: Quick tier, one part
         if: matrix.part != ''

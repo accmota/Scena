@@ -48,7 +48,7 @@ class TestStage0Dependency(unittest.TestCase):
         # pyproject.toml is the one package definition (setup.py is gone).
         with open(root / "pyproject.toml", "rb") as f:
             deps = tomllib.load(f)["project"]["dependencies"]
-        self.assertIn("miniaudio", deps)
+        self.assertTrue(any(d.startswith("miniaudio;") for d in deps), deps)
         self.assertIn("numpy", deps)
         backends = miniaudio.get_enabled_backends()
         self.assertIn(miniaudio.Backend.NULL, backends)
@@ -1238,6 +1238,139 @@ class TestSoundGuards(PlaySoundTestCase):
         block = mixer.render_block(256).block
         self.assertEqual(block.shape, (256, 2))
         self.assertLess(float(np.max(np.abs(block))), 1e-8)
+
+
+class TestWithoutMiniaudio(PlaySoundTestCase):
+    """No miniaudio wheel for this Python / computer (3.15 on release): the
+    install leaves it out (pyproject marker) and the game runs silent, with
+    one SCENA WARNING that says how to get sound."""
+
+    def setUp(self):
+        from unittest import mock
+        from scena.audio_mixer import reset_mixer
+        blocked = mock.patch.dict(sys.modules, {"miniaudio": None})
+        blocked.start()
+        self.addCleanup(reset_mixer)   # probe the real module again
+        self.addCleanup(blocked.stop)
+        super().setUp()               # reset_mixer: probes the blocked import
+
+    def _scena_warnings(self, caught):
+        return [str(w.message) for w in caught if "SCENA WARNING" in str(w.message)]
+
+    def test_files_play_silence_with_one_warning_for_the_game(self):
+        from scena.audio_mixer import NO_MINIAUDIO_MESSAGE
+        done = []
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            h = play_sound(media("audio", "laser-big.wav"), on_done=lambda: done.append(1))
+            play_sound(media("audio", "laser-big.wav"))
+            Sound(media("audio", "laser-big.wav"))
+        msgs = self._scena_warnings(caught)
+        self.assertEqual(len(msgs), 1, msgs)
+        banner = last_author_error()
+        self.assertEqual(banner["where"], "play_sound")
+        self.assertEqual(banner["message"], NO_MINIAUDIO_MESSAGE)
+        # The missing-file rule: nominal duration, the handle ticks.
+        _frame(0.5)
+        self.assertFalse(h.done)
+        _frame(0.7)
+        self.assertEqual(done, [1])
+        self.assertTrue(h.done)
+        self.assertFalse(h.cancelled)
+
+    def test_a_pcm_sound_warns_too(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            h = play_sound(_pcm(0.2))
+        self.assertEqual(len(self._scena_warnings(caught)), 1)
+        _frame(0.3)
+        self.assertTrue(h.done)
+
+    def test_a_game_without_sound_does_not_warn(self):
+        from scena.audio_mixer import get_mixer
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            get_mixer().start_device()      # what run() does first
+            _frame(0.1)
+        self.assertEqual(self._scena_warnings(caught), [])
+        self.assertIsNone(last_author_error())
+        self.assertTrue(get_mixer().offline)
+
+    def test_microphone_is_silent_and_says_why(self):
+        from scena import Microphone
+        from scena.audio_mixer import NO_MINIAUDIO_MESSAGE
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            mic = Microphone()
+            Microphone(backends=["anything"])   # no Backend to check against
+        self.assertEqual(len(self._scena_warnings(caught)), 1)
+        banner = last_author_error()
+        self.assertEqual(banner["where"], "Microphone")
+        self.assertEqual(banner["message"], NO_MINIAUDIO_MESSAGE)
+        self.assertEqual(mic.level, 0.0)
+        mic.close()
+
+    def test_the_message_names_the_way_out(self):
+        from scena.audio_mixer import NO_MINIAUDIO_MESSAGE
+        self.assertIn("Python 3.14", NO_MINIAUDIO_MESSAGE)
+        self.assertIn("python -m pip install miniaudio", NO_MINIAUDIO_MESSAGE)
+
+    def test_scena_imports_and_plays_in_a_fresh_process(self):
+        import subprocess
+        import textwrap
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        script = textwrap.dedent("""
+            import sys, warnings
+            sys.modules["miniaudio"] = None
+            warnings.simplefilter("ignore")
+            import scena
+            from scena.process import last_author_error
+            scena.play_sound("laser-big.wav")
+            print(last_author_error()["message"][:9])
+        """)
+        out = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, encoding="utf-8", errors="replace",
+            cwd=os.path.join(MEDIA, "audio"),
+            env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": root,
+                 "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout.strip(), "No sound:")
+
+
+class TestMiniaudioMarker(unittest.TestCase):
+    """pip installs miniaudio only where it has a wheel (1.71's list)."""
+
+    def test_marker_matches_the_wheels(self):
+        import tomllib
+        from pathlib import Path
+        try:
+            from packaging.requirements import Requirement
+        except ImportError:
+            self.skipTest("packaging is not installed")
+        root = Path(__file__).resolve().parents[1]
+        with open(root / "pyproject.toml", "rb") as f:
+            deps = tomllib.load(f)["project"]["dependencies"]
+        (req,) = [Requirement(d) for d in deps if d.startswith("miniaudio")]
+
+        def env(py, plat, machine):
+            return {"python_version": py, "sys_platform": plat, "platform_machine": machine}
+
+        wheels = [
+            env("3.12", "darwin", "arm64"), env("3.14", "darwin", "x86_64"),
+            env("3.13", "win32", "AMD64"), env("3.12", "win32", "x86"),
+            env("3.14", "linux", "x86_64"),
+        ]
+        no_wheel = [
+            env("3.15", "darwin", "arm64"), env("3.15", "win32", "AMD64"),
+            env("3.15", "linux", "x86_64"), env("3.14", "win32", "ARM64"),
+            env("3.13", "linux", "aarch64"), env("3.13", "linux", "i686"),
+        ]
+        for e in wheels:
+            self.assertTrue(req.marker.evaluate(e), e)
+        for e in no_wheel:
+            self.assertFalse(req.marker.evaluate(e), e)
 
 
 if __name__ == "__main__":

@@ -133,7 +133,7 @@ the **frame** (see [Datapath](#datapath)).
 | **Scheduler / events** | Cooperative process (`after` / `every` / modes / tweens); formula-driven `@when` / `@on_change`. Author cancel of owned work is per-Entity `cancel_process()` (not a global reset). |
 | **Effects** | Looks, shape transients, SpatialFx, backgrounds, canvas post, quality. Orthogonal to the graph unless the author links Attributes into paint or domain pose. |
 | **Input / widgets** | `keyp` / `mouse` / `clock`; widgets + HUD `Text` share a view-space column (immune to camera). |
-| **Audio** | `play_sound` / `Sound` / `audio` bus; numpy mixer + miniaudio device; analysis; optional `Microphone` (monitor, dry `record` / `stop`) + named FX catalog. Same `Handle` as `after`. OS default input and output. |
+| **Audio** | `play_sound` / `Sound` / `audio` bus; numpy mixer + miniaudio device (optional: [silent without it](Sound%20Design.md#no-miniaudio)); analysis; optional `Microphone` (monitor, dry `record` / `stop`) + named FX catalog. Same `Handle` as `after`. OS default input and output. |
 
 **How they fit.** Construction registers most kinds (materials do not).
 An `Entity` may host processes and enroll in collision. A `Graphic` draws in a layer

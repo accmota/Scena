@@ -8708,6 +8708,7 @@ class Ship(Sprite):
         self.hum.fade_out(0.3)</pre>
       </div>
       <p>Os dois <code>name="music"</code> acima trocam porque rodam no mesmo lugar. O slot é por lugar (<a href="#vocabulario">slot</a>): solto no <code>setup</code> de um ato e solto dentro de um mode do ato são dois slots, e as duas músicas tocam. Trilha de um ato que troca entre fases: <code>self.play_sound("tema.ogg", name="musica", loops="forever")</code> no ato, sempre.</p>
+      <p class="gotcha"><strong>Sem som no Python 3.15.</strong> O som usa o pacote <code>miniaudio</code>, que ainda não tem versão pronta para o Python 3.15 (nem para Windows ou Linux em ARM). Nesses casos o <code>pip install scena</code> instala o Scena sem ele e o jogo roda mudo: o primeiro som mostra um SCENA WARNING, cada som vira 1 segundo de silêncio e os Handles contam o tempo como sempre (<code>on_done</code>, <code>await</code>). Para ter som, use o Python 3.14, ou rode <code>python -m pip install miniaudio</code> (precisa de um compilador C).</p>
       <details class="spec" open>
       <summary>Neste play_sound</summary>
         <div class="tbl-wrap">

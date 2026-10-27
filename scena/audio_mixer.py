@@ -25,6 +25,47 @@ MAX_BAKE_FRAMES = SAMPLE_RATE * 60 * 30
 # (~5 ms) instead of dropping the waveform mid-cycle, which clicks.
 DECLICK_FRAMES = 220
 
+# miniaudio is installed only where it has a ready-made wheel (pyproject's
+# marker: none for Python 3.15 or ARM Windows / Linux yet; elsewhere pip
+# would compile it and fail without a C compiler). Without it: no device,
+# every sound is the missing-file silence, one SCENA WARNING.
+NO_MINIAUDIO_MESSAGE = (
+    "No sound: the miniaudio package is not installed (it has no ready-made "
+    "package for this Python or computer yet). The game runs silent and "
+    "sound handles still tick. For sound, use Python 3.14, or run "
+    "`python -m pip install miniaudio` (it needs a C compiler)."
+)
+_UNPROBED = object()
+_miniaudio: Any = _UNPROBED
+_miniaudio_warned = False
+
+
+def miniaudio_module():
+    """The ``miniaudio`` module, or ``None`` when it is not installed.
+
+    Probed once (a failed import searches the whole path); ``reset_mixer``
+    probes again.
+    """
+    global _miniaudio
+    if _miniaudio is _UNPROBED:
+        try:
+            import miniaudio
+        except ImportError:
+            miniaudio = None
+        _miniaudio = miniaudio
+    return _miniaudio
+
+
+def require_miniaudio(where: str):
+    """``miniaudio_module()``; when missing, the first call warns (``where``)."""
+    global _miniaudio_warned
+    module = miniaudio_module()
+    if module is None and not _miniaudio_warned:
+        _miniaudio_warned = True
+        from .process import report_author_warning
+        report_author_warning(where, NO_MINIAUDIO_MESSAGE)
+    return module
+
 
 def require_finite(
     name: str,
@@ -1076,10 +1117,9 @@ class Mixer:
         return self.render_block(n)
 
     def start_device(self, *, backends=None, buffersize_msec: int = 40) -> None:
-        import miniaudio
-
-        if self._device is not None:
-            return
+        miniaudio = miniaudio_module()
+        if miniaudio is None or self._device is not None:
+            return  # no miniaudio: stay offline; the first sound warns
         kwargs = dict(
             output_format=miniaudio.SampleFormat.FLOAT32,
             nchannels=CHANNELS,
@@ -1159,7 +1199,9 @@ def get_mixer() -> Mixer:
 
 
 def reset_mixer() -> None:
-    global _mixer, _publish_count
+    global _mixer, _publish_count, _miniaudio, _miniaudio_warned
+    _miniaudio = _UNPROBED
+    _miniaudio_warned = False
     if _mixer is not None:
         _mixer.reset()
     _mixer = Mixer()

@@ -12,7 +12,23 @@ left out.
 
 ## Unreleased
 
+### Fixed
+
+- `pip install scena` no longer fails on Python 3.15 (or on Windows or Linux
+  on ARM) for want of a C compiler. Sound's package, miniaudio, has no
+  ready-made build there yet, so pip now installs it only where it has one
+  (Python 3.12 to 3.14 on macOS, Windows and Linux x86_64). Without it a
+  game runs silent: the first sound shows one SCENA WARNING, every sound is
+  1 second of silence, Handles keep time (`on_done`, `await`), and
+  `Microphone()` is a silent mic. For sound there, use Python 3.14 or run
+  `python -m pip install miniaudio` (it needs a C compiler).
+
 ### Documentation
+
+- The README's install section recommends Python 3.14 and says when Scena
+  installs without sound; the Guia's `play_sound` section has the same note.
+- CI tests Python 3.15 too, on Windows, macOS and Linux: the wheel installs
+  and imports without miniaudio, then the smoke modules run.
 
 - New tutorial 33, Cem linhas / 100 Lines (`examples/cem_linhas.py`,
   `examples/hundred_lines.py`), 13 steps, in Portuguese and English: a

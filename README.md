@@ -342,7 +342,9 @@ comments.
 
 ## Install
 
-Scena needs Python 3.12 or newer, on Windows, macOS or Linux.
+Scena needs Python 3.12 or newer, on Windows, macOS or Linux. Python 3.14
+is the best choice today: on Python 3.15 games run without sound for now
+(below).
 
 ```bash
 pip install scena
@@ -352,6 +354,13 @@ Then, in any script: `from scena import *`.
 
 A Linux server or container may lack libEGL and libGL, which skia-python needs
 (Debian/Ubuntu: `sudo apt install libegl1 libgl1`).
+
+Sound uses [miniaudio](https://pypi.org/project/miniaudio/), which pip installs
+only where it has a ready-made package: Python 3.12 to 3.14 on macOS, Windows
+and Linux (x86_64). Elsewhere (Python 3.15, Windows or Linux on ARM) Scena
+installs without it and games run silent, with one SCENA WARNING on the first
+sound. `python -m pip install miniaudio` brings sound back on a computer with a
+C compiler.
 
 To try the examples, download
 [`scena-examples.zip`](https://github.com/accmota/Scena/releases/latest/download/scena-examples.zip)

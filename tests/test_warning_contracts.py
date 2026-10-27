@@ -104,6 +104,7 @@ CONTRACTS: Dict[str, W] = {
     "audio:_warn_asset": W(fires="test_audio", twin=MISSING_FILE),
     "audio_capture:Microphone._fail_open": W(fires="test_audio_capture", twin="an input device exists: the normal path"),
     "audio_capture:Microphone._warn_cap": W(fires="test_audio_capture", twin=GUARD),
+    "audio_mixer:require_miniaudio": W(fires="test_audio", silent="test_audio.TestWithoutMiniaudio.test_a_game_without_sound_does_not_warn"),
     "sprite:_true_case_path": W(fires="test_sheet_patterns", twin=MISSING_FILE),
     "sprite:_expand_pattern": W(fires="test_sheet_patterns", twin=MISSING_FILE),
     "sprite:_load_sprite_image": W(fires="test_sprite", silent="test_sprite.TestIdentityAndPlaceholder.test_placeholder_is_legal_no_warning"),

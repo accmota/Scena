@@ -97,9 +97,14 @@ def _load_asset(path: str, *, stream: Optional[bool], label: str) -> Tuple[Optio
         if buffered is not None and buffered[0] is not None:
             return buffered
 
-    import miniaudio
-
     duration = _MISSING_DURATION_S
+    miniaudio = _audio_mixer.require_miniaudio("play_sound")
+    if miniaudio is None:
+        # No decoder: the missing-file silence (nominal duration), and one
+        # warning for the whole game instead of one per file.
+        packed = (make_silence(duration), duration, False)
+        _PCM_CACHE[(abs_path, False)] = packed
+        return packed
     try:
         info = miniaudio.get_file_info(path)
         duration = float(getattr(info, "duration", 0.0) or 0.0) or _MISSING_DURATION_S
@@ -152,7 +157,9 @@ def _force_decode(path: str, label: str) -> np.ndarray:
     hit = _PCM_CACHE.get((abs_path, False))
     if hit is not None and hit[0] is not None:
         return hit[0]
-    import miniaudio
+    miniaudio = _audio_mixer.require_miniaudio("play_sound")
+    if miniaudio is None:
+        return make_silence(_MISSING_DURATION_S)
     try:
         decoded = miniaudio.decode_file(
             path,
@@ -805,6 +812,8 @@ def _start_sound(
             f"frame source (Microphone). Got {type(source).__name__}."
         )
 
+    # Baked or live sources never decode: warn here too when there is no device.
+    _audio_mixer.require_miniaudio("play_sound")
     vol = default_volume if volume is None else float(volume)
     # Before the voice starts: a refused name must leave nothing playing.
     get_scheduler().refuse_game_task_clash(owner, scope, name, "sound")

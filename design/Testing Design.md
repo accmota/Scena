@@ -1604,15 +1604,21 @@ Rules:
 
 `.github/workflows/tests.yml` runs on every push to `main`, on every pull request,
 on a push to a `ci/<anything>` branch (CI without a pull request) and by hand
-(`workflow_dispatch`). It checks the README's promise: Python 3.12–3.14 on Windows,
+(`workflow_dispatch`). It checks the README's promise: Python 3.12–3.15 on Windows,
 macOS and Linux. Release builds are a separate workflow (`release.yml`, [Scena
 Design.md, "Compatibility and versions"](Scena%20Design.md#compatibility-and-versions)).
 
 | Cell | Python | Runs |
 | --- | --- | --- |
 | `ubuntu-latest` ×3 | 3.14 | the wheel import, then the whole **quick** tier in three parts (`quick --part K/3 -j 4`, one part per runner job) |
-| `ubuntu-latest` | 3.12, 3.13 | the wheel import, then the **smoke** modules (`SMOKE` in the workflow, `focused -j 4`) |
-| `macos-latest`, `windows-latest` | 3.12, 3.13, 3.14 | the same: the wheel import and the smoke modules |
+| `ubuntu-latest` | 3.12, 3.13, 3.15 | the wheel import, then the **smoke** modules (`SMOKE` in the workflow, `focused -j 4`) |
+| `macos-latest`, `windows-latest` | 3.12, 3.13, 3.14, 3.15 | the same: the wheel import and the smoke modules |
+
+Python 3.15 has no miniaudio wheel (1.71), so its cells also check the install
+left miniaudio out (the `pyproject.toml` marker, [Sound Design.md, "No
+miniaudio"](Sound%20Design.md#no-miniaudio)) after the wheel import, then build it
+from source for the tests. The silent path itself runs on every cell
+(`test_audio.TestWithoutMiniaudio` blocks the import).
 
 Why this shape (first runs, 2026-10-26). The runners are slow next to the Mac:
 quick took 151 s wall on the Mac (8 workers, 1 150 s summed) and 505–700 s on one
@@ -1631,8 +1637,8 @@ Every cell builds the wheel (out of the checkout: setuptools' `build/` would
 otherwise hold a second copy of `scena` for the source scans), installs it with the
 `test` extra, and imports `scena` and `scena_editor` **from site-packages**, with
 the working folder outside the checkout, plus `scena-editor --help`. A file the
-wheel leaves out, or a native dependency (skia-python, glfw, miniaudio, numpy) with
-no wheel for that Python and OS, fails there. The tests themselves then run from the
+wheel leaves out, or a native dependency (skia-python, glfw, numpy) with
+no wheel for that Python and OS, fails there (miniaudio is left out where it has none). The tests themselves then run from the
 checkout (`run_tiers.py` puts the repo root first on the children's path), so they
 test the source, not the wheel.
 

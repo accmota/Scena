@@ -10,7 +10,7 @@ Tiers and why: design/Testing Design.md, "Test tiers".
   python tests/run_tiers.py gate --plan             # show the jobs, run nothing
 
 GitHub (.github/workflows/tests.yml, on a push to main or a ci/* branch and on
-pull requests): every OS x Python 3.12-3.14 imports the installed wheel; Ubuntu
+pull requests): every OS x Python 3.12-3.15 imports the installed wheel; Ubuntu
 runs quick, macOS and Windows the smoke modules. What it covers and leaves out:
 design/Testing Design.md, "Continuous integration".
 

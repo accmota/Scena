@@ -18,7 +18,9 @@ from .audio_mixer import (
     PullSource,
     ema_alpha,
     loudness,
+    miniaudio_module,
     require_finite,
+    require_miniaudio,
     spectrum_bands,
 )
 
@@ -114,8 +116,8 @@ class Microphone(ClosedSurface):
         # frame's audio sample dirties a linked ``mic.level`` when it moves.
         self._ingest_seq = 0
         self.effects = AudioEffectStack(microphone=self)
-        if backends is not None:
-            import miniaudio
+        miniaudio = require_miniaudio("Microphone")
+        if backends is not None and miniaudio is not None:
             items = list(backends) if isinstance(backends, (list, tuple)) else None
             if not items or not all(isinstance(b, miniaudio.Backend) for b in items):
                 raise TypeError(
@@ -123,6 +125,10 @@ class Microphone(ClosedSurface):
                     f"{type(backends).__name__}. Leave it out to use the OS default input."
                 )
         self._backends = backends
+        if miniaudio is None:
+            self._device = None   # silent, like _fail_open; the warning is said
+            self._silent = True
+            return
         self._open(backends)
 
     def _capture_device(self, miniaudio, backends):
@@ -154,7 +160,7 @@ class Microphone(ClosedSurface):
 
     def _open(self, backends) -> None:
         global _capture_open_count
-        import miniaudio
+        miniaudio = miniaudio_module()
 
         try:
             device = self._capture_device(miniaudio, backends)
