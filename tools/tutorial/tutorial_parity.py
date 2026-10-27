@@ -34,9 +34,9 @@ Checks (no option; ``tests/test_tutorial_parity.py`` runs them):
     unit translated is published (no ``noindex``; its Portuguese twin links
     to it), one with pending units keeps ``noindex``; each English page and
     each index names its twin;
-  - the two indexes keep one outline (``index_errors``): the picture, each
-    card by page key and kind (interlude, no page yet), each section heading,
-    in the same order.
+  - the two indexes keep one outline (``index_errors``): the wordmark, the
+    picture, each card by page key and kind (interlude, no page yet), each
+    section heading, in the same order.
 
 Commands (run from the repository root)::
 
@@ -197,10 +197,11 @@ def head_errors(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR, state: dict | None
     return errors
 
 
-# The indexes' outline: the picture, each card (by page key) and each section
-# heading, in order. The two languages keep the same outline (the English
+# The indexes' outline: the wordmark, the picture, each card (by page key) and
+# each section heading, in order. The two languages keep the same outline (the English
 # index once lost the appendix heading the Portuguese one had).
-_OUTLINE = re.compile(r'<img class="index-banner" src="([^"]*)"'
+_OUTLINE = re.compile(r'<p class="(wordmark)"'
+                      r'|<img class="index-banner" src="([^"]*)"'
                       r'|<a class="(card[^"]*)" href="([^"]*)"'
                       r'|<div class="(card[^"]*)"'
                       r'|<h2 class="index-section"')
@@ -209,15 +210,16 @@ _OUTLINE = re.compile(r'<img class="index-banner" src="([^"]*)"'
 def index_outline(text: str) -> list[str]:
     out = []
     for m in _OUTLINE.finditer(text):
-        img, cls, href, div = m.groups()
-        out.append(f"imagem {img}" if img is not None else
+        mark, img, cls, href, div = m.groups()
+        out.append("marca" if mark is not None else
+                   f"imagem {img}" if img is not None else
                    f"{cls} {page_key(href)}" if cls is not None else
                    f"{div} (sem página)" if div is not None else "título de seção")
     return out
 
 
 def index_errors(pt_dir: Path = PT_DIR, en_dir: Path = EN_DIR) -> list[str]:
-    """The two indexes differ in picture, cards or section headings."""
+    """The two indexes differ in wordmark, picture, cards or section headings."""
     pi, ei = pt_dir / "index.html", en_dir / "index.html"
     if not (pi.is_file() and ei.is_file()):
         return []
@@ -552,7 +554,7 @@ def _comments_and_docs(code: str) -> str:
 
 
 def _is_file_name(text: str) -> bool:
-    """``audio/nota.wav`` or ``"plane/Fly*.png"`` alone in inline code."""
+    """``audio/nota.ogg`` or ``"plane/Fly*.png"`` alone in inline code."""
     bare = text.replace('\\"', '"').strip().strip('"\'')
     return re.fullmatch(r"[\w.*/-]+", bare) is not None and _PATH.search(bare) is not None \
         and not _WORD.match(bare)

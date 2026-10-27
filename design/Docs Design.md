@@ -277,8 +277,8 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   hreflang=…>`, which `tutorial.js` draws as the language switch (it keeps
   the step: `#n`); a page with a pending unit keeps `noindex` and its
   Portuguese twin does not link to it; the two indexes name each other.
-  **The two indexes keep one outline** (`index_errors`): the picture under
-  the lede, each card by page key and kind (interlude, no page yet), and
+  **The two indexes keep one outline** (`index_errors`): the wordmark, the
+  picture under the lede, each card by page key and kind (interlude, no page yet), and
   each section heading (the appendices: "Apêndices" / "Appendixes", with a
   one-line lede) in the same order; only the words differ. The English index
   once lacked the appendix heading the Portuguese one had. The picture,
@@ -286,7 +286,13 @@ covers the English pages too (`TestStepsEn05` is page 05 in English).
   frame each from the README clips, the tutorial's number in the corner, no
   words, so both indexes share it), made by
   `tools/site/make_tutorial_banner.py`; run it again when those clips change,
-  and keep each index's `alt` naming the same six.
+  and keep each index's `alt` naming the same six. The wordmark is the
+  name set like the link preview image: JetBrains Mono Bold (Google Fonts,
+  `text=Scena`, so only those letters load), a fill from `--text` into
+  `--accent` and a still accent cursor block, linking to the docs home; the
+  page's `h1` under it is styled as its subtitle (`.wordmark + h1`). It
+  stays real text, so both languages share it and nothing is drawn into an
+  image; the home and the Guides keep the small `eyebrow` label.
   `--mark` and `--publish` write those lines (`sync_heads`), the check fails
   when a page disagrees (`head_errors`), and the unit hashes leave them out,
   so publishing changes no translation state. A new page goes through

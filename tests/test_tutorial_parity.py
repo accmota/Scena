@@ -310,7 +310,7 @@ class TestDraftAndCheck(unittest.TestCase):
                                        '<svg><text x="1">barra.x = 3</text></svg>', gn, gs),
                          ['"heroi"', "barra"])
         self.assertEqual(tp.names_left("<code>paddle</code> <text>paddle</text>", gn, gs), [])
-        # A file keeps its name (tutorial 22: audio/nota.wav is a real file).
+        # A file keeps its name (tutorial 22: audio/nota.ogg is a real file).
         self.assertEqual(tp.names_left("<code>audio/barra.wav</code>", gn, gs), [])
         # ...but an attribute is not a file with an extension (tutorial 19: self.meio).
         self.assertEqual(tp.names_left("<code>self.barra</code>", gn, gs), ["barra"])
@@ -407,13 +407,14 @@ class TestPublishedHeads(unittest.TestCase):
 
 
 class TestIndexOutline(unittest.TestCase):
-    """The two indexes keep one outline: picture, cards, section headings.
+    """The two indexes keep one outline: wordmark, picture, cards, section headings.
 
     Bug class: one language's index drifts from the other's (the English
     index had no appendix heading while the Portuguese one had).
     """
 
-    PT = ('<img class="index-banner" src="b.webp" alt="x">\n'
+    PT = ('<p class="wordmark"><a href="../../index.html">Scena</a></p>\n'
+          '<img class="index-banner" src="b.webp" alt="x">\n'
           '<a class="card" href="01-primeiro.html"></a>\n'
           '<a class="card interlude" href="01i-grupos.html"></a>\n'
           '<h2 class="index-section" id="apendices">Apêndices</h2>\n'
@@ -446,8 +447,9 @@ class TestIndexOutline(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("título de seção", errors[0])
 
-    def test_a_missing_picture_a_card_or_an_interlude_mark_fails(self):
-        for en in (self.PT.replace('<img class="index-banner" src="b.webp" alt="x">\n', ""),
+    def test_a_missing_wordmark_picture_card_or_interlude_mark_fails(self):
+        for en in (self.PT.replace('<p class="wordmark"><a href="../../index.html">Scena</a></p>\n', ""),
+                   self.PT.replace('<img class="index-banner" src="b.webp" alt="x">\n', ""),
                    self.PT.replace('<a class="card" href="A-depuracao.html"></a>\n', ""),
                    self.PT.replace("card interlude", "card")):
             self.assertEqual(len(self.en_index(en)), 1, en)
