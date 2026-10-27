@@ -142,7 +142,7 @@ class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45):
         self.shield.active = st.energy > 0
         if st.energy == 0:
             canvas.burst_at(self, radius=70, rings=True)
-            play_sound("audio/impactBell_heavy_000.ogg")
+            play_sound("audio/impact_bell_heavy_000.ogg")
 
     def on_destroy(self):
         self.thruster.destroy()

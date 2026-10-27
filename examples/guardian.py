@@ -43,7 +43,7 @@ CLUSTER = 5         # enemies around one side before the next side (many sides)
 TITLE_FONT = "fonts/Bungee-Regular.ttf"  # the title, the waves, the end
 TEXT_FONT = "fonts/Play-Regular.ttf"     # the story: plain letters read best
 HUD_FONT = "fonts/Play-Bold.ttf"         # the numbers on the screen
-MUSIC = 0.1         # the music's volume, under the effects (a loud track)
+MUSIC = 0.25         # the music's volume, under the effects (a loud track)
 
 # The sky: clouds that churn slowly and filaments on top. Both turn with
 # the camera, like the rest of the world.
@@ -103,7 +103,7 @@ def hurt_ring(damage=1):
     ring.flash()
     canvas.shake(2 + 3 * damage)
     # the ring rings: a deeper, louder bell for a heavy blow
-    play_sound("audio/impactBell_heavy_000.ogg", volume=0.4 + 0.12 * damage,
+    play_sound("audio/impact_bell_heavy_000.ogg", volume=0.4 + 0.12 * damage,
                pitch=1.1 - 0.1 * damage, name="ring")
 
 
@@ -266,7 +266,7 @@ class Ship(Triangle, group="ship"):
     def gain(self, power, lasting=DURATION):
         self.powers[power] = lasting
         self.pop(scale=1.4)
-        play_sound("synth/coin.wav", volume=0.6)
+        play_sound("audio/coin.ogg", volume=0.6)
         if power == "shield":
             # the shield is a portal around the ring and the ship
             self.shield_hits = SHIELD_HITS
@@ -280,7 +280,7 @@ class Ship(Triangle, group="ship"):
         self.shield_hits -= hits
         if self.shield_hits > 0:
             self.shield.amount = 1.2 * self.shield_hits / SHIELD_HITS
-            play_sound("audio/impactGeneric_light_003.ogg", volume=0.6, pitch=0.7)
+            play_sound("audio/impact_generic_light_003.ogg", volume=0.6, pitch=0.7)
             return
         canvas.ripple_at(CENTER, amount=0.4, radius=ORBIT + 120)
         play_sound("audio/projectile-hit.ogg", volume=0.8, pitch=0.6)
@@ -297,7 +297,7 @@ class Ship(Triangle, group="ship"):
         st.ship_life = max(0, st.ship_life - damage)
         self.blink(0.3)
         canvas.shake(5 + 3 * damage)
-        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.4 + 0.12 * damage)
+        play_sound("audio/impact_punch_heavy_001.ogg", volume=0.4 + 0.12 * damage)
 
     @when(lambda self: st.ship_life <= 3)
     def damaged(self):
@@ -469,7 +469,7 @@ class Arrow(Triangle, radius=24, base_ratio=0.6, group="enemies"):
 
     def shoot(self):
         Bullet(center=self.center, angle=self.angle)
-        play_sound("space/sfx_laser2.ogg", volume=0.15, name="enemy shot")
+        play_sound("audio/sfx_laser2.ogg", volume=0.15, name="enemy shot")
 
     def blow_up(self):
         canvas.burst_at(self, radius=30)
@@ -506,7 +506,7 @@ class Mandala(RegularPolygon, n=5, radius=30, group="enemies"):
     def shoot(self):
         for i in range(5):
             Bullet(center=self.center, angle=self.angle + 72 * i)
-        play_sound("space/sfx_laser2.ogg", volume=0.25, pitch=0.7, name="enemy shot")
+        play_sound("audio/sfx_laser2.ogg", volume=0.25, pitch=0.7, name="enemy shot")
 
     def blow_up(self):
         canvas.burst_at(self, radius=60, amount=6)
@@ -539,7 +539,7 @@ class Crystal(RegularPolygon, n=6, radius=30, group="enemies"):
         ship = group["ship"].nearest(self)
         if ship:
             Bolt(center=self.center, angle=heading(self, ship))
-            play_sound("space/sfx_laser1.ogg", volume=0.25, name="enemy shot")
+            play_sound("audio/sfx_laser1.ogg", volume=0.25, name="enemy shot")
 
     def blow_up(self):
         canvas.debris_at(self, color="turquoise", radius=60)
@@ -911,7 +911,7 @@ class Game(Act):
         canvas.fireworks_at(CENTER, color="cyan", radius=160)
         celebrate()
         self.music.fade_out(1.5)
-        play_sound("audio/Victory.mp3")
+        play_sound("audio/victory.mp3")
         self.finish("THE RING IS SAFE")
 
     def on_update(self, dt):

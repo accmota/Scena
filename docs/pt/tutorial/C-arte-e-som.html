@@ -124,14 +124,14 @@ Wallpaper("images/bg3.jpg")
 
 Sprite("space/playerShip1_red.png", height=120, center=(500, 280))
 Text("FORMATOS", top_center=(500, 560), font="space/kenvector_future.ttf", font_size=56)
-Text("1: som OGG   2: som WAV", top_left=(20, 50), font_size=22)
+Text("1: som OGG   2: som MP3", top_left=(20, 50), font_size=22)
 
 
 def update(dt):
     if keyp.once("1"):
-        play_sound("space/sfx_laser1.ogg")
+        play_sound("audio/sfx_laser1.ogg")
     if keyp.once("2"):
-        play_sound("synth/coin.wav")
+        play_sound("audio/victory.mp3")
 
 
 run()

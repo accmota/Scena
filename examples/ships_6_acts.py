@@ -79,7 +79,7 @@ class Enemy(Sprite, source=sheet, height=40, group="enemies"):
         await self.move_by(0, -500, time=1.2, ease="ease_out")
         await wait(0.3)
         self.pop(scale=1.3)
-        play_sound("audio/impactGeneric_light_003.ogg")
+        play_sound("audio/impact_generic_light_003.ogg")
         self.mode = self.formation
 
     @on_mode
@@ -135,7 +135,7 @@ class Boss(Sprite, source=sheet, frame="ufoRed.png", height=110, group="boss"):
         await self.move_to(750, 600, time=2, ease="ease_out")
         for turn in range(20):
             self.health += 1
-            play_sound("audio/impactGeneric_light_003.ogg")
+            play_sound("audio/impact_generic_light_003.ogg")
             await wait(0.05)
         self.mode = self.fighting
 
@@ -240,7 +240,7 @@ class Hero(Sprite, source=sheet, frame="playerShip1_red.png", height=45, group="
         self.shield.active = st.energy > 0
         if st.energy == 0:
             canvas.burst_at(self, radius=70, rings=True)
-            play_sound("audio/impactBell_heavy_000.ogg")
+            play_sound("audio/impact_bell_heavy_000.ogg")
 
     def on_destroy(self):
         self.thruster.destroy()

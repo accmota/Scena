@@ -65,10 +65,10 @@ def soltou(bola, alvo, pos):
 
 
 def pousou():
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
     conferir()
     if st.fim:
-        play_sound("audio/Victory.mp3")
+        play_sound("audio/victory.mp3")
     else:
         trocar_vez()
     proxima.visible = True

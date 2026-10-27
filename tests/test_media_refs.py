@@ -294,7 +294,7 @@ class TestMediaRefs(unittest.TestCase):
             'c = Sprite(space, frame="also_not_a_file.png")\n'
             'd = Sprite("no_such_file.png")\n'
             'e = Path(x) / "examples" / "media" / "space" / "vanished.png"\n'
-            'play_sound("audio/Victory.mp3")\n'
+            'play_sound("audio/victory.mp3")\n'
         )
         self.assertEqual(dead_paths(script, src), ["3: space/gone.png", "6: space/vanished.png"])
 

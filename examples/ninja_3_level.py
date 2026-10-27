@@ -122,13 +122,13 @@ class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
         if keyp.once("UP") and can_jump:
             self.vel.y = 900
             recently.reset("on_ground")
-            play_sound("synth/jump.wav")
+            play_sound("audio/jump.ogg")
 
         if keyp("SPACE") and ready("kunai", 0.4):
             self.play("playing", loops=1, next="idle")
             kunai = Kunai(center=(self.center.x, self.center.y + 50))
             kunai.rotate_to(self.angle)
-            play_sound("synth/throw.wav")
+            play_sound("audio/throw.ogg")
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
@@ -146,10 +146,10 @@ class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
     def caught(self, star):
         star.destroy()
         st.stars += 1
-        play_sound("synth/coin.wav")
+        play_sound("audio/coin.ogg")
         if st.stars == len(level_map.group("star")):
             notice.text = "All the stars!"
-            play_sound("audio/Victory.mp3")
+            play_sound("audio/victory.mp3")
 
     @collide_with("robot")
     def crashed(self, robot):

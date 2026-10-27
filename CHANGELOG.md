@@ -150,7 +150,18 @@ left out.
   folder went from 7 MB to under 1 MB. The examples, the tutorials in
   both languages and their credits use the new names. A script of your own
   that plays an old name plays silence with a SCENA WARNING naming the
-  missing file: change `.wav` (or `.flac`) to `.ogg`. Three game-over
+  missing file: change `.wav` (or `.flac`) to `.ogg`. The three synthesized
+  sounds of `examples/media/synth/` moved in too, and that folder is gone:
+  `synth/jump.wav` is `audio/jump.ogg` (likewise `coin` and `throw`), as
+  in the Ninja, Runner and Race tutorials. Kenney's two space lasers moved
+  from `space/` (which keeps the pack's images and font):
+  `space/sfx_laser1.ogg` is `audio/sfx_laser1.ogg`, likewise
+  `sfx_laser2.ogg` (Duel, Ring Guardian). Every file name in `audio/` is
+  now lowercase, so a name typed in lowercase is right on every system:
+  `Victory.mp3` is `victory.mp3`, and Kenney's `impactBell_heavy_000.ogg`
+  is `impact_bell_heavy_000.ogg` (likewise `impact_generic_light_003`,
+  `impact_plank_medium_002`, `impact_punch_heavy_001`). Appendix C's format
+  demo plays an OGG and an MP3. Three game-over
   sounds also changed names to match what they sound like: `fx1.wav`'s
   jingle is now `gameover.ogg`, and the old `gameover.wav` is `loss.ogg`.
   `fx1.ogg` and `fx3.ogg` are new sounds, both CC0; the old `fx3.wav`, which

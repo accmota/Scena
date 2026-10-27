@@ -65,10 +65,10 @@ def dropped(ball, goal, pos):
 
 
 def landed():
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
     check()
     if st.finish:
-        play_sound("audio/Victory.mp3")
+        play_sound("audio/victory.mp3")
     else:
         switch_turn()
     next_ball.visible = True

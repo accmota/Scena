@@ -40,7 +40,7 @@ class Bola(Circle, radius=14, color="tomato", group="bola"):
     @collide_with("parede")
     def bateu(self, parede, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("bola", "parede", bounce=1)

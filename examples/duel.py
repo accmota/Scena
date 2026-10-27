@@ -89,7 +89,7 @@ class ShieldBubble(Circle, radius=44, visual=Shield(style="plasma")):
     def deflected(self, asteroid, info):
         canvas.zap_at(info, color="sky blue")
         canvas.debris_at(asteroid, color="sienna", radius=asteroid.height)
-        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        play_sound("audio/impact_punch_heavy_001.ogg", volume=0.6)
         asteroid.destroy()
         self.spend()
 
@@ -97,7 +97,7 @@ class ShieldBubble(Circle, radius=44, visual=Shield(style="plasma")):
         self.charges -= 1
         if self.charges == 0:
             canvas.burst_at(self, radius=70, rings=True)
-            play_sound("audio/impactBell_heavy_000.ogg")
+            play_sound("audio/impact_bell_heavy_000.ogg")
             self.active = False
 
 
@@ -157,7 +157,7 @@ class Ship(Sprite, source=sheet, height=50, art_angle=90, group="ships"):
         shot = Shot(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
         shot.vel = vec_from_angle(self.angle, 700)
         shot.shooter = self
-        play_sound("space/sfx_laser1.ogg", volume=0.6)
+        play_sound("audio/sfx_laser1.ogg", volume=0.6)
 
     @when(lambda self: self.energy < 30)
     def caught_fire(self):
@@ -187,7 +187,7 @@ class Asteroid(Sprite, source=sheet, frame="meteorBrown_big1.png", height=64,
     @collide_with("shots")
     def was_hit(self, shot, info):
         canvas.debris_at(self, color="sienna", radius=self.height)
-        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        play_sound("audio/impact_punch_heavy_001.ogg", volume=0.6)
         # The big one splits in two small ones, which fly off to the sides of the shot.
         if self.height > 40:
             for side in [90, -90]:
@@ -272,7 +272,7 @@ def struck(ship, shot, info):
 @collide("ships", "asteroids")
 def crashed(ship, asteroid, info):
     canvas.hit_at(info, style="disc", radius=14)
-    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    play_sound("audio/impact_plank_medium_002.ogg", volume=0.5)
     ship.energy -= 2
 
 

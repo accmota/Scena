@@ -61,7 +61,7 @@ def celula_de(x, y):
     return int(col), int(row)
 
 
-SINO = Sound("audio/impactBell_heavy_000.ogg")
+SINO = Sound("audio/impact_bell_heavy_000.ogg")
 SINO_FX = SINO.bake(LowPass(cutoff=800), HighPass(cutoff=200), Echo(delay=0.1, decay=0.4),
                     Reverb(size=0.5, mix=0.3), Distortion(drive=2), Wavefold(drive=1.5))
 G.check(SINO_FX.duration >= SINO.duration - 1e-9, "bake.tail_kept",

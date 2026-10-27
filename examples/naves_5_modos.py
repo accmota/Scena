@@ -80,7 +80,7 @@ class Inimigo(Sprite, source=folha, height=40, group="inimigos"):
         await self.move_by(0, -500, time=1.2, ease="ease_out")
         await wait(0.3)
         self.pop(scale=1.3)
-        play_sound("audio/impactGeneric_light_003.ogg")
+        play_sound("audio/impact_generic_light_003.ogg")
         self.mode = self.formacao
 
     @on_mode
@@ -136,7 +136,7 @@ class Chefe(Sprite, source=folha, frame="ufoRed.png", height=110, group="chefe")
         await self.move_to(750, 600, time=2, ease="ease_out")
         for vez in range(20):
             self.vida += 1
-            play_sound("audio/impactGeneric_light_003.ogg")
+            play_sound("audio/impact_generic_light_003.ogg")
             await wait(0.05)
         self.mode = self.lutando
 
@@ -240,7 +240,7 @@ class Heroi(Sprite, source=folha, frame="playerShip1_red.png", height=45, group=
         self.escudo.active = st.energia > 0
         if st.energia == 0:
             canvas.burst_at(self, radius=70, rings=True)
-            play_sound("audio/impactBell_heavy_000.ogg")
+            play_sound("audio/impact_bell_heavy_000.ogg")
 
     def on_destroy(self):
         self.propulsor.destroy()

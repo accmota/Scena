@@ -128,7 +128,7 @@ class Robot(Sprite, source=sheet, hitbox_shape="rect", hitbox_anchor="bottom"):
         on_ground = "bottom" in self.touching_sides
         if keyp.once("UP") and on_ground:
             self.vel.y = 900
-            play_sound("synth/jump.wav")
+            play_sound("audio/jump.ogg")
         self.vel.y -= 2200 * dt
         if not st.running:
             if not self.showing("falling"):
@@ -143,7 +143,7 @@ class Robot(Sprite, source=sheet, hitbox_shape="rect", hitbox_anchor="bottom"):
     def caught(self, coin):
         coin.destroy()
         st.coins += 1
-        play_sound("synth/coin.wav")
+        play_sound("audio/coin.ogg")
 
     @collide_with("crate")
     def crashed(self, crate):
@@ -151,7 +151,7 @@ class Robot(Sprite, source=sheet, hitbox_shape="rect", hitbox_anchor="bottom"):
             st.running = False
             st.pace = 0
             canvas.shake(6)
-            play_sound("audio/impactPlank_medium_002.ogg")
+            play_sound("audio/impact_plank_medium_002.ogg")
 
     @leave_playfield
     def fell(self):

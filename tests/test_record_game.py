@@ -132,7 +132,7 @@ dot = Circle(center=(80, 45), radius=30, color="blue")
 
 def ping():
     dot.color = "red"
-    play_sound("synth/coin.wav")
+    play_sound("audio/coin.ogg")
 
 after(0.5, ping)
 run()

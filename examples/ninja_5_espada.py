@@ -134,19 +134,19 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
         if keyp.once("UP") and pode_pular:
             self.vel.y = 900
             recently.reset("no_chao")
-            play_sound("synth/jump.wav")
+            play_sound("audio/jump.ogg")
 
         if keyp("SPACE") and not self.showing("espada"):
             caixa = group["caixa"].nearest(self, within=75)
             if caixa:
                 self.flip_x = caixa.center.x < self.center.x
                 self.play("espada", loops=1, next="parado")
-                play_sound("synth/throw.wav")
+                play_sound("audio/throw.ogg")
             elif ready("kunai", 0.4):
                 self.play("jogando", loops=1, next="parado")
                 kunai = Kunai(center=(self.center.x, self.center.y + 50))
                 kunai.rotate_to(self.angle)
-                play_sound("synth/throw.wav")
+                play_sound("audio/throw.ogg")
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
@@ -164,15 +164,15 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
     def pegou(self, estrela):
         estrela.destroy()
         st.estrelas += 1
-        play_sound("synth/coin.wav")
+        play_sound("audio/coin.ogg")
         if st.estrelas == len(fase.group("estrela")):
             st.aviso = "Todas as estrelas!"
-            play_sound("audio/Victory.mp3")
+            play_sound("audio/victory.mp3")
 
     @collide_with("luz")
     def pegou_luz(self, luz):
         luz.destroy()
-        play_sound("audio/impactBell_heavy_000.ogg")
+        play_sound("audio/impact_bell_heavy_000.ogg")
         self.run_task(self.brilhar, name="invencivel")
 
     async def brilhar(self):
@@ -234,7 +234,7 @@ def choque(raio, heroi, info):
 @collide("espada", "caixa")
 def quebrou(heroi, caixa, info):
     canvas.debris_at(caixa, color="peru", fall=1)
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
     Orb(center=caixa.center, radius=14, color="gold", group="luz")
     caixa.destroy()
 

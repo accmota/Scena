@@ -237,9 +237,9 @@ class Car(Sprite, source=vehicles, height=46, art_angle=90, group="cars"):
             st.arrivals += 1
             self.finish_place = st.arrivals
             canvas.fireworks_at(self)
-            play_sound("audio/impactBell_heavy_000.ogg")
+            play_sound("audio/impact_bell_heavy_000.ogg")
         elif not self.cpu:
-            play_sound("synth/coin.wav")
+            play_sound("audio/coin.ogg")
 
     def progress(self):
         # How much of the race the car has done: laps, checkpoints and, between two
@@ -260,7 +260,7 @@ class Car(Sprite, source=vehicles, height=46, art_angle=90, group="cars"):
         if self.cpu:
             shot.angle += uniform(-8, 8)    # the CPU aims a little off
         shot.shooter = self
-        play_sound("synth/throw.wav")
+        play_sound("audio/throw.ogg")
 
     def crash(self):
         if self.mode != self.crashed:
@@ -322,7 +322,7 @@ resolve("cars", "cars", bounce=0.8)
 @collide("cars", ["wall", "tire", "tree"])
 def bumped(car, thing, info):
     if abs(car.pace) > 150:
-        play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+        play_sound("audio/impact_plank_medium_002.ogg", volume=0.5)
         canvas.hit_at(info, style="disc", radius=12)
     # Head-on, the car backs off a little; from the side, it only loses speed
     # and scrapes along. info.normal points from the car to the obstacle.
@@ -351,7 +351,7 @@ def crashed_hard(car, thing, info):
 
 @collide("cars", "cars")
 def touched(car, other_one, info):
-    play_sound("audio/impactGeneric_light_003.ogg", volume=0.6)
+    play_sound("audio/impact_generic_light_003.ogg", volume=0.6)
     # The faster car shoves the other: resolve gives the jolt, and the tires
     # of the shoved car barely grip for a moment, so it slides to
     # where it was thrown. The pusher loses power.
@@ -365,7 +365,7 @@ def touched(car, other_one, info):
 
 @collide("cars", "cone")
 def knocked_over(car, cone):
-    play_sound("audio/impactGeneric_light_003.ogg", volume=0.4)
+    play_sound("audio/impact_generic_light_003.ogg", volume=0.4)
     cone.frame = "cone_down.png"
     cone.untag("cone")
     cone.move_by(angle=car.vel.angle, distance=90, time=0.5, ease="ease_out")
@@ -610,7 +610,7 @@ class Results(Act):
             Text(text=f"P{spot}   {driver}", center=(640, y), font=FONT, font_size=32, color=paint, layer="ui")
             y -= 52
         Text(text="press SPACE", center=(640, 160), font=FONT, font_size=24, layer="ui")
-        play_sound("audio/Victory.mp3")
+        play_sound("audio/victory.mp3")
 
     def on_update(self, dt):
         if keyp.once("SPACE"):

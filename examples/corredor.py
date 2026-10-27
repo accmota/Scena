@@ -127,7 +127,7 @@ class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
         no_chao = "bottom" in self.touching_sides
         if keyp.once("UP") and no_chao:
             self.vel.y = 900
-            play_sound("synth/jump.wav")
+            play_sound("audio/jump.ogg")
         self.vel.y -= 2200 * dt
         if not st.correndo:
             if not self.showing("caindo"):
@@ -142,7 +142,7 @@ class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
     def pegou(self, moeda):
         moeda.destroy()
         st.moedas += 1
-        play_sound("synth/coin.wav")
+        play_sound("audio/coin.ogg")
 
     @collide_with("caixa")
     def bateu(self, caixa):
@@ -150,7 +150,7 @@ class Robo(Sprite, source=folha, hitbox_shape="rect", hitbox_anchor="bottom"):
             st.correndo = False
             st.velocidade = 0
             canvas.shake(6)
-            play_sound("audio/impactPlank_medium_002.ogg")
+            play_sound("audio/impact_plank_medium_002.ogg")
 
     @leave_playfield
     def caiu(self):

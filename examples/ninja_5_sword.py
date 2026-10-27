@@ -135,19 +135,19 @@ class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_ancho
         if keyp.once("UP") and can_jump:
             self.vel.y = 900
             recently.reset("on_ground")
-            play_sound("synth/jump.wav")
+            play_sound("audio/jump.ogg")
 
         if keyp("SPACE") and not self.showing("sword"):
             crate = group["crate"].nearest(self, within=75)
             if crate:
                 self.flip_x = crate.center.x < self.center.x
                 self.play("sword", loops=1, next="idle")
-                play_sound("synth/throw.wav")
+                play_sound("audio/throw.ogg")
             elif ready("kunai", 0.4):
                 self.play("playing", loops=1, next="idle")
                 kunai = Kunai(center=(self.center.x, self.center.y + 50))
                 kunai.rotate_to(self.angle)
-                play_sound("synth/throw.wav")
+                play_sound("audio/throw.ogg")
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
@@ -165,15 +165,15 @@ class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect", hitbox_ancho
     def caught(self, star):
         star.destroy()
         st.stars += 1
-        play_sound("synth/coin.wav")
+        play_sound("audio/coin.ogg")
         if st.stars == len(level_map.group("star")):
             st.notice = "All the stars!"
-            play_sound("audio/Victory.mp3")
+            play_sound("audio/victory.mp3")
 
     @collide_with("light")
     def caught_light(self, light):
         light.destroy()
-        play_sound("audio/impactBell_heavy_000.ogg")
+        play_sound("audio/impact_bell_heavy_000.ogg")
         self.run_task(self.shine, name="invincible")
 
     async def shine(self):
@@ -235,7 +235,7 @@ def shock(bolt, hero, info):
 @collide("sword", "crate")
 def smashed(hero, crate, info):
     canvas.debris_at(crate, color="peru", fall=1)
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
     Orb(center=crate.center, radius=14, color="gold", group="light")
     crate.destroy()
 

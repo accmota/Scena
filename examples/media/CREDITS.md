@@ -163,7 +163,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `explosions/Black_smoke/`, `Flash/`, `White_puff/` | Kenney | https://www.kenney.nl ("Smoke Particles": loose puffs for particles, not animation frames) |
 | `explosions/fireball/` | OpenGameArt | https://opengameart.org/content/fireball-effect-2 |
 | `ui/` | Kenney | https://www.kenney.nl ("UI Pack" 2.0, with its sounds in `ui/Sounds/`) |
-| `audio/Victory.mp3` | OpenGameArt | https://opengameart.org/content/victory |
+| `audio/victory.mp3` | OpenGameArt | https://opengameart.org/content/victory |
 | `music/super_hero_original_no_intro.ogg` | Cleyton Kauffman | https://opengameart.org/content/adventure-theme |
 | `music/battle_theme_a.ogg`, `music/battle_theme_b.ogg`, `music/tyler_song3_normal.ogg`, `music/choir_chords_bass_master.ogg` | cynicmusic (cynicmusic.com, pixelsphere.org; would like to hear where his music is used) | links in `music/License.txt` |
 | `music/juhani_junkala_epic_boss_battle.ogg` | Juhani Junkala (SubspaceAudio) | https://opengameart.org/content/boss-battle-music |
@@ -171,7 +171,8 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `music/the_field_of_dreams.ogg` | pauliuw | https://opengameart.org/content/the-field-of-dreams |
 | `music/awesomeness.ogg` | mrpoly | https://opengameart.org/content/menu-music |
 | `music/vampires_piano.ogg` | TAD | https://opengameart.org/content/vampires-piano |
-| `audio/footstep_*`, `audio/impact*` | Kenney | https://www.kenney.nl ("Impact Sounds") |
+| `audio/footstep_*`, `audio/impact_*` | Kenney | https://www.kenney.nl ("Impact Sounds") |
+| `audio/sfx_laser1.ogg`, `audio/sfx_laser2.ogg` | Kenney | https://www.kenney.nl ("Space Shooter Redux") |
 | `audio/explosion02.ogg` | IdkMrGarcia | https://freesound.org/s/446625/ |
 | `audio/explosion04.ogg` | Anomaex | https://freesound.org/s/490266/ |
 | `audio/projectile-hit.ogg` | unfa | https://freesound.org/s/193429/ |
@@ -184,7 +185,7 @@ no credit required. Credit is still welcome, and the authors are listed here.
 | `audio/fx1.ogg` | monosfera | https://freesound.org/s/726256/ |
 | `audio/fx3.ogg` | DneproMan | https://freesound.org/s/334874/ |
 | `audio/nota.ogg` | made for Scena (synthesized by a script) | this repository; see `audio/License.txt` |
-| `synth/` | made for Scena (synthesized by a script) | this repository; see `synth/license.txt` |
+| `audio/coin.ogg`, `audio/jump.ogg`, `audio/throw.ogg` | made for Scena (synthesized by a script) | this repository; see `audio/License.txt` |
 | `levels/` | made for Scena (level files) | this repository; see `levels/license.txt` |
 | `svg/` | made for Scena (drawn for Appendix G) | this repository; see `svg/license.txt` |
 

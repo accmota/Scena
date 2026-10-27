@@ -642,13 +642,12 @@ class TestPlaySoundOwnership(PlaySoundTestCase):
         self.assertAlmostEqual(n_frames / _SR / 2.0, 0.1, places=3)
 
     def test_media_audio_every_format_decodes(self):
-        # Every bundled sound effect decodes and plays. audio/ is OGG (and one
-        # MP3) since 2026-10; synth/ keeps the WAVs. No bundled file is FLAC:
-        # test_flac_decodes writes one.
+        # Every bundled sound effect decodes and plays. audio/ is OGG and one
+        # MP3 since 2026-10: no bundled file is WAV or FLAC, so test_wav_decodes
+        # and test_flac_decodes write their own.
         import miniaudio
-        paths = [p for folder in ("audio", "synth")
-                 for p in iter_files(os.path.join(MEDIA, folder), ".wav", ".ogg", ".flac", ".mp3")]
-        for ext in (".wav", ".ogg", ".mp3"):
+        paths = list(iter_files(os.path.join(MEDIA, "audio"), ".wav", ".ogg", ".flac", ".mp3"))
+        for ext in (".ogg", ".mp3"):
             self.assertTrue(any(p.endswith(ext) for p in paths), ext)
         for path in paths:
             name = os.path.basename(path)
@@ -663,9 +662,27 @@ class TestPlaySoundOwnership(PlaySoundTestCase):
             self.assertFalse(h.cancelled)
             h.cancel()
 
+    def test_wav_decodes(self):
+        # WAV is one of the formats Scena names (_FORMATS); the stdlib writes one.
+        import tempfile
+        import wave
+        samples = _sine(440, 0.2, amp=0.4)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "tone.wav")
+            with wave.open(path, "wb") as w:
+                w.setnchannels(2)
+                w.setsampwidth(2)
+                w.setframerate(_SR)
+                w.writeframes((samples * 32767).astype("<i2").tobytes())
+            sound = Sound(path)
+            self.assertAlmostEqual(sound.duration, 0.2, places=3)
+            h = play_sound(sound)
+            self.assertFalse(h.cancelled)
+            h.cancel()
+
     def test_flac_decodes(self):
-        # FLAC is one of the formats Scena names (_FORMATS) but no bundled
-        # file is one any more; soundfile writes it (skipped where absent).
+        # FLAC is one of the formats Scena names (_FORMATS); soundfile writes
+        # one (skipped where it is not installed).
         try:
             import soundfile
         except ImportError:

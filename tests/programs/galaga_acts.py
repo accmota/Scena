@@ -252,7 +252,7 @@ class Titulo(Act):
         zerar["enabled"] @= lambda: st.recorde > 0    # cinza enquanto não há recorde
         Text("ou aperte ESPAÇO", center=(W / 2, H * 0.21), font_size=18)
 
-        play_sound("audio/Victory.mp3")
+        play_sound("audio/victory.mp3")
 
     def on_update(self, dt):
         if keyp.once("SPACE"):

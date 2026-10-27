@@ -60,7 +60,7 @@ class Hero(Sprite, source=ninja, group="hero", hitbox_shape="rect"):
         on_ground = "bottom" in self.touching_sides
         if keyp.once("UP") and on_ground:
             self.vel.y = 900
-            play_sound("synth/jump.wav")
+            play_sound("audio/jump.ogg")
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)

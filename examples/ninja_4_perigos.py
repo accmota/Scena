@@ -131,13 +131,13 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
         if keyp.once("UP") and pode_pular:
             self.vel.y = 900
             recently.reset("no_chao")
-            play_sound("synth/jump.wav")
+            play_sound("audio/jump.ogg")
 
         if keyp("SPACE") and ready("kunai", 0.4):
             self.play("jogando", loops=1, next="parado")
             kunai = Kunai(center=(self.center.x, self.center.y + 50))
             kunai.rotate_to(self.angle)
-            play_sound("synth/throw.wav")
+            play_sound("audio/throw.ogg")
 
         self.vel.y -= 2200 * dt
         self.move_by(self.vel.x * dt, self.vel.y * dt)
@@ -155,10 +155,10 @@ class Heroi(Sprite, source=ninja, group="heroi", hitbox_shape="rect", hitbox_anc
     def pegou(self, estrela):
         estrela.destroy()
         st.estrelas += 1
-        play_sound("synth/coin.wav")
+        play_sound("audio/coin.ogg")
         if st.estrelas == len(fase.group("estrela")):
             st.aviso = "Todas as estrelas!"
-            play_sound("audio/Victory.mp3")
+            play_sound("audio/victory.mp3")
 
     @when(lambda self: self.center.y < 30)
     def caiu(self):

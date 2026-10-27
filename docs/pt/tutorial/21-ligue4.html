@@ -426,7 +426,7 @@ def soltou(bola, alvo, pos):
 
 
 def pousou():
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
 
 
 run()
@@ -501,7 +501,7 @@ def soltou(bola, alvo, pos):
 
 
 def pousou():
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
     trocar_vez()
     proxima.visible = True
 
@@ -610,10 +610,10 @@ def soltou(bola, alvo, pos):
 
 
 def pousou():
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
     conferir()
     if st.fim:
-        play_sound("audio/Victory.mp3")
+        play_sound("audio/victory.mp3")
     else:
         trocar_vez()
     proxima.visible = True
@@ -666,7 +666,7 @@ run()
           text: "Um campo novo na bola: <code>dono</code> guarda de quem ela é. É o que a regra compara."
         },
         {
-          at: "play_sound(\"audio/Victory.mp3\")",
+          at: "play_sound(\"audio/victory.mp3\")",
           text: "O <code>pousou</code> confere antes de trocar a vez, porque só quem acabou de jogar pode ter feito uma linha nova. Com quatro em linha, toca a vitória, e a vez não troca: o aviso diz quem venceu."
         },
         {
@@ -758,10 +758,10 @@ def soltou(bola, alvo, pos):
 
 
 def pousou():
-    play_sound("audio/impactPlank_medium_002.ogg")
+    play_sound("audio/impact_plank_medium_002.ogg")
     conferir()
     if st.fim:
-        play_sound("audio/Victory.mp3")
+        play_sound("audio/victory.mp3")
     else:
         trocar_vez()
     proxima.visible = True

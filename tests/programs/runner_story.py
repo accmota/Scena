@@ -70,7 +70,7 @@ haze = Rect(center=(W / 2, 30), width=W, height=60, color="steel blue",
 
 # ---- sounds ----------------------------------------------------------------
 jump_snd = Sound("audio/laser4.ogg", volume=0.6)
-coin_snd = Sound("audio/impactBell_heavy_000.ogg", volume=0.5)
+coin_snd = Sound("audio/impact_bell_heavy_000.ogg", volume=0.5)
 hit_snd = Sound("audio/sfx-hit-2.ogg")
 
 # ---- HUD -------------------------------------------------------------------

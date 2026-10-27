@@ -140,8 +140,8 @@ class TestGuardianStory(unittest.TestCase):
             ns["hurt_ring"]()
             ship.hurt()
             for sound in ("music/battle_theme_a.ogg", "audio/laser7.ogg",
-                          "audio/explosion07.ogg", "audio/impactBell_heavy_000.ogg",
-                          "audio/impactPunch_heavy_001.ogg"):
+                          "audio/explosion07.ogg", "audio/impact_bell_heavy_000.ogg",
+                          "audio/impact_punch_heavy_001.ogg"):
                 self.assertIn(sound, played)
 
     def test_the_story_is_typed_and_space_starts_the_game(self):

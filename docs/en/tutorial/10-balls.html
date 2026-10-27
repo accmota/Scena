@@ -387,7 +387,7 @@ class Ball(Circle, radius=14, color="tomato", group="ball"):
     @collide_with("wall")
     def crashed(self, wall, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("ball", "wall", bounce=1)
@@ -416,8 +416,8 @@ run()
       try: [
           {
             note: "Each hit at a different pitch. In <code>crashed</code>, in place of the <code>play_sound</code>: a <code>pitch</code> above 1 is higher.",
-            replaces: ['play_sound("audio/impactGeneric'],
-            code: `play_sound("audio/impactGeneric_light_003.ogg", volume=0.5, pitch=uniform(0.7, 1.4))`
+            replaces: ['play_sound("audio/impact_generic'],
+            code: `play_sound("audio/impact_generic_light_003.ogg", volume=0.5, pitch=uniform(0.7, 1.4))`
           },
           {
             note: "The full impact, with sparks, in place of the light <code>hit_at</code>.",
@@ -455,7 +455,7 @@ class Ball(Circle, radius=14, color="tomato", group="ball"):
     @collide_with("wall")
     def crashed(self, wall, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("ball", "wall", bounce=1)
@@ -532,7 +532,7 @@ class Ball(Circle, radius=14, color="tomato", group="ball"):
     @collide_with("wall")
     def crashed(self, wall, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("ball", "wall", bounce=1)
@@ -626,7 +626,7 @@ class Ball(Circle, radius=14, color="tomato", group="ball"):
     @collide_with("wall")
     def crashed(self, wall, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("ball", "wall", bounce=1)
@@ -738,7 +738,7 @@ class Ball(Circle, radius=14, color="tomato", group="ball"):
     @collide_with("wall")
     def crashed(self, wall, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("ball", "wall", bounce=1)

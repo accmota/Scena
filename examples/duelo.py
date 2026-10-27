@@ -89,7 +89,7 @@ class Escudo(Circle, radius=44, visual=Shield(style="plasma")):
     def rebateu(self, asteroide, info):
         canvas.zap_at(info, color="sky blue")
         canvas.debris_at(asteroide, color="sienna", radius=asteroide.height)
-        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        play_sound("audio/impact_punch_heavy_001.ogg", volume=0.6)
         asteroide.destroy()
         self.gastar()
 
@@ -97,7 +97,7 @@ class Escudo(Circle, radius=44, visual=Shield(style="plasma")):
         self.cargas -= 1
         if self.cargas == 0:
             canvas.burst_at(self, radius=70, rings=True)
-            play_sound("audio/impactBell_heavy_000.ogg")
+            play_sound("audio/impact_bell_heavy_000.ogg")
             self.active = False
 
 
@@ -157,7 +157,7 @@ class Nave(Sprite, source=folha, height=50, art_angle=90, group="naves"):
         tiro = Tiro(frame=self.laser, center=self.center + vec_from_angle(self.angle, 52))
         tiro.vel = vec_from_angle(self.angle, 700)
         tiro.dono = self
-        play_sound("space/sfx_laser1.ogg", volume=0.6)
+        play_sound("audio/sfx_laser1.ogg", volume=0.6)
 
     @when(lambda self: self.energia < 30)
     def pegou_fogo(self):
@@ -187,7 +187,7 @@ class Asteroide(Sprite, source=folha, frame="meteorBrown_big1.png", height=64,
     @collide_with("tiros")
     def atingido(self, tiro, info):
         canvas.debris_at(self, color="sienna", radius=self.height)
-        play_sound("audio/impactPunch_heavy_001.ogg", volume=0.6)
+        play_sound("audio/impact_punch_heavy_001.ogg", volume=0.6)
         # O grande se divide em dois pequenos, que saem para os lados do tiro.
         if self.height > 40:
             for lado in [90, -90]:
@@ -272,7 +272,7 @@ def acertou(nave, tiro, info):
 @collide("naves", "asteroides")
 def bateu(nave, asteroide, info):
     canvas.hit_at(info, style="disc", radius=14)
-    play_sound("audio/impactPlank_medium_002.ogg", volume=0.5)
+    play_sound("audio/impact_plank_medium_002.ogg", volume=0.5)
     nave.energia -= 2
 
 

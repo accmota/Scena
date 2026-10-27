@@ -387,7 +387,7 @@ class Bola(Circle, radius=14, color="tomato", group="bola"):
     @collide_with("parede")
     def bateu(self, parede, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("bola", "parede", bounce=1)
@@ -416,8 +416,8 @@ run()
       try: [
           {
             note: "Cada batida num tom diferente. No <code>bateu</code>, no lugar do <code>play_sound</code>: <code>pitch</code> (tom) acima de 1 é mais agudo.",
-            replaces: ['play_sound("audio/impactGeneric'],
-            code: `play_sound("audio/impactGeneric_light_003.ogg", volume=0.5, pitch=uniform(0.7, 1.4))`
+            replaces: ['play_sound("audio/impact_generic'],
+            code: `play_sound("audio/impact_generic_light_003.ogg", volume=0.5, pitch=uniform(0.7, 1.4))`
           },
           {
             note: "O impacto completo, com faíscas, no lugar do <code>hit_at</code> leve.",
@@ -455,7 +455,7 @@ class Bola(Circle, radius=14, color="tomato", group="bola"):
     @collide_with("parede")
     def bateu(self, parede, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("bola", "parede", bounce=1)
@@ -532,7 +532,7 @@ class Bola(Circle, radius=14, color="tomato", group="bola"):
     @collide_with("parede")
     def bateu(self, parede, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("bola", "parede", bounce=1)
@@ -626,7 +626,7 @@ class Bola(Circle, radius=14, color="tomato", group="bola"):
     @collide_with("parede")
     def bateu(self, parede, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("bola", "parede", bounce=1)
@@ -738,7 +738,7 @@ class Bola(Circle, radius=14, color="tomato", group="bola"):
     @collide_with("parede")
     def bateu(self, parede, info):
         canvas.hit_at(info, radius=10, style="disc")
-        play_sound("audio/impactGeneric_light_003.ogg", volume=0.5)
+        play_sound("audio/impact_generic_light_003.ogg", volume=0.5)
 
 
 resolve("bola", "parede", bounce=1)
