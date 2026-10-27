@@ -118,6 +118,11 @@ class TestCommittedSite(unittest.TestCase):
                 if first:
                     self.assertFalse(first.group(1).startswith("http"), r)
 
+    def test_the_home_keeps_the_search_console_verification(self):
+        # Google re-checks the tag; without it the property loses verification.
+        self.assertIn('<meta name="google-site-verification" content="',
+                      self.pages["index.html"])
+
     def test_the_preview_image_exists(self):
         self.assertTrue((seo.DOCS / seo.OG_IMAGE).is_file())
 
