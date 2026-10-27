@@ -32,10 +32,9 @@ left out.
   tier runs on Linux, and a smoke set of modules runs on the other cells.
   What it covers and what it leaves out: `design/Testing Design.md`,
   "Continuous integration".
-- The README's install section says that on Linux skia-python needs the
-  system's libEGL and libGL (`sudo apt install libegl1 libgl1` on Debian or
-  Ubuntu): without them `import scena` fails on a minimal system or in a
-  container.
+- The README's install section notes that a Linux server or container may
+  lack the libEGL and libGL that skia-python needs (`sudo apt install libegl1
+  libgl1` on Debian or Ubuntu).
 
 ## 0.10.1 — 2026-10-26
 

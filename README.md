@@ -350,14 +350,8 @@ pip install scena
 
 Then, in any script: `from scena import *`.
 
-On Linux, Scena's drawing library (skia-python) needs the system's libEGL and
-libGL. A desktop install has them; a minimal system or a container may not
-(`import scena` then fails with `libEGL.so.1: cannot open shared object file`).
-On Debian or Ubuntu:
-
-```bash
-sudo apt install libegl1 libgl1
-```
+A Linux server or container may lack libEGL and libGL, which skia-python needs
+(Debian/Ubuntu: `sudo apt install libegl1 libgl1`).
 
 To try the examples, download
 [`scena-examples.zip`](https://github.com/accmota/Scena/releases/latest/download/scena-examples.zip)
