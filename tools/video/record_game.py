@@ -753,16 +753,20 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("name a program, or --take / --all / --list")
 
     stem =args.program.split("#", 1)[1] if "#" in args.program else Path(args.program).stem
+    # Resolved now: the run moves into the program's folder, and a relative
+    # path read there would land beside the program.
     if args.frames_dir:
+        frames_dir = Path(args.frames_dir).resolve()
+
         def factory(size, fps):
-            return FramesSink(Path(args.frames_dir), size, fps)
+            return FramesSink(frames_dir, size, fps)
     else:
         ffmpeg = find_ffmpeg()
         if ffmpeg is None:
             ap.error("no ffmpeg: install it (brew install ffmpeg) or "
                      "pip install imageio-ffmpeg; or use --frames-dir")
         ext = ".mov" if args.prores else ".mp4"
-        out = Path(args.out) if args.out else REPO / "recordings" / f"{stem}{ext}"
+        out = Path(args.out).resolve() if args.out else REPO / "recordings" / f"{stem}{ext}"
 
         def factory(size, fps):
             return FfmpegSink(out, size, fps, ffmpeg=ffmpeg, crf=args.crf, prores=args.prores)
