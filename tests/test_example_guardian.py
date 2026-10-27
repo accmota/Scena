@@ -26,9 +26,9 @@ turns only on the waves marked ``turn``, the embers come once (the wave marked
 ``party``) and the victory is geometric (``celebrate``: a four-point
 Starburst, ten small hexagons that open over the ring and then fly away,
 lights around the ring), with no embers; a defeat sets the ring on fire
-(``burn``: a Sunburst swelling in the ring, Sparks, a fire of tongues where
-the ship is and two blazes on the ring, all leaning out, the two blazes
-nearer the ship when the ring is half off the screen); the playfield is the camera's view
+(``burn``: a Sunburst swelling in the ring, Sparks, three blazes on the
+ring, one where the ship is, all leaning out, the other two nearer the ship
+when the ring is half off the screen); the playfield is the camera's view
 plus MARGIN, so a missed shot goes as soon as it leaves the screen, while
 what starts off the screen comes in safely, and a shot fired off the screen
 ends by its lifetime;
@@ -498,7 +498,7 @@ class TestGuardianDefeat(unittest.TestCase):
                 self.assertEqual(kw["center"], center, name)
         fires = {(kw["style"], round(kw["angle"] - bearing)) for name, kw in made
                  if name == "Fire"}
-        self.assertEqual(fires, {("tongues", 0), ("blaze", -spread), ("blaze", spread)})
+        self.assertEqual(fires, {("blaze", 0), ("blaze", -spread), ("blaze", spread)})
         for name, kw in made:       # on the ring, leaning out
             if name == "Fire":
                 along = ns["on_ring"](kw["angle"], ns["RADIUS"])

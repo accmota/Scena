@@ -742,10 +742,8 @@ def burn(bearing, edge):
     ball = Sunburst(center=CENTER, radius=20, color="orange red")
     tween(ball["radius"], RADIUS, time=1.5, ease="ease_out")
     Sparks(center=CENTER, radius=90, rate=90, amount=1.5, color="gold")
-    Fire(center=on_ring(bearing, RADIUS), style="tongues", width=70, length=120,
-         angle=bearing)
     spread = 65 if edge else 120
-    for side in (-spread, spread):
+    for side in (0, -spread, spread):
         Fire(center=on_ring(bearing + side, RADIUS), style="blaze", width=60,
              length=140, angle=bearing + side)
 
@@ -763,7 +761,7 @@ def leave_gifts(powers, bearing):
         drop_pill(on_ring(bearing + offset, 320), power, GIFT_DURATION)
 
 
-STORY = """You are Captain Arcos, leader of the forces of Arr.
+STORY = """You are Captain Arcos, leader of Arr's starfleet.
 The forces of the evil General Zorg are attacking
 from the Delta dimension. Your ship is the guardian
 of the four lights of Arria. They must be protected
