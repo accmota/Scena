@@ -402,16 +402,19 @@ and for having fun doing it.
 - **It's Python.** If you know Python or are learning it, Scena is for you. No
   new language to learn: what you learn here works anywhere, and the rest of
   Python works here, from NumPy to the AI libraries Python is known for.
-- **Fast enough for its games.** Drawn on the GPU by Skia, a typical 2D arcade
-  game runs smoothly: tens to hundreds of objects at 60 fps on an ordinary
-  computer. When a scene
-  asks for more than the machine has, Scena lowers the detail of its effects
-  before it drops frames.
+- **Everything to start, nothing to set up.** One command, `pip install scena`,
+  installs the engine and its level editor. A game is a single `.py` file,
+  written in any editor (IDLE, Thonny, VS Code): no project folder, no build
+  step, no configuration. The tutorial goes from a first three-line program to
+  complete games, and the API Guide covers every class and function, so the
+  next step is always written down. The examples download adds images, sounds,
+  music and fonts to use in your own games.
 - **What it is not.** It is not a professional engine: it is 2D only and runs
-  on the desktop. Most engines are built for speed; Scena is built for
-  learning. Scena itself is written in Python, and where simplicity and raw
-  speed pull apart, it chooses simplicity. Simple games stay simple, even if that means
-  less power for very large ones.
+  on the desktop. Scena is written in Python, and its expressive model (events,
+  formulas, links) has a cost; where simplicity and raw speed pull apart, it
+  chooses simplicity. The games it is made for, like the ones in the tutorial
+  and the gallery, run at 60 fps on an ordinary computer. A game with many
+  thousands of things moving at once belongs to a faster engine.
 
 ## License
 
