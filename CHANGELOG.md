@@ -99,9 +99,10 @@ left out.
   one every 20 s, and waves 3, 4, 6 and 8 leave pills for the next one
   that last 25 s (wave 4 leaves heavy and triple shots for the polygons of
   wave 5); in the swarm of wave 6 a mine comes early, in the swarm's way;
-  the arrows are slower and drawn as two arrowheads that point the same way;
-  the embers come twice in a game. It has sound effects and music, and its
-  title, story and wave banners are in kenvector_future.
+  waves 2 and 5 have more enemies, 50 % faster; the arrows are slower and
+  drawn as three translucent triangles whose wings breathe; the embers come
+  twice in a game. It has sound effects and music; its title and wave
+  banners are in Bungee, the story in Play (Play Bold on the HUD).
 
 ## 0.10.1 — 2026-10-26
 

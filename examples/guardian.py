@@ -1,57 +1,5 @@
 """Ring Guardian.
 
-A ring of light floats in space, with four living lights in the middle. The
-guardian's ship flies around the ring and shoots outward; waves of geometric
-enemies come out of portals. Twice in the game the camera turns the side of
-the attack up; the marks around, like the hours of a clock, show where it
-turned.
-
-Two lives: the ship's and the ring's. If either one runs out, the game ends.
-An enemy shot costs the ship or the ring one life, and so does an enemy that
-reaches the ring. A shot of yours that meets an enemy shot zaps them both.
-
-The attacks come in waves, written in a table (WAVES): where they come from,
-which enemies, how many, how close the camera shows the ring, the glow of
-the screen, when the next wave starts, whether the camera turns, the mines,
-and the pills left for the next wave. To invent a wave, write one more.
-
-From one side, the ring goes to the far side of the screen and leaves the
-room for the fight (on an "edge" wave only its top half shows). From many
-sides, the enemies come in clusters: a few around one side, then a few
-around another.
-
-Two kinds of mine. A crossing mine does not attack: it crosses the screen in
-front of the ring. A diving mine (dark, with a fast pulse) heads for the
-ring, and if it reaches the ring or the ship the damage is heavy
-(MINE_DAMAGE). A shot in any mine makes a big blast that destroys the
-enemies around it, and other mines blow up in a chain. In the swarm of
-wave 6 a mine comes early, right in the swarm's way: shoot it in time.
-
-Now and then a destroyed enemy drops a pill (at most one every PILL_GAP
-seconds), and some waves end with pills for the harder wave that follows
-(these last GIFT_DURATION seconds, a whole wave). The pill drifts to the
-ring; fly the ship over it for a power, for a few seconds:
-
-  blue     TRIPLE   the two lights shoot with the ship
-  green    RAPID    shots twice as often
-  yellow   HEAVY    bigger shots that take 2 lives and go through
-  red      SHIELD   a portal around the ring stops SHIELD_HITS shots or enemies
-
-Things to try
--------------
-  A new wave       one more dict in WAVES (20 crystals from all sides?)
-  The two lights   change SPREAD and the chase rate: glued to the ship, or a
-                   long tail when it moves
-  A new power      a pill that gives the ship life back (st.ship_life += 3)
-  A new enemy      a class with life, worth and blow_up(), in the
-                   "enemies" group. Two ideas:
-                   Constellation: three stars (Circle) joined by Line,
-                   spinning, that spiral down, drop mines and blow up in a
-                   bolt (canvas.zap_at, style="fork");
-                   Orbiter: a small ball with a Halo that goes into orbit,
-                   shoots inward, then dives and implodes
-                   (implode and canvas.ripple_at)
-
 Controls
 --------
   SPACE          starts; then shoots (an enemy almost in front, inside AIM,
@@ -64,6 +12,7 @@ Run
     python examples/guardian.py
 """
 
+from math import sin
 from random import choice, uniform
 from scena import *
 
@@ -91,8 +40,9 @@ SHIELD_HITS = 3     # the shots or enemies the shield stops before it breaks
 PILL_CHANCE = 0.15  # the chance that a destroyed enemy drops a pill...
 PILL_GAP = 20       # ...if the last such pill fell at least this many seconds ago
 CLUSTER = 5         # enemies around one side before the next side (many sides)
-FONT = "fonts/kenvector_future.ttf"     # the story, the waves, the end
-HUD_FONT = "fonts/Quantico-Bold.ttf"    # the numbers on the screen: plain digits
+TITLE_FONT = "fonts/Bungee-Regular.ttf"  # the title, the waves, the end
+TEXT_FONT = "fonts/Play-Regular.ttf"     # the story: plain letters read best
+HUD_FONT = "fonts/Play-Bold.ttf"         # the numbers on the screen
 MUSIC = 0.35        # the music's volume, under the effects
 
 # The sky: clouds that churn slowly and filaments on top. Both turn with
@@ -163,6 +113,7 @@ def new_game():
     st.score = 0
     st.glow = 0.5       # the glow of the screen that the wave asks for
     st.pill_wait = 0    # seconds before a destroyed enemy may drop a pill
+    st.pace = 1         # how fast the enemies of this wave move (1.5 = 50 % faster)
     paint_core()
 
 new_game()
@@ -470,25 +421,39 @@ def mine_on_ship(mine, ship):
     ship.hurt(MINE_DAMAGE)
 
 
-# Arrow: two arrowheads that point the same way, a translucent red one and
-# a smaller orange one that adds its light on top (blend). It flies straight at the
-# ring, shoots once on the way and throws itself on the ring.
-class Arrow(Triangle, radius=26, base_ratio=0.8, group="enemies"):
+# Arrow: three translucent triangles in orange and red. The middle one is
+# the body; the other two turn out to each side of it, the same on both, and
+# the angle between them breathes. It flies straight at the ring, shoots once
+# on the way and throws itself on the ring.
+class Arrow(Triangle, radius=24, base_ratio=0.6, group="enemies"):
     life = 1
     worth = 10
 
     def setup(self):
         self.angle = heading(self, CENTER)
+        self.pace = st.pace
         self.color = Color("orange red").with_alpha(0.8)
-        self.tip = Triangle(center=lambda: self.center + vec_from_angle(self.angle, 6),
-                            angle=lambda: self.angle, radius=13, base_ratio=0.8,
-                            color="dark orange")
-        self.tip.blend = "add"
+        self.line = None
+        self.beat = uniform(0, 6.3)          # each arrow breathes on its own beat
+        self.wings = []
+        for side in (1, -1):
+            # behind the body and to one side, turned out by spread()
+            wing = Triangle(center=lambda side=side: self.center + vec_from_angle(
+                                self.angle + side * 150, 12),
+                            angle=lambda side=side: self.angle + side * self.spread(),
+                            radius=20, base_ratio=0.6)
+            wing.color = Color("dark orange").with_alpha(0.6)
+            wing.line = None
+            self.wings.append(wing)
         if chance(0.7):                  # not every arrow shoots
             self.after(uniform(1.2, 2), self.shoot)
 
+    # the angle between the body and each wing: 28 degrees, give or take 10
+    def spread(self):
+        return 28 + 10 * sin(4 * clock.time + self.beat)
+
     def on_update(self, dt):
-        self.move_by(distance=110 * dt)
+        self.move_by(distance=110 * self.pace * dt)
 
     def shoot(self):
         Bullet(center=self.center, angle=self.angle)
@@ -500,7 +465,8 @@ class Arrow(Triangle, radius=26, base_ratio=0.8, group="enemies"):
         self.destroy()
 
     def on_destroy(self):
-        self.tip.destroy()
+        for wing in self.wings:
+            wing.destroy()
 
 
 # Mandala: two half transparent pentagons, turning against each other, with
@@ -517,9 +483,10 @@ class Mandala(RegularPolygon, n=5, radius=30, group="enemies"):
         self.light = GlowSpot(center=lambda: self.center, radius=46,
                               color="medium purple", amount=0.4)
         side = heading(CENTER, self) + uniform(-30, 30)   # each in its own place
-        self.move_to(on_ring(side, 420), time=3, ease="ease_out")
+        self.pace = st.pace
+        self.move_to(on_ring(side, 420), time=3 / self.pace, ease="ease_out")
         self.every(2.4, self.shoot)
-        self.after(12, lambda: self.move_to(CENTER, speed=40))   # then it comes down
+        self.after(12, lambda: self.move_to(CENTER, speed=40 * self.pace))   # then it comes down
 
     def on_update(self, dt):
         self.rotate_by(50 * dt)
@@ -550,7 +517,7 @@ class Crystal(RegularPolygon, n=6, radius=30, group="enemies"):
         self.visual = Gel("turquoise")
         self.inside = Triangle(center=lambda: self, angle=lambda: -self.angle,
                                radius=13, color="aquamarine")
-        self.move_to(CENTER, speed=36)
+        self.move_to(CENTER, speed=36 * st.pace)
         self.every(2.0, self.shoot)
 
     def on_update(self, dt):
@@ -674,14 +641,15 @@ VIEWS = {"far": 0.55, "normal": 0.75, "close": 1.05}
 #   ambush   (if any) a mine crosses right in front of the ring this many
 #            seconds after the first enemy comes out, in the wave's way
 #   divers   (if any) how many mines dive at the ring
+#   pace     (if any) how fast the enemies move: 1.5 is 50 % faster
 #   gifts    (if any) the pills left at the end, for the next wave (they
 #            last GIFT_DURATION)
 #   party    (if any) gold embers when the wave is won
 WAVES = [
     dict(name="Arrows from the north", side=90, kinds=[Arrow], count=16,
          every=0.45, view="close", glow=0.5, end="clear"),
-    dict(name="Mandalas", side=210, kinds=[Mandala], count=5, every=1.2,
-         view="normal", glow=0.9, end=10, mines=2),
+    dict(name="Mandalas", side=210, kinds=[Mandala], count=8, every=0.9,
+         pace=1.5, view="normal", glow=0.9, end=10, mines=2),
     dict(name="Southern mix", side=270, kinds=[Arrow, Arrow, Crystal], count=18,
          every=0.45, view="normal", glow=0.6, end="clear",
          gifts=["triple", "shield"]),
@@ -689,8 +657,8 @@ WAVES = [
          view="far", glow=0.8, end="clear", mines=3, divers=1,
          gifts=["heavy", "triple"]),
     dict(name="Polygons", side=[45, 165, 285], kinds=[Mandala, Crystal],
-         count=14, every=0.8, cluster=2, view="far", glow=0.7, end="clear",
-         divers=1),
+         count=20, every=0.6, cluster=2, pace=1.5, view="far", glow=0.7,
+         end="clear", divers=1),
     dict(name="Swarm", side=330, kinds=[Arrow], count=50, every=0.12,
          view="normal", ring="edge", glow=1.0, end="clear", turn=True, mines=1,
          ambush=8, gifts=["rapid", "heavy"], party=True),
@@ -714,7 +682,7 @@ def lettering(letters, color="cyan", color2="magenta"):
 
 
 def announce(text):
-    sign = lettering(Text(text, center=(640, 720), font=FONT, font_size=38,
+    sign = lettering(Text(text, center=(640, 720), font=TITLE_FONT, font_size=36,
                           layer="ui"))
     sign.after(2, lambda: sign.fade_out(1, on_done=sign.destroy))
     play_sound("audio/fx2.wav", volume=0.5)
@@ -753,14 +721,16 @@ class Intro(Act):
         canvas.pan_to(CENTER + Vec2(0, 290))     # the ring low on the screen
         play_sound("music/space.ogg", volume=0.6, loops="forever", name="music")
         StarFly(color="light cyan", speed=0.4, density=0.6, alpha=0.6)
-        title = Text("RING GUARDIAN", center=(640, 728), font=FONT, font_size=66,
+        title = Text("RING GUARDIAN", center=(640, 728), font=TITLE_FONT, font_size=60,
                      layer="ui")
         lettering(title, "gold", "orange red")
         title.line_width = 3
         title.glow = Glow("orange red")
         title.dissolve_in(2)
-        self.story = Text("", top_left=(228, 655), font=FONT, font_size=23)
-        lettering(self.story, "white", "light sky blue")
+        # plain white: a gradient or an outline on this many letters costs
+        # more to draw than the whole game (each glyph becomes a path)
+        self.story = Text("", top_left=(345, 655), font=TEXT_FONT, font_size=26,
+                          color="white")
         self.letters = 0
         for color, start in (("gold", 0), ("dark orange", 0.5)):
             frame = Track(points=[(200, 680), (1080, 680), (1080, 425), (200, 425)],
@@ -770,8 +740,8 @@ class Intro(Act):
             frame["end"] @= lambda start=start: (start + clock.time * 0.12 + 0.15) % 1
         self.prompt = Text("Press SPACE to start. Then keep pressing SPACE\n"
                            "to shoot everything that moves.", center=(640, 370),
-                           font=FONT, font_size=20, align="center", layer="ui")
-        lettering(self.prompt)
+                           font=TEXT_FONT, font_size=22, align="center", layer="ui",
+                           color="gold")
         # it blinks, once the story is all typed
         self.prompt["visible"] @= lambda: (self.letters == len(STORY)
                                            and clock.time % 1.2 < 0.85)
@@ -830,6 +800,7 @@ class Game(Act):
             one_side = not (side is None or isinstance(side, list))
             announce(f"WAVE {number + 1}   {wave['name']}")
             st.glow = wave["glow"]
+            st.pace = wave.get("pace", 1)
             if wave.get("turn"):
                 self.turn = 90 - side
                 canvas.rotate_to(self.turn, time=2, ease="ease_in_out")
@@ -907,7 +878,7 @@ class Game(Act):
     def finish(self, title):
         self.over = True
         self.after(1.5, lambda: lettering(Text(title + "\nPress R to play again",
-                                               center=CENTER, font=FONT,
-                                               font_size=46, layer="ui")))
+                                               center=CENTER, font=TITLE_FONT,
+                                               font_size=44, layer="ui")))
 
 run(Intro)

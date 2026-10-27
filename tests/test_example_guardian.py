@@ -17,7 +17,8 @@ DURATION seconds; a destroyed enemy drops at most one pill every PILL_GAP
 seconds, and the waves marked ``gifts`` leave those pills, which last
 GIFT_DURATION (wave 4 leaves heavy and triple shots for the polygons); a
 wave's ``ambush`` mine is right in front of the ring that many seconds after
-its first enemy (the swarm of wave 6 has one); from many sides
+its first enemy (the swarm of wave 6 has one); a wave's ``pace`` makes its
+enemies move that much faster (waves 2 and 5: 1.5); from many sides
 the enemies come in clusters; from one side the ring goes to the far side
 of the screen (half off it on an "edge" wave) and the portal stays on the
 screen; the waves run one after the other to "THE RING IS SAFE", the camera
@@ -435,6 +436,28 @@ class TestGuardianWaves(unittest.TestCase):
             near = run.ns["collision"].query_circle(mine.center, radius=ns["BLAST"],
                                                     group="enemies")
             self.assertGreaterEqual(len(near), 15, "the swarm is not there yet")
+
+    def test_a_paced_wave_moves_its_enemies_faster(self):
+        speeds = {}
+        for pace in (1, 1.5):
+            with ProgramRun(PATH) as run:
+                ns, ship = quiet(run)
+                ns["st"].pace = pace
+                arrow = ns["Arrow"](center=ns["on_ring"](90, 600))
+                crystal = ns["Crystal"](center=ns["on_ring"](270, 600))
+                a0 = (float(arrow.center.x), float(arrow.center.y))
+                c0 = (float(crystal.center.x), float(crystal.center.y))
+                run.step(SECOND)
+                speeds[pace] = (
+                    math.dist(a0, (float(arrow.center.x), float(arrow.center.y))),
+                    math.dist(c0, (float(crystal.center.x), float(crystal.center.y))))
+        for slow, fast in zip(speeds[1], speeds[1.5]):
+            self.assertGreater(slow, 0, "vacuous: nothing moved")
+            self.assertAlmostEqual(fast / slow, 1.5, delta=0.05)
+        with ProgramRun(PATH) as run:
+            ns = run.ns
+            paced = {wave["name"]: wave.get("pace") for wave in ns["WAVES"] if wave.get("pace")}
+            self.assertEqual(paced, {"Mandalas": 1.5, "Polygons": 1.5})
 
     def test_many_sides_come_in_clusters(self):
         with ProgramRun(PATH) as run:
