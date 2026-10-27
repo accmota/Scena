@@ -136,7 +136,7 @@ class TestGuardianStory(unittest.TestCase):
             ns["shoot_down"](still(ns, "Arrow", 0, 500))
             ns["hurt_ring"]()
             ship.hurt()
-            for sound in ("music/battle_in_the_winter.ogg", "audio/laser7.wav",
+            for sound in ("music/battle_theme_a.ogg", "audio/laser7.wav",
                           "audio/explosion07.wav", "audio/impactBell_heavy_000.ogg",
                           "audio/impactPunch_heavy_001.ogg"):
                 self.assertIn(sound, played)

@@ -43,7 +43,7 @@ CLUSTER = 5         # enemies around one side before the next side (many sides)
 TITLE_FONT = "fonts/Bungee-Regular.ttf"  # the title, the waves, the end
 TEXT_FONT = "fonts/Play-Regular.ttf"     # the story: plain letters read best
 HUD_FONT = "fonts/Play-Bold.ttf"         # the numbers on the screen
-MUSIC = 0.35        # the music's volume, under the effects
+MUSIC = 0.1         # the music's volume, under the effects (a loud track)
 
 # The sky: clouds that churn slowly and filaments on top. Both turn with
 # the camera, like the rest of the world.
@@ -766,7 +766,7 @@ class Intro(Act):
     def setup(self):
         canvas.zoom_to(0.9)
         canvas.pan_to(CENTER + Vec2(0, 290))     # the ring low on the screen
-        play_sound("music/space.ogg", volume=0.6, loops="forever", name="music")
+        play_sound("music/battle_theme_b.ogg", volume=0.35, loops="forever", name="music")
         StarFly(color="light cyan", speed=0.4, density=0.6, alpha=0.6)
         title = Text("RING GUARDIAN", center=(640, 728), font=TITLE_FONT, font_size=60,
                      layer="ui")
@@ -814,7 +814,7 @@ class Game(Act):
         self.panel = lettering(Text("", top_right=(1256, 784), font=HUD_FONT,
                                     font_size=24), "gold", "orange red")
         self.over = False
-        self.music = play_sound("music/battle_in_the_winter.ogg", volume=MUSIC,
+        self.music = play_sound("music/battle_theme_a.ogg", volume=MUSIC,
                                 loops="forever", crossfade=1.5, name="music")
         self.waves = self.run_task(self.director)
 

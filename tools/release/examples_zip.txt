@@ -173,8 +173,8 @@ examples/media/levels/ninja_world.json
 examples/media/levels/race.json
 examples/media/levels/race_lightning.json
 examples/media/music/License.txt
-examples/media/music/battle_in_the_winter.ogg
-examples/media/music/space.ogg
+examples/media/music/battle_theme_a.ogg
+examples/media/music/battle_theme_b.ogg
 examples/media/music/super_hero_original_no_intro.ogg
 examples/media/ninja/Attack__000.png
 examples/media/ninja/Attack__001.png
