@@ -33,6 +33,13 @@ Bug classes guarded:
   chapter build-up's picks resolve to the program's own code; its panel
   follows the chapters and the last one ends the take (``TestChapters``);
   chained pilots each keep their own clock and memory.
+* **A caption is not seen, or says something else than the subtitles.**
+  Captions go in the letterbox band above the game (over the game, on a
+  dark band, only when that band is too low), fade in and out, fit one
+  line; the take reports the spans a caption was on screen and the
+  ``.srt`` is made from them, moved by the clips before when steps are
+  joined; every ``say`` names a real step or chapter and fits
+  (``TestCaptions``).
 * **A debug chord arrives as a plain key.** Ctrl+Shift+7 / 6 / 8 over a run
   switch the overlays in turn, each kept as the next comes, and the HUD's
   FPS says the video's rate, not the render's (``TestDebugKeys``).
@@ -644,6 +651,91 @@ class TestChapters(unittest.TestCase):
         self.assertEqual(seen, [("first", 0.0, "first"), ("first", 0.5, "first"),
                                 ("second", 0.0, "second"), ("second", 0.5, "second")])
         self.assertNotIn("who", pilots.memo(game), "the chain's own memory stays apart")
+
+
+class TestCaptions(unittest.TestCase):
+    """What a build-up says on screen, and its subtitles."""
+
+    @classmethod
+    def setUpClass(cls):
+        import buildup
+        cls.bu = buildup
+
+    def test_box_is_the_band_above_the_game(self):
+        self.assertEqual(rg.caption_box((2560, 1440), ((1024, 105), (1536, 1229))),
+                         (0, 105, 1024, 2560, False))
+        top, bottom, left, right, over = rg.caption_box((2560, 1440), ((1024, 20), (1536, 1400)))
+        self.assertTrue(over)
+        self.assertEqual((top, left, right), (20, 1024, 2560))
+        self.assertGreater(bottom - top, 40)
+
+    def test_timeline_fades_and_hands_over(self):
+        say = self.bu.timeline([(0.0, "one"), (2.0, "two")], 4.0)
+        self.assertEqual(say(1.0), ("one", 1.0))
+        self.assertEqual(say(0.0), ("one", 0.0))
+        text, alpha = say(1.9)
+        self.assertEqual(text, "one")
+        self.assertLess(alpha, 1.0)
+        self.assertEqual(say(3.0)[0], "two")
+        self.assertIsNone(say(4.0))
+        held = self.bu.timeline([(1.0, "on")], None)
+        self.assertEqual(held(100.0), ("on", 1.0))
+        self.assertIsNone(held(0.5))
+
+    def test_srt_and_joined_steps(self):
+        spans = self.bu.joined_captions([
+            {"captions": [(0.0, 2.5, "A")], "length": 3.0},
+            {"captions": [(0.5, 1.0, "B"), (1.5, 2.0, "C")], "length": 2.0}])
+        self.assertEqual(spans, [(0.0, 2.5, "A"), (3.5, 4.0, "B"), (4.5, 5.0, "C")])
+        self.assertEqual(self.bu.srt([(0.0, 2.5, "A"), (3725.25, 3726.0, "B")]),
+                         "1\n00:00:00,000 --> 00:00:02,500\nA\n\n"
+                         "2\n01:02:05,250 --> 01:02:06,000\nB\n\n")
+
+    def test_take_draws_and_reports_its_captions(self):
+        sinks = []
+
+        def say(game, t):
+            return ("Hello", 1.0) if 0.5 <= t < 1.0 else None
+
+        r = rg.record("examples/ping.py", lambda size, fps: sinks.append(_Memory(size, fps))
+                      or sinks[-1], source=_PING, size=(400, 400), gpu=False, progress=False,
+                      seconds=1.5, layout="code", caption_at=say)
+        self.assertEqual(len(r["captions"]), 1)
+        a, b, text = r["captions"][0]
+        self.assertEqual(text, "Hello")
+        self.assertAlmostEqual(a, 0.5, delta=0.02)
+        self.assertAlmostEqual(b, 1.0, delta=0.02)
+        top, bottom, left, right, over = rg.caption_box(
+            (400, 400), ((400 - r["game_size"][0], (400 - r["game_size"][1]) // 2),
+                         r["game_size"]))
+        frames = sinks[0].frames
+
+        def lit(frame):
+            return int((frame[top:bottom, left:right, :3] > 200).all(axis=2).sum())
+
+        self.assertEqual(lit(frames[10]), 0)
+        self.assertGreater(lit(frames[45]), 20, "the caption is drawn")
+        self.assertEqual(lit(frames[-1]), 0, "and cleared when it is over")
+
+    def test_every_say_is_a_step_or_chapter_and_fits(self):
+        from PIL import ImageFont
+        w, h = tk.DEFAULTS["size"]
+        game_w = w - round(w * rg.CODE_SHARE) // 2 * 2
+        font = ImageFont.truetype(str(rg.CAPTION_FONT), round(h * rg.CAPTION_PT))
+        for bid, b in tk.BUILDUPS.items():
+            count = (len(b["chapters"]) if "chapters" in b
+                     else len(self.bu.page_steps(b["page"], b.get("example"))))
+            for k, say in b.get("say", {}).items():
+                with self.subTest(buildup=bid, say=k):
+                    self.assertTrue(k == "finale" and "page" in b or 1 <= k <= count)
+                    for _, text in self.bu.cues(say):
+                        self.assertLessEqual(font.getlength(text.format(lines=999)),
+                                             game_w * 0.94, "one line at full size")
+            if "page" in b:
+                for n in range(1, count + 1):
+                    cue_list, end = self.bu.step_cues(bid, n)
+                    self.assertTrue(all(0 <= t < end for t, _ in cue_list))
+                    self.assertEqual([t for t, _ in cue_list], sorted(t for t, _ in cue_list))
 
 
 class TestDebugKeys(unittest.TestCase):

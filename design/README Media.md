@@ -162,6 +162,20 @@ Guards: `tests/test_readme.py`.
   storyboard as the demo loops, plays `FINALE` s and ends the take.
   Output `recordings/buildup/<id>.mp4`. A renamed function or comment in
   the demo fails `TestChapters` (the picks must resolve).
+- **Captions say what is going on.** A build-up shows one line in big
+  letters (Quantico Bold, up to 4.5 % of the frame's height) in the
+  letterbox band above the game, never over it; only a band lower than
+  5 % of the frame puts it over the top of the game, on a dark band
+  (`record_game.caption_box`). The lines are `_SAY` in `takes.py`, all
+  together as a script: per step (default its title), `(offset, text)`
+  pairs when a step says more than one thing (Ships step 7 follows the
+  debug view), the finale's (default: the program's line count), per
+  chapter (from its start, cut when the next comes). Each fades in and out
+  (`buildup.CAPTION_FADE`). A line says what to look at, not what the
+  code is called, and fits one line at full size (`TestCaptions`). The
+  take reports the spans a caption was on screen; they become
+  `recordings/buildup/<id>.srt` (steps moved by the clips before them):
+  YouTube's subtitles, and the timed script for a narration later.
 - **Debug mode on video.** `pilots.with_debug_keys` plays another pilot's
   run and adds Ctrl+Shift chords at set times (`ninja_5_espada/debug`:
   7 hitboxes, then 6 processes; `naves_6_atos/debug`: 7, then 8 debug

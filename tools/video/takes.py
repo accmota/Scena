@@ -385,6 +385,94 @@ BUILDUPS = {
 }
 
 
+# What each build-up says on screen (``buildup.py``: big, above the game;
+# and the ``.srt``). Per step from 1 (a step not listed shows its title);
+# ``(offset, text)`` pairs when a step says more than one thing, each from
+# that many seconds into the step; "finale" after the last step's own
+# seconds ({lines}: the program's lines of code). Chapter build-ups: per
+# chapter from 1. Say what to look at, not what the code is called; one line.
+_SAY = {
+    "first_script": {
+        1: "One line opens a window", 2: "A background for the window",
+        3: "Three shapes, each placed by its center", 4: "A color for each shape",
+        5: "A look for each: halo, glow, neon", 6: "A sprite: a picture from a file",
+        7: "update() runs every frame: the star moves", 8: "Hold RIGHT and the star moves",
+        9: "The four arrows move it every way", 10: "A click on the triangle: a new color",
+        11: "One rule, three shapes to click", 12: "Press D: a circle where the mouse is",
+        13: ((0.0, "A rule waits for the star to pass x = 800"),
+             (1.9, "There: the triangle whitens, the circle grows")),
+    },
+    "catch_stars": {
+        1: "A bar that the arrows move", 2: "A star falls", 3: "A new star every 0.9 seconds",
+        4: "A list moves every star", 5: "A group: the same, with less code",
+        6: "Catch a star and it is gone", 7: "Missed stars fall on forever, unseen",
+        8: "Missed stars are deleted below the screen", 9: "A scoreboard: caught and missed",
+        10: "The bar pops, a lost star flashes", "finale": "The finished game: {lines} lines",
+    },
+    "movement": {
+        1: "Click: the ship jumps there", 2: "Now it travels there, in one second",
+        3: "The same speed for every trip", 4: "It speeds up, then slows down",
+        5: "It turns to face where it goes", 6: "A ring marks the target until it lands",
+        7: ((0.0, "Every trip has a handle to stop it"), (1.7, "SPACE: the trip stops halfway")),
+        8: ((0.0, "Hold the right button: it follows"), (4.9, "A click sends it again")),
+    },
+    "ships_1": {
+        1: "A ship the arrows move", 2: "It stays inside the screen",
+        3: "A sky: gradient, stars, grain, glow", 4: "The ship glows",
+        5: "SPACE fires: a shot every 0.2 s", 6: "The shots fly up",
+        7: ((0.0, "Shots that leave the screen are deleted"),
+            (1.6, "Debug view: the world beyond the screen"),
+            (4.4, "Each shot vanishes as it leaves"), (7.2, "Back to the normal view")),
+        8: "A fleet: 3 rows of 8", 9: "Each column its own hue", 10: "The fleet breathes",
+        11: "The fleet moves, and keeps going", 12: "Back and forth between the edges",
+        13: "A shot hits an enemy: both are gone", 14: "A burst for each hit, and a score",
+        15: "The fleet fires back", 16: "Enemy shots can now destroy the ship",
+        "finale": ((0.0, "The finished game: {lines} lines"), (5.0, "One shot too many")),
+    },
+    "ninja_1_run": {
+        1: "Floor, platforms and the ninja", 2: "Gravity: the ninja falls through",
+        3: "Now the floor holds", 4: "The arrows walk; walls at the sides",
+        5: "UP jumps, only from the ground", 6: "Run, jump, stand: an animation for each",
+        "finale": "The finished game: {lines} lines",
+    },
+    "balls": {
+        1: "Four walls", 2: "One ball, moving on its own",
+        3: "A rule: balls bounce off the walls", 4: "Twenty balls, random directions",
+        5: "Balls bounce off each other too", 6: "A spark and a sound at each wall",
+        7: "One ball is chosen: gold, with a tail", 8: "A trail draws its path",
+        9: "The wheel zooms in and out", 10: "A bar shows its speed",
+    },
+    "spinning_bars": {
+        1: "A bar spins, by a formula of the clock", 2: "A function that makes bars",
+        3: "It calls itself: a bar at the tip", 4: "Attached: the child follows its parent",
+        5: "Two children for every bar", 6: "Five levels, a color for each",
+        7: "A background, a glow and a trail", 8: "Sliders for speed and spin; M for the trail",
+    },
+    "oscilloscope": {
+        1: "A point turning on a circle", 2: "The tip keeps its own time",
+        3: "A trail behind the tip", 4: "Two spins added: a figure",
+        5: "A click on the ball switches it on", 6: "Sliders change the figure",
+    },
+    "old_school": {
+        1: "Stars fly at you; letters fly into place",
+        2: "Letters ride a sine wave, placed by a formula",
+        3: "Copper bars: light adds where they cross",
+        4: "100 rows, each a slice of a turning column",
+        5: "The whole world tiles, turns and zooms",
+        6: "A plasma sky, then a dive into a tunnel",
+        7: "64 balls: a cube, a sphere, a ring",
+        8: "An old TV switching off",
+        9: "The storyboard: the demo's running order",
+    },
+    "demo100": {
+        1: "Every triangle is placed by a formula", 2: "Two waves: a sway that never repeats",
+        3: "Faster and faster, then a burst", 4: "The storyboard: three parts, on a loop",
+    },
+}
+for _bid, _say in _SAY.items():
+    BUILDUPS[_bid]["say"] = _say
+
+
 def take(tid: str) -> dict:
     """The take ``tid`` with every field filled in."""
     spec = {**DEFAULTS, **TAKES[tid]}

@@ -21,6 +21,14 @@ is one run of a program; the panel shows the code of the part on screen
 the last chapter (the storyboard, as the demo loops) plays ``FINALE`` s.
 
   recordings/buildup/<id>.mp4            a chapter build-up
+  recordings/buildup/<id>.srt            the captions, as subtitles
+
+Captions (``say`` in ``BUILDUPS``): a line in big letters above the game
+says what is going on (``record_game.caption_box``): per step (default
+its title), with times when a step says more than one thing, the finale's
+(default: the program's line count), per chapter. The same lines, with the
+times they were on screen, are the ``.srt``: YouTube's subtitles and the
+narration's script.
 
   recordings/buildup/<id>/step_NN.mp4    one clip per step
   recordings/buildup/<id>.mp4            the steps joined
@@ -52,6 +60,8 @@ import record_game as rg  # noqa: E402
 OUT = rg.RECORDINGS / "buildup"
 STEP_DEFAULTS = dict(pilot="watch", args={}, seconds=4.0, lead=0.0)
 FINALE = 8.0            # the last step plays on this long once its code is complete
+CAPTION_FADE = 0.3      # a caption fades in and out over this long
+FINALE_SAY = "The finished program: {lines} lines"
 
 
 def page_steps(page: str, example: str | None = None) -> list[tuple[int, str, str]]:
@@ -317,13 +327,72 @@ def render_step(bid: str, n: int, *, review_only: bool = False, gpu: bool = True
         if fin.get("pilot"):
             pilot, args = "chain", dict(parts=((0.0, spec["pilot"], spec["args"]),
                                                (ends, fin["pilot"], fin.get("args", {}))))
+    say = timeline(*step_cues(bid, n))
     stem = f"step_{n:02d}"
     r, rep, sheet = _record(b["program"], bid, stem, review_only, gpu, pilot=pilot, args=args,
                             seconds=seconds, lead=spec["lead"], seed=n, source=code,
                             code_at=lambda game, t: (shown, heading, marks if t < ends else ()),
+                            caption_at=lambda game, t: say(t - spec["lead"]),
                             label=f"step {n}: {title}")
     return {"ok": True, "step": n, "title": title, "out": r["out"], "sheet": str(sheet),
-            "seconds": rep["seconds"], "ended": r["ended"]}
+            "seconds": rep["seconds"], "ended": r["ended"], "captions": r["captions"],
+            "length": r["length"]}
+
+
+def cues(say, start: float = 0.0) -> list:
+    """A caption spec as ``(time, text)`` cues from ``start``: a text says it
+    from the start, ``((offset, text), ...)`` one after another."""
+    if isinstance(say, str):
+        return [(start, say)]
+    return [(start + offset, text) for offset, text in say]
+
+
+def timeline(cue_list, end: float | None):
+    """``t -> (text, alpha)``: each cue until the next one starts (the last
+    until ``end``; ``None``: no end known, it holds), fading in and out over
+    ``CAPTION_FADE``."""
+    def at(t):
+        for k, (start, text) in enumerate(cue_list):
+            stop = cue_list[k + 1][0] if k + 1 < len(cue_list) else end
+            if start <= t and (stop is None or t < stop):
+                fade = min(1.0, (t - start) / CAPTION_FADE)
+                if stop is not None:
+                    fade = min(fade, (stop - t) / CAPTION_FADE)
+                return text, max(0.0, fade)
+        return None
+    return at
+
+
+def step_cues(bid: str, n: int) -> tuple:
+    """Step ``n``'s captions, ``(cues, end)`` in its clip's seconds: its
+    ``say`` (default: its title), then, on the last step, the finale's (the
+    default counts the program's lines)."""
+    from takes import BUILDUPS
+    b = BUILDUPS[bid]
+    steps = page_steps(b["page"], b.get("example"))
+    _, title, code = steps[n - 1]
+    spec = step_spec(bid, n)
+    say = b.get("say", {})
+    out = cues(say.get(n, title))
+    end = spec["seconds"]
+    if n == len(steps):
+        lines = sum(1 for line in rg.program_code(code).splitlines() if line.strip())
+        fin = say.get("finale", FINALE_SAY)
+        fin = fin.format(lines=lines) if isinstance(fin, str) else tuple(
+            (offset, text.format(lines=lines)) for offset, text in fin)
+        out += cues(fin, end)
+        end += b.get("finale", {}).get("seconds", FINALE)
+    return out, end
+
+
+def srt(spans) -> str:
+    """Subtitles (SubRip) from ``(start, end, text)`` spans, in seconds: the
+    captions for YouTube, and the narration's script with its times."""
+    def stamp(sec):
+        ms = round(sec * 1000)
+        return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+    return "".join(f"{k}\n{stamp(a)} --> {stamp(b)}\n{text}\n\n"
+                   for k, (a, b, text) in enumerate(spans, start=1))
 
 
 def _record(program, bid, stem, review_only, gpu, *, label, **kw):
@@ -345,6 +414,7 @@ def _record(program, bid, stem, review_only, gpu, *, label, **kw):
     r = rg.record(program, factory, size=size, fps=fps, gpu=gpu, progress=False,
                   layout="code", **kw)
     r["out"] = None if review_only else str(out)
+    r["length"] = r["frames"] / fps
     sheet = OUT / bid / f"{stem}.review.jpg"
     rep = reviews[0].report()
     reviews[0].save_sheet(sheet, f"{bid} {label}   {rep['seconds']:.1f} s")
@@ -365,29 +435,40 @@ def render_chapters(bid: str, *, review_only: bool = False, gpu: bool = True) ->
     """Record a chapter build-up: one run of the program, the panel showing
     the code of the chapter on screen. A chapter starts when ``key(game)``
     changes (``None``: not yet); the last one (the program's frame, while it
-    loops) plays ``finale`` s, then the take ends."""
+    loops) plays ``finale`` s, then the take ends. Captions: ``say[k]`` from
+    chapter ``k``'s start (from 1; default its title), cut when the next
+    chapter comes; the subtitles go to ``<bid>.srt``."""
     from takes import BUILDUPS
     b = BUILDUPS[bid]
     panels = chapter_panels(bid)
-    seen = dict(k=0, key=None)
+    finale = b.get("finale", FINALE)
+    seen = dict(k=0, key=None, say=None)
+
+    def chapter_say(k, start):
+        last = k == len(panels) - 1
+        text = b.get("say", {}).get(k + 1, b["chapters"][k][0].split("  ", 1)[-1])
+        seen["say"] = timeline(cues(text, start), start + finale if last else None)
 
     def code_at(game, t):
         key = b["key"](game)
         if key is not None:
             if seen["key"] is not None and key != seen["key"] and seen["k"] < len(panels) - 1:
                 seen["k"] += 1
+                chapter_say(seen["k"], t)
                 if seen["k"] == len(panels) - 1:
                     game.done = True
             seen["key"] = key
         return panels[seen["k"]]
 
+    chapter_say(0, 0.0)
     r, rep, sheet = _record(b["program"], bid, "chapters", review_only, gpu,
                             pilot=b.get("pilot", "watch"), args=b.get("args", {}),
-                            seconds=b["seconds"], tail=b.get("finale", FINALE),
-                            code_at=code_at, label="chapters")
+                            seconds=b["seconds"], tail=finale, code_at=code_at,
+                            caption_at=lambda game, t: seen["say"](t), label="chapters")
     out = r["out"]
     if out is not None:
         out = str(Path(out).replace(OUT / f"{bid}.mp4"))
+        (OUT / f"{bid}.srt").write_text(srt(r["captions"]), encoding="utf-8", newline="\n")
     return {"ok": True, "out": out, "sheet": str(sheet), "seconds": rep["seconds"],
             "ended": r["ended"], "chapters": seen["k"] + 1}
 
@@ -462,9 +543,21 @@ def main(argv: list[str] | None = None) -> int:
     if failed or args.review:
         return 1 if failed else 0
     out = join([Path(r["out"]) for r in results], OUT / f"{args.id}.mp4")
+    out.with_suffix(".srt").write_text(srt(joined_captions(results)), encoding="utf-8",
+                                       newline="\n")
     total = sum(r["seconds"] for r in results)
-    print(f"{out}: {len(results)} steps, {total:.1f} s")
+    print(f"{out}: {len(results)} steps, {total:.1f} s (and {out.with_suffix('.srt').name})")
     return 0
+
+
+def joined_captions(results) -> list:
+    """The steps' caption spans on the joined video's clock: each clip's
+    spans moved by the clips before it."""
+    spans, offset = [], 0.0
+    for r in results:
+        spans += [(a + offset, b + offset, text) for a, b, text in r["captions"]]
+        offset += r["length"]
+    return spans
 
 
 if __name__ == "__main__":

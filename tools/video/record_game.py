@@ -347,6 +347,48 @@ def code_panel(source: str, size: tuple, title: str = "", font_path: str | None 
     return np.asarray(img)
 
 
+# ── Captions: what is going on, in big letters above the game ──────────────
+
+CAPTION_FONT = REPO / "examples" / "media" / "fonts" / "Quantico-Bold.ttf"
+CAPTION_PT = 0.045        # the caption's font, at most, as a share of the frame's height
+CAPTION_BAR = 0.05        # a letterbox band lower than this share: the caption goes over the
+CAPTION_BAND = 0.08       # top of the game, on a dark band this high
+CAPTION_COLOR = (255, 255, 255)
+
+
+def caption_image(text: str, size: tuple, frame_h: int):
+    """An RGBA picture of ``text`` centred in ``size``: one line, as big as
+    ``CAPTION_PT`` allows and the box holds (94 % of its width, 60 % of its
+    height), with a soft shadow."""
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+    w, h = size
+    px = max(8, min(round(frame_h * CAPTION_PT), round(h * 0.6)))
+    font = ImageFont.truetype(str(CAPTION_FONT), px)
+    wide = font.getlength(text)
+    if wide > w * 0.94:
+        px = max(8, int(px * w * 0.94 / wide))
+        font = ImageFont.truetype(str(CAPTION_FONT), px)
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    at = (w / 2, h / 2)
+    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).text((at[0], at[1] + px * 0.06), text, font=font, anchor="mm",
+                                fill=(0, 0, 0, 200))
+    img = Image.alpha_composite(img, shadow.filter(ImageFilter.GaussianBlur(px * 0.08)))
+    ImageDraw.Draw(img).text(at, text, font=font, anchor="mm", fill=CAPTION_COLOR + (255,))
+    return np.asarray(img)
+
+
+def caption_box(size: tuple, game: tuple) -> tuple:
+    """Where captions go: ``(top, bottom, left, right, over_game)``. The
+    letterbox band above the game when it is at least ``CAPTION_BAR`` of the
+    frame's height, else a band over the top of the game."""
+    (x0, y0), (gw, _) = game
+    if y0 >= size[1] * CAPTION_BAR:
+        return 0, y0, x0, x0 + gw, False
+    return y0, y0 + round(size[1] * CAPTION_BAND), x0, x0 + gw, True
+
+
 def load_pilot(spec: str):
     """A video pilot (``pilots.py``) or README pilot by name, or ``file.py:function``."""
     if ":" in spec and spec.split(":", 1)[0].endswith(".py"):
@@ -571,7 +613,7 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
            gpu: bool = True, seed: int = 0, progress: bool = True,
            source: str | None = None, layout: str | None = None,
            code_font: str | None = None, code_title: str | None = None,
-           code_highlight=(), code_at=None) -> dict:
+           code_highlight=(), code_at=None, caption_at=None) -> dict:
     """Play ``program`` and hand each video frame and the sound to a sink.
 
     ``sink_factory(size, fps)`` builds the sink once the frame size is known.
@@ -589,6 +631,10 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
     ``code_at(game, t)``: the panel changes during the take: it returns
     ``(code, title, highlight)`` for each video frame (``t`` the pilot's
     clock), the code as shown; it may end the take (``game.done``).
+    ``caption_at(game, t)``: ``(text, alpha)`` or ``None`` for each video
+    frame, drawn big above the game (``caption_box``); the result's
+    ``captions`` lists ``(start, end, text)`` in video seconds, each span a
+    caption was seen (a subtitle file's lines).
     """
     import numpy as np
     import skia
@@ -641,6 +687,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
                      tuple(code_highlight))
             code_at = lambda game, t: whole  # noqa: E731
         panels, shown = {}, None
+        cap_box = caption_box(size, ((x0, y0), (gw, gh)))
+        cap_images, said, spans = {}, None, []
         sink = sink_factory(size, fps)
         game = mm.Pilot(run)
         step = GAME_FPS // fps
@@ -688,6 +736,17 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
                                                      font_path=code_font, highlight=marks)
                         canvas[:, :panel_w] = panels[key]
                         shown = key
+                if caption_at is not None:
+                    cue = caption_at(game, (i - 1) / GAME_FPS)
+                    text, alpha = cue if cue else (None, 0.0)
+                    _draw_caption(canvas, cap_box, cap_images, text, alpha, size[1])
+                    seen = text if text and alpha > 0 else None
+                    if seen != said:
+                        if said is not None:
+                            spans[-1][1] = frames / fps
+                        if seen is not None:
+                            spans.append([frames / fps, None, seen])
+                        said = seen
                 if getattr(game, "still", False) and hasattr(sink, "mark_meant"):
                     sink.mark_meant()
                 sink.frame(canvas)
@@ -698,6 +757,8 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
                           file=sys.stderr, flush=True)
             samples = card.samples()
             rate = card.rate
+        if said is not None:
+            spans[-1][1] = frames / fps
         out = sink.finish(samples, rate)
         sink = None
     finally:
@@ -708,7 +769,28 @@ def record(program: str, sink_factory, *, pilot="watch", args: dict | None = Non
         except Exception:
             pass
     return {"out": str(out), "frames": frames, "samples": int(len(samples)),
-            "rate": rate, "backend": backend, "game_size": (gw, gh), "ended": ended}
+            "rate": rate, "backend": backend, "game_size": (gw, gh), "ended": ended,
+            "captions": [tuple(span) for span in spans]}
+
+
+def _draw_caption(canvas, box, images, text, alpha, frame_h) -> None:
+    """Draw ``text`` at ``alpha`` in ``box`` (``caption_box``). Over the
+    letterbox the band is cleared every frame (the game never draws there);
+    over the game, the game's own pixels are under it, darkened."""
+    import numpy as np
+    top, bottom, left, right, over_game = box
+    if not over_game:
+        canvas[top:bottom, left:right] = LETTERBOX + (255,)
+    if not text or alpha <= 0:
+        return
+    if text not in images:
+        images[text] = caption_image(text, (right - left, bottom - top), frame_h)
+    img = images[text]
+    region = canvas[top:bottom, left:right, :3].astype(np.float32)
+    if over_game:
+        region *= 1.0 - 0.6 * alpha
+    a = img[..., 3:4].astype(np.float32) * (alpha / 255.0)
+    canvas[top:bottom, left:right, :3] = (region * (1.0 - a) + img[..., :3] * a).astype(np.uint8)
 
 
 def _size(text: str) -> tuple:
