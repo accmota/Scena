@@ -29,19 +29,21 @@ _CATCH = dict(paddle="paddle", group="stars", fall=180, speed=420, half=63)
 
 # Teaser 2 (the second promo video): the English programs. The Endless Runner
 # in debug mode: Ctrl+Shift chords at times from the take's start (after its
-# lead), which the teaser shows as keycaps at the same times. 7 overlays, P
-# pauses (then ¼ speed, then running again; the pause lands mid-jump), 8
-# zooms the view out to 50 % (the world past the screen: the Endless builds
-# ahead, clears behind), and two more presses go through 25 % back to 100 %.
+# lead), which the teaser shows as keycaps at the same times, each step held
+# long enough to be understood. 7 overlays, P pauses (then ¼ speed, then
+# running again), 8 zooms the view out to 50 % (the world past the screen:
+# the Endless builds ahead, clears behind), and two more presses go through
+# 25 % back to 100 %.
 # Seed 11: the robot's run lasts ~25 s (most seeds fall in a hole sooner).
 TEASER2_DEBUG_LEAD = 6.0
-TEASER2_DEBUG_CHORDS = ((0.8, "7"), (1.8, "P"), (3.0, "8"), (7.6, "P"), (9.6, "P"),
-                        (10.2, "8"), (10.35, "8"))
+TEASER2_DEBUG_CHORDS = ((1.0, "7"), (3.0, "P"), (5.4, "8"), (10.0, "P"), (13.0, "P"),
+                        (14.4, "8"), (14.55, "8"))
 # The demos that play side by side at the end (no input), and how long each
-# plays before its take starts (its opening is not its best moment). The
-# wall's middle cell is the duel (duel/match).
+# plays before its take starts (its opening is not its best moment;
+# hundred_lines records 40 s, the teaser picks its in-point). The wall's
+# middle cell is the duel (duel/match).
 TEASER2_WALL = (("string_theory", 6.0), ("canopy", 6.0), ("life", 4.0), ("pendulums", 8.0),
-                ("rose_window", 4.0), ("loom", 6.0), ("polygon_ballet", 4.0),
+                ("rose_window", 4.0), ("loom", 6.0), ("hundred_lines", 0.0),
                 ("revoada", 3.0))
 
 TAKES = {
@@ -247,10 +249,10 @@ TAKES = {
                                          chords=((7.0, "7"),     # the whole fleet boxed
                                                  (19.0, "8")))),  # the boss, from off screen
     # Teaser 2: the runner with the debug overlays, a game of Connect Four to
-    # its win (its rules on screen beside it), the race, the duel, Ring
+    # its win (its rules on screen beside it), the race, the duel, Light
     # Guardian through its waves, and the demos of the wall.
     "runner/debug": dict(program="examples/runner.py", pilot="with_debug_keys", seed=11,
-                         lead=TEASER2_DEBUG_LEAD, seconds=11.0,
+                         lead=TEASER2_DEBUG_LEAD, seconds=16.2,
                          args=dict(pilot="jump_the_gaps", stroke=3.0,
                                    chords=tuple((TEASER2_DEBUG_LEAD + when, key)
                                                 for when, key in TEASER2_DEBUG_CHORDS))),
@@ -262,7 +264,8 @@ TAKES = {
     "guardian/waves": dict(program="examples/guardian.py", pilot="guard_ring", seed=1,
                            args=dict(seed=1), seconds=150.0),
     **{f"{name}/wall": dict(program=f"examples/{name}.py", pilot="watch", lead=lead,
-                            seconds=10.0) for name, lead in TEASER2_WALL},
+                            seconds=40.0 if name == "hundred_lines" else 10.0)
+       for name, lead in TEASER2_WALL},
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),
