@@ -55,8 +55,15 @@ class TestNoContextMessage(unittest.TestCase):
         self.assertIn(f"{VAR}=x11", msg)
 
     def test_glfw_imported_first_names_the_import_order(self):
-        msg = gp.no_gl_context_message({VAR: "x11"}, "linux", True)
+        # scena set x11 after glfw had loaded its default build.
+        msg = gp.no_gl_context_message({VAR: "x11"}, "linux", True, user_variant="")
         self.assertIn("import scena first", msg)
+
+    def test_glfw_imported_first_with_the_users_x11_points_at_the_driver(self):
+        # The user's x11 was there when glfw loaded: the order changed nothing.
+        msg = gp.no_gl_context_message({VAR: "x11"}, "linux", True, user_variant="x11")
+        self.assertNotIn("import scena first", msg)
+        self.assertIn("OpenGL 3.2", msg)
 
     def test_x11_build_points_at_the_driver(self):
         msg = gp.no_gl_context_message({VAR: "x11"}, "linux", False)

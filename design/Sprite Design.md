@@ -1268,12 +1268,12 @@ Circle / ellipse / hull transform with the sprite pose.
 | `_AUTO_RECALL_FLOOR` | 0.75 | Recall-rail floor |
 | `_AUTO_ELLIPSE_CIRCLE_RATIO` | 1.08 | Ellipse → circle when axes within this ratio |
 
-**Tuning workflow:** visual review (`app_hitbox_lab.py`, keys `0–6` force kind,
-`C` outlines, `R` aggregate report) → corpus fit stats → live-app
-`app_hitbox_bench.py --bench` (`--spin`, `--static`, `--all-scenes`) → headless
-`perf_sprite_hitbox.py` (`--rotation 45`).
+**Tuning workflow:** visual review in a lab app (each kind forced, outlines,
+an aggregate report) → corpus fit stats → a live-app bench (spinning and
+static scenes); these three are lab tools, not in the repository → headless
+`scripts/bench/perf_sprite_hitbox.py` (`--rotation 45`).
 
-### Corpus results (sprite_tests)
+### Corpus results (media frames)
 
 **851 frames** (every PNG in `examples/media` up to 1024 px, plus the
 `shooter` and `k-rolling-ball` atlases; 2026-10-27). Default auto: avg recall
@@ -1283,7 +1283,7 @@ circle **192**, hull4 **144**, hull8 **101**, 1-rect **28**, hull9–12 **38**,
 hull5–7 **31**, two ellipses **24** (player ships, lasers, life icons: one
 prim leaves 15–60 % of them out).
 
-Live-app bench (`app_hitbox_bench.py`, 100 overlapping sprites, full Scena loop)
+A live-app lab bench (not in the repository; 100 overlapping sprites, full Scena loop)
 illustrates **cost ordering** (earlier pass; re-run after large policy changes):
 
 - **rect1** is the speed ceiling (one AABB / one OBB) — not a quality substitute.

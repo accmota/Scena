@@ -634,9 +634,13 @@ objects, checked before the collection, and at least half the growth **off
 view**: one walk of the draw lists with the cull's own test (`_cull_keeps`
 against each layer's `_cull_view_for`, `ui` skipped; ~3 ms per 6000 objects).
 The leak it is for is a shot that left the screen and was never destroyed;
-objects piling up on screen are a game the author sees. A climb found on screen
-is walked again only every `CLIMB_TAIL` samples, and the message counts the
-objects off view (`sample(off_view=)`; `TestObjectsWarnOnlyWhenItMatters`,
+objects piling up on screen are a game the author sees. The growth off view is
+counted from the climb's first walk, which only records `(drawn, off view)`
+and walks again two samples on: the off-view total is not growth (a level
+bigger than the screen keeps hundreds off view while a spawner climbs on
+screen, and that warned until RA4). A climb found on screen is walked again
+only every `CLIMB_TAIL` samples, and the message counts the objects that
+joined those off view (`sample(off_view=)`; `TestObjectsWarnOnlyWhenItMatters`,
 `TestObjectsOffViewInAGame`). Every SCENA WARNING also goes to the console:
 `process.report_author_warning` calls `warnings.warn(…, RuntimeWarning)`, so an
 agent running the game reads it on stderr.

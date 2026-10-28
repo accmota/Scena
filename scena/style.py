@@ -1307,7 +1307,7 @@ class PaintState:
             raise TypeError(
                 f"Cannot assign {name} as shape.visual — it is sprite-only "
                 f"(needs a bitmap body). {tex_hint}"
-                f"Use Halo / Rim on a Shape, or assign {name} to a Sprite."
+                f"Use Halo / Rim / Aura on a Shape, or assign {name} to a Sprite."
             )
         if self._alinks:
             # A look that brings its own color (Paint / Fill / Stroke, a seeded

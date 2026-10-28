@@ -5061,7 +5061,7 @@ after(0.4, ship.restore_visual, name="bonus")</pre>
       <button class="chip" type="button" data-filter="Sprite">Sprite</button>
     </div>
 
-    <p class="note"><strong>Reading the parameters.</strong> <code>color=</code> tints the effect; left out, it follows the object's color. <code>amount=</code> is the intensity: 1 is the default, 0 turns it off, 2 is strong. <code>speed=</code> is the animation's pace: 1 normal, 2 twice as fast, 0 freezes it. <code>width=</code> is a thickness in design units. Visuals that paint a color of their own (glow, border, body) take <code>color=</code> as the 1st argument; procedural materials (Flame, Swell, Water) and pixel operators (Grayscale, HueShift, Recolor, EmissiveBloom) do not — change the color with <code>set_color</code> on the object.</p>
+    <p class="note"><strong>Reading the parameters.</strong> <code>color=</code> tints the effect; left out, it follows the object's color. <code>amount=</code> is the intensity: 1 is the default, 0 turns it off, 2 is strong. <code>speed=</code> is the animation's pace: 1 normal, 2 twice as fast, 0 freezes it. <code>width=</code> is a thickness in design units. Visuals that paint a color of their own (glow, border, body) take <code>color=</code> as the 1st argument; procedural materials (Flame, Swell, Water) and pixel operators (Grayscale, HueShift, Recolor) and EmissiveBloom do not — change the color with <code>set_color</code> on the object.</p>
     <div class="catalog-host" id="visual-grid"></div>
   </section>
 
@@ -8708,7 +8708,7 @@ class Ship(Sprite):
         self.hum.fade_out(0.3)</pre>
       </div>
       <p>The two <code>name="music"</code> above swap because they run in the same place. The slot is per place (<a href="#vocabulario">slot</a>): a bare call in an act's <code>setup</code> and a bare call inside one of the act's modes are two slots, and both songs play. For music in an act that switches between phases: <code>self.play_sound("theme.ogg", name="music", loops="forever")</code> in the act, always.</p>
-      <p class="gotcha"><strong>No sound on Python 3.15.</strong> Sound uses the <code>miniaudio</code> package, which has no ready-made build for Python 3.15 yet (nor for Windows or Linux on ARM). There <code>pip install scena</code> installs Scena without it and the game runs silent: the first sound shows a SCENA WARNING, every sound becomes 1 second of silence, and Handles keep time as usual (<code>on_done</code>, <code>await</code>). For sound, use Python 3.14, or run <code>python -m pip install miniaudio</code> (it needs a C compiler).</p>
+      <p class="gotcha"><strong>No sound on Python 3.15.</strong> Sound uses the <code>miniaudio</code> package, which has no ready-made build for Python 3.15 yet (nor for Windows or Linux on ARM). There <code>pip install scena</code> installs Scena without it and the game runs silent: the first sound shows a SCENA WARNING, every sound becomes 1 second of silence, and Handles keep time as usual (<code>on_done</code>, <code>await</code>). For sound, use Python 3.14 (on ARM no Python has the build), or run <code>python -m pip install miniaudio</code> (it needs a C compiler).</p>
       <details class="spec" open>
       <summary>play_sound reference</summary>
         <div class="tbl-wrap">

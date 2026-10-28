@@ -368,13 +368,16 @@ class TestObjectsWarnOnlyWhenItMatters(unittest.TestCase):
     """"objects rising" fired on games: a spawner of ~6/s whose objects live
     ~20 s climbs like a leak for 13 s and warned at ~100 objects (2026-10-27).
     A new "objects" hit now needs MIN_OBJECTS_TO_WARN drawn objects and half
-    the growth off view (the shot that left the screen, never destroyed)."""
+    the growth off view (the shot that left the screen, never destroyed).
+    The growth off view is counted from the climb's first walk: a world
+    bigger than the screen keeps hundreds off view while a spawner climbs on
+    screen, and the off-view total warned there (RA4)."""
 
     STEP = 3 * MIN_OBJECT_STEP
 
-    def _climb(self, s, base, **kw):
+    def _climb(self, s, base, steps=HISTORY_LEN + 2, **kw):
         hit = None
-        for i in range(HISTORY_LEN + 2):
+        for i in range(steps):
             e = base + i * self.STEP
             hit = s.sample(e, 80 + e, **kw) or hit
         return hit
@@ -403,13 +406,35 @@ class TestObjectsWarnOnlyWhenItMatters(unittest.TestCase):
         s = LeakSampler()
         self.assertIsNone(self._climb(s, MIN_OBJECTS_TO_WARN, off_view=lambda: 0))
 
-    def test_growth_off_view_warns_and_says_so(self):
+    def test_a_world_kept_off_view_is_not_growth(self):
+        # 10 000 static objects off view, the climb on screen (RA4).
         s = LeakSampler()
-        hit = self._climb(s, MIN_OBJECTS_TO_WARN, off_view=lambda: 10_000)
+        self.assertIsNone(self._climb(s, MIN_OBJECTS_TO_WARN, steps=40,
+                                      off_view=lambda: 10_000))
+
+    def test_growth_off_view_warns_and_says_so(self):
+        # A world off view, and every new object leaves the screen too.
+        s = LeakSampler()
+        hit = self._climb(s, MIN_OBJECTS_TO_WARN,
+                          off_view=lambda: 10_000 + s._history[-1][0])
         self.assertIsNotNone(hit)
         self.assertEqual(hit[0], "objects")
-        self.assertIn("10000 of them off view", hit[1])
+        self.assertIn(f"{2 * self.STEP} more off view", hit[1])
         self.assertIn("possible missing destroy()", hit[1])
+
+    def test_half_the_growth_off_view_is_enough(self):
+        s = LeakSampler()
+        hit = self._climb(s, MIN_OBJECTS_TO_WARN,
+                          off_view=lambda: 500 + s._history[-1][0] // 2)
+        self.assertEqual(hit and hit[0], "objects")
+
+    def test_a_new_climb_takes_a_new_baseline(self):
+        s = LeakSampler()
+        self._climb(s, MIN_OBJECTS_TO_WARN, off_view=lambda: 0)
+        self.assertIsNotNone(s._off_base)
+        for _ in range(HISTORY_LEN):
+            s.sample(2000, 2080, off_view=lambda: 0)
+        self.assertIsNone(s._off_base)
 
     def test_without_a_view_walk_the_floor_still_applies(self):
         s = LeakSampler()
@@ -452,16 +477,25 @@ class TestObjectsOffViewInAGame(unittest.TestCase):
             if not d._destroyed:
                 d.destroy()
 
-    def _waves(self, where):
+    def _waves(self, where, waves=HISTORY_LEN + 3):
         from scena import Circle
         per = MIN_OBJECTS_TO_WARN // (HISTORY_LEN - 2)
-        for wave in range(HISTORY_LEN + 3):
+        for wave in range(waves):
             for i in range(per):
                 self.made.append(Circle(center=where(wave, i), radius=2))
             self.fw._tick_leak_detector()
 
     def test_a_pile_on_screen_is_quiet(self):
         self._waves(lambda w, i: (20 + (i * 7) % 360, 20 + (w * 13 + i) % 260))
+        self.assertIsNone(last_author_error())
+
+    def test_a_spawner_on_screen_in_a_big_world_is_quiet(self):
+        # RA4: 400 objects of the level far off view, the climb on screen.
+        from scena import Rect
+        for i in range(400):
+            self.made.append(Rect(center=(3000 + 30 * i, 150), width=20, height=20))
+        self._waves(lambda w, i: (20 + (i * 7) % 360, 20 + (w * 13 + i) % 260),
+                    waves=HISTORY_LEN + 12)
         self.assertIsNone(last_author_error())
 
     def test_shots_that_left_the_screen_warn(self):

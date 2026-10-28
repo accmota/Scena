@@ -104,6 +104,33 @@ class TestAuraOnEveryShapeKind(unittest.TestCase):
         self.assertGreater(int((wide.sum(axis=2) > 60).sum()), int((base.sum(axis=2) > 60).sum()))
 
 
+    def test_band_turns_and_resizes_with_the_shape(self):
+        # Written after the look: the band is the one a shape built so draws.
+        def one(build):
+            with system_world(draw=True) as w:
+                build()
+                return _crops(pixels(w))[1]
+        cases = {
+            "angle": (lambda: setattr(_aura(Rect(center=(LOOK_X, Y), width=70, height=30)), "angle", 40),
+                      lambda: _aura(Rect(center=(LOOK_X, Y), width=70, height=30, angle=40))),
+            "width": (lambda: setattr(_aura(Rect(center=(LOOK_X, Y), width=70, height=30)), "width", 120),
+                      lambda: _aura(Rect(center=(LOOK_X, Y), width=120, height=30))),
+            "scale": (lambda: setattr(_aura(Circle(center=(LOOK_X, Y), radius=30)), "scale", 2),
+                      lambda: _aura(Circle(center=(LOOK_X, Y), radius=60))),
+        }
+        for name, (after, fresh) in cases.items():
+            with self.subTest(change=name):
+                a, b = one(after), one(fresh)
+                self.assertGreater(int((np.abs(b - one(lambda: None)).sum(axis=2) > 40).sum()), 400)
+                self.assertEqual(int(np.abs(a - b).max()), 0)
+
+
+def _aura(shape):
+    shape.color = "#2040c0"
+    shape.visual = Aura("cyan")
+    return shape
+
+
 class TestEmissiveBloomOnEveryShapeKind(unittest.TestCase):
     def test_bright_body_blooms(self):
         for name, make in KINDS.items():
@@ -137,6 +164,50 @@ class TestPixelLooksStaySpriteOnly(unittest.TestCase):
         for stamp in (HueShift(0.3), Grayscale()):
             with self.assertRaises(TypeError):
                 c.visual = stamp
+
+
+# The looks a Sprite refuses (on an image they would hide it) and the one a
+# Shape refuses (it changes an image's pixels); every other `.visual` look of
+# scena.__all__ wears both. Stamps (Glow, Shadow, HueShift, …) go on their own
+# fields. The CHANGELOG (0.11.0) and Effect System Design name these lists.
+SHAPE_ONLY = {"Paint", "Fill", "Stroke", "Neon", "Gel", "Sphere", "Water",
+              "Liquify", "InsetRim", "Bolt"}
+SPRITE_ONLY = {"Recolor"}
+STAMPS = {"Glow", "CheapGlow", "Shadow", "HueShift", "Grayscale", "Tail"}
+
+
+class TestWhichHostWearsWhichLook(unittest.TestCase):
+    """RA4: the 0.11.0 CHANGELOG first said "looks that paint the body are
+    for Shapes", but Metal, Aurora, Wave and Extrude paint a body and wear a
+    Sprite. Bug class: a rule stated for a family of looks that no test
+    enumerates. Every public look is tried on both hosts."""
+
+    def test_every_public_look_on_both_hosts(self):
+        import scena
+        from scena import Sprite
+        from scena.visuals import Visual
+        looks = {n for n in scena.__all__
+                 if isinstance(getattr(scena, n), type)
+                 and issubclass(getattr(scena, n), Visual)
+                 and n not in ("Visual", "Recipe") and n not in STAMPS}
+        self.assertTrue(SHAPE_ONLY | SPRITE_ONLY <= looks)
+        for name in sorted(looks):
+            cls = getattr(scena, name)
+            with self.subTest(look=name):
+                wears = {}
+                for host, make in (("shape", lambda: Circle(center=(0, 0), radius=10)),
+                                   ("sprite", lambda: Sprite(center=(0, 0), size=20))):
+                    obj = make()
+                    self.addCleanup(obj.destroy)
+                    try:
+                        obj.visual = cls()
+                        wears[host] = True
+                    except TypeError as e:
+                        wears[host] = False
+                        other = "shape" if host == "sprite" else "sprite"
+                        self.assertIn(other, str(e).lower(), "the refusal names the other host")
+                self.assertEqual(wears["shape"], name not in SPRITE_ONLY)
+                self.assertEqual(wears["sprite"], name not in SHAPE_ONLY)
 
 
 if __name__ == "__main__":

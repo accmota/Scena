@@ -4,7 +4,7 @@
   "file": "catch-the-stars.webp"
  },
  "connect_four": {
-  "hash": "1a2cbaa89375d856",
+  "hash": "40cba8f21cba0c30",
   "file": "connect_four.webp"
  },
  "electric-hosts": {
@@ -12,19 +12,19 @@
   "file": "electric-hosts.webp"
  },
  "more_examples": {
-  "hash": "0152a04a8b99d3ce",
+  "hash": "a41649a5c2003ab0",
   "file": "more_examples.webp"
  },
  "ninja_hazards": {
-  "hash": "acbaf91e2a584186",
+  "hash": "98c6486c27d0b40c",
   "file": "ninja_hazards.webp"
  },
  "plane_landscape": {
-  "hash": "8386ec54526443e3",
+  "hash": "0bec4cbd55b49b93",
   "file": "plane_landscape.webp"
  },
  "race": {
-  "hash": "878953897f159020",
+  "hash": "89a28e79f5635896",
   "file": "race.webp"
  },
  "scena-editor": {
@@ -32,7 +32,7 @@
   "file": "scena-editor.webp"
  },
  "ships_shield": {
-  "hash": "c11a051944a864d4",
+  "hash": "f993cbe3624cedfa",
   "file": "ships_shield.webp"
  }
 }

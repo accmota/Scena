@@ -317,9 +317,9 @@ and every Handle ends.** What a running game sees for each failure:
 | --- | --- | --- |
 | missing, unreadable, empty or undecodable file; a folder; a broken link | `Sound(...)` / `play_sound(path)` ([Assets](#assets)) | one SCENA WARNING per file; silence of nominal length (1 s, or the file's); the Handle ticks, `on_done` runs |
 | a file named for another format (an Ogg saved as `.wav`, no extension) | `_load_asset` | it plays (the content picks the decoder) |
-| a format miniaudio cannot read (`.m4a`, `.aif`) | `_load_asset` | the warning names the formats Scena plays |
+| a format miniaudio cannot read (`.m4a`) | `_load_asset` | the warning names the formats Scena plays (an AIFF plays: dr_wav reads it) |
 | a streamed `Sound`'s file vanished before `play_sound(sound)` | `Sound._frame_source` | the warning; silence of the file's length |
-| a voice raises while mixing (a looping stream's file deleted before the next lap, a decode error mid-file, an effect that raises) | `render` on the device thread | that voice ends where it failed; one SCENA WARNING per kind ("A sound stopped while playing: 'x.ogg' (…). The other sounds keep playing."); its Handle ends (`on_done` runs, as a missing file's does); every other voice plays on |
+| a voice raises while mixing (a looping stream's file deleted before the next lap, an effect that raises; a file damaged half-way raises nothing: the decoder reads it as the end, and the sound ends early and quietly) | `render` on the device thread | that voice ends where it failed; one SCENA WARNING per kind ("A sound stopped while playing: 'x.ogg' (…). The other sounds keep playing."); its Handle ends (`on_done` runs, as a missing file's does); every other voice plays on |
 | an effect knob set to a non-number (`fx.cutoff = None`) | `AudioEffect.__setattr__` | `TypeError` at that line ([Effects](#effects)) |
 | no output device | `run()` → `start_device` | nothing: the mixer stays offline and the clock pumps it |
 | the game ends while sound plays | `run()`'s cleanup, `atexit` ([Streams at exit](#streams-at-exit)) | a quick, quiet exit |
@@ -357,7 +357,10 @@ globals are `None` and Python prints "Exception ignored in
 'ma_decoder_uninit'". It happened on every close of `examples/guardian.py`
 during its music (the live voice sits in the module-global mixer; whether it
 is freed before or after miniaudio depends on teardown order, so a smaller
-program got lucky).
+program got lucky). The message was born in the 0.11.0 cycle: from a9437d0
+(sound optional) `audio_mixer._miniaudio` holds the module, which changes that
+order; 0.10.1 printed it only after a sound had broken on the device thread
+(AU1) with its stream left open (RA4).
 
 Rule: every `StreamFileSource` with an open decoder is in an `OrderedWeakSet`
 (`audio._OPEN_STREAMS`); `close_open_streams()` closes them. `run()`'s cleanup

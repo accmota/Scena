@@ -328,13 +328,16 @@ Five rules:
 
 **Which visuals take `color=` (2026-10-05, 0.6.0).** A visual takes `color` (first positional on Recipes / compiled looks) when it paints a color of its own — body, rim, glow, trail — **or redraws the host body** (`Beat`, `Liquify`: seeded → Role A like `Neon`, unseeded → Role E, motion over the host). It takes none when the color is not the author's to pick: procedural materials (`Flame`, `Swell`, `Water` — Role D, the material is the color) and pixel operators (`Grayscale`, `HueShift(to=)`, `Recolor(key=, to=)`, `EmissiveBloom` — the colors they take are named for what they do). Contract test: `tests/test_visual_color_param.py` (`TestWhoTakesColor`) — a new visual either takes `color` or joins its `_NO_COLOR` list with a reason. `Beat(0.1)` / `Liquify(5)` (old positional `amount`) raise `TypeError` naming `amount=` (`_refuse_number_as_color`). A seeded `Beat` on `Sprite.visual` raises (`Visual._sprite_takes_color = False`): `color=` paints a Shape body and a Sprite keeps its pixels — tint with `.hue = HueShift(to=…)`.
 
-**Which looks wear which host (2026-10-27).** One rule, checked by `tests/test_shape_pixel_looks.py` and the
-`.visual` matrix: **a look that paints the body is Shape-only** (`Paint`,
+**Which looks wear which host (2026-10-27).** Two short lists, every public
+look tried on both hosts by `tests/test_shape_pixel_looks.py`
+(`TestWhichHostWearsWhichLook`): **ten looks are Shape-only** (`Paint`,
 `Fill`, `Stroke`, `Neon`, `Gel`, `Sphere`, `Water`, `Liquify`, `InsetRim`,
 `Bolt`: on a Sprite they would hide the image); **a look that changes an
 image's pixels is Sprite-only** (`Recolor`, stamps `.hue` / `.gray`: a Shape's
 color is chosen, and a Texture fill has `Texture(shift=)`); **everything else
-wears both**. `Aura` and `EmissiveBloom` were Sprite-only with no reason of
+wears both**. "Paints the body" is not the line: `Metal`, `Flame`, `Swell`,
+`Aurora`, `Wave` and `Extrude` paint a body and wear a Sprite on its
+silhouette, and `Stroke` and `InsetRim` paint only an outline (RA4). `Aura` and `EmissiveBloom` were Sprite-only with no reason of
 principle and now wear a Shape:
 
 - **Aura on a Shape** (`visuals._draw_shape_aura`). The Sprite band is

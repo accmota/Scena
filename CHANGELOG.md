@@ -18,10 +18,12 @@ left out.
   `ship.visual = Aura("cyan")` draws a soft band along any shape's outline
   (it turns and resizes with the shape), and `EmissiveBloom()` makes a
   light-colored shape's body and outline glow. On a Shape, `Aura()` follows
-  the outline color and `Aura("red")` dyes the outline, as `Rim` does. The
-  rule is now short: looks that paint the body (`Neon`, `Gel`, …) are for
-  Shapes, looks that change an image's pixels (`Recolor`, `.hue`, `.gray`)
-  are for Sprites, and every other look works on both.
+  the outline color and `Aura("red")` dyes the outline, as `Rim` does. Which
+  look goes where is now short: ten looks are for Shapes only (`Paint`,
+  `Fill`, `Stroke`, `Neon`, `Gel`, `Sphere`, `Water`, `Liquify`, `InsetRim`,
+  `Bolt`: on a Sprite they would hide the image), the ones that change an
+  image's pixels (`Recolor`, `.hue`, `.gray`) are for Sprites, and every
+  other look works on both (`Metal`, `Flame`, `Aurora` and `Wave` too).
 
 ### Fixed
 
@@ -37,26 +39,26 @@ left out.
   (Python 3.12 to 3.14 on macOS, Windows and Linux x86_64). Without it a
   game runs silent: the first sound shows one SCENA WARNING, every sound is
   1 second of silence, Handles keep time (`on_done`, `await`), and
-  `Microphone()` is a silent mic. For sound there, use Python 3.14 or run
-  `python -m pip install miniaudio` (it needs a C compiler).
+  `Microphone()` is a silent mic. For sound there, use Python 3.14 (not on
+  ARM, where no Python has the build) or run `python -m pip install
+  miniaudio` (it needs a C compiler); the warning names only the way that
+  works on that computer.
 - The "objects rising; possible missing destroy()" SCENA WARNING no longer
   fires on games that simply make a lot of objects. A spawner of ~6 a second
   whose objects lived ~20 s got it at about 100 objects. It now waits for
   300 drawn objects and for at least half the growth to be off view (the shot
-  that left the screen and was never destroyed), and the message says how
-  many are off view.
-- Closing a game's window while music plays no longer prints "Exception
-  ignored in: <generator object _samples_stream_generator> ...
-  'NoneType' object has no attribute 'ma_decoder_uninit'". A streamed sound
-  (music, any file of 8 s or more) is now closed when `run()` ends, and at
-  exit, before Python unloads miniaudio.
+  that left the screen and was never destroyed), counted from when the climb
+  began, so a level bigger than the screen does not count as growth. The
+  message says how many more objects are off view.
 - A sound that fails while it plays no longer stops all sound for the rest
-  of the game. A looping track whose file was deleted or moved, a file that
-  stops decoding halfway, or an effect that breaks used to print "Exception
-  ignored from cffi callback" and leave the game silent: no sound played or
-  ended again, so `on_done` and `await` on a sound never came. Now that
-  sound stops, one SCENA WARNING names it, every other sound plays on, and
-  its Handle ends as usual.
+  of the game. A looping track whose file was deleted or moved, or an
+  effect that breaks, used to print "Exception ignored from cffi callback"
+  and leave the game silent: no sound played or ended again, so `on_done`
+  and `await` on a sound never came. Now that sound stops, one SCENA
+  WARNING names it, every other sound plays on, and its Handle ends as
+  usual. (Closing the window after such a failure while music streamed also
+  printed "Exception ignored in ... 'ma_decoder_uninit'"; streams are now
+  closed when `run()` ends and at exit.)
 - `play_sound(sound)` with a long `Sound` whose file was deleted since it
   was made plays silence with a warning, as a missing file does; it raised
   `FileNotFoundError`.
@@ -65,19 +67,22 @@ left out.
   game with no audio device.
 - A sound file saved under another format's extension (an Ogg named
   `.wav`, a file with no extension) plays; it was silence. A format Scena
-  cannot read (`.m4a`, `.aif`) now says in its warning that Scena plays
-  WAV, FLAC, Ogg Vorbis and MP3.
+  cannot read (`.m4a`) now says in its warning that Scena plays WAV, FLAC,
+  Ogg Vorbis and MP3.
 - Setting an effect's knob to something that is not a number
-  (`fx.cutoff = None`, `fx.drive = "8"`) raises a `TypeError` at that line.
-  It was taken, and stopped all sound at the next audio block.
+  (`fx.cutoff = None`, `fx.drive = "loud"`) raises a `TypeError` at that
+  line. It was taken, and stopped all sound at the next audio block. A
+  number written as text (`fx.drive = "8"`) used to work and now raises
+  too: write `fx.drive = 8`.
 - `fade_to` or `fade_out` on the music a `crossfade=` is replacing (ducking
   it during the swap) no longer keeps the old track playing for good beside
   the new one, or runs its `on_done`: the crossfade still ends it.
 - A track that `crossfade=` replaces no longer runs its `on_done` or `then=`
   when it happens to reach its own end during the crossfade (a playlist
   chained by `on_done` started its next song after the music had moved on).
-- A script that ends without `run()`'s cleanup while music streams (a
-  second Ctrl+C while the window closes) no longer hangs at exit.
+- A game stopped by an error, `sys.exit()` or Ctrl+C outside `run()`'s
+  cleanup while music streams (a second Ctrl+C while the window closes) no
+  longer hangs at exit.
 
 ### Changed
 
@@ -86,7 +91,7 @@ left out.
   ~130 to ~400 fps. Dense lettering in a gradient (an intro, a story
   screen) no longer needs to be plain to keep the frame rate.
 
-- `hitbox_shape="auto"` computes a Sprite's hitbox about 40 % faster (on
+- `hitbox_shape="auto"` computes a Sprite's hitbox in about 40 % less time (on
   load, or per frame with `hitbox_source="each"`) and never makes a hitbox
   of several circles. Several circles won on 5 of 851 test images, each
   leaving about a quarter of the art outside, and now get a convex outline
@@ -100,12 +105,11 @@ left out.
   turns every color of the button's art, `.visual = Recolor("red",
   to="green")` swaps one color for an exact other (white or gray art has no
   hue to turn).
-
 - The README's install section recommends Python 3.14 and says when Scena
   installs without sound; the Guia's `play_sound` section has the same note.
 - CI tests Python 3.15 too, on Windows, macOS and Linux: the wheel installs
-  and imports without miniaudio, then the smoke modules run.
-
+  and imports without miniaudio; then miniaudio is built from source and the
+  smoke modules run (the silent path is tested on every cell).
 - New tutorial 33, Cem linhas / 100 Lines (`examples/cem_linhas.py`,
   `examples/hundred_lines.py`), 13 steps, in Portuguese and English: a
   looping piece of light and music in fewer than 100 lines, built up from
@@ -120,8 +124,9 @@ left out.
   `wheel_color(i)` and `on_ring(k)` and a three-line `update`; 99 lines.
 - GitHub tests every push to `main` and every pull request
   (`.github/workflows/tests.yml`). The built wheel is installed and imported
-  on Windows, macOS and Linux with Python 3.12, 3.13 and 3.14; the quick
-  tier runs on Linux, and a smoke set of modules runs on the other cells.
+  on Windows, macOS and Linux with Python 3.12 to 3.15; the quick tier runs
+  on Linux with Python 3.14 (in three jobs), and a smoke set of modules runs
+  on every other cell.
   What it covers and what it leaves out: `design/Testing Design.md`,
   "Continuous integration".
 - The README's install section notes that a Linux server or container may
@@ -147,28 +152,29 @@ left out.
   shot that misses goes as soon as it leaves the screen. It has sound
   effects and music; its title and wave banners are in Bungee, the story in
   Play (Play Bold on the HUD).
-- The sounds in `examples/media/audio/` are now OGG Vorbis: the 18 that
-  were WAV or FLAC keep their names with `.ogg` (`audio/fx1.wav` is
-  `audio/fx1.ogg`, `audio/explode.flac` is `audio/explode.ogg`), so the
-  folder went from 7 MB to under 1 MB. The examples, the tutorials in
-  both languages and their credits use the new names. A script of your own
-  that plays an old name plays silence with a SCENA WARNING naming the
-  missing file: change `.wav` (or `.flac`) to `.ogg`. The three synthesized
-  sounds of `examples/media/synth/` moved in too, and that folder is gone:
+- The sounds in `examples/media/audio/` are now OGG Vorbis, so the folder
+  went from 7 MB to under 1 MB. Of the 17 that were WAV or FLAC, 14 keep
+  their name and sound with `.ogg` (`audio/explosion01.wav` is
+  `audio/explosion01.ogg`, `audio/explode.flac` is `audio/explode.ogg`).
+  The other three changed: `fx1.wav`'s jingle is now `gameover.ogg`, the old
+  `gameover.wav` is `loss.ogg`, and `fx3.wav`, which needed a credit (CC-BY
+  4.0), is gone; `fx1.ogg` and `fx3.ogg` are new sounds, both CC0. So a
+  script of your own that plays `fx1.wav`, `fx3.wav` or `gameover.wav` with
+  `.ogg` gets another sound: take the new name above. Any other old name
+  plays silence with a SCENA WARNING naming the missing file: change `.wav`
+  (or `.flac`) to `.ogg`. The examples, the tutorials in both languages and
+  their credits use the new names. The three synthesized sounds of
+  `examples/media/synth/` moved in too, and that folder is gone:
   `synth/jump.wav` is `audio/jump.ogg` (likewise `coin` and `throw`), as
   in the Ninja, Runner and Race tutorials. Kenney's two space lasers moved
   from `space/` (which keeps the pack's images and font):
   `space/sfx_laser1.ogg` is `audio/sfx_laser1.ogg`, likewise
-  `sfx_laser2.ogg` (Duel, Ring Guardian). Every file name in `audio/` is
+  `sfx_laser2.ogg` (Duel, Ring Guardian). Every sound in `audio/` is
   now lowercase, so a name typed in lowercase is right on every system:
   `Victory.mp3` is `victory.mp3`, and Kenney's `impactBell_heavy_000.ogg`
   is `impact_bell_heavy_000.ogg` (likewise `impact_generic_light_003`,
   `impact_plank_medium_002`, `impact_punch_heavy_001`). Appendix C's format
-  demo plays an OGG and an MP3. Three game-over
-  sounds also changed names to match what they sound like: `fx1.wav`'s
-  jingle is now `gameover.ogg`, and the old `gameover.wav` is `loss.ogg`.
-  `fx1.ogg` and `fx3.ogg` are new sounds, both CC0; the old `fx3.wav`, which
-  needed a credit (CC-BY 4.0), is gone.
+  demo plays an OGG and an MP3.
 
 ## 0.10.1 — 2026-10-26
 

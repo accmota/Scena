@@ -138,7 +138,7 @@ def format_leak_message(kind: str, entities: int, graph_nodes: int,
                         live: Optional[int] = None, live0: Optional[int] = None,
                         off_view: Optional[int] = None) -> str:
     if kind == "objects":
-        where = "" if off_view is None else f", {off_view} of them off view"
+        where = "" if off_view is None else f", {off_view} more off view"
         return (
             f"objects rising ({entities0}→{entities}){where}; "
             f"possible missing destroy()"
@@ -164,6 +164,8 @@ class LeakSampler:
         self._sample_at: Optional[float] = None
         self._active_kind: Optional[str] = None
         self._objects_quiet = 0
+        # (drawn, off view) at the first walk of a climb; None between climbs.
+        self._off_base: Optional[Tuple[int, int]] = None
 
     def reset(self) -> None:
         self._history.clear()
@@ -171,6 +173,7 @@ class LeakSampler:
         self._sample_at = None
         self._active_kind = None
         self._objects_quiet = 0
+        self._off_base = None
 
     def advance(self, now: Optional[float] = None) -> bool:
         """Return True iff this frame should sample.
@@ -212,7 +215,9 @@ class LeakSampler:
         A new ``"objects"`` hit needs ``MIN_OBJECTS_TO_WARN`` drawn objects
         and, when ``off_view`` is given (drawn objects outside their layer's
         view, a walk of the draw lists), at least half the growth off view.
-        The leak it is for is a shot that left the screen and was never
+        The growth is counted from the climb's first walk, which only records
+        ``(drawn, off view)``: the off-view total of a world bigger than the
+        screen is not growth (RA4). The leak it is for is a shot that left the screen and was never
         destroyed; objects piling up on screen are a game the author can see
         (a spawner, a painting, a build), not a missing ``destroy()``.
 
@@ -230,6 +235,8 @@ class LeakSampler:
             row += (int(live),)
         self._history.append(row)
         kind = leak_signal(list(self._history))
+        if kind != "objects":
+            self._off_base = None
         if kind == "objects" and kind != self._active_kind:
             # Before the collection: a climb too small to matter, or one the
             # last walk found on screen (re-walked every CLIMB_TAIL samples).
@@ -252,9 +259,17 @@ class LeakSampler:
         n_off_view = None
         if kind == "objects" and kind != self._active_kind and off_view is not None:
             n_off_view = int(off_view())
-            if n_off_view < (self._history[-1][0] - self._history[0][0]) / 2:
+            drawn = self._history[-1][0]
+            if self._off_base is None:
+                # The baseline: walked again two samples on.
+                self._off_base = (drawn, n_off_view)
                 kind = None
-                self._objects_quiet = CLIMB_TAIL
+                self._objects_quiet = 1
+            else:
+                n_off_view -= self._off_base[1]
+                if n_off_view < (drawn - self._off_base[0]) / 2:
+                    kind = None
+                    self._objects_quiet = CLIMB_TAIL
         if kind is None:
             self._active_kind = None
             return None

@@ -216,11 +216,14 @@ class TestVoiceFaults(AudioCase):
 
         def frame_source(sound, loops):
             return _Raises(at=3) if sound is broken else real(sound, loops)
-        good = play_sound(Sound._from_pcm(make_sine(440, 0.3)))
+        done = []
+        good = play_sound(Sound._from_pcm(make_sine(440, 0.3)),
+                          on_done=lambda: done.append("good"))
         with mock.patch.object(Sound, "_frame_source", frame_source):
-            bad = play_sound(broken)
+            bad = play_sound(broken, on_done=lambda: done.append("bad"))
         _, seen = self.warnings_of(lambda: frames(30))
         self.assertTrue(bad.done and good.done)
+        self.assertEqual(sorted(done), ["bad", "good"], "on_done came for both")
         self.assertEqual(len(seen), 1, seen)
         self.assertIn("broken_source.wav", seen[0])
         self.assertIn("other sounds keep playing", seen[0])
@@ -337,6 +340,24 @@ class TestCrossfadeLeaving(AudioCase):
             finally:
                 ship.destroy()
 
+    def test_an_owned_clip_running_out_during_the_crossfade_does_not_enter_then(self):
+        """The same end with the ship active the whole time."""
+        from scena import Circle
+        from tests.system_support import system_world, tone
+        entered = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10)
+            try:
+                old = ship.play_sound(tone(0.2), name="music",
+                                      then=lambda e: entered.append(1))
+                w.step(6, dt=1 / 60)
+                ship.play_sound(tone(0.5), loops="forever", name="music", crossfade=0.5)
+                w.step(60, dt=1 / 60)
+                self.assertTrue(old.cancelled)
+                self.assertEqual(entered, [])
+            finally:
+                ship.destroy()
+
     def test_a_fade_on_the_incoming_loop_still_works(self):
         old, new, done = self._swap()
         new.fade_to(0.2, time=0.1)
@@ -404,6 +425,8 @@ class TestStreamsUnderChange(AudioCase):
         h, seen = self.warnings_of(lambda: play_sound(s))
         self.assertEqual(len(seen), 1)
         self.assertIn("long.wav", seen[0])
+        self.assertIn("the file is gone", seen[0])
+        self.assertEqual(seen[0].count("long.wav"), 1, "the path once")
         frames(60 * 10)
         self.assertTrue(h.done)
 
@@ -436,6 +459,15 @@ class TestStreamsUnderChange(AudioCase):
         self.assertFalse(h.done)
         self.assertGreater(h.remaining, 0.2)
         frames(40)
+        self.assertTrue(h.done)
+
+    def test_pitch_twenty_five_lasts_a_twenty_fifth(self):
+        # Offline at 60 fps 0.10.1 ended the stream at once above ~22 (live,
+        # on the 40 ms device buffer, above ~9): pitch 10 alone passed there.
+        h = play_sound(self.long, pitch=25.0)
+        frames(12)                                  # 0.2 s of 0.36 s
+        self.assertFalse(h.done)
+        frames(20)
         self.assertTrue(h.done)
 
     def test_a_long_hitch_does_not_end_the_music(self):

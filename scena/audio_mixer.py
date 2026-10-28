@@ -37,12 +37,29 @@ AUDIO_SWITCH_INTERVAL = 0.0005
 # marker: none for Python 3.15 or ARM Windows / Linux yet; elsewhere pip
 # would compile it and fail without a C compiler). Without it: no device,
 # every sound is the missing-file silence, one SCENA WARNING.
-NO_MINIAUDIO_MESSAGE = (
-    "No sound: the miniaudio package is not installed (it has no ready-made "
-    "package for this Python or computer yet). The game runs silent and "
-    "sound handles still tick. For sound, use Python 3.14, or run "
-    "`python -m pip install miniaudio` (it needs a C compiler)."
-)
+# The platforms of pyproject's marker: a newer Python is no fix elsewhere.
+_WHEEL_MACHINES = ("AMD64", "x86", "x86_64")
+
+
+def no_miniaudio_message(platform: Optional[str] = None,
+                         machine: Optional[str] = None) -> str:
+    """The warning without miniaudio; it names Python 3.14 only where
+    miniaudio has wheels (on ARM Windows / Linux no Python has one, RA4)."""
+    import platform as _platform
+    platform = sys.platform if platform is None else platform
+    machine = _platform.machine() if machine is None else machine
+    head = (
+        "No sound: the miniaudio package is not installed (it has no ready-made "
+        "package for this Python or computer yet). The game runs silent and "
+        "sound handles still tick. For sound, "
+    )
+    pip = "run `python -m pip install miniaudio` (it needs a C compiler)."
+    if platform == "darwin" or machine in _WHEEL_MACHINES:
+        return head + "use Python 3.14, or " + pip
+    return head + pip
+
+
+NO_MINIAUDIO_MESSAGE = no_miniaudio_message()
 _UNPROBED = object()
 _miniaudio: Any = _UNPROBED
 _miniaudio_warned = False

@@ -1369,6 +1369,17 @@ class TestTwoEllipseGate(unittest.TestCase):
             )
         self.assertIn("ellipses", {f.kind for f in full})
 
+    def test_a_cap_of_one_keeps_the_first_pick(self):
+        # Auto asks for one circle and one rect (0.11.0: no hitbox of several
+        # circles); the one it gets is the first of the uncapped cover, so the
+        # single-circle and single-rect fits are the ones 0.10.1 chose (RA4).
+        from scena.atlas import greedy_circles, greedy_rects
+
+        for i, m in enumerate(self._masks()):
+            with self.subTest(mask=i):
+                self.assertEqual(greedy_circles(m, max_circles=1), greedy_circles(m)[:1])
+                self.assertEqual(greedy_rects(m, max_rects=1), greedy_rects(m)[:1])
+
     def test_skips_when_a_cheap_fit_is_already_good(self):
         import scena.atlas as atlas
 

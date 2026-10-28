@@ -31,13 +31,20 @@ def prefer_x11(environ=None, platform: str | None = None) -> bool:
 
 
 def no_gl_context_message(
-    environ=None, platform: str | None = None, glfw_loaded_first: bool | None = None
+    environ=None, platform: str | None = None, glfw_loaded_first: bool | None = None,
+    user_variant: str | None = None,
 ) -> str:
-    """The error when Skia finds no OpenGL context for the window."""
+    """The error when Skia finds no OpenGL context for the window.
+
+    ``user_variant`` is the variable as the script found it, before scena set
+    it: with ``x11`` there, an early glfw import already loaded the X11 build.
+    """
     environ = os.environ if environ is None else environ
     platform = sys.platform if platform is None else platform
     if glfw_loaded_first is None:
         glfw_loaded_first = GLFW_LOADED_FIRST
+    if user_variant is None:
+        user_variant = USER_VARIANT
     msg = "Skia found no OpenGL context for the window (GrDirectContext.MakeGL() returned None)."
     if platform.startswith("linux"):
         variant = environ.get(VARIANT_ENV, "")
@@ -46,7 +53,7 @@ def no_gl_context_message(
                 f" {VARIANT_ENV}=wayland loads GLFW's Wayland build, whose EGL context"
                 f" Skia cannot use: unset it or set {VARIANT_ENV}=x11."
             )
-        elif glfw_loaded_first:
+        elif glfw_loaded_first and user_variant.lower() != "x11":
             msg += (
                 " glfw was imported before scena, so it may have loaded GLFW's Wayland"
                 f" build: import scena first, or run with {VARIANT_ENV}=x11."
@@ -60,4 +67,5 @@ def no_gl_context_message(
 
 # A script that imported glfw before scena already chose its GLFW build.
 GLFW_LOADED_FIRST = "glfw" in sys.modules
+USER_VARIANT = os.environ.get(VARIANT_ENV, "")
 prefer_x11()

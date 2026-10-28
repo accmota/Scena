@@ -1421,9 +1421,33 @@ class TestWithoutMiniaudio(PlaySoundTestCase):
         mic.close()
 
     def test_the_message_names_the_way_out(self):
-        from scena.audio_mixer import NO_MINIAUDIO_MESSAGE
-        self.assertIn("Python 3.14", NO_MINIAUDIO_MESSAGE)
-        self.assertIn("python -m pip install miniaudio", NO_MINIAUDIO_MESSAGE)
+        from scena.audio_mixer import no_miniaudio_message
+        for plat, machine in (("darwin", "arm64"), ("darwin", "x86_64"),
+                              ("win32", "AMD64"), ("linux", "x86_64")):
+            with self.subTest(plat=plat, machine=machine):
+                msg = no_miniaudio_message(plat, machine)
+                self.assertIn("Python 3.14", msg)
+                self.assertIn("python -m pip install miniaudio", msg)
+
+    def test_on_arm_the_message_does_not_send_to_another_python(self):
+        # RA4: no Python has a miniaudio wheel on ARM Windows / Linux.
+        from scena.audio_mixer import no_miniaudio_message
+        for plat, machine in (("linux", "aarch64"), ("win32", "ARM64")):
+            with self.subTest(plat=plat, machine=machine):
+                msg = no_miniaudio_message(plat, machine)
+                self.assertNotIn("Python 3.14", msg)
+                self.assertIn("python -m pip install miniaudio", msg)
+
+    def test_the_message_knows_the_markers_platforms(self):
+        # Every machine the pyproject marker names gets the Python 3.14 hint.
+        import re
+        from scena.audio_mixer import _WHEEL_MACHINES
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as f:
+            marker = next(line for line in f if line.strip().startswith('"miniaudio;'))
+        self.assertEqual(set(re.findall(r"platform_machine == '([^']+)'", marker)),
+                         set(_WHEEL_MACHINES))
+        self.assertIn("sys_platform == 'darwin'", marker)
 
     def test_scena_imports_and_plays_in_a_fresh_process(self):
         import subprocess

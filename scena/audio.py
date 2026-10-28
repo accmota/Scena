@@ -722,9 +722,11 @@ class Sound(ClosedSurface):
                 # The file was there when the Sound was made and is gone or
                 # broken now: the missing-file silence, not an error in the
                 # author's play_sound line (AU3).
+                # FileNotFoundError's text is the path again.
+                why = "the file is gone" if isinstance(e, FileNotFoundError) else str(e)
                 _warn_asset(
                     self.path,
-                    f"Could not open sound {self.path!r} ({e}). Playing silence. "
+                    f"Could not open sound {self.path!r} ({why}). Playing silence. "
                     "The handle still ticks.",
                 )
                 return BufferSource(make_silence(self.duration), loops=loops)
