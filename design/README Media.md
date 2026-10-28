@@ -9,7 +9,7 @@ The Guide and the tutorials: [Docs Design.md](Docs%20Design.md).
 | --- | --- |
 | Links, the Gallery, code on the page, the pitch, claims | [Editing the README](#editing-the-readme) |
 | Clips (`tools/readme/`) and pilots | [Editing the README](#editing-the-readme), "Clips are recorded" |
-| Videos with sound, takes, build-ups, debug mode (`tools/video/`) | [Editing the README](#editing-the-readme), "Videos are rendered" |
+| Videos with sound, takes, build-ups, debug mode (`tools/video/`); the README's debug cut | [Editing the README](#editing-the-readme), "Videos are rendered" |
 | `scena-examples.zip` (`tools/release/`) | [Editing the README](#editing-the-readme), "The examples download" |
 
 ## Editing the README
@@ -196,6 +196,18 @@ Guards: `tests/test_readme.py`.
   pack, debug zoom and process panel live on the framework, not the world:
   a test that switches them restores them, or the next test clicks
   through a 50 % view.
+- **Debug mode in a README clip is a cut.** At README width the overlay's
+  1 px outlines and the process panel are lost in a whole screen, so the
+  "See inside a running game" clip (`debug-hitboxes`) shows only hitboxes,
+  in a `crop` of the screen (design units, top-left, the screen and not
+  the world: the camera scrolls the level through it) rendered at the
+  clip's own size, the overlay at its default stroke (what the author
+  sees). The key is pressed by `chords` in `CLIPS` (Ctrl+Shift+7 during
+  the `lead`, so the clip opens with it on), on top of the pilot's keys,
+  the way `with_debug_keys` does for videos. `Pilot`'s source is in every
+  clip's hash: the chord lives in `ChordPilot`, hashed only by the clips
+  that use it. Every Ctrl+Shift chord the README names is one
+  `_handle_framework_shortcut` answers (`tests/test_readme.py`).
 - **Code on the page runs.** A complete program (`from scena import *` …
   `run()`) plays 2 s headless and must not warn. A fragment must use exported
   names, accepted keywords and existing attributes of scena globals. A block

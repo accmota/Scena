@@ -284,6 +284,26 @@ class TestReadmeChapterCount(unittest.TestCase):
         self.assertFalse(self.CHAPTER.match("25i-events-and-processes.html"))
 
 
+class TestReadmeShortcuts(unittest.TestCase):
+    CLAIM = re.compile(r"Ctrl\+Shift\+([0-9A-Z])\b")
+
+    @staticmethod
+    def chords() -> set[str]:
+        """The keys ``_handle_framework_shortcut`` answers (``glfw.KEY_7: …``)."""
+        from scena.orchestration import ScenaFramework
+        src = inspect.getsource(ScenaFramework._handle_framework_shortcut)
+        return set(re.findall(r"glfw\.KEY_([0-9A-Z]):", src))
+
+    def test_every_named_shortcut_is_a_chord_of_the_engine(self):
+        claims = set(self.CLAIM.findall(_readme()))
+        self.assertTrue(claims, "vacuous: the README names no shortcut")
+        self.assertEqual(sorted(claims - self.chords()), [], "README.md names a chord the engine lacks")
+
+    def test_the_chord_reader_sees_the_table(self):
+        self.assertTrue({"1", "6", "7", "8", "P"} <= self.chords())
+        self.assertNotIn("5", self.chords())
+
+
 class TestReadmeClips(unittest.TestCase):
     def test_every_shown_clip_is_made_by_the_tool(self):
         shown = set(re.findall(r"docs/assets/readme/([\w-]+)\.webp", _readme()))
@@ -354,7 +374,44 @@ class TestReadmeClips(unittest.TestCase):
                     for v in (kw["width"], kw["height"]))
             cw, ch = clip["size"]
             with self.subTest(clip=cid):
-                self.assertAlmostEqual(cw / ch, w / h, places=6)
+                if "crop" in clip:      # a cut of the screen, of the cut's own shape
+                    x, y, kw_, kh = clip["crop"]
+                    self.assertAlmostEqual(cw / ch, kw_ / kh, places=6)
+                    self.assertTrue(0 <= x and 0 <= y and x + kw_ <= w and y + kh <= h,
+                                    f"crop {clip['crop']} leaves the {w}×{h} design")
+                else:
+                    self.assertAlmostEqual(cw / ch, w / h, places=6)
+
+    def test_cut_takes_the_crop_at_its_scale(self):
+        import numpy as np
+        px = np.zeros((300, 400, 3), np.uint8)
+        px[60:120, 100:220] = 255                       # design (50, 30, 60, 30) at 2 px/unit
+        part = mm.cut(px, (50, 30, 60, 30), 2.0, (120, 60))
+        self.assertEqual(part.shape[:2], (60, 120))
+        self.assertTrue((part == 255).all())
+        self.assertEqual(mm.cut(px, (190, 140, 20, 20), 2.0, (40, 40)).shape[:2], (40, 40))  # kept inside
+
+    def test_a_chord_puts_its_modifiers_down_first(self):
+        chords = ((1.0, "7"),)
+        self.assertEqual(mm.chord_keys(chords, 0.5), ())
+        self.assertEqual(mm.chord_keys(chords, 0.95), ("LEFT_CTRL", "LEFT_SHIFT"))
+        self.assertEqual(mm.chord_keys(chords, 1.0), ("LEFT_CTRL", "LEFT_SHIFT", "7"))
+        self.assertEqual(mm.chord_keys(chords, 1.1), ("LEFT_CTRL", "LEFT_SHIFT"))
+        self.assertEqual(mm.chord_keys(chords, 1.3), ())
+
+    def test_chords_come_after_the_lead_starts_recording(self):
+        """A chord is pressed while the clip warms up, so the clip opens with it on."""
+        for cid, clip in mm.CLIPS.items():
+            for when, _key in clip.get("chords", ()):
+                self.assertLess(when + 0.25, clip["lead"], cid)
+
+    def test_cropped_clip_hash_follows_its_crop_and_chords(self):
+        cid = next(c for c, clip in mm.CLIPS.items() if "crop" in clip and "chords" in clip)
+        clip = mm.CLIPS[cid]
+        base = mm.entry_hash(cid, text="a")
+        x, y, w, h = clip["crop"]
+        self.assertNotEqual(base, mm.entry_hash(cid, {**clip, "crop": (x + 2, y, w, h)}, text="a"))
+        self.assertNotEqual(base, mm.entry_hash(cid, {**clip, "chords": ((0.7, "7"),)}, text="a"))
 
     def test_every_pilot_exists(self):
         for cid, clip in mm.CLIPS.items():

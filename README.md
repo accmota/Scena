@@ -290,6 +290,18 @@ Button(label="New game", on_click=new_game)
 
 Scena's own level editor is built with them.
 
+**See inside a running game.** Every Scena game comes with debugging keys, with
+nothing to add to your code. Ctrl+Shift+7 draws the hitboxes and the paths
+things move along. Ctrl+Shift+6 opens a panel listing every running task and
+mode, what each one is waiting for, and on which line. Ctrl+Shift+P pauses the
+game or slows it to a quarter of its speed. Ctrl+Shift+8 zooms out to show what
+lies off screen, and Ctrl+Shift+1 shows FPS, the object count and the mouse
+position.
+
+<p align="center">
+  <img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/debug-hitboxes.webp" width="720" alt="A detail of Ninja IV with Ctrl+Shift+7 on: thin outlines around the ninja, a flying kunai, the fallen robots, a star, the electric barrier and a tilted platform, each following its object.">
+</p>
+
 **And more.** A camera that pans, zooms, shakes and frames; layers and
 parallax; `Endless` worlds that build themselves as the camera moves and rebuild
 the same piece when you walk back; tracks to follow; platform helpers (the floor

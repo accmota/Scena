@@ -63,6 +63,11 @@ BLANK_MIN_DIFF = 8             # a clip must change by more than this (0–255) 
 # ``pilot``: a function below, ``(game, t)`` each frame. ``frame``: optional,
 # the clip's own box when it shares a README row with clips of another aspect;
 # the game is fitted inside and its edge colour fills the sides (``widen``).
+# ``crop``: optional, ``(x, y, width, height)`` of the design (top-left origin,
+# y down, the screen and not the world) shown alone, rendered at ``size`` (the
+# crop's aspect): a detail seen larger (``cut``). ``chords``: optional,
+# ``(time, key)`` Ctrl+Shift chords pressed as a player would ("7" hitboxes),
+# on top of the pilot's keys (``chord_keys``).
 CLIPS = {
     "catch-the-stars": {"program": "README.md#catch-the-stars", "size": (640, 480),
                         "seconds": 6.0, "lead": 1.5, "pilot": "follow_stars"},
@@ -76,6 +81,12 @@ CLIPS = {
                       "seconds": 7.2, "lead": 1.0, "pilot": "run_jump_and_throw"},
     "connect_four": {"program": "examples/connect_four.py", "size": (500, 380),
                      "frame": (640, 360), "seconds": 8.5, "lead": 0.0, "pilot": "play_connect_four"},
+    # Ninja IV's run with Ctrl+Shift+7 on, a cut of the screen where the
+    # ninja, a kunai, the robots, the electric barrier and the tilted
+    # platform pass with their hitboxes.
+    "debug-hitboxes": {"program": "examples/ninja_4_hazards.py", "size": (720, 405),
+                       "crop": (430, 405, 528, 297), "chords": ((0.6, "7"),),
+                       "seconds": 2.0, "lead": 5.6, "pilot": "run_jump_and_throw"},
     "electric-hosts": {"program": "README.md#electric-hosts", "size": (720, 240),
                        "seconds": 3.0, "lead": 0.5, "pilot": "watch"},
     # Not an example: the editor as ``scena-editor`` starts it, with a level open.
@@ -407,6 +418,10 @@ def entry_hash(cid: str, clip: dict | None = None, *, text: str | None = None) -
         payload["montage"].append([CAPTION_FONT, LETTERBOX])
     if "frame" in clip:
         payload["widen"] = inspect.getsource(widen)
+    if "crop" in clip:
+        payload["cut"] = inspect.getsource(cut)
+    if "chords" in clip:
+        payload["chords"] = [inspect.getsource(f) for f in (chord_keys, ChordPilot)]
     if any(t["pilot"] in _HELPED for t in takes(clip)):
         payload["helpers"] = [inspect.getsource(f) for f in (_at, _glide, _act, _cursor_on)]
     blob = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
@@ -502,6 +517,42 @@ def _pin_surface(fw, surf, pixel_ratio: float) -> None:
     pin(fw, surf, pixel_ratio)
 
 
+def chord_keys(chords, now: float) -> tuple[str, ...]:
+    """The keys of ``(time, key)`` Ctrl+Shift chords down at ``now`` (s). The
+    modifiers go down a moment before the key and come up after it: keys
+    pressed in one frame arrive in name order, and a "7" before its Ctrl and
+    Shift is a plain 7."""
+    keys = []
+    for when, key in chords:
+        if when - 0.1 <= now < when + 0.25:
+            keys += ["LEFT_CTRL", "LEFT_SHIFT"]
+            if when <= now < when + 0.05:
+                keys.append(key)
+    return tuple(dict.fromkeys(keys))
+
+
+class ChordPilot(Pilot):
+    """A Pilot that holds the clip's ``chords`` (``chord_keys`` at ``now``) on
+    top of the keys the pilot holds (``mine``)."""
+
+    def __init__(self, run, chords):
+        super().__init__(run)
+        self.chords, self.now, self.mine = chords, 0.0, ()
+
+    def hold(self, *keys) -> None:
+        self.mine = keys
+        super().hold(*keys, *chord_keys(self.chords, self.now))
+
+
+def cut(px, crop, scale: float, size: tuple[int, int]):
+    """The ``crop`` of a frame (design units, top-left origin) rendered at
+    ``scale`` px per unit, exactly ``size`` px (rounding stays inside)."""
+    x, y = round(crop[0] * scale), round(crop[1] * scale)
+    w, h = size
+    x, y = min(max(0, x), px.shape[1] - w), min(max(0, y), px.shape[0] - h)
+    return px[y:y + h, x:x + w]
+
+
 def _downscale(px, factor: int):
     import numpy as np
     h, w = px.shape[:2]
@@ -546,13 +597,17 @@ def render_one(spec: dict) -> dict:
         fw = run.world.fw
         dw, dh = fw.design_width, fw.design_height
         ow, oh = spec["size"]
+        crop = spec.get("crop")
         if spec.get("fit"):
             k = min(ow / dw, oh / dh)
             ow, oh = min(ow, round(dw * k)), min(oh, round(dh * k))
+        elif crop:
+            if abs(ow / crop[2] - oh / crop[3]) > 1e-6:
+                raise ValueError(f"clip size {ow}×{oh} is not the crop's aspect ({crop[2]}×{crop[3]})")
         elif abs(ow / dw - oh / dh) > 1e-6:
             raise ValueError(f"clip size {ow}×{oh} is not the design's aspect ({dw}×{dh})")
-        rw, rh = ow * SUPERSAMPLE, oh * SUPERSAMPLE
-        s = rw / dw
+        s = ow * SUPERSAMPLE / (crop[2] if crop else dw)
+        rw, rh = round(dw * s), round(dh * s)
         fw.pixel_ratio, fw.view_scale = s, 1.0
         fw._letterbox_pad_x = fw._letterbox_pad_y = 0
         fw.fb_width, fw.fb_height = rw, rh
@@ -564,20 +619,27 @@ def render_one(spec: dict) -> dict:
         _pin_surface(fw, surf, s)
         run.world.surface = surf
 
-        pilot = Pilot(run)
+        chords = spec.get("chords")
+        pilot = ChordPilot(run, chords) if chords else Pilot(run)
         fly = PILOTS[spec["pilot"]]
         step = max(1, round(60 / FPS))
         lead = int(round(spec["lead"] * 60))
         total = lead + int(round(spec["seconds"] * FPS)) * step
         frames = []
         for i in range(total):
+            if chords:
+                pilot.now = i / 60.0
             fly(pilot, i / 60.0)
+            if chords:      # the chord also for a pilot that held nothing this frame
+                pilot.hold(*pilot.mine)
             run.step(1)
             if i >= lead and (i - lead) % step == step - 1:
                 if backend == "gpu":
                     surf.flushAndSubmit()
                 big = np.asarray(surf.makeImageSnapshot().toarray(
                     colorType=skia.kRGBA_8888_ColorType))
+                if crop:
+                    big = cut(big, crop, s, (ow * SUPERSAMPLE, oh * SUPERSAMPLE))
                 frame = _downscale(big, SUPERSAMPLE)
                 if getattr(pilot, "cursor", False):     # set by the pilot, frame by frame
                     mx, my = pilot._at
@@ -691,7 +753,8 @@ def render(cid: str, *, gpu: bool = True) -> dict:
         path, source = program_of(clip)
         return _child({"id": cid, "path": path, "source": source, "size": list(clip["size"]),
                        "seconds": clip["seconds"], "lead": clip["lead"],
-                       "pilot": clip["pilot"], "gpu": gpu, "out": out})
+                       "pilot": clip["pilot"], "gpu": gpu, "out": out,
+                       **{k: clip[k] for k in ("crop", "chords") if k in clip}})
     import tempfile
     import numpy as np
     with tempfile.TemporaryDirectory() as tmp:
