@@ -331,6 +331,10 @@ class TestAudioThreadGil(unittest.TestCase):
     switch interval (a 15.6 ms tick on Windows) every take-back waited for the
     main thread, and at ``canvas.framerate = "max"`` about half the 40 ms
     blocks missed the device (``examples/pendulums.py`` stuttered).
+
+    These pin what the engine does. How much faster the mix runs is the
+    platform's GIL scheduling (GitHub's runners 0.2-1.7x, the Mac ~8x, the
+    Windows laptop ~350x): a probe, ``scripts/bench/perf_audio_gil.py``.
     """
 
     def setUp(self):
@@ -371,54 +375,6 @@ class TestAudioThreadGil(unittest.TestCase):
         self.mixer.start_device()
         self.mixer.reset()
         self.assertAlmostEqual(sys.getswitchinterval(), 0.005)
-
-    def test_mix_keeps_up_with_a_busy_thread(self):
-        """Pendulums' worst moment: 13 voices, a thread that never sleeps.
-
-        Before the fix one 40 ms block took ~2.5 s of wall time on the Windows
-        laptop (~3 ms alone); with it, ~7 ms. A ratio, not a bound: the Mac
-        waits the 0.5 ms exactly (Windows rounds it to 0), ~590 ms a block at
-        the default and ~70 ms with the fix beside this pure-Python thread,
-        though real games keep every block on time there at both (WP51).
-        Interleaved, so load hits both sides alike.
-        """
-        import threading
-        import time
-
-        mixer = self.mixer
-        mixer.start_device()
-        lowered = sys.getswitchinterval()   # what the device set
-        for k in range(13):
-            mixer.start_voice(samples=make_sine(220 + 30 * k, 5.0, amp=0.05),
-                              pitch=1 + k / 20, pan=k / 13 - 0.5)
-        frames = 1764                       # the 40 ms block the device asks for
-        mixer.render_block(frames)          # START commands, first-touch costs
-        stop = threading.Event()
-
-        def busy():
-            n = 0
-            while not stop.is_set():
-                n += 1
-
-        worker = threading.Thread(target=busy, daemon=True)
-        worker.start()
-        intervals = (0.005, lowered)        # CPython's default, the device's
-        walls = ([], [])
-        try:
-            for _ in range(3):
-                for interval, wall in zip(intervals, walls):
-                    sys.setswitchinterval(interval)
-                    t0 = time.perf_counter()
-                    mixer.render_block(frames)
-                    wall.append(time.perf_counter() - t0)
-        finally:
-            sys.setswitchinterval(lowered)  # stop_device restores only its own
-            stop.set()
-            worker.join()
-        default, fixed = (sorted(w)[1] for w in walls)
-        self.assertGreater(default / max(fixed, 1e-9), 3.0,
-                           f"the device's interval does not speed the mix beside a busy "
-                           f"thread: {walls}")
 
 
 from scena import Circle, Line, play_sound, Sound, clock

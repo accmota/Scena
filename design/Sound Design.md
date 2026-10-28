@@ -276,10 +276,12 @@ it fills per frame). On the Mac the wait is exact, not rounded: beside a
 pure-Python thread that never sleeps a block still takes ~70 ms (~590 ms at
 5 ms), but real games give the GIL up often enough (`pendulums.py` and Ring
 Guardian at `"max"`: every block on time at either interval, fps unchanged),
-so the interval stays 0.5 ms. Guard: `test_audio.TestAudioThreadGil` (a
-13-voice mix beside a thread that never sleeps runs over 3× faster at the
-device's interval than at CPython's default; a ratio, so it holds on both
-platforms and under load).
+so the interval stays 0.5 ms. Guard: `test_audio.TestAudioThreadGil` (the
+interval set while the device plays, restored after, an author's lower one
+kept). How much faster a 13-voice mix runs beside a thread that never
+sleeps is the platform's GIL scheduling, not the engine (~350× on the
+Windows laptop, ~8× on the Mac, 0.2–1.7× on GitHub's runners), so it is a
+probe: `python scripts/bench/perf_audio_gil.py` (WP51).
 
 A command `at_frame` past the end of the current block is **not dropped**.
 The mixer keeps it and applies it on a later block (`at_frame` minus the
