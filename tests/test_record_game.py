@@ -29,7 +29,9 @@ Bug classes guarded:
   tutorial step and demo chapter reads (``TestCodePanel``, ``TestFit``).
 * **A build-up marks the wrong lines.** Each step's marked lines are what it
   adds or changes since the step before (none for a step that only
-  explains), and every step spec names a real step (``TestBuildup``). A
+  explains), and every step spec names a real step; each step opens with
+  time to read, its pilot and later captions waiting as long
+  (``TestBuildup``). A
   chapter build-up's picks resolve to the program's own code; its panel
   follows the chapters and the last one ends the take (``TestChapters``);
   chained pilots each keep their own clock and memory.
@@ -474,6 +476,7 @@ class TestBuildup(unittest.TestCase):
                     self.assertTrue(1 <= n <= len(self.steps[bid]))
                     spec = self.bu.step_spec(bid, n)
                     binds(spec["pilot"], spec["args"])
+                    binds(spec["reader"], spec["reader_args"])
             if b.get("finale", {}).get("pilot"):
                 with self.subTest(buildup=bid, finale=True):
                     binds(b["finale"]["pilot"], b["finale"].get("args", {}))
@@ -489,6 +492,29 @@ class TestBuildup(unittest.TestCase):
                                 or last["pilot"] not in ("tour", "watch"))
         self.assertGreaterEqual(self.bu.FINALE, 5)
         self.assertLessEqual(self.bu.FINALE, 10)
+
+    def test_each_step_opens_with_time_to_read(self):
+        """A step's pilot waits while the viewer reads its caption and new
+        lines; a later caption waits as long (it is timed to the pilot), and
+        the build-ups grow by 30-50 % in all."""
+        rt = self.bu.reading_time
+        self.assertEqual(rt("", 0), self.bu.READ_BASE)
+        self.assertGreater(rt("one two three four five six", 0), rt("one two", 0))
+        self.assertGreater(rt("x", 8), rt("x", 1))
+        self.assertEqual(rt("word " * 50, 50), self.bu.READ_MAX)
+        n = next(n for n, _, code in self.steps["ships_1"] if "@leave_playfield" in code)
+        read = self.bu.step_read("ships_1", n)
+        cue_list, _ = self.bu.step_cues("ships_1", n)
+        said = tk.BUILDUPS["ships_1"]["say"][n]
+        self.assertEqual(cue_list[0][0], 0.0)
+        self.assertEqual([t for t, _ in cue_list[1:]], [t + read for t, _ in said[1:]])
+        before = after = 0.0
+        for bid, steps in self.steps.items():
+            for n, _, _ in steps:
+                spec = self.bu.step_spec(bid, n)
+                before += spec["seconds"]
+                after += spec["seconds"] + self.bu.step_read(bid, n)
+        self.assertTrue(1.3 <= after / before <= 1.5, after / before)
 
     def test_leave_playfield_is_shown_in_debug_view(self):
         """Ships step 7 (@leave_playfield): hitboxes and the debug zoom on,
@@ -902,6 +928,33 @@ class TestPilotsPlay(unittest.TestCase):
         for k in ("retangulo", "circulo"):
             self.assertNotEqual(r["colors"][k], r["before"][k], f"{k} was never clicked")
         self.assertEqual(r["circles"] - 1, 8, "D drops one circle per tap")
+
+    def test_ships_last_step_lives_until_its_finale(self):
+        """Ships' last step: the ship lives while the viewer reads (its reader
+        dodges; idle under the fleet's fire it was shot down before its pilot
+        began) and through the step, and is hit in the finale."""
+        import buildup
+        from program_support import ProgramRun  # type: ignore
+        import make_readme_media as mm
+        steps = buildup.page_steps(tk.BUILDUPS["ships_1"]["page"])
+        n = len(steps)
+        pilot, args, seconds, ends = buildup.step_pilot("ships_1", n)
+        random.seed(n)
+        np.random.seed(n)
+        run = ProgramRun(tk.BUILDUPS["ships_1"]["program"], source=steps[-1][2], seed=n,
+                         draw=False)
+        alive = {}
+        try:
+            run.start()
+            game, fly = mm.Pilot(run), rg.load_pilot(pilot)
+            for i in range(int(seconds * 60)):
+                fly(game, i / 60, **args)
+                run.step(1)
+                alive[i] = bool(run.ns["ship"])
+        finally:
+            run.close(strict=False)
+        self.assertTrue(alive[int(ends * 60) - 1], "shot down before the finale")
+        self.assertFalse(alive[max(alive)], "never hit: the new @collide is not seen")
 
     def test_catch_pilot_catches_most_and_misses_some(self):
         """Stars fall faster than the bar crosses the screen: even a perfect

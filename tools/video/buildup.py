@@ -10,7 +10,9 @@ page) and with the lines this
 step adds or changes marked, and the step running on the right, played by
 its own pilot so its new part shows (``BUILDUPS`` in ``takes.py``). Each step
 is a clip of its own (a child process each); ffmpeg joins them without
-re-encoding (same size, rate and codecs). The last step plays on a few
+re-encoding (same size, rate and codecs). A step opens with a moment to
+read its caption and new lines (``reading_time``: the game runs, its
+pilot waits). The last step plays on a few
 seconds more (``FINALE``), the game played, its code complete. A step too
 long to read at ``record_game.CODE_MIN_PT`` shows what it leaves alone
 folded to ``…`` (``fit``).
@@ -58,10 +60,16 @@ sys.path.insert(0, str(REPO))
 import record_game as rg  # noqa: E402
 
 OUT = rg.RECORDINGS / "buildup"
-STEP_DEFAULTS = dict(pilot="watch", args={}, seconds=4.0, lead=0.0)
+STEP_DEFAULTS = dict(pilot="watch", args={}, seconds=4.0, lead=0.0,
+                     reader="watch", reader_args={})   # plays while the viewer reads
 FINALE = 8.0            # the last step plays on this long once its code is complete
 CAPTION_FADE = 0.3      # a caption fades in and out over this long
 FINALE_SAY = "The finished program: {lines} lines"
+# Before a step's pilot plays, the viewer reads: its caption and the lines it
+# marks are on screen and the game runs with no input for READ_BASE s plus
+# the longer of the caption (READ_WORDS words a second) and the marked lines
+# (READ_LINE s each), at most READ_MAX (the build-ups ~40 % longer in all).
+READ_BASE, READ_WORDS, READ_LINE, READ_MAX = 0.6, 3.5, 0.2, 3.0
 
 
 def page_steps(page: str, example: str | None = None) -> list[tuple[int, str, str]]:
@@ -307,6 +315,26 @@ def step_spec(bid: str, n: int) -> dict:
     return spec
 
 
+def step_pilot(bid: str, n: int) -> tuple:
+    """How step ``n`` is played: ``(pilot, args, seconds, ends)``. Its
+    ``reader`` (default: nobody) while the viewer reads, then its pilot, then
+    on the last step the finale's; ``ends``: where the step's own part ends
+    on the pilot's clock (the finale after it)."""
+    from takes import BUILDUPS
+    b = BUILDUPS[bid]
+    spec = step_spec(bid, n)
+    read = step_read(bid, n)
+    seconds = read + spec["seconds"]
+    ends = spec["lead"] + seconds
+    parts = [(0.0, spec["reader"], spec["reader_args"]), (read, spec["pilot"], spec["args"])]
+    if n == len(page_steps(b["page"], b.get("example"))):
+        fin = {"seconds": FINALE, **b.get("finale", {})}
+        seconds += fin["seconds"]
+        if fin.get("pilot"):
+            parts.append((ends, fin["pilot"], fin.get("args", {})))
+    return "chain", dict(parts=tuple(parts)), seconds, ends
+
+
 def render_step(bid: str, n: int, *, review_only: bool = False, gpu: bool = True) -> dict:
     """Record step ``n`` of build-up ``bid`` (child-process body). The last
     step plays on ``FINALE`` s (``finale`` in ``BUILDUPS``: another pilot, or
@@ -319,14 +347,7 @@ def render_step(bid: str, n: int, *, review_only: bool = False, gpu: bool = True
     spec = step_spec(bid, n)
     heading = f"{step_word(b['page'])} {n} · {title}"
     shown, marks = fit(rg.program_code(code), new_lines(before, code), heading)
-    pilot, args, seconds = spec["pilot"], spec["args"], spec["seconds"]
-    ends = spec["lead"] + spec["seconds"]       # the step's own part, on the pilot's clock
-    if n == len(steps):
-        fin = {"seconds": FINALE, **b.get("finale", {})}
-        seconds += fin["seconds"]
-        if fin.get("pilot"):
-            pilot, args = "chain", dict(parts=((0.0, spec["pilot"], spec["args"]),
-                                               (ends, fin["pilot"], fin.get("args", {}))))
+    pilot, args, seconds, ends = step_pilot(bid, n)
     say = timeline(*step_cues(bid, n))
     stem = f"step_{n:02d}"
     r, rep, sheet = _record(b["program"], bid, stem, review_only, gpu, pilot=pilot, args=args,
@@ -363,18 +384,38 @@ def timeline(cue_list, end: float | None):
     return at
 
 
+def reading_time(caption: str, marked: int) -> float:
+    """Seconds to read a step's caption and its ``marked`` new lines before
+    it plays (``READ_*``)."""
+    return min(READ_MAX, READ_BASE + max(len(caption.split()) / READ_WORDS,
+                                         READ_LINE * marked))
+
+
+def step_read(bid: str, n: int) -> float:
+    """Step ``n``'s reading time: its first caption, its marked lines."""
+    from takes import BUILDUPS
+    b = BUILDUPS[bid]
+    steps = page_steps(b["page"], b.get("example"))
+    _, title, code = steps[n - 1]
+    first = cues(b.get("say", {}).get(n, title))[0][1]
+    return reading_time(first, len(new_lines(steps[n - 2][2] if n > 1 else "", code)))
+
+
 def step_cues(bid: str, n: int) -> tuple:
     """Step ``n``'s captions, ``(cues, end)`` in its clip's seconds: its
-    ``say`` (default: its title), then, on the last step, the finale's (the
-    default counts the program's lines)."""
+    ``say`` (default: its title; the first from the start, a later one moved
+    by the reading time, as the step's pilot is), then, on the last step,
+    the finale's (the default counts the program's lines)."""
     from takes import BUILDUPS
     b = BUILDUPS[bid]
     steps = page_steps(b["page"], b.get("example"))
     _, title, code = steps[n - 1]
     spec = step_spec(bid, n)
     say = b.get("say", {})
+    read = step_read(bid, n)
     out = cues(say.get(n, title))
-    end = spec["seconds"]
+    out = out[:1] + [(t + read, text) for t, text in out[1:]]
+    end = read + spec["seconds"]
     if n == len(steps):
         lines = sum(1 for line in rg.program_code(code).splitlines() if line.strip())
         fin = say.get("finale", FINALE_SAY)

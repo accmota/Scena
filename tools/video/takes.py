@@ -317,9 +317,11 @@ BUILDUPS = {
         8: dict(seconds=4.0), 9: dict(seconds=4.0), 10: dict(seconds=4.0),
         11: dict(seconds=5.0), 12: dict(seconds=5.0),          # the fleet moves
         **{n: _tour(7.0, *_LONG_SWEEP_FIRE) for n in (13, 14, 15)},
-        # the last: played to the end of the finale, then hit (the new @collide)
+        # the last: played to the end of the finale, then hit (the new @collide);
+        # while the viewer reads, it only dodges (idle, it would be shot down)
         16: dict(pilot="shoot_fleet", seconds=7.0,
-                 args=dict(fire=0.5, careless_from=11.5, seed=16)),
+                 args=dict(fire=0.5, careless_from=10.5, seed=16),
+                 reader="shoot_fleet", reader_args=dict(fire=0.0, seed=160)),
     }),
     "ninja_1_run": dict(page=_EN + "18-ninja.html", program="examples/ninja_1_run.py", steps={
         1: dict(seconds=3.0), 2: dict(seconds=3.0),            # gravity: it falls away
@@ -427,7 +429,7 @@ _SAY = {
         11: "The fleet moves, and keeps going", 12: "Back and forth between the edges",
         13: "A shot hits an enemy: both are gone", 14: "A burst for each hit, and a score",
         15: "The fleet fires back", 16: "Enemy shots can now destroy the ship",
-        "finale": ((0.0, "The finished game: {lines} lines"), (5.0, "One shot too many")),
+        "finale": ((0.0, "The finished game: {lines} lines"), (4.0, "One shot too many")),
     },
     "ninja_1_run": {
         1: "Floor, platforms and the ninja", 2: "Gravity: the ninja falls through",

@@ -137,6 +137,12 @@ Guards: `tests/test_readme.py`.
   (`docs/en/tutorial/`, "Step N"; a Portuguese page says "Passo N"). A page
   that ends in two programs (`30-spins`: the bars, then the oscilloscope)
   gives each build-up its own steps (`example=`), numbered from 1.
+  Each step opens with time to read (`buildup.reading_time`): its caption
+  and marked lines are on screen and the game runs with no input for
+  0.6 s plus the longer of the caption (3.5 words a second) and the
+  marked lines (0.2 s each), at most 3 s; then its pilot plays, and a
+  later caption of the step waits as long. The build-ups are ~40 %
+  longer for it (a test keeps it between 30 and 50 %).
   The last step plays on `buildup.FINALE` (8 s) once its code is
   complete (no lines marked): `finale=` gives that part its own pilot
   (`pilots.chain` runs one pilot after another, each on its own clock and

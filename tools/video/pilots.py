@@ -313,8 +313,9 @@ def shoot_fleet(game, t, *, ship="ship", foes="enemies", threats="enemy_shots", 
                 reaction=0.15, careless_from=None, seed=0):
     """Tutorial 05's last program, played: go under the nearest enemy and
     fire in bursts (``fire``: the share of the time), stepping aside from an
-    enemy shot about to hit. From ``careless_from`` s on it stops dodging and
-    goes under the nearest shot (the run ends in the explosion)."""
+    enemy shot about to hit (``fire=0``: it only dodges). From
+    ``careless_from`` s on it stops dodging and goes under the nearest shot
+    (the run ends in the explosion)."""
     m = memo(game)
     if "rng" not in m:
         m.update(rng=random.Random(seed), next=0.0, target=None, dodge=None)
@@ -326,7 +327,7 @@ def shoot_fleet(game, t, *, ship="ship", foes="enemies", threats="enemy_shots", 
         return
     hx, hy = hero.center.x, hero.center.y
     shots = list(ns["group"][threats])
-    shoot = "SPACE" if bursts(m, t, fire) else None
+    shoot = "SPACE" if fire > 0 and bursts(m, t, fire) else None
     if careless_from is not None and t >= careless_from:
         near = [s for s in shots if s.center.y > hy]
         target = min(near, key=lambda s: s.center.y).center.x if near else hx
