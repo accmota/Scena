@@ -105,7 +105,10 @@ hint on a non-sound handle — same precedent as `.velocity` on `after`.
   cut. `fade_to` used to cancel that ramp, and a replaced `forever` loop
   played on beside the new one, out of its slot; `fade_out` turned the cut
   into an end and ran `on_done` (AU15, found by the audio state machine,
-  2026-10-27).
+  2026-10-27). A leaving voice whose clip runs out before the ramp ends is
+  the same cut: the tick that reads its natural end cancels the Handle
+  (before a park could hold the end), so neither `on_done` nor `then=` runs
+  (AU17, 2026-10-28).
 - Fades are author-requested only. A cut (`.cancel()`, `name=` replace, an
   owner ending under a sound that would not end by itself) is not a fade: the
   mixer only de-clicks it (~5 ms ramp, [Mixer](#mixer)). For a longer ramp the

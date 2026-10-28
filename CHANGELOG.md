@@ -73,6 +73,9 @@ left out.
 - `fade_to` or `fade_out` on the music a `crossfade=` is replacing (ducking
   it during the swap) no longer keeps the old track playing for good beside
   the new one, or runs its `on_done`: the crossfade still ends it.
+- A track that `crossfade=` replaces no longer runs its `on_done` or `then=`
+  when it happens to reach its own end during the crossfade (a playlist
+  chained by `on_done` started its next song after the music had moved on).
 - A script that ends without `run()`'s cleanup while music streams (a
   second Ctrl+C while the window closes) no longer hangs at exit.
 

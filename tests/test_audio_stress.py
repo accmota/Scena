@@ -299,6 +299,44 @@ class TestCrossfadeLeaving(AudioCase):
         self.assertTrue(old.cancelled)
         self.assertEqual(done, [])
 
+    def test_a_clip_that_runs_out_during_the_crossfade_is_still_a_cut(self):
+        """AU17: the outgoing clip reached its end inside the ramp, and the
+        mixer's natural end ran its ``on_done`` (found by the audio state
+        machine, deep tier). Bug class: every way the leaving voice ends
+        before the ramp does."""
+        done = []
+        old = play_sound(Sound._from_pcm(make_sine(440, 0.2)), name="music",
+                         on_done=lambda: done.append(1))
+        frames(6)
+        new = play_sound(Sound._from_pcm(make_sine(220, 0.5)), loops="forever", name="music",
+                         crossfade=0.5)
+        frames(60)
+        self.assertTrue(old.cancelled)
+        self.assertEqual(done, [])
+        self.assertEqual(set(get_mixer().live_voice_ids()), {new._voice_id})
+
+    def test_an_owned_clip_running_out_while_parked_does_not_enter_then(self):
+        """The same end held by a park (X-life-4) must not run ``then=`` on
+        the resume either."""
+        from scena import Circle
+        from tests.system_support import system_world, tone
+        entered = []
+        with system_world(draw=False) as w:
+            ship = Circle(center=(0, 0), radius=10)
+            try:
+                old = ship.play_sound(tone(0.2), name="music",
+                                      then=lambda e: entered.append(1))
+                w.step(6, dt=1 / 60)
+                ship.play_sound(tone(0.5), loops="forever", name="music", crossfade=0.5)
+                ship.active = False
+                w.step(30, dt=1 / 60)
+                ship.active = True
+                w.step(30, dt=1 / 60)
+                self.assertTrue(old.cancelled)
+                self.assertEqual(entered, [])
+            finally:
+                ship.destroy()
+
     def test_a_fade_on_the_incoming_loop_still_works(self):
         old, new, done = self._swap()
         new.fade_to(0.2, time=0.1)

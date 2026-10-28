@@ -3144,6 +3144,11 @@ class Scheduler:
         pending = getattr(self, "_sound_finished_tick", None) or set()
         if handle._voice_id in pending:
             pending.discard(handle._voice_id)
+            if handle._sound_leaving:
+                # The clip ran out inside a crossfade: still the slot's cut,
+                # no ``on_done`` / ``then=`` (AU17).
+                handle._cancel_for(_R_NAME)
+                return
             if parked:
                 # Park promises no owned callbacks: hold ``on_done`` until the
                 # owner resumes (review 2026-10-09 X-life-4).
