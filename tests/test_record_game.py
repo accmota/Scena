@@ -516,6 +516,28 @@ class TestBuildup(unittest.TestCase):
                 after += spec["seconds"] + self.bu.step_read(bid, n)
         self.assertTrue(1.3 <= after / before <= 1.5, after / before)
 
+    def test_a_step_brings_its_lines_with_its_captions(self):
+        """Ships step 14 says "A burst for each hit", then "And a score": the
+        score's lines come with the second caption (not shown before it, and
+        marked then), the burst's with the first, and the scoreboard stays off
+        the game's screen until its lines are in."""
+        first, second = self.bu.step_stages("ships_1", 14)
+        lines1, lines2 = first[1].splitlines(), second[1].splitlines()
+        self.assertEqual([lines1[k].strip() for k in first[2]],
+                         ["canvas.burst_at(enemy, radius=40)"])
+        self.assertFalse(any("score" in line for line in lines1))
+        self.assertTrue(all("score" in lines2[k] for k in second[2]))
+        self.assertEqual(len(second[2]), 4)
+        self.assertNotIn(lines2.index("    canvas.burst_at(enemy, radius=40)"), second[2])
+        self.assertEqual((first[3], second[3]), ({"scoreboard"}, set()))
+        cue_list, _ = self.bu.step_cues("ships_1", 14)
+        self.assertEqual(second[0], cue_list[1][0], "the lines come with their caption")
+        self.assertEqual(self.bu.step_read("ships_1", 14),
+                         self.bu.reading_time("A burst for each hit", 1))
+        one = self.bu.step_stages("ships_1", 13)
+        self.assertEqual(len(one), 1)
+        self.assertEqual(one[0][3], set())
+
     def test_leave_playfield_is_shown_in_debug_view(self):
         """Ships step 7 (@leave_playfield): hitboxes and the debug zoom on,
         then off again before the step ends (the chords toggle and cycle)."""

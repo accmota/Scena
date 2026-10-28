@@ -338,21 +338,41 @@ def step_pilot(bid: str, n: int) -> tuple:
 def render_step(bid: str, n: int, *, review_only: bool = False, gpu: bool = True) -> dict:
     """Record step ``n`` of build-up ``bid`` (child-process body). The last
     step plays on ``FINALE`` s (``finale`` in ``BUILDUPS``: another pilot, or
-    the step's own going on), its code then complete: no lines marked."""
+    the step's own going on), its code then complete: no lines marked. A
+    step whose captions split its new lines shows them in stages."""
     from takes import BUILDUPS
     b = BUILDUPS[bid]
     steps = page_steps(b["page"], b.get("example"))
     _, title, code = steps[n - 1]
-    before = steps[n - 2][2] if n > 1 else ""
     spec = step_spec(bid, n)
     heading = f"{step_word(b['page'])} {n} · {title}"
-    shown, marks = fit(rg.program_code(code), new_lines(before, code), heading)
+    stages = [(start, *fit(part, marked, heading), hidden)
+              for start, part, marked, hidden in step_stages(bid, n)]
     pilot, args, seconds, ends = step_pilot(bid, n)
     say = timeline(*step_cues(bid, n))
+    fly, kept_off = rg.load_pilot(pilot), set()
+
+    def stage(t):
+        return [s for s in stages if s[0] <= t - spec["lead"]][-1]
+
+    def play(game, t, **kw):
+        hidden = stage(t)[3]                    # before the frame steps (and draws)
+        for name in hidden | kept_off:          # a later cue's objects: not on screen yet
+            thing = game.ns.get(name)
+            if hasattr(thing, "visible"):
+                thing.visible = name not in hidden
+        kept_off.clear()
+        kept_off.update(hidden)
+        fly(game, t, **kw)
+
+    def code_at(game, t):
+        _, shown, marks, _ = stage(t)
+        return shown, heading, marks if t < ends else ()
+
     stem = f"step_{n:02d}"
-    r, rep, sheet = _record(b["program"], bid, stem, review_only, gpu, pilot=pilot, args=args,
+    r, rep, sheet = _record(b["program"], bid, stem, review_only, gpu, pilot=play, args=args,
                             seconds=seconds, lead=spec["lead"], seed=n, source=code,
-                            code_at=lambda game, t: (shown, heading, marks if t < ends else ()),
+                            code_at=code_at,
                             caption_at=lambda game, t: say(t - spec["lead"]),
                             label=f"step {n}: {title}")
     return {"ok": True, "step": n, "title": title, "out": r["out"], "sheet": str(sheet),
@@ -362,10 +382,50 @@ def render_step(bid: str, n: int, *, review_only: bool = False, gpu: bool = True
 
 def cues(say, start: float = 0.0) -> list:
     """A caption spec as ``(time, text)`` cues from ``start``: a text says it
-    from the start, ``((offset, text), ...)`` one after another."""
+    from the start, ``((offset, text), ...)`` one after another (a cue's
+    third item, the lines it brings, is ``step_stages``')."""
     if isinstance(say, str):
         return [(start, say)]
-    return [(start + offset, text) for offset, text in say]
+    return [(start + offset, text) for offset, text, *_ in say]
+
+
+def _stage_owners(bid: str, n: int) -> tuple:
+    """Step ``n``'s lines as shown, its cue entries, and which cue brings each
+    marked line: a later cue's third item lists words, and a marked line
+    holding one of them is that cue's (the last that claims it); the rest
+    are the first cue's."""
+    from takes import BUILDUPS
+    b = BUILDUPS[bid]
+    steps = page_steps(b["page"], b.get("example"))
+    _, title, code = steps[n - 1]
+    say = b.get("say", {}).get(n, title)
+    entries = [(0.0, say)] if isinstance(say, str) else list(say)
+    lines = rg.program_code(code).splitlines()
+    owner = {}
+    for k in new_lines(steps[n - 2][2] if n > 1 else "", code):
+        owner[k] = max([i for i, (_, _, *words) in enumerate(entries)
+                        if words and any(w in lines[k] for w in words[0])], default=0)
+    return lines, entries, owner
+
+
+def step_stages(bid: str, n: int) -> list:
+    """How step ``n``'s code comes in, one stage per caption: ``(start,
+    code, marked, hidden)`` each, ``start`` in the clip's seconds. A stage
+    shows the lines of its cue and the cues before (a later cue's lines are
+    not there yet) and marks its own; ``hidden``: the globals a later cue's
+    lines make (``name = …``), kept off the game's screen until it comes."""
+    import re
+    lines, entries, owner = _stage_owners(bid, n)
+    read = step_read(bid, n)
+    out = []
+    for i, (offset, *_rest) in enumerate(entries):
+        later = {k for k, o in owner.items() if o > i}
+        keep = [k for k in range(len(lines)) if k not in later]
+        hidden = {m.group(1) for k in later if (m := re.match(r"(\w+)\s*=[^=]", lines[k]))}
+        out.append((0.0 if i == 0 else read + offset,
+                    "\n".join(lines[k] for k in keep) + "\n",
+                    [j for j, k in enumerate(keep) if owner.get(k) == i], hidden))
+    return out
 
 
 def timeline(cue_list, end: float | None):
@@ -392,13 +452,14 @@ def reading_time(caption: str, marked: int) -> float:
 
 
 def step_read(bid: str, n: int) -> float:
-    """Step ``n``'s reading time: its first caption, its marked lines."""
+    """Step ``n``'s reading time: its first caption, the marked lines it
+    brings (``step_stages``)."""
     from takes import BUILDUPS
     b = BUILDUPS[bid]
     steps = page_steps(b["page"], b.get("example"))
     _, title, code = steps[n - 1]
-    first = cues(b.get("say", {}).get(n, title))[0][1]
-    return reading_time(first, len(new_lines(steps[n - 2][2] if n > 1 else "", code)))
+    _, entries, owner = _stage_owners(bid, n)
+    return reading_time(entries[0][1], sum(1 for o in owner.values() if o == 0))
 
 
 def step_cues(bid: str, n: int) -> tuple:

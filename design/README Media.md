@@ -175,7 +175,11 @@ Guards: `tests/test_readme.py`.
   (`record_game.caption_box`). The lines are `_SAY` in `takes.py`, all
   together as a script: per step (default its title), `(offset, text)`
   pairs when a step says more than one thing (Ships step 7 follows the
-  debug view), the finale's (default: the program's line count), per
+  debug view; a third item, words, makes the step's new lines holding one
+  come in with that caption and be marked then, and what they make, a
+  `name = …` global with `visible`, stays off the game's screen until it:
+  Ships step 14 shows the burst, then the score's lines and scoreboard;
+  `buildup.step_stages`), the finale's (default: the program's line count), per
   chapter (from its start, cut when the next comes). Each fades in and out
   (`buildup.CAPTION_FADE`). A line says what to look at, not what the
   code is called, and fits one line at full size (`TestCaptions`). The

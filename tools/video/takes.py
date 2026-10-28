@@ -424,9 +424,12 @@ BUILDUPS = {
 # What each build-up says on screen (``buildup.py``: big, above the game;
 # and the ``.srt``). Per step from 1 (a step not listed shows its title);
 # ``(offset, text)`` pairs when a step says more than one thing, each from
-# that many seconds into the step; "finale" after the last step's own
-# seconds ({lines}: the program's lines of code). Chapter build-ups: per
-# chapter from 1. Say what to look at, not what the code is called; one line.
+# that many seconds into the step (a third item, words: the step's new lines
+# holding one come in with that caption, marked then, and what they make
+# stays off the screen until it; the rest come with the first); "finale"
+# after the last step's own seconds ({lines}: the program's lines of code).
+# Chapter build-ups: per chapter from 1. Say what to look at, not what the
+# code is called; one line.
 _SAY = {
     "first_script": {
         1: "One line opens a window", 2: "A background for the window",
@@ -462,7 +465,7 @@ _SAY = {
         8: "A fleet: 3 rows of 8", 9: "Each column its own hue", 10: "The fleet breathes",
         11: "The fleet moves, and keeps going", 12: "Back and forth between the edges",
         13: "A shot hits an enemy: both are gone",
-        14: ((0.0, "A burst for each hit"), (3.5, "And a score")),
+        14: ((0.0, "A burst for each hit"), (3.5, "And a score", ("score",))),
         15: "The fleet fires back", 16: "Enemy shots can now destroy the ship",
         "finale": ((0.0, "The finished game: {lines} lines"), (4.0, "One shot too many")),
     },
