@@ -17,6 +17,9 @@ Bug classes (Sound Design, "Streams at exit" and "Failure contract"):
   closed the streams while the device thread was inside one: every exit with
   a stream playing hung (AU8, 2026-10-27). ``atexit`` now stops the device
   first.
+- **A row that tests its launcher.** The Ctrl+C rows exited 0 under a gate
+  started as a background job: SIGINT arrived ignored and nothing was
+  interrupted (WP53). The child installs Python's handler itself.
 
     python tests/run_tiers.py focused test_audio_exit
 """
@@ -43,12 +46,13 @@ EXPECTED_EXIT = {"cleanup": (0,), "atexit": (0,), "sysexit": (0,), "raise": (1,)
                  "sigint": (-2, 130, 1, 0xC000013A)}
 
 
-def run(args):
+def run(args, **kw):
     try:
         p = subprocess.run(
             [sys.executable, "-X", "dev", *args], capture_output=True, encoding="utf-8",
             errors="replace", timeout=TIMEOUT, cwd=ROOT,
             env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"},
+            **kw,
         )
     except subprocess.TimeoutExpired:
         return None
@@ -82,6 +86,18 @@ class TestExitWhilePlaying(unittest.TestCase):
             elif noise(p.stderr):
                 bad.append(f"{playing}/{how}: {noise(p.stderr)[0]}")
         self.assertEqual(bad, [], "\n".join(bad))
+
+    @unittest.skipIf(os.name == "nt", "no SIGINT rows on Windows")
+    def test_ctrl_c_row_holds_when_the_launcher_ignores_sigint(self):
+        """WP53: a tier started as a background job (``&``, nohup) hands its
+        children SIGINT ignored; a Ctrl+C row still ends as Ctrl+C."""
+        import signal
+        p = run([CHILD, "music", "sigint"],
+                preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN))
+        self.assertIsNotNone(p, "the row hung")
+        self.assertIn("PLAYING", p.stdout, p.stderr[-300:])
+        self.assertIn(p.returncode, EXPECTED_EXIT["sigint"], p.stderr[-300:])
+        self.assertEqual(noise(p.stderr), [])
 
     def test_ring_guardian_ends_during_its_music(self):
         """The 7bab69f case: the title's music streams on a live device."""

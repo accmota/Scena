@@ -70,6 +70,10 @@ def main(playing: str, how: str) -> None:
     elif how == "sysexit":
         sys.exit(0)
     elif how == "sigint":
+        # What a terminal gives a game: a launcher that ignores SIGINT (a
+        # background job, nohup) passes SIG_IGN on and Python installs no
+        # handler; the kill was then a no-op and the row exited 0 (WP53).
+        signal.signal(signal.SIGINT, signal.default_int_handler)
         os.kill(os.getpid(), signal.SIGINT)
         time.sleep(2)
 
