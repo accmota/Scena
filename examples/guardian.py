@@ -1,4 +1,4 @@
-"""Ring Guardian.
+"""Light Guardian.
 
 Controls
 --------
@@ -16,7 +16,7 @@ from math import sin
 from random import choice, uniform
 from scena import *
 
-init(width=1280, height=800, title="Ring Guardian")
+init(width=1280, height=800, title="Light Guardian")
 
 CENTER = Vec2(640, 400)
 RADIUS = 115        # the middle of the ring
@@ -767,6 +767,7 @@ from the Delta dimension. Your ship is the guardian
 of the four lights of Arria. They must be protected
 at all costs, because they are lights that shine
 and your ship is in front of them.
+
 Your mission is clear: shoot everything that moves."""
 
 LETTERS = 45        # letters a second, as the story is typed
@@ -793,13 +794,13 @@ class Intro(Act):
                           color="white")
         self.letters = 0
         for color, start in (("gold", 0), ("dark orange", 0.5)):
-            frame = Track(points=[(200, 680), (1080, 680), (1080, 425), (200, 425)],
+            frame = Track(points=[(200, 680), (1080, 680), (1080, 395), (200, 395)],
                           closed=True, smooth=0, layer="ui", color=color, line_width=3)
             frame.glow = CheapGlow(color, radius=10)
             frame["begin"] @= lambda start=start: (start + clock.time * 0.12) % 1
             frame["end"] @= lambda start=start: (start + clock.time * 0.12 + 0.15) % 1
         self.prompt = Text("Press SPACE to start. Then keep pressing SPACE\n"
-                           "to shoot everything that moves.", center=(640, 370),
+                           "to shoot everything that moves.", center=(640, 340),
                            font=TEXT_FONT, font_size=22, align="center", layer="ui",
                            color="gold")
         # it blinks, once the story is all typed
@@ -912,7 +913,7 @@ class Game(Act):
         celebrate()
         self.music.fade_out(1.5)
         play_sound("audio/victory.mp3")
-        self.finish("THE RING IS SAFE")
+        self.finish("THE LIGHTS ARE SAFE")
 
     def on_update(self, dt):
         canvas.playfield.set(canvas.game_view.outset(MARGIN))
