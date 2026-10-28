@@ -27,6 +27,23 @@ DEFAULTS = dict(args={}, lead=0.0, tail=2.0, seed=0, size=(2560, 1440), fps=60, 
 _PEGAR = dict(paddle="barra", group="estrelas", fall=220, speed=380, half=56)
 _CATCH = dict(paddle="paddle", group="stars", fall=180, speed=420, half=63)
 
+# Teaser 2 (the second promo video): the English programs. The Endless Runner
+# in debug mode: Ctrl+Shift chords at times from the take's start (after its
+# lead), which the teaser shows as keycaps at the same times. 7 overlays, P
+# pauses (then ¼ speed, then running again; the pause lands mid-jump), 8
+# zooms the view out to 50 % (the world past the screen: the Endless builds
+# ahead, clears behind), and two more presses go through 25 % back to 100 %.
+# Seed 11: the robot's run lasts ~25 s (most seeds fall in a hole sooner).
+TEASER2_DEBUG_LEAD = 6.0
+TEASER2_DEBUG_CHORDS = ((0.8, "7"), (1.8, "P"), (3.0, "8"), (7.6, "P"), (9.6, "P"),
+                        (10.2, "8"), (10.35, "8"))
+# The demos that play side by side at the end (no input), and how long each
+# plays before its take starts (its opening is not its best moment). The
+# wall's middle cell is the duel (duel/match).
+TEASER2_WALL = (("string_theory", 6.0), ("canopy", 6.0), ("life", 4.0), ("pendulums", 8.0),
+                ("rose_window", 4.0), ("loom", 6.0), ("polygon_ballet", 4.0),
+                ("revoada", 3.0))
+
 TAKES = {
     # Tutorial 01: every feature, scripted in order.
     "primeiro_script/tour": dict(program="examples/primeiro_script.py",
@@ -229,6 +246,23 @@ TAKES = {
                                args=dict(pilot="play_naves", args=dict(fire=0.6, seed=1),
                                          chords=((7.0, "7"),     # the whole fleet boxed
                                                  (19.0, "8")))),  # the boss, from off screen
+    # Teaser 2: the runner with the debug overlays, a game of Connect Four to
+    # its win (its rules on screen beside it), the race, the duel, Ring
+    # Guardian through its waves, and the demos of the wall.
+    "runner/debug": dict(program="examples/runner.py", pilot="with_debug_keys", seed=11,
+                         lead=TEASER2_DEBUG_LEAD, seconds=11.0,
+                         args=dict(pilot="jump_the_gaps", stroke=3.0,
+                                   chords=tuple((TEASER2_DEBUG_LEAD + when, key)
+                                                for when, key in TEASER2_DEBUG_CHORDS))),
+    "race/serpentine": dict(program="examples/race.py", pilot="pick_and_race", seed=1,
+                            seconds=40.0),
+    "connect_four/red_row": dict(program="examples/connect_four.py", pilot="play_connect_four",
+                                 seconds=16.0),     # the win, then its glow while the rules are read
+    "duel/match": dict(program="examples/duel.py", pilot="duel", lead=2.0, seconds=20.0),
+    "guardian/waves": dict(program="examples/guardian.py", pilot="guard_ring", seed=1,
+                           args=dict(seed=1), seconds=150.0),
+    **{f"{name}/wall": dict(program=f"examples/{name}.py", pilot="watch", lead=lead,
+                            seconds=10.0) for name, lead in TEASER2_WALL},
     # README: no input, the look plays by itself.
     "electric-hosts/watch": dict(program="README.md#electric-hosts", pilot="watch",
                                  seconds=30, lead=0.5),

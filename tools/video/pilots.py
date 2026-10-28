@@ -1148,16 +1148,73 @@ def tour(game, t, *, script=(), end=30.0, glide=0.8):
         game.done = True
 
 
+# ── Ring Guardian ───────────────────────────────────────────────────────────
+
+def guard_ring(game, t, *, start=1.2, reaction=0.12, seed=0):
+    """Ring Guardian (``guardian.py``): SPACE through the story, then the ship
+    flies round the ring to the enemy nearest the ring and keeps firing
+    (the game's aim pulls a shot that is almost in front). A pill near the
+    ring and no enemy close: the ship goes for the pill. The target is
+    re-picked every ``reaction`` s, the way a player re-aims. R after the end
+    plays again."""
+    m = memo(game)
+    if "rng" not in m:
+        m.update(rng=random.Random(seed), next=0.0, aim=None)
+    ns = game.ns
+    name = act_name()
+    if name != "Game":
+        game.hold("SPACE" if at(t, start, 3) else None)
+        return
+    act = current_act()
+    ship, center = act.ship, ns["CENTER"]
+    if act.over:
+        game.hold("R" if at(t - m.setdefault("over", t), 3.0, 3) else None)
+        return
+    m.pop("over", None)
+
+    def bearing(thing):
+        return math.degrees(math.atan2(thing.center.y - center.y, thing.center.x - center.x))
+
+    if t >= m["next"]:
+        m["next"] = t + reaction * m["rng"].uniform(0.7, 1.3)
+        foes = [e for e in ns["group"]["enemies"] if e.is_alive]
+        near = min(foes, key=lambda e: _apart(e.center, center), default=None)
+        pills = [p for p in ns["group"]["pills"] if _apart(p.center, center) < 260]
+        if pills and (near is None or _apart(near.center, center) > 330):
+            m["aim"] = bearing(pills[0])
+        else:
+            m["aim"] = bearing(near) if near is not None else None
+    keys = ["SPACE"]
+    if m["aim"] is not None:
+        error = (m["aim"] - ship.bearing + 180) % 360 - 180
+        keys.append("LEFT" if error > 4 else "RIGHT" if error < -4 else None)
+    game.hold(*keys)
+
+
+def _apart(a, b) -> float:
+    """How far apart two points are."""
+    return math.hypot(a.x - b.x, a.y - b.y)
+
+
 # ── Debug keys over a run ───────────────────────────────────────────────────
 
-def with_debug_keys(game, t, *, pilot, args=None, chords=()):
+def with_debug_keys(game, t, *, pilot, args=None, chords=(), stroke=None):
     """Another pilot's run, with Ctrl+Shift chords at set times: ``chords`` is
     ``(time, key)`` each ("7" hitboxes and overlays, "6" processes, "8" debug
-    zoom). The modifiers go down a moment before the key and come up after
-    it: keys pressed in one frame arrive in name order, and a "7" before its
-    Ctrl and Shift is a plain 7."""
+    zoom, "P" pause / ¼ / run). The modifiers go down a moment before the key
+    and come up after it: keys pressed in one frame arrive in name order, and
+    a "7" before its Ctrl and Shift is a plain 7.
+
+    ``stroke``: the hitbox outlines this wide (design px) instead of 1, for a
+    video seen small; the overlay keeps the paint it finds and sets only its
+    colour."""
     from record_game import load_pilot
-    fly = memo(game).setdefault("_base", load_pilot(pilot))
+    m = memo(game)
+    fly = m.setdefault("_base", load_pilot(pilot))
+    if stroke is not None and "_stroke" not in m:
+        import skia
+        m["_stroke"] = game.ns["collision"]._debug_paint = skia.Paint(
+            Style=skia.Paint.kStroke_Style, StrokeWidth=stroke, AntiAlias=True)
     extra = []
     for when, key in chords:
         if when - 0.1 <= t < when + 0.25:
@@ -1200,4 +1257,5 @@ def chain(game, t, *, parts=()):
 
 PILOTS = {f.__name__: f for f in (catch_falling, tour_first_script, play_naves, shoot_fleet,
                                   fly_plane, race, run_robot, play_connect4, duel_match,
-                                  ninja_route, slider_tour, tour, with_debug_keys, chain)}
+                                  ninja_route, slider_tour, tour, guard_ring, with_debug_keys,
+                                  chain)}
