@@ -14,7 +14,6 @@ __pycache__/
 # Private workbench (archive/, proposals/, guides/): not published, kept outside
 # the public history (design/README.md — "Private folders")
 /workbench/
-/.cursor/
 # Per-machine tool state: Claude Code sessions / worktrees, editor settings
 /.claude/
 /.vscode/
