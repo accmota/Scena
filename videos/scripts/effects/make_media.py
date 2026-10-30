@@ -2,10 +2,11 @@
 
   python videos/scripts/effects/make_media.py
 
-Music: "Boss Battle Music" (Juhani Junkala, CC0) at 178.2 bpm, its bars 0-87, then
-bars 79-87 once more (a phrase repeated, so the slow last act fits), then bars
-87-91 (the track's end): 99 bars, 133.6 s, faded over the last two. The joins fall
-on bar lines, crossfaded 15 ms. A WAV: the ogg's packets give the FLAC muxer
+Music: "Boss Battle Music" (Juhani Junkala, CC0) at 178.2 bpm, its bars 0-44, then
+bars 40-87 (the four bars of the layered sky once more, for its parallax), then
+bars 79-91 (a phrase repeated, so the slow last act fits, then the track's end):
+103 bars, 138.9 s, faded over the last two. The joins fall on bar lines,
+crossfaded 15 ms. A WAV: the ogg's packets give the FLAC muxer
 non-monotonic timestamps.
 """
 
@@ -20,7 +21,7 @@ MUSIC_IN = os.path.join(MUSIC, "juhani_junkala_epic_boss_battle.ogg")
 MUSIC_OUT = os.path.join(work("effects"), "boss_cut.wav")
 BAR = 4 * 0.3367
 FIRST = 0.244
-BARS = 99
+BARS = 103
 END = FIRST + BARS * BAR
 FADE = 2 * BAR
 XF = 0.015
@@ -31,12 +32,16 @@ def bar(n):
 
 
 if __name__ == "__main__":
-    a, b, c = bar(87), bar(79), bar(87)
-    graph = (f"[0]atrim=0:{a + XF:.4f},asetpts=N/SR/TB[p];"
-             f"[1]atrim={b:.4f}:{c + XF:.4f},asetpts=N/SR/TB[q];"
-             f"[2]atrim={c:.4f},asetpts=N/SR/TB[r];"
-             f"[p][q]acrossfade=d={XF}:c1=tri:c2=tri[pq];"
-             f"[pq][r]acrossfade=d={XF}:c1=tri:c2=tri,atrim=0:{END:.4f},"
-             f"afade=t=out:st={END - FADE:.4f}:d={FADE:.4f}")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", MUSIC_IN, "-i", MUSIC_IN, "-i", MUSIC_IN,
+    pieces = [(0, 44), (40, 87), (79, None)]       # bars of the track, in order
+    graph, last = "", None
+    for k, (a, b) in enumerate(pieces):
+        end = f":{bar(b) + XF:.4f}" if b is not None else ""
+        graph += f"[{k}]atrim={bar(a) if a else 0:.4f}{end},asetpts=N/SR/TB[p{k}];"
+    for k in range(1, len(pieces)):
+        into = f"[p{k - 1}]" if k == 1 else f"[j{k - 1}]"
+        graph += f"{into}[p{k}]acrossfade=d={XF}:c1=tri:c2=tri"
+        graph += f"[j{k}];" if k < len(pieces) - 1 else ""
+    graph += f",atrim=0:{END:.4f},afade=t=out:st={END - FADE:.4f}:d={FADE:.4f}"
+    inputs = [arg for _ in pieces for arg in ("-i", MUSIC_IN)]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *inputs,
                     "-filter_complex", graph, "-c:a", "pcm_s16le", MUSIC_OUT], check=True)

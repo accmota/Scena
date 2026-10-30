@@ -5,7 +5,7 @@ teaser's own clock (now(), seconds into the teaser): the times are the
 teaser's. The pointer shows only while it works.
 
     python tools/video/record_game.py videos/scripts/teaser3/teaser3.py \\
-        --pilot videos/scripts/teaser3/teaser3_pilots.py:show --seconds 151.3 --size 2560x1440 \\
+        --pilot videos/scripts/teaser3/teaser3_pilots.py:show --seconds 153.3 --size 2560x1440 \\
         --prores --out $PWD/videos/recordings/masters.nosync/teaser3.mov
 """
 
@@ -18,8 +18,9 @@ from paths import REPO     # noqa: E402
 sys.path.insert(0, os.path.join(REPO, "tools", "video"))
 from pilots import tour     # noqa: E402
 
-UI = 76.0           # the interfaces act
-FX = 110.0          # the effects act
+LOOP = 1.9675       # the bar the music plays twice, in the stairs (teaser3.py)
+UI = 76.0 + LOOP    # the interfaces act
+FX = 110.0 + LOOP   # the effects act
 
 SCRIPT = (
     ("drag", "Petals", 6, 12, UI + 1.2, UI + 2.4),
@@ -27,11 +28,11 @@ SCRIPT = (
     ("click", UI + 4.6, "dropdown"),
     ("click", UI + 5.4, "option:Flame"),
     ("click", UI + 6.4, "Trail"),
-    ("path", UI + 7.4, UI + 8.8, "orbit", (860, 360, 95, 95, 0.7)),
-    ("click", UI + 9.4, (860, 360)),
-    ("carry", UI + 10.4, UI + 11.3, (860, 360), (760, 300)),
-    ("click", UI + 11.8, "Bloom"),
-    ("glide", UI + 12.4, UI + 13.6, (1180, 120)),
+    ("path", UI + 7.4, UI + 9.3, "orbit", (860, 360, 95, 95, 0.7)),
+    ("click", UI + 9.9, (860, 360)),
+    ("carry", UI + 10.9, UI + 11.8, (860, 360), (760, 300)),
+    ("click", UI + 12.3, "Bloom"),
+    ("glide", UI + 12.9, UI + 13.6, (1180, 120)),
     # every effect has its knobs (an effect's sliders live 3.9 s from FX + 0.6 + 4.1 k)
     ("drag", "amount", 1.0, 3.0, FX + 1.5, FX + 2.4),
     ("drag", "width", 3, 11, FX + 2.9, FX + 4.0),

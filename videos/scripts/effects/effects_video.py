@@ -1,4 +1,4 @@
-"""Scena: the effects (video 4, ~2:19). Visual richness, shown, not told.
+"""Scena: the effects (video 4, ~2:24). Visual richness, shown, not told.
 
 Every effect is the API Guide's own catalogue card (its snippet, run as the
 Guide's thumbnails run it: cards.json is frozen from
@@ -12,25 +12,26 @@ counts); names are small labels; the cuts fall on the music's beat (178 bpm).
                               then every look at once, and on any shape (four swaps)
   0:27  in the world          the spatial effects fill a night landscape, then their
                               parameters move (the values shown live)
-  0:40  backgrounds           a beat each, behind a ship; then four layered into one sky
-  0:59  screen effects        over a photo with a ship (Kaleidoscope left out); then five
+  0:40  backgrounds           a beat each, behind a ship; then four layered into one sky,
+                              drifting in parallax (stars slow, nebula fast, aurora still)
+  1:05  screen effects        over a photo with a ship (Kaleidoscope left out); then five
                               stacked on one picture
-  1:17  impacts               in rhythm, over and over (only where a hit lands: no
+  1:22  impacts               in rhythm, over and over (only where a hit lands: no
                               flash, shake or glitch)
-  1:24  entrances and exits   a row of ships, each its verb, twice
-  1:32  together              backgrounds, a portal, an orb, looks, rays, fireworks
-  1:47  one line each         four rows of code grow from X() to X(a, b, c); the picture
+  1:29  entrances and exits   a row of ships, each its verb, twice
+  1:37  together              backgrounds, a portal, an orb, looks, rays, fireworks
+  1:52  one line each         four rows of code grow from X() to X(a, b, c); the picture
                               follows each line (a background, a look, a grade, a vignette)
-  2:14  100% made with Scena  (the music has ended; the card credits it)
+  2:19  100% made with Scena  (the music has ended; the card credits it)
 
-Music: "Boss Battle Music" by Juhani Junkala (CC0): 99 bars, bars 79-87 played
-twice (make_media.py -> boss_cut.wav).
+Music: "Boss Battle Music" by Juhani Junkala (CC0): 103 bars, bars 40-44 (the
+layered sky) and 79-87 played twice (make_media.py -> boss_cut.wav).
 
 Use
 ---
     python videos/scripts/effects/make_media.py
     python tools/video/record_game.py videos/scripts/effects/effects_video.py \\
-        --pilot videos/scripts/effects/effects_video_pilots.py:pilot --seconds 139.1 \\
+        --pilot videos/scripts/effects/effects_video_pilots.py:pilot --seconds 144.5 \\
         --size 2560x1440 --crf 14 --out $PWD/videos/recordings/effects/scena_effects.mp4
     python videos/scripts/kit/finish.py videos/recordings/effects/scena_effects.mp4 promo/scena_effects
 
@@ -79,7 +80,7 @@ def bar(n):
     return FIRST + 4 * BEAT * n
 
 
-MUSIC_SECONDS = bar(99)     # 133.58 s: the track's end (a phrase repeated)
+MUSIC_SECONDS = bar(103)    # 138.96 s: the track's end (two phrases repeated)
 
 
 def now():
@@ -466,7 +467,7 @@ async def backgrounds(t):
     for k, card in enumerate(cards("field", most={"SkyGradient": 6})):
         await at(t + 0.4 + k * 1.1 * BEAT)
         undo(shown)
-        shown = run_card(card["code"], scene_ns())
+        shown = run_card(MOVING.get(card["id"], card["code"]), scene_ns())
         leave(tag_, style="fade", time=0.08)
         tag_ = [name_tag(label_of(card))]
     await at(t + 12.9)
@@ -475,10 +476,22 @@ async def backgrounds(t):
     words = section_head("Backgrounds combine", sub="layer as many as you like, each one line")
     await compose(t + 13.3, BACKDROP)
     await at(t + 17.4)                  # the whole sky, held two seconds
+    await parallax(t + 17.4)
+    await at(t + 23.3)
     leave(words, my.tags, ship, time=0.3)
     await wait(0.3)
     undo(my.layers)
 
+
+# The cards that hardly move in their beat on screen, a little faster (the label
+# stays the card's name): a drift sideways, or a quicker churn.
+MOVING = {
+    "bg-stars": "Stars(scroll=(-200, 0))",
+    "bg-clouds": 'canvas.background = SkyGradient("day")\nClouds(scroll=(-160, 0))',
+    "bg-nebula": "Nebula(speed=4)",
+    "bg-churn": "ChurningClouds(speed=4)",
+    "bg-filament": "FilamentField(speed=5)",
+}
 
 BACKDROP = (        # one sky, a layer two beats apart
     ("SkyGradient", lambda: SkyGradient("dusk")),
@@ -506,7 +519,21 @@ async def compose(t, layers):
         my.tags = [name_tag(" + ".join(n for n, _ in layers[:k + 1]))]
 
 
-# ---- 0:59  screen effects: over a photo and a ship ----
+async def parallax(t):
+    """The layered sky drifts: the stars slowly, the nebula faster, the aurora
+    stays (the code under the tag; each rate eases in over a second)."""
+    stars, nebula = my.layers[1], my.layers[2]
+    my.tags.append(small_tag("stars.scroll = (-50, 0)    nebula.scroll = (-220, 0)",
+                             (640, 28), size=15, color=FROST))
+    for k in range(1, 31):
+        u = k / 30
+        u = u * u * (3 - 2 * u)
+        stars.scroll = (-50 * u, 0)
+        nebula.scroll = (-220 * u, 0)
+        await at(t + k / 30)
+
+
+# ---- 1:05  screen effects: over a photo and a ship ----
 
 async def screen(t):
     Wallpaper(PHOTO)
@@ -533,7 +560,7 @@ async def screen(t):
     undo(my.layers)
 
 
-# ---- 1:17  impacts: in rhythm, over and over ----
+# ---- 1:22  impacts: in rhythm, over and over ----
 
 async def impacts(t):
     Stars(color=FROST, density=0.3, twinkle=0.3)
@@ -554,7 +581,7 @@ async def impacts(t):
     leave(words, time=0.3)
 
 
-# ---- 1:24  entrances, exits and hits: a row of ships, each its verb, twice ----
+# ---- 1:29  entrances, exits and hits: a row of ships, each its verb, twice ----
 
 async def transients(t):
     Stars(color=FROST, density=0.3, twinkle=0.3)
@@ -582,7 +609,7 @@ async def transients(t):
     leave([s for s in ships if s.is_alive], words, time=0.3)
 
 
-# ---- 1:32  all of it together ----
+# ---- 1:37  all of it together ----
 
 async def together(t):
     words = section_head("They compose", sub="a background, the world, looks, light, impacts: at once")
@@ -631,7 +658,7 @@ async def together(t):
             layer.remove()
 
 
-# ---- 1:47  one line each: the code grows its parameters, the picture follows ----
+# ---- 1:52  one line each: the code grows its parameters, the picture follows ----
 
 ONE_LINE = (        # a row each: the bare call, one parameter, several
     ('Nebula()', 'Nebula("orchid")',
@@ -701,11 +728,11 @@ SECTIONS = [
     (bar(4), looks, False),
     (bar(20), world, False),
     (bar(30), backgrounds, False),
-    (bar(44), screen, False),
-    (bar(57), impacts, False),
-    (bar(62), transients, False),
-    (bar(68), together, False),
-    (bar(79), one_line, False),
+    (bar(48), screen, False),
+    (bar(61), impacts, False),
+    (bar(66), transients, False),
+    (bar(72), together, False),
+    (bar(83), one_line, False),
     (MUSIC_SECONDS, finale, False),
     (MUSIC_SECONDS + 5.5, None, False),
 ]

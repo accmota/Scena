@@ -6,7 +6,9 @@
 
 Music: "The Adventure Begins" (Bart Kelsey, CC BY 3.0), from the start to the
 end of its second climax (145.6 s, where the piece drops to its quiet
-reprise), then 1.2 s of that reprise fading out. The vertical cut: "Adventure
+reprise), then 1.2 s of that reprise fading out; one bar (16.59 s, 1.9675 s
+long, a bar its next one repeats) is played twice, so the stairs' last words
+stay longer: 147.57 s, then the fade. The vertical cut: "Adventure
 Theme" by Cleyton Kauffman (CC0), its first 46.08 s (a phrase ends there),
 faded over the last 0.8 s.
 
@@ -24,6 +26,8 @@ from paths import MUSIC, recording, work     # noqa: E402
 MUSIC_IN = os.path.join(MUSIC, "little_town_orchestral.ogg")
 MUSIC_OUT = os.path.join(work("teaser3"), "adventure_cut.flac")
 END, TAIL = 145.6, 1.2
+LOOP_AT, LOOP = 16.59, 1.9675      # the bar played twice (the join matches at 0.80)
+XF = 0.03
 VERTICAL_IN = os.path.join(MUSIC, "super_hero_original_no_intro.ogg")
 VERTICAL_OUT = os.path.join(work("teaser3_vertical"), "hero_short.flac")
 VERTICAL_END, VERTICAL_FADE = 46.08, 0.8
@@ -49,9 +53,13 @@ STEPS = (
 
 
 def music():
-    graph = f"atrim=0:{END + TAIL},afade=t=out:st={END}:d={TAIL}"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", MUSIC_IN, "-af", graph, MUSIC_OUT],
-                   check=True)
+    end = END + LOOP
+    graph = (f"[0]atrim=0:{LOOP_AT + LOOP + XF:.4f},asetpts=N/SR/TB[a];"
+             f"[1]atrim={LOOP_AT:.4f}:{END + TAIL:.4f},asetpts=N/SR/TB[b];"
+             f"[a][b]acrossfade=d={XF}:c1=tri:c2=tri,"
+             f"afade=t=out:st={end:.4f}:d={TAIL}")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", MUSIC_IN, "-i", MUSIC_IN,
+                    "-filter_complex", graph, MUSIC_OUT], check=True)
     # asetpts: the Ogg's packet times go back on themselves; counted samples do not
     graph = (f"asetpts=N/SR/TB,atrim=0:{VERTICAL_END},"
              f"afade=t=out:st={VERTICAL_END - VERTICAL_FADE}:d={VERTICAL_FADE}")

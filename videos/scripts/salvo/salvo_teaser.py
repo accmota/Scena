@@ -656,7 +656,7 @@ async def title(t):
     st.logo = logo
     flare(W / 2, 410, ICE, width=1100, time=1.4)
     box = logo.box
-    y = box.bottom - 14
+    y = 262                             # just under the subtitle (it settles at 300)
     under = Track(points=[(box.left, y), (box.right, y)], smooth=0, color=AMBER, line_width=2,
                   layer="ui")
     under.glow = CheapGlow(AMBER, radius=6)

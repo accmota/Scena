@@ -7,30 +7,30 @@ as labels on the things they move (the machine), never as code to read
 
   0:00  SCENA                 a neon sign switches on over a road at dusk
   0:09  built for learning    a ninja climbs a staircase of tutorial chapters
-  0:24  simple, yet powerful  one dot doubles into hundreds, a flock, a ring
-  0:37  nothing hidden        an X-ray: behind the game, the code of the game
-  0:53  a vocabulary          a chain-reaction machine, each part one word
-  1:16  interfaces            widgets and the mouse drive a flower
-  1:31  the level editor      select, move, draw, resize, turn, copy, undo, pan, fit
-  1:50  effects               every effect has parameters; and they compose
-  2:15  games                 a wall of games made with Scena
-  2:25  this video was 100% made with Scena (the music has ended)
+  0:26  simple, yet powerful  one dot doubles into hundreds, a flock, a ring
+  0:39  nothing hidden        an X-ray: behind the game, the code of the game
+  0:55  a vocabulary          a chain-reaction machine, each part one word
+  1:18  interfaces            widgets and the mouse drive a flower
+  1:33  the level editor      select, move, draw, resize, turn, copy, undo, pan, fit
+  1:52  effects               every effect has parameters; and they compose
+  2:17  games                 a wall of games made with Scena
+  2:27  this video was 100% made with Scena (the music has ended)
 
 Music: "The Adventure Begins" by Bart Kelsey (CC BY 3.0), up to the end of
-its second climax (make_media.py -> adventure_cut.flac).
+its second climax, one bar played twice (make_media.py -> adventure_cut.flac).
 
 Use
 ---
     python videos/scripts/teaser3/make_media.py        # music and the stairs' stills
     python videos/scripts/teaser3/teaser3.py           # live (no pointer: the widgets stay put)
     python tools/video/record_game.py videos/scripts/teaser3/teaser3.py \\
-        --pilot videos/scripts/teaser3/teaser3_pilots.py:show --seconds 151.3 --size 2560x1440 \\
+        --pilot videos/scripts/teaser3/teaser3_pilots.py:show --seconds 153.3 --size 2560x1440 \\
         --prores --out $PWD/videos/recordings/masters.nosync/teaser3.mov
     python videos/scripts/kit/promo_composite.py videos/recordings/masters.nosync/teaser3.mov \\
         videos/recordings/teaser3/scena_teaser3.mp4 videos/recordings/teaser3/cues.json
     python videos/scripts/kit/finish.py videos/recordings/teaser3/scena_teaser3.mp4 promo/scena_teaser3
 
-    TEASER_START=53 python videos/scripts/teaser3/teaser3.py      # start at a section (no music)
+    TEASER_START=55 python videos/scripts/teaser3/teaser3.py      # start at a section (no music)
 """
 
 import os
@@ -52,7 +52,8 @@ from promo_kit import kit                    # noqa: E402
 
 MEDIA = work("teaser3")
 MUSIC = os.path.join(MEDIA, "adventure_cut.flac")
-MUSIC_SECONDS = 145.6       # the end of the second climax (the file fades 1.2 s after)
+LOOP = 1.9675               # one bar the music plays twice (make_media.py): the stairs' words
+MUSIC_SECONDS = 145.6 + LOOP    # the end of the second climax (the file fades 1.2 s after)
 CUES = os.path.join(MEDIA, "cues.json")
 START = float(os.environ.get("TEASER_START", "0"))
 kit.setup(cues=CUES, start=START)
@@ -224,7 +225,7 @@ async def stairs(t):
     await wait(0.6)
     lines.append(note("33 chapters, from a first script", (960, 168), size=28, layer="ui"))
     lines.append(note("to real games.", (960, 126), size=28, layer="ui"))
-    await at(t + 14.4)
+    await at(t + 14.4 + LOOP)       # time to read it
     leave(words, lines, time=0.4)
 
 
@@ -641,7 +642,7 @@ async def interface(t):
     @hover(group["petals"])
     def lift_petal(p):
         p.scale_to(1.3, time=0.12)
-        if t + 7.0 < now() < t + 9.2:       # while the pointer goes round the flower
+        if t + 7.0 < now() < t + 9.7:       # while the pointer goes round the flower
             say("@hover", (p.center.x, p.center.y + 70))
 
     @hover_exit(group["petals"])
@@ -659,7 +660,7 @@ async def interface(t):
     # (the widget column at ui.scale 1.45: a tag to the right of each widget)
     for when, text, where in ((1.2, "Slider", (470, 661)), (3.0, "Slider", (470, 603)),
                               (4.6, "DropDown", (470, 545)), (6.4, "CheckBox", (470, 494)),
-                              (10.4, "draggable", None), (11.8, "Button", (470, 440))):
+                              (10.9, "draggable", None), (12.3, "Button", (470, 440))):
         await at(t + when)
         if where is None:
             where = (core.center.x, core.center.y - 80)
@@ -878,13 +879,13 @@ async def finale(t):
 SECTIONS = [
     (0.0, title, False),
     (9.0, stairs, False),
-    (24.0, simple, False),
-    (37.5, xray, False),
-    (53.0, machine, False),
-    (76.0, interface, False),
-    (91.0, editor, False),
-    (110.0, effects, False),
-    (135.0, games, False),
+    (24.0 + LOOP, simple, False),
+    (37.5 + LOOP, xray, False),
+    (53.0 + LOOP, machine, False),
+    (76.0 + LOOP, interface, False),
+    (91.0 + LOOP, editor, False),
+    (110.0 + LOOP, effects, False),
+    (135.0 + LOOP, games, False),
     (MUSIC_SECONDS, finale, False),     # the music has just ended: the card is silent
     (MUSIC_SECONDS + 5.5, None, False),
 ]
