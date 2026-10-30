@@ -250,15 +250,15 @@ RING = (lambda: Neon(ICE), lambda: Flame(), lambda: Shield(style="vortex"), lamb
 
 async def title(t):
     Stars(color=FROST, density=0.35, twinkle=0.5)
-    row = arrive("SCENA", (640, 470), size=110)
+    row = arrive("SCENA", (640, 450), size=110)
     for letter in row:
         letter.fill = Gradient("white", FROST, ICE, angle=-90)
     words = []
-    after(0.5, lambda: words.append(note("Python game engine", (640, 388), size=28)))
+    after(0.5, lambda: words.append(note("Python game engine", (640, 368), size=28)))
     ring = []
     for k, look in enumerate(RING):
         a = 2 * pi * k / len(RING) + pi / 2
-        x, y = 640 + 560 * cos(a), 380 + 300 * sin(a)
+        x, y = 640 + 560 * cos(a), 360 + 300 * sin(a)
         actor = make_actor(KINDS[k % 6], x, y, 30, PALETTE[k % 8])
         actor.visual = look()
         actor.visible = False
@@ -267,8 +267,8 @@ async def title(t):
         actor.rotate_by(360 if k % 2 else -360, time=14, loops="forever")
         ring.append(actor)
     await at(t + 1.4)
-    words.append(rise("100+ visual effects, built in", (640, 266), size=46, color="white"))
-    canvas.zap_at(640, 470, color=ICE, radius=220, amount=0.8)
+    words.append(rise("100+ visual effects, built in", (640, 246), size=46, color="white"))
+    canvas.zap_at(640, 450, color=ICE, radius=220, amount=0.8)
     await at(t + 6.2)                   # a bar longer than the music's intro
     leave(row, words, ring, time=0.4)
 
