@@ -9,6 +9,7 @@
   <a href="https://accmota.github.io/Scena/en/tutorial/">Tutorial</a> ·
   <a href="https://accmota.github.io/Scena/en/guide/">API Guide</a> ·
   <a href="https://github.com/accmota/Scena/tree/main/examples">Examples</a> ·
+  <a href="https://www.youtube.com/@Scena-python">Videos</a> ·
   <a href="https://github.com/accmota/Scena/blob/main/CHANGELOG.md">Changelog</a><br>
   <sub>Em português: <a href="https://accmota.github.io/Scena/pt/tutorial/">Tutorial</a> · <a href="https://accmota.github.io/Scena/pt/guide/">Guia da API</a></sub>
 </p>
@@ -28,6 +29,11 @@ program is three lines, a whole game fits on one screen, and with over 100
 ready-made looks, effects and backgrounds it looks good from the start.
 Everything is drawn by Skia, the graphics engine behind Chrome and Android:
 smooth, antialiased shapes and GPU effects, with nothing to set up.
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=V26O_JdHuoc"><img src="https://github.com/accmota/Scena/raw/main/docs/assets/readme/video-code.jpg" width="560" alt="Video: Real code, real games. Short Scena programs and what they do, step by step (YouTube)."></a><br>
+  <sub>▶ Watch on YouTube: short programs, and what they do</sub>
+</p>
 
 ## A whole game, one screen of code
 

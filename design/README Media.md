@@ -9,6 +9,7 @@ The Guide and the tutorials: [Docs Design.md](Docs%20Design.md).
 | --- | --- |
 | Links, the Gallery, code on the page, the pitch, claims | [Editing the README](#editing-the-readme) |
 | Clips (`tools/readme/`) and pilots | [Editing the README](#editing-the-readme), "Clips are recorded" |
+| The YouTube link and the video poster | [Editing the README](#editing-the-readme), "A YouTube video is a poster" |
 | Videos with sound, takes, build-ups, debug mode (`tools/video/`); the README's debug cut | [Editing the README](#editing-the-readme), "Videos are rendered" |
 | `scena-examples.zip` (`tools/release/`) | [Editing the README](#editing-the-readme), "The examples download" |
 
@@ -66,6 +67,15 @@ Guards: `tests/test_readme.py`.
   level (`run_jump_and_throw`, `edit_a_level`), put on screen through the
   game's own camera. A clip that shows a death, a stuck hero or an idle
   screen is a pilot bug: look at frames from the clip before keeping it.
+- **A YouTube video is a poster that links to it.** GitHub and PyPI strip
+  `<iframe>`, so the page cannot play one: the top links name the channel
+  ("Videos", `youtube.com/@Scena-python`), and one video, the code video,
+  shows as its thumbnail with a play mark (`docs/assets/readme/video-code.jpg`,
+  a `.jpg` so the clip guards leave it alone), inside a link to its watch URL.
+  `videos/scripts/channel/make_art.sh` draws it with the thumbnails
+  (`THUMB_PLAY` in `channel_art.py`). One poster, not a row: the page's
+  motion is the clips, and the channel lists the rest. Guard:
+  `test_every_poster_is_shown_and_opens_its_video`.
 - **Videos are rendered the same way, with sound.** `python tools/video/record_game.py`
   plays a program headless with a README pilot (or `pilots.py:function`) and
   encodes MP4 (H.264, BT.709, AAC 48 kHz) or ProRes through ffmpeg, or writes

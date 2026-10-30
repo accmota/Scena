@@ -227,6 +227,18 @@ class TestReadmeLinks(unittest.TestCase):
         self.assertEqual(bad, [], "README images must use github.com/accmota/Scena/raw/main/ "
                                   "(raw.githubusercontent.com is dead while the repo is private)")
 
+    def test_every_poster_is_shown_and_opens_its_video(self):
+        """A poster (``docs/assets/readme/*.jpg``, from ``videos/scripts/channel/make_art.sh``)
+        is a still with a play mark: GitHub plays no video, so a click must open it."""
+        linked = set(re.findall(
+            r'<a href="https://www\.youtube\.com/watch\?v=[\w-]{11}"><img src="https://github\.com/'
+            r'accmota/Scena/raw/main/docs/assets/readme/([\w-]+\.jpg)"', _readme()))
+        from source_support import iter_files  # type: ignore
+        files = {os.path.basename(f) for f in iter_files(str(mm.OUT_DIR), ".jpg")}
+        self.assertEqual(sorted(files - linked), [], "a poster the README does not show")
+        shown = set(re.findall(r"docs/assets/readme/([\w-]+\.jpg)", _readme()))
+        self.assertEqual(sorted(shown - linked), [], "a poster outside its video's link")
+
     def test_no_relative_links(self):
         """PyPI renders the same file: a relative link or image is dead there."""
         rel = []

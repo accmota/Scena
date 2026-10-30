@@ -38,7 +38,8 @@ A build-up: `python tools/video/buildup.py <id>`, then
 (its `.srt` goes along). Balls takes `--keep-level`: its sound is only
 effects, already peaking at -1 dB.
 
-Thumbnails and the channel's art: `sh videos/scripts/channel/make_art.sh`
+Thumbnails, the channel's art and the README's video poster
+(`docs/assets/readme/video-code.jpg`, tracked): `sh videos/scripts/channel/make_art.sh`
 (stills from the finals; two takes of their own, recorded once).
 
 ## Masters

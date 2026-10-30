@@ -6,7 +6,8 @@ One program, one picture per run, picked by CHANNEL_ART:
   banner     2560 x 1440  SCENA and the motto inside the 1546 x 423 middle every
                           device shows; on a wide screen, the spark (BANNER_BG: backdrop)
   thumb      1280 x 720   a video's thumbnail: its title on the left, a still of
-                          the video on the right (THUMB_IMAGE, THUMB_TITLE, ...)
+                          the video on the right (THUMB_IMAGE, THUMB_TITLE, ...);
+                          THUMB_PLAY adds a play mark (the README's video poster)
   thumb_tall 720 x 1280   a Short's cover (drawn at 1080 x 1920): the title on top,
                           the still below, full width (the same THUMB_* settings)
 
@@ -159,6 +160,7 @@ def thumb():
     footer = os.environ.get("THUMB_FOOTER", "")
     sub = os.environ.get("THUMB_SUB", "")         # a line under the title's underline
     note = os.environ.get("THUMB_NOTE", "")        # "x,y,size:text", over the still
+    play = os.environ.get("THUMB_PLAY", "")        # "x,y": a play mark there (the README's poster)
     # no Bloom: it hazes a bright still (Ninja, Race) and the fade over it
     # the still covers the right side, full height, flush with the right edge
     still = Sprite(image, height=720)
@@ -192,6 +194,13 @@ def thumb():
         where, _, text = note.partition(":")
         x, y, size = (float(v) for v in where.split(","))
         word(text, (x, y), size, font=NOTE_FONT, color=FROST.with_alpha(0.7))
+    if play:
+        # on GitHub the poster is a still image: the mark says a click plays it
+        x, y = (float(v) for v in play.split(","))
+        disc = Circle(center=(x, y), radius=58, line_width=4)
+        disc.fill = Color(NIGHT).with_alpha(0.75)
+        disc.line = ICE
+        Polygon(points=[(x - 18, y + 28), (x - 18, y - 28), (x + 30, y)], color=FROST)
 
 
 # ---- a Short's cover: the title on top, the still below ----

@@ -10,7 +10,8 @@
 # The stills come from the videos (ffmpeg); a build-up's still is its game,
 # without the code panel and the caption (1530 x 1100 from (1030, 165) of
 # 2560x1440). A thumbnail shows the right 720 px of a still scaled to 720 high:
-# a crop puts the action there.
+# a crop puts the action there. The code video's thumbnail with a play mark is
+# the README's poster: docs/assets/readme/video-code.jpg.
 set -e
 SCRIPTS=videos/scripts/channel
 FINALS=videos/finals
@@ -99,6 +100,12 @@ thumb promo/scena_teaser teaser   "SCENA"            "2D games|in Python"      "
 thumb promo/scena_teaser2 teaser2  "SCENA"            "Python|game engine|for beginners" "" "simple, expressive code"
 thumb promo/scena_code code     "$WHAT"            "Real code,|real games"   "short programs, and what they do" \
     "" "975,200,24:step by step"
+# the README's poster for the code video: its thumbnail with a play mark on the game
+export THUMB_PLAY=975,446
+thumb promo/scena_code_poster code "$WHAT" "Real code,|real games" "short programs, and what they do" \
+    "" "975,200,24:step by step"
+unset THUMB_PLAY
+mv "$FINALS/promo/scena_code_poster.jpg" docs/assets/readme/video-code.jpg
 thumb promo/scena_teaser3 teaser3 "$WHAT"           "Built for|learning"      "" "simple, yet powerful"
 tall_thumb promo/scena_teaser3_vertical teaser3_vertical "SCENA" "Python|game engine" "built for learning"
 thumb promo/scena_engine engine   "$WHAT"            "Watch the|engine work"   "" "real code, run as it is typed"
