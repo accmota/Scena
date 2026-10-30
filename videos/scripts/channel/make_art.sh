@@ -34,9 +34,16 @@ still() {   # still VIDEO SECONDS NAME [game | W:H:X:Y | flip:W:H:X:Y]
     ffmpeg -v error -y -ss "$2" -i "$1" -frames:v 1 -vf "$vf" -q:v 2 "$STILLS/$3.jpg"
 }
 
-thumb() {   # thumb OUT NAME KICKER "LINE|LINE" FOOTER [SUBTITLE]  (OUT: under videos/finals/)
+erase() {   # erase NAME W:H:X:Y DY: cover a box of the still (its caption) with the strip DY px below
+    w=${2%%:*}; r=${2#*:}; h=${r%%:*}; r=${r#*:}; x=${r%%:*}; y=${r#*:}
+    ffmpeg -v error -y -i "$STILLS/$1.jpg" -filter_complex \
+        "[0]split[a][b];[b]crop=$w:$h:$x:$((y + $3))[p];[a][p]overlay=$x:$y" -q:v 2 "$TMP/erased.jpg"
+    mv "$TMP/erased.jpg" "$STILLS/$1.jpg"
+}
+
+thumb() {   # thumb OUT NAME KICKER[|TAGLINE] "LINE|LINE" FOOTER [SUBTITLE [NOTE]]  (OUT: under videos/finals/)
     export THUMB_IMAGE="$PWD/$STILLS/$2.jpg" THUMB_KICKER="$3" THUMB_TITLE="$4" \
-        THUMB_FOOTER="$5" THUMB_SUB="$6" CHANNEL_ART=${ART:-thumb}
+        THUMB_FOOTER="$5" THUMB_SUB="$6" THUMB_NOTE="$7" CHANNEL_ART=${ART:-thumb}
     png=$(draw "$2" "${SIZE:-1280x720}")
     ffmpeg -v error -y -i "$png" -q:v 2 "$FINALS/$1.jpg"
     echo "$FINALS/$1.jpg"
@@ -65,7 +72,8 @@ take guardian/thumbs/seed3.mp4 examples/guardian.py --pilot guard_ring --seed 3 
     --lead 74 --seconds 56 --size 2560x1440
 still $REC/pulse/music_video.mp4 12.55 teaser 1300:1300:630:150   # the triangles a little off the star
 still $REC/guardian/thumbs/seed3.mp4 38.25 teaser2 flip:1200:1200:848:240
-still $FINALS/promo/scena_code.mp4 63 code
+still $FINALS/promo/scena_code.mp4 63 code 2300:1294:260:146    # below the corner mark
+erase code 580:76:1466:896 80                   # "A star every half second." (step by step, below)
 # the later promos: each one's own picture, clear of its captions and headers
 P=$FINALS/promo
 still $P/scena_teaser3.mp4 16 teaser3 1180:1180:920:260        # the tutorial's staircase
@@ -85,15 +93,18 @@ still $B/buildup_movement.mp4 44 movement 900:900:1346:240   # the ring and the 
 still $B/buildup_demo100.mp4 20 demo100 game
 still $B/buildup_old_school.mp4 40 old_school game
 
+# a cover whose title does not say what Scena is says it under the name
+WHAT="SCENA|Python game engine"
 thumb promo/scena_teaser teaser   "SCENA"            "2D games|in Python"      "pip install scena"
 thumb promo/scena_teaser2 teaser2  "SCENA"            "Python|game engine|for beginners" "" "simple, expressive code"
-thumb promo/scena_code code     "SCENA"            "Real code,|real games"   "short programs, and what they do"
-thumb promo/scena_teaser3 teaser3 "SCENA"           "Built for|learning"      "" "simple, yet powerful"
+thumb promo/scena_code code     "$WHAT"            "Real code,|real games"   "short programs, and what they do" \
+    "" "975,200,24:step by step"
+thumb promo/scena_teaser3 teaser3 "$WHAT"           "Built for|learning"      "" "simple, yet powerful"
 tall_thumb promo/scena_teaser3_vertical teaser3_vertical "SCENA" "Python|game engine" "built for learning"
-thumb promo/scena_engine engine   "SCENA"            "Watch the|engine work"   "" "real code, run as it is typed"
-thumb promo/scena_effects effects "SCENA"            "100+ visual|effects"     "" "built in, one line each"
-thumb promo/scena_flow flow       "SCENA"            "Short and|to the point"  "" "no boilerplate, no ceremony"
-thumb promo/scena_salvo salvo     "SCENA"            "Make something|beautiful" "" "a Python game engine"
+thumb promo/scena_engine engine   "$WHAT"            "Watch the|engine work"   "" "real code, run as it is typed"
+thumb promo/scena_effects effects "$WHAT"            "100+ visual|effects"     "" "built in, one line each"
+thumb promo/scena_flow flow       "$WHAT"            "Short and|to the point"  "" "no boilerplate, no ceremony"
+thumb promo/scena_salvo salvo     "$WHAT"            "Make something|beautiful" "" "easy to begin, room to grow"
 thumb buildups/buildup_first_script first_script  "SCENA TUTORIAL"  "Your first|script"   "34 lines, step by step"
 thumb buildups/buildup_catch_stars catch_stars   "SCENA TUTORIAL"  "Catch the|stars"     "a game in 33 lines"
 thumb buildups/buildup_ships_1 ships_1       "SCENA TUTORIAL"  "Ships"               "a shooter in 66 lines"

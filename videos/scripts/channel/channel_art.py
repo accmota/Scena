@@ -154,9 +154,11 @@ def title_size(lines, room):
 def thumb():
     image = os.environ["THUMB_IMAGE"]
     lines = os.environ["THUMB_TITLE"].split("|")
-    kicker = os.environ.get("THUMB_KICKER", "")
+    # "SCENA|Python game engine": the kicker, and under it what Scena is
+    kicker, _, tagline = os.environ.get("THUMB_KICKER", "").partition("|")
     footer = os.environ.get("THUMB_FOOTER", "")
     sub = os.environ.get("THUMB_SUB", "")         # a line under the title's underline
+    note = os.environ.get("THUMB_NOTE", "")        # "x,y,size:text", over the still
     # no Bloom: it hazes a bright still (Ninja, Race) and the fade over it
     # the still covers the right side, full height, flush with the right edge
     still = Sprite(image, height=720)
@@ -168,9 +170,12 @@ def thumb():
     fade.fill = Gradient((0, night), (0.3, night.with_alpha(0.8)), (0.65, night.with_alpha(0.3)),
                          (1, night.with_alpha(0)), angle=0)     # eased: no edge where it starts
     if kicker:
-        flush_left(word(kicker, (300, 610), 34, font=SMALL_FONT, color=EMBER), 44)
+        top = 632 if tagline else 610
+        flush_left(word(kicker, (300, top), 34, font=SMALL_FONT, color=EMBER), 44)
+    if tagline:
+        flush_left(word(tagline, (300, 592), 30, font=SMALL_FONT, color=FROST), 44)
     size = title_size(lines, 500)
-    y = 360 + (len(lines) - 1) * size * 0.52 + 40
+    y = 360 + (len(lines) - 1) * size * 0.52 + (20 if tagline else 40)    # clear of the tagline
     for line in lines:
         t = flush_left(word(line, (300, y), size), 40)
         t.fill = ICE_FILL
@@ -181,6 +186,12 @@ def thumb():
         flush_left(word(sub, (300, under - 52), 38, font=SMALL_FONT, color=FROST), 44)
     if footer:
         flush_left(word(footer, (300, 70), 30, font=SMALL_FONT, color=FROST), 44)
+    if note:
+        # in the videos' caption style (Quantico Italic, frost at 0.7), where the
+        # still's own caption was erased (make_art.sh, erase)
+        where, _, text = note.partition(":")
+        x, y, size = (float(v) for v in where.split(","))
+        word(text, (x, y), size, font=NOTE_FONT, color=FROST.with_alpha(0.7))
 
 
 # ---- a Short's cover: the title on top, the still below ----
