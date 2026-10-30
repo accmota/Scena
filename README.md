@@ -438,6 +438,17 @@ and for having fun doing it.
   and the gallery, run at 60 fps on an ordinary computer. A game with many
   thousands of things moving at once belongs to a faster engine.
 
+## How Scena was made
+
+Scena was built with heavy use of AI. Almost every part of it was
+written with AI: the engine and its tests, the documentation, the tutorial,
+the examples, and the way it is presented.
+
+My part is the direction: the ideas, the engine's vocabulary and how author
+code should read, every design decision, how the tutorial and the API Guide
+teach each concept, playtesting, reviewing and deciding what ships, and tying it all
+together into one coherent whole.
+
 ## License
 
 Scena's code and documentation are under the [MIT license](https://github.com/accmota/Scena/blob/main/LICENSE).
