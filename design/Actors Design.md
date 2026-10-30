@@ -1258,6 +1258,9 @@ on CPython ≤ 3.12, reading a function frame's `f_locals` caches a snapshot on
 the frame, pinning every local — a destroyed `shot` decorated with
 `@collide(shot, wall)` inside a long-lived async mode stayed alive after `del`
 (system-test finding S7). Do not add `f_locals` reads of author frames.
+From CPython 3.13 (PEP 667) `f_locals` is a write-through proxy with no
+`clear`: test code that reads it reads only (`.get`); writing or clearing it
+changes the frame's own variables (Testing Design, LW13).
 
 **Roles (fail loud):** each callable has at most one role family. `@collide` /
 `@collide_with*` and stacked `@when` (or stacked `@on_change`) may append on the

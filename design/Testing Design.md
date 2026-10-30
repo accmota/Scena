@@ -1659,7 +1659,11 @@ What CI does **not** cover:
 - **gate and deep.** Canaries, the `ci` / `deep` Hypothesis profiles, `SLOW`
   modules and the serial pass stay local (bug loop steps 5 and 8): their budget
   (gate 4–14 min on 8 workers of a 10-core Mac, deep 2 h +) does not fit a push check, and the
-  Windows gate needs `-j 4` for memory (WP30).
+  Windows gate needs `-j 4` for memory (WP30). The gate runs on whichever
+  Python the machine runs it with, so a module that lives only in gate (the
+  laws modules, `test_sys_hyp_*`) meets a newer Python only when someone runs
+  gate there: LW13 broke every laws run on 3.13+ while CI and both quick runs
+  passed. Before a release, run gate on 3.12 and 3.14.
 - **The whole quick tier on macOS and Windows.** Only `SMOKE` runs there; quick
   runs locally on macOS before every change, and on Windows by hand.
 - **A real window, GPU, audio device or input device.** No cell opens a window or a
@@ -3847,6 +3851,7 @@ with the triage verdict.
 | LW11 | E3 on `loom.py` swapped the shuttle's two followers (lines 174 and 177): frame 0 had two Points at line 174 in the program, at 177 in the twin | **harness** | The first shape to link to an Ellipse's `center` fills that Ellipse's foci (`fp1`, `fp2`, a Derivate part made on first access, `_materialize_derivate_part`). A part made later takes `_site` from the stack, the reader's line; the recorder labelled `N` events by that raw `_site`. Author text was right: `made_at` and `entity_label` name a part through its owner | The recorder labels a part filled by `_materialize_derivate_part` at the filling shape's site (`laws/trace.py` `_materializing_site`). Guard: `test_laws_quick.TestLazyPartsAreTheirShapes`, canary `test_foci_labelled_at_their_reader_are_caught` |
 | LW12 | E3 on `pendulums.py` (gate, 2026-10-26) swapped the loop that fills `bobs` (line 71) with `Track(points=[… for b in bobs])` (line 82): the twin raised `Track(points=) needs at least 2 points` | **harness** | `swap_candidates` counted a statement's writes by name binding only; `bobs.append(bob)` fills the list without binding `bobs`, so the two statements looked independent | `_names_written` also counts a container mutator call on a name (`append`, `extend`, `insert`, `add`, `update`, `setdefault`, `remove`, `discard`, `clear`) and a subscript store (`box[k] = …`). Over the 60 law scripts it drops this one swap and keeps the other 244 (counting every method call or attribute store would have dropped 6, among them `grade.cell(0, 0)` and two `shuttle.x =` attachments). Guard: `test_laws_equations.TestSwapCandidates` |
 
+| LW13 | Gate on Python 3.14 (Windows, 2026-10-30, on 0.11.0): 23 laws jobs (`test_laws_equations`, `_neutrality`, `_families`, `_chaos_families`, `test_sys_hyp_world`) failed with the recorder error `author call count: AttributeError: 'FrameLocalsProxy' object has no attribute 'clear'`; 3.12 passed them, and so did quick on both | **harness** | The recorder (`laws/trace.py` `_author_call`) read a task's or generator's arguments from `frame.f_locals`, then cleared it: on 3.12 that drops the dict the read cached on the frame (else it keeps what the frame later lets go: E0's leftover graph node). From 3.13 (PEP 667) `f_locals` is a write-through proxy with no cache and no `clear`; emptying it would delete the frame's own variables. Quick never reached it: `s0_basic` has no task with an argument, and CI runs no laws module | `trace._drop_locals_cache` clears only a dict. Guard: `test_laws_quick.TestSuspendableFrames` (quick): the recorder over `s4_timers` (`Sleeper.count`, a task method) with no recorder error; a generator keeps its variables after the drop (fails on the old code on 3.13+); what a generator lets go is freed (fails on 3.12 without the drop). Rule: code that reads `f_locals` only reads it (`.get`); a write or `clear` is version-dependent ([Actors Design, class-body detection](Actors%20Design.md)) |
 ### CK — copies across kinds (2026-10-15)
 
 Found weighing `Shape(box=lambda: ...)`: a probe copied `hero.box` into every
