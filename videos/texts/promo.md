@@ -22,9 +22,13 @@ Each video's file and thumbnail are in `videos/finals/promo/`.
 **Description:**
 
 ```
-Scena is a Python framework for 2D games and creative graphics, built for learning: easy to begin, room to grow. Simple things are simple; you write the game, Scena handles the machinery.
+Scena is a Python framework for 2D games and creative graphics, built for learning: easy to begin, room to grow.
 
-Sprites and hitboxes, tracks and comets, over 100 looks, effects and backgrounds, events and processes, a level editor, and games: Ships, Plane, Oscilloscope, Constellation.
+Scena code is short and to the point. No boilerplate, no ceremony: you write the game, Scena handles the machinery.
+
+Everything you need to start, nothing to set up. A level editor comes built in, plus more than 100 looks and visual effects you can tune and combine.
+
+A complete API Guide and a 33-chapter tutorial take you from a three-line program to real games.
 
 Music: "The Field Of Dreams" by pauliuw (CC0), https://opengameart.org/content/the-field-of-dreams
 
@@ -34,9 +38,13 @@ Music: "The Field Of Dreams" by pauliuw (CC0), https://opengameart.org/content/t
 **Descrição:**
 
 ```
-Scena é um framework Python para jogos 2D e gráficos criativos, feito para aprender: fácil de começar, espaço para crescer. Coisas simples são simples; você escreve o jogo, o Scena cuida da maquinaria.
+Scena é um framework Python para jogos 2D e gráficos criativos, feito para aprender: fácil de começar, espaço para crescer.
 
-Sprites e hitboxes, trilhas e cometas, mais de 100 visuais, efeitos e fundos, eventos e processos, um editor de fases, e jogos: Naves, Avião, Osciloscópio, Constelação.
+Código Scena é curto e direto ao ponto. Sem boilerplate, sem cerimônia: você escreve o jogo, o Scena cuida da maquinaria.
+
+Tudo para começar, nada para configurar. Vem com um editor de fases e mais de 100 visuais e efeitos que você ajusta e combina.
+
+Um Guia completo da API e um tutorial de 33 capítulos levam de um programa de três linhas a jogos de verdade.
 
 Música: "The Field Of Dreams" de pauliuw (CC0), https://opengameart.org/content/the-field-of-dreams
 
