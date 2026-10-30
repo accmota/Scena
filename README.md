@@ -368,6 +368,10 @@ A Linux server or container may lack libEGL and libGL, which skia-python needs
 (Debian/Ubuntu: `sudo apt install libegl1 libgl1`).
 On a Wayland desktop (Ubuntu's default) Scena's window runs through XWayland,
 which Ubuntu includes.
+On a recent Linux every run may print
+`Fontconfig warning: "…/05-reset-dirs-sample.conf", line 6: unknown element "reset-dirs"`.
+It is harmless: skia-python brings its own, older fontconfig, which skips that
+line of the system's font settings; fonts load as usual.
 
 Sound uses [miniaudio](https://pypi.org/project/miniaudio/), which pip installs
 only where it has a ready-made package: Python 3.12 to 3.14 on macOS, Windows
