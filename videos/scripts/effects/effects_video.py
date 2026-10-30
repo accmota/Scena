@@ -1,4 +1,4 @@
-"""Scena: the effects (video 4, ~2:24). Visual richness, shown, not told.
+"""Scena: the effects (video 4, ~2:26). Visual richness, shown, not told.
 
 Every effect is the API Guide's own catalogue card (its snippet, run as the
 Guide's thumbnails run it: cards.json is frozen from
@@ -8,34 +8,34 @@ counts); names are small labels; the cuts fall on the music's beat (178 bpm).
 
   0:00  title                 SCENA, Python game engine; 100+ visual effects, built in;
                               a ring of looks
-  0:05  looks                 one star through eight looks, others come out from behind;
+  0:07  looks                 one star through eight looks, others come out from behind;
                               then every look at once, and on any shape (four swaps)
-  0:27  in the world          the spatial effects fill a night landscape, then their
+  0:28  in the world          the spatial effects fill a night landscape, then their
                               parameters move (the values shown live)
-  0:40  backgrounds           a beat each, behind a ship; then four layered into one sky,
+  0:42  backgrounds           a beat each, behind a ship; then four layered into one sky,
                               drifting in parallax (stars slow, nebula fast, aurora still)
-  1:05  screen effects        over a photo with a ship (Kaleidoscope left out); then five
+  1:06  screen effects        over a photo with a ship (Kaleidoscope left out); then five
                               stacked on one picture
-  1:22  impacts               in rhythm, over and over (only where a hit lands: no
+  1:24  impacts               in rhythm, over and over (only where a hit lands: no
                               flash, shake or glitch)
-  1:29  entrances and exits   a row of ships, each its verb, twice
-  1:37  together              backgrounds, a portal, an orb, looks, rays, fireworks
-  1:52  one line each         four rows of code grow from X() to X(a, b, c); the picture
+  1:30  entrances and exits   a row of ships, each its verb, twice
+  1:39  together              backgrounds, a portal, an orb, looks, rays, fireworks
+  1:53  one line each         four rows of code grow from X() to X(a, b, c); the picture
                               follows each line (a background, a look, a grade, a vignette)
-  2:19  100% made with Scena  (the music has ended; the card credits it)
+  2:20  100% made with Scena  (the music has ended; the card credits it)
 
-Music: "Boss Battle Music" by Juhani Junkala (CC0): 103 bars, bars 40-44 (the
-layered sky) and 79-87 played twice (make_media.py -> boss_cut.wav).
+Music: "Boss Battle Music" by Juhani Junkala (CC0): 104 bars, bar 0 (the title),
+bars 40-44 (the layered sky) and 79-87 played twice (make_media.py -> boss_cut.wav).
 
 Use
 ---
     python videos/scripts/effects/make_media.py
     python tools/video/record_game.py videos/scripts/effects/effects_video.py \\
-        --pilot videos/scripts/effects/effects_video_pilots.py:pilot --seconds 144.5 \\
+        --pilot videos/scripts/effects/effects_video_pilots.py:pilot --seconds 145.9 \\
         --size 2560x1440 --crf 14 --out $PWD/videos/recordings/effects/scena_effects.mp4
     python videos/scripts/kit/finish.py videos/recordings/effects/scena_effects.mp4 promo/scena_effects
 
-    TEASER_START=26.9 python videos/scripts/effects/effects_video.py     # start at a section (no music)
+    TEASER_START=28.6 python videos/scripts/effects/effects_video.py     # start at a section (no music)
 """
 
 import ast
@@ -80,7 +80,7 @@ def bar(n):
     return FIRST + 4 * BEAT * n
 
 
-MUSIC_SECONDS = bar(103)    # 138.96 s: the track's end (two phrases repeated)
+MUSIC_SECONDS = bar(104)    # 140.31 s: the track's end (a bar and two phrases repeated)
 
 
 def now():
@@ -250,11 +250,11 @@ RING = (lambda: Neon(ICE), lambda: Flame(), lambda: Shield(style="vortex"), lamb
 
 async def title(t):
     Stars(color=FROST, density=0.35, twinkle=0.5)
-    row = arrive("SCENA", (640, 520), size=110)
+    row = arrive("SCENA", (640, 470), size=110)
     for letter in row:
         letter.fill = Gradient("white", FROST, ICE, angle=-90)
     words = []
-    after(0.5, lambda: words.append(note("Python game engine", (640, 438), size=28)))
+    after(0.5, lambda: words.append(note("Python game engine", (640, 388), size=28)))
     ring = []
     for k, look in enumerate(RING):
         a = 2 * pi * k / len(RING) + pi / 2
@@ -267,16 +267,13 @@ async def title(t):
         actor.rotate_by(360 if k % 2 else -360, time=14, loops="forever")
         ring.append(actor)
     await at(t + 1.4)
-    words.append(rise("100+ visual effects, built in", (640, 316), size=46, color="white"))
-    canvas.zap_at(640, 520, color=ICE, radius=220, amount=0.8)
-    await at(t + 2.3)
-    words.append(note("each one a line of code, each one with its parameters", (640, 256),
-                      size=24))
-    await at(t + 4.9)
+    words.append(rise("100+ visual effects, built in", (640, 266), size=46, color="white"))
+    canvas.zap_at(640, 470, color=ICE, radius=220, amount=0.8)
+    await at(t + 6.2)                   # a bar longer than the music's intro
     leave(row, words, ring, time=0.4)
 
 
-# ---- 0:05  looks: one star through eight, others come out from behind; then all ----
+# ---- 0:07  looks: one star through eight, others come out from behind; then all ----
 
 CYCLE = ("Neon", "ElectricField", "Flame", "Metal", "Aurora", "OrganicOutline", "GearShell", "Shield")
 COMPANIONS = (      # (kind, look, its name, where it settles)
@@ -369,7 +366,7 @@ def reshape(tile, r):
     tile["actor"], tile["kind"] = actor, kind
 
 
-# ---- 0:27  in the world: a night landscape fills up, then the parameters move ----
+# ---- 0:28  in the world: a night landscape fills up, then the parameters move ----
 
 FIRES = ("camp", "soft", "plume", "tongues", "embers", "blaze")
 JETS = ("plume", "tongues", "embers", "blaze")
@@ -449,7 +446,7 @@ async def world(t):
     leave(words, time=0.3)
 
 
-# ---- 0:40  backgrounds: a beat each ----
+# ---- 0:42  backgrounds: a beat each ----
 
 def flyer():
     ship = Sprite("space/playerShip1_red.png", height=60)
@@ -533,7 +530,7 @@ async def parallax(t):
         await at(t + k / 30)
 
 
-# ---- 1:05  screen effects: over a photo and a ship ----
+# ---- 1:06  screen effects: over a photo and a ship ----
 
 async def screen(t):
     Wallpaper(PHOTO)
@@ -560,7 +557,7 @@ async def screen(t):
     undo(my.layers)
 
 
-# ---- 1:22  impacts: in rhythm, over and over ----
+# ---- 1:24  impacts: in rhythm, over and over ----
 
 async def impacts(t):
     Stars(color=FROST, density=0.3, twinkle=0.3)
@@ -581,7 +578,7 @@ async def impacts(t):
     leave(words, time=0.3)
 
 
-# ---- 1:29  entrances, exits and hits: a row of ships, each its verb, twice ----
+# ---- 1:30  entrances, exits and hits: a row of ships, each its verb, twice ----
 
 async def transients(t):
     Stars(color=FROST, density=0.3, twinkle=0.3)
@@ -609,7 +606,7 @@ async def transients(t):
     leave([s for s in ships if s.is_alive], words, time=0.3)
 
 
-# ---- 1:37  all of it together ----
+# ---- 1:39  all of it together ----
 
 async def together(t):
     words = section_head("They compose", sub="a background, the world, looks, light, impacts: at once")
@@ -658,7 +655,7 @@ async def together(t):
             layer.remove()
 
 
-# ---- 1:52  one line each: the code grows its parameters, the picture follows ----
+# ---- 1:53  one line each: the code grows its parameters, the picture follows ----
 
 ONE_LINE = (        # a row each: the bare call, one parameter, several
     ('Nebula()', 'Nebula("orchid")',
@@ -725,14 +722,14 @@ async def finale(t):
 
 SECTIONS = [
     (0.0, title, False),
-    (bar(4), looks, False),
-    (bar(20), world, False),
-    (bar(30), backgrounds, False),
-    (bar(48), screen, False),
-    (bar(61), impacts, False),
-    (bar(66), transients, False),
-    (bar(72), together, False),
-    (bar(83), one_line, False),
+    (bar(5), looks, False),
+    (bar(21), world, False),
+    (bar(31), backgrounds, False),
+    (bar(49), screen, False),
+    (bar(62), impacts, False),
+    (bar(67), transients, False),
+    (bar(73), together, False),
+    (bar(84), one_line, False),
     (MUSIC_SECONDS, finale, False),
     (MUSIC_SECONDS + 5.5, None, False),
 ]
