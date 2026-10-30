@@ -5486,16 +5486,25 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
         if isinstance(new_value, Attribute):
             new_value = new_value.value
 
-        # Only update if validation was successful and value changed. ``True ==
-        # 1.0``: a flag and a number differ (a cell holding ``True`` kept it
-        # through ``= 1.0``, so a link it fed stayed refused).
+        # The ``_value_changed`` rule, inline (the hot write). Immutable values
+        # compare by value; ``True == 1.0``: a flag and a number differ (a cell
+        # holding ``True`` kept it through ``= 1.0``, so a link it fed stayed
+        # refused). A new list / dict / set / Vec2 is stored even when equal:
+        # ``old = st.skies; st.skies = []`` kept the old empty list, so
+        # ``old`` *was* the new one and a crossfade faded out the layers it
+        # had just made (SV13 in Testing Design).
         if new_value.__class__ is _KEY_NAME:
             new_value = str(new_value)
         old_value = self._raw_value
-        try:
-            changed = (old_value != new_value
-                       or (type(old_value) is bool) is not (type(new_value) is bool))
-        except KeyNameMismatch:     # a key nested in a tuple / list / dict
+        if old_value is new_value:
+            changed = False
+        elif new_value.__class__ in _VALUE_TYPE_SET and old_value.__class__ in _VALUE_TYPE_SET:
+            try:
+                changed = (old_value != new_value
+                           or (old_value.__class__ is bool) is not (new_value.__class__ is bool))
+            except KeyNameMismatch:     # a key nested in a tuple
+                changed = True
+        else:
             changed = True
         if changed:
             if old_value.__class__ is _HELD_BY_VALUE or new_value.__class__ is _HELD_BY_VALUE:
@@ -5522,6 +5531,12 @@ class Attribute(ClosedSurface, Container):  # Use string literal for forward ref
                         new_value = _HELD_BY_VALUE(new_value.x, new_value.y)
                 self._raw_value = new_value
                 _rehold_payload(self, old_value, new_value)
+                if (old_value.__class__ is _HELD_BY_VALUE
+                        and new_value.__class__ is _HELD_BY_VALUE
+                        and old_value.x == new_value.x and old_value.y == new_value.y):
+                    # An equal vector: the cell holds it by value, so what
+                    # reads the cell sees nothing new (the old one is free now).
+                    return False
             else:
                 self._raw_value = new_value
                 if new_value.__class__ is _LINKED_POINT:

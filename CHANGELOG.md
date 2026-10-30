@@ -10,6 +10,19 @@ spelling now raises), **Added**, **Fixed**, and **Documentation** (changes to
 the docs and the repository a reader notices). A section with nothing in it is
 left out.
 
+## Unreleased
+
+### Fixed
+
+- Writing a new list, dict, set or Vec2 into an `st` field always stores
+  the new one, as a Python variable does. Before, a value equal to the old
+  one was skipped and the old object stayed: `old = st.skies; st.skies = []`
+  with `st.skies` already empty left `old` and `st.skies` the same list, so
+  `st.skies.append(layer)` changed `old` too (a crossfade faded out the
+  layers it had just made). An object's own fields (`ship.items = []`)
+  already worked this way. Numbers, text and tuples still compare by value:
+  writing the same score again changes nothing.
+
 ## 0.11.0 — 2026-10-28
 
 ### Added
