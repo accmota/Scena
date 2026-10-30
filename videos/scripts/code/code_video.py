@@ -78,10 +78,23 @@ Stars(color=FROST, density=0.25, twinkle=0.3)
 st.t0 = 0
 st.frame = 0
 st.cues = []
+st.mark = False         # the corner mark, in every scene but the first and the last
 
 
 class Card(Act):
-    """A blank act: change_act(Card) sweeps the last scene away."""
+    """A blank act: change_act(Card) sweeps the last scene away (the corner
+    mark, made again at once, stays put)."""
+
+    def setup(self):
+        if st.mark:
+            corner_mark()
+
+
+def corner_mark():
+    """SCENA and "Python game engine", small, top right (as the other videos keep their name)."""
+    name = Text("SCENA", center=(1176, 690), font=TITLE_FONT, font_size=30, color="white")
+    name.fill = Gradient("white", FROST, ICE, angle=-90)
+    Text("Python game engine", center=(1176, 664), font=NOTE_FONT, font_size=14, color=CAPTION)
 
 
 def now():
@@ -621,6 +634,7 @@ async def show():
     first = names.index(FROM) if FROM else 0
     for scene in SCENES[first:]:
         print(f"[code video] {scene.__name__} at {now():.2f}")
+        st.mark = scene not in (opening, your_turn)        # Card.setup reads it
         if scene is room_to_grow and carried is not None:
             await scene(now(), carried)
             continue

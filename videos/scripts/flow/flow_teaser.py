@@ -198,14 +198,11 @@ def title():
     name.scale = 1.08
     name.scale_to(1.0, time=2.2, ease="ease_out")
     tag = Text("a Python game engine – for beginners", center=(C.x, C.y - 66), font=SMALL_FONT,
-               font_size=24, color=FROST, layer="ui")
-    plate = Rect(center=(C.x, C.y - 70), width=tag.box.width + 34, height=tag.box.height + 18,
-                 corner_radius=6, color="black", layer="ui")
-    plate.line = None; plate.move_to_back()
-    tag.move_to_front()
-    for piece in (plate, tag):
-        piece.visible = False
-        after(0.9, lambda piece=piece: (setattr(piece, "visible", True), piece.fade_in(1.0)))
+               font_size=24, color="white", layer="ui")
+    # no plate: white over the cyan ring, in a dark halo where it crosses it
+    tag.fill_filter = DropShadow(offset=0, sigma=8, color=(0, 0, 0, 1))
+    tag.visible = False
+    after(0.9, lambda: (setattr(tag, "visible", True), tag.fade_in(1.0)))
     small, tag_small = 0.3, 0.55
     w, h = name.box.width * small, name.box.height * small
     corner = (34 + w / 2, H - 30 - h / 2)
@@ -217,8 +214,6 @@ def title():
         name.move_to(corner, time=1.3, ease="ease_in_out")
         tag.scale_to(tag_small, time=1.3, ease="ease_in_out")
         tag.move_to(tag_corner, time=1.3, ease="ease_in_out")
-        plate.fade_out(0.6)
-        after(0.7, plate.destroy)
 
     after(2.45, settle)
     st.logo = name

@@ -288,16 +288,23 @@ def flock(dt):
             free = Vec2(free.x + 1320, free.y)
         elif free.x > 1300:
             free = Vec2(free.x - 1320, free.y)
-        if free.y < -20:                # the field ends under the words (y 520)
-            free = Vec2(free.x, free.y + 540)
-        elif free.y > 520:
-            free = Vec2(free.x, free.y - 540)
+        if free.y < -20:                # the field wraps above the fading edge, unseen
+            free = Vec2(free.x, free.y + 565)
+        elif free.y > 545:
+            free = Vec2(free.x, free.y - 565)
         g = st.gather
         if g > 0:
             turn = n / len(my.flock) * 2 * pi + k * 0.9
             ring = Vec2(640 + 210 * cos(turn), 285 + 210 * sin(turn))
             free = free + (ring - free) * min(1.0, g * 6 * dt + g * g * 0.5)
         dot.center = free
+        # under the words the dots fade out over a soft edge that waves and drifts:
+        # a straight cut drew a line of dots there (the dots the field holds against
+        # the wrap, seen there every other frame); the ring, once gathered, shows whole
+        edge = 498 + 22 * sin(free.x * 0.011 + k * 0.9) + 14 * sin(free.x * 0.004 - k * 0.6)
+        u = max(0.0, min(1.0, (edge - free.y) / 80))
+        u = u * u * (3 - 2 * u)
+        dot.set_alpha(round(u + (1 - u) * max(0.0, min(1.0, g * 2 - 1)), 2))
 
 
 # ---- 0:37  nothing hidden: an X-ray of a game ----

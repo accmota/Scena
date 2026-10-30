@@ -6,7 +6,8 @@ tools/guide/make_guia_thumbs.py), so what plays is what an author writes.
 Each section says what it shows in a headline and a line under it (no
 counts); names are small labels; the cuts fall on the music's beat (178 bpm).
 
-  0:00  title                 100+ visual effects, built in; a ring of looks
+  0:00  title                 SCENA, Python game engine; 100+ visual effects, built in;
+                              a ring of looks
   0:05  looks                 one star through eight looks, others come out from behind;
                               then every look at once, and on any shape (four swaps)
   0:27  in the world          the spatial effects fill a night landscape, then their
@@ -14,7 +15,8 @@ counts); names are small labels; the cuts fall on the music's beat (178 bpm).
   0:40  backgrounds           a beat each, behind a ship; then four layered into one sky
   0:59  screen effects        over a photo with a ship (Kaleidoscope left out); then five
                               stacked on one picture
-  1:17  impacts               in rhythm, over and over
+  1:17  impacts               in rhythm, over and over (only where a hit lands: no
+                              flash, shake or glitch)
   1:24  entrances and exits   a row of ships, each its verb, twice
   1:32  together              backgrounds, a portal, an orb, looks, rays, fireworks
   1:47  one line each         four rows of code grow from X() to X(a, b, c); the picture
@@ -92,16 +94,21 @@ with open(os.path.join(HERE, "cards.json")) as f:
 
 
 def default_twin(card):
-    """True for a bare `Name()` card when a style card repeats its default
-    (Shield() is Shield(style="bubble"), Halo() is "hollow", Fire() is "camp")."""
-    call = card["code"].strip().split("\n")[-1].split(".visual = ")[-1]
-    if call != card["name"] + "()":
-        return False
+    """True for a card that a style card repeats with its default written out:
+    Shield() is Shield(style="bubble"), Halo() is "hollow", Fire() is "camp",
+    canvas.zap_at(x, y) is style="spark", canvas.hit_at(...) is "star"."""
+    owner, _, attr = card["name"].rpartition(".")
     try:
-        default = inspect.signature(getattr(scena, card["name"])).parameters["style"].default
+        call = getattr(canvas if owner == "canvas" else scena, attr)
+        default = inspect.signature(call).parameters["style"].default
     except (AttributeError, KeyError, TypeError, ValueError):
         return False
-    return any(c["name"] == card["name"] and f'style="{default}"' in c["code"] for c in CARDS)
+    if "style=" in card["code"]:
+        return False
+    written = f'style="{default}"'
+    return any(c["name"] == card["name"] and written in c["code"]
+               and c["code"].replace(", " + written, "").replace(written, "") == card["code"]
+               for c in CARDS)
 
 
 def cards(*families, skip=(), most=None):
@@ -242,9 +249,11 @@ RING = (lambda: Neon(ICE), lambda: Flame(), lambda: Shield(style="vortex"), lamb
 
 async def title(t):
     Stars(color=FROST, density=0.35, twinkle=0.5)
-    row = arrive("SCENA", (640, 470), size=110)
+    row = arrive("SCENA", (640, 520), size=110)
     for letter in row:
         letter.fill = Gradient("white", FROST, ICE, angle=-90)
+    words = []
+    after(0.5, lambda: words.append(note("Python game engine", (640, 438), size=28)))
     ring = []
     for k, look in enumerate(RING):
         a = 2 * pi * k / len(RING) + pi / 2
@@ -257,11 +266,11 @@ async def title(t):
         actor.rotate_by(360 if k % 2 else -360, time=14, loops="forever")
         ring.append(actor)
     await at(t + 1.4)
-    words = [rise("100+ visual effects, built in", (640, 340), size=50, color="white")]
-    canvas.zap_at(640, 470, color=ICE, radius=220, amount=0.8)
+    words.append(rise("100+ visual effects, built in", (640, 316), size=46, color="white"))
+    canvas.zap_at(640, 520, color=ICE, radius=220, amount=0.8)
     await at(t + 2.3)
-    words.append(note("each one a line of code, each one with its parameters", (640, 272),
-                      size=26))
+    words.append(note("each one a line of code, each one with its parameters", (640, 256),
+                      size=24))
     await at(t + 4.9)
     leave(row, words, ring, time=0.4)
 
@@ -529,22 +538,16 @@ async def screen(t):
 async def impacts(t):
     Stars(color=FROST, density=0.3, twinkle=0.3)
     words = section_head("Impacts", sub="one call, where the hit lands")
-    hits = [c for c in cards("impact") if "fade_" not in c["code"]]
-    spots = [(170 + (k % 6) * 188, 470 - (k // 6) * 175) for k in range(len(hits))]
+    # the whole-screen ones (flash, shake, glitch) left out: only where a hit lands
+    hits = cards("impact", skip=("fade_", "flash", "shake", "glitch"))
+    spots = [(170 + (k % 6) * 188, 430 - (k // 6) * 210) for k in range(len(hits))]
     for card, (x, y) in zip(hits, spots):
         small_tag(label_of(card), (x, y - 80))
-    # the whole-screen ones (flash, shake, glitch) on a bar's first beat; the
-    # others two at a time on every half beat, so each comes back about every second
-    screen_wide = [k for k, c in enumerate(hits) if "_at" not in c["code"]]
-    local = [k for k in range(len(hits)) if k not in screen_wide]
+    # two at a time on every half beat, so each comes back about every second
     n = 0
     while now() < t + 6.0:
         await at(t + 0.3 + n * BEAT / 2)
-        if n % 8 == 0 and n // 8 < len(screen_wide):
-            todo = [screen_wide[n // 8]]
-        else:
-            todo = [local[(2 * n) % len(local)], local[(2 * n + 1) % len(local)]]
-        for k in todo:
+        for k in (2 * n % len(hits), (2 * n + 1) % len(hits)):
             x, y = spots[k]
             run_card(hits[k]["code"], scene_ns(x=x, y=y))
         n += 1

@@ -366,8 +366,9 @@ async def editor(t):
     Stars(color=FROST, density=0.25, twinkle=0.3)
     window = Window((MID, 680), 640, 640, color=FROST)
     await window.open(time=0.5)
-    # the tool column and the left of the canvas: where the tour draws
-    window.play("scena-editor/tour", seconds=6.4, start=1.6, crop=[140, 60, 1300, 1300])
+    # the toolbar, the tool column and the left of the canvas: where the tour
+    # draws (from the top edge, so the toolbar shows; the status line is cut)
+    window.play("scena-editor/tour", seconds=6.4, start=1.6, crop=[128, 0, 1270, 1270])
     words = [rise("A level editor", (MID, 1110), size=40, color="white"),
              note("made with Scena itself", (MID, 300), size=30)]
     await at(t + 6.5)

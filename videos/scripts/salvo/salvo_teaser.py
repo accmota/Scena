@@ -21,7 +21,7 @@ Everything lands on the music's bars (3.2 s) and beats (0.8 s).
   0:22.4  the boss fight, rings of bullets              "Built for learning. Full tutorial"
   0:25.6  the boss falls; aurora, quiet
   0:28.8  a loop of light                               "Make something beautiful"
-  0:32.0  100% made with Scena (the final chord at 35.25)
+  0:32.0  100% made with Scena, the music's credit (the final chord at 35.25)
 
 Music: "Battle in the Winter" by Johan Brodd (CC BY 3.0): its opening to
 19.23 s, then from 240.00 s to its end (make_media.py).
@@ -1077,6 +1077,11 @@ async def made_with_scena():
         t.fade_in(0.8)
         y -= 46
         await wait(0.4)
+    await wait(0.4)             # the music's credit (CC BY), small at the bottom, as on every card
+    credit = Text('Music: "Battle in the Winter" by Johan Brodd (CC BY 3.0)', center=(cx, 24),
+                  font=SMALL_FONT, font_size=17, color=FROST.with_alpha(0.7))
+    credit.move_by(0, 20, time=0.8, ease="ease_out")
+    credit.fade_in(0.8)
 
 
 async def final_chord():
