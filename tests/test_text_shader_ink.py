@@ -11,15 +11,25 @@ like solid text, with the material re-anchored on the paint
 matrix in the wrong order and shifted the material by twice the baseline
 height; nothing passed it a shader until then.
 
+A one-line shader Text also had a box of its own, its tight ink, and drew
+the ink at that box's corner: "." sat mid-line like a dash, "y" and "p" rose
+to the capitals, a row of one-letter Texts lost its side bearings, and a
+whole line sat a little off the same line in a colour (2026-10-29, found in
+a promo video). The box and the baseline are now the solid ones for every
+ink; the material spans that box, as on a Shape.
+
 Guarded here, in pixels: inside the letters, a shader Text paints what a
 Rect of its box with the same material paints there (Gradient, radial
 Gradient, Texture, a Texture outline, one line and several, turned 180°,
-90° with a scale, -30°); a text typed letter by letter draws as a fresh
-Text at every step; and drawing shader text builds no glyph path.
+90° with a scale, -30°); a shader Text's box is a solid Text's box and its
+ink lands where solid ink lands (punctuation, descenders, one letter, a
+row of letters, several lines, aligned in a fixed width, anchored); a text
+typed letter by letter draws as a fresh Text at every step; and drawing
+shader text builds no glyph path.
 
 Bug class guarded: a material frame that slips under the y-up flip, a turn
-or a scale; a stale layout while the content changes; a regression to
-per-frame glyph paths.
+or a scale; a paint that moves or resizes the Text; a stale layout while
+the content changes; a regression to per-frame glyph paths.
 
 Run:
 
@@ -44,6 +54,7 @@ from program_support import FRAME  # noqa: E402
 from system_support import boot, system_world  # noqa: E402
 
 import scena.text as text_mod  # noqa: E402
+import scena.uiwidget as uiwidget  # noqa: E402
 from scena.orchestration import ScenaFramework  # noqa: E402
 from scena import Gradient, Rect, Text, Texture  # noqa: E402
 from tests.leftovers import module_sweep  # noqa: E402
@@ -124,10 +135,7 @@ def make_text(content, size, angle, scale, center, **paint):
 
 
 def box_rect(t, material, angle, scale, center):
-    """A Rect of the Text's box with the same material: the frame to match.
-
-    Read after a draw: a one-line shader Text's box becomes its tight ink
-    when it is laid out."""
+    """A Rect of the Text's box with the same material: the frame to match."""
     w = (t._x2 - t._x1) * scale
     h = (t._y2 - t._y1) * scale
     r = Rect(center=center, width=w, height=h)
@@ -155,8 +163,8 @@ class TestShaderInkFrame(unittest.TestCase):
             mask_t.destroy()
             t = make_text(content, size, angle, scale, center, **ink_paint)
             ink = frame(w)
-            # A stroke reaches past the box, and an atlas glyph may sit a
-            # pixel past its tight ink: compare where the Rect covers too.
+            # A stroke and a glyph's overhang reach past the box: compare
+            # where the Rect covers too.
             cover = box_rect(t, WHITE, angle, scale, center)
             mask &= frame(w).min(axis=2) >= 250
             cover.destroy()
@@ -220,12 +228,12 @@ class TestTypedShaderText(unittest.TestCase):
         self.typed_matches_fresh(STORY, dict(top_left=(80, 250)), 3)
 
     def test_one_line(self):
-        # One line: the box is the tight ink, so it changes with every letter.
+        # One line: the box grows with every letter.
         self.typed_matches_fresh("Shoot everything gjq", dict(center=(300, 200)), 1)
 
 
 class TestShaderInkDrawsFromTheAtlas(unittest.TestCase):
-    """No glyph path is built to draw; one line measures its ink once."""
+    """No glyph path is built to draw or to measure shader text."""
 
     def test_no_glyph_paths_while_drawing(self):
         with world() as w:
@@ -233,20 +241,151 @@ class TestShaderInkDrawsFromTheAtlas(unittest.TestCase):
             one = make_text("RING GUARDIAN", 60, 20, 1.0, (300, 300),
                             fill=Gradient("red", "blue"), line=Gradient("white", "black"))
             frame(w)
-            real_build = text_mod.build_upright_text_path
+            real_build = uiwidget.build_upright_text_path
             real_draw = text_mod.draw_string_upright
-            with mock.patch.object(text_mod, "build_upright_text_path", side_effect=real_build) as build, \
+            with mock.patch.object(uiwidget, "build_upright_text_path", side_effect=real_build) as build, \
                     mock.patch.object(text_mod, "draw_string_upright", side_effect=real_draw) as draw:
                 for _ in range(3):
                     frame(w)
-                self.assertEqual(build.call_count, 0, "glyph paths built for unchanged text")
-                self.assertGreater(draw.call_count, 0, "shader text did not draw from the atlas")
                 one.text = "RING GUARDIAN 2"
                 frame(w)
-                frame(w)
-                self.assertEqual(build.call_count, 1, "one line measures its new ink once")
+                self.assertEqual(build.call_count, 0, "glyph paths built for shader text")
+                self.assertGreater(draw.call_count, 0, "shader text did not draw from the atlas")
             lines.destroy()
             one.destroy()
+
+
+def ink_box(img, lit=60):
+    """(top, bottom, left, right, row centroid) of lit pixels."""
+    ys, xs = np.nonzero(img.max(axis=2) >= lit)
+    if not len(ys):
+        return None
+    return (ys.min(), ys.max(), xs.min(), xs.max(), ys.mean())
+
+
+def inks():
+    """Material inks, bright everywhere so one threshold finds the letters."""
+    white = np.full((8, 8, 4), 255, np.uint8)
+    tex = skia.Image.fromarray(white, colorType=skia.kRGBA_8888_ColorType)
+    return {
+        "gradient": dict(fill=Gradient("white", "cyan", angle=-90)),
+        "texture": dict(fill=Texture(image=tex)),
+        "gradient outline": dict(fill=None, line=Gradient("white", "yellow"), line_width=3),
+        "gradient fill, colour outline": dict(fill=Gradient("white", "cyan"), line="white",
+                                              line_width=2),
+    }
+
+
+SOLID = {
+    "gradient": dict(fill="white"),
+    "texture": dict(fill="white"),
+    "gradient outline": dict(fill=None, line="white", line_width=3),
+    "gradient fill, colour outline": dict(fill="white", line="white", line_width=2),
+}
+
+# What the bug moved: punctuation and descenders alone, one letter, a word, a
+# line, several lines (the old box for those was already the solid one).
+CONTENTS = [".", ",", "-", "'", "y", "p", "t", "h", "gjpqy", "Python. made", STORY]
+PLACES = [
+    ("center", dict(center=(300, 200))),
+    ("top_left", dict(top_left=(60, 260))),
+    ("right in a width", dict(center=(300, 200), width=400, align="right")),
+]
+
+
+class TestShaderInkPlacement(unittest.TestCase):
+    """A material ink has the solid box and lands where solid ink lands."""
+
+    def test_box_does_not_follow_the_ink(self):
+        with world():
+            for content in CONTENTS:
+                for place_name, place in PLACES:
+                    solid = Text(content, font=FONT, font_size=44, **place)
+                    want = (solid._x1, solid._y1, solid._x2, solid._y2)
+                    solid.destroy()
+                    for key, paint in inks().items():
+                        with self.subTest(content=content, place=place_name, ink=key):
+                            t = Text(content, font=FONT, font_size=44, **place)
+                            for k, v in paint.items():
+                                setattr(t, k, v)
+                            t._refresh_layout()
+                            self.assertEqual((t._x1, t._y1, t._x2, t._y2), want)
+                            t.fill = "white"      # and back: the box never moved
+                            t.line = None
+                            t._refresh_layout()
+                            self.assertEqual((t._x1, t._y1, t._x2, t._y2), want)
+                            t.destroy()
+
+    def test_ink_lands_where_solid_ink_lands(self):
+        with world() as w:
+            for content in CONTENTS:
+                for place_name, place in PLACES:
+                    for key, paint in inks().items():
+                        with self.subTest(content=content, place=place_name, ink=key):
+                            t = Text(content, font=FONT, font_size=44, **place)
+                            for k, v in SOLID[key].items():
+                                setattr(t, k, v)
+                            want = ink_box(frame(w))
+                            for k, v in paint.items():
+                                setattr(t, k, v)
+                            got = ink_box(frame(w))
+                            t.destroy()
+                            self.assertIsNotNone(want)
+                            self.assertIsNotNone(got)
+                            # Same pixels up to an edge pixel's coverage (it
+                            # follows the ink's luminance, which also drifts
+                            # the column centroid; the bug moved ink 3-20 px).
+                            for a, b in zip(got[:4], want[:4]):
+                                self.assertLessEqual(abs(int(a) - int(b)), 1, (got, want))
+                            self.assertLessEqual(abs(got[4] - want[4]), 0.5, (got, want))
+
+    def test_a_row_of_letters(self):
+        # The promo kit sets one Text per letter side by side by box width,
+        # then paints them: the row must read as the same row in a colour.
+        def row(ink, y):
+            out, x = [], 80.0
+            for ch in "Python.yp":
+                t = Text(ch, font=FONT, font_size=60, center=(0, y))
+                t.center = (x + t.box.width / 2, y)
+                x += t.box.width
+                for k, v in ink.items():
+                    setattr(t, k, v)
+                out.append(t)
+            return out
+
+        with world() as w:
+            letters = row(dict(fill="white"), 200)
+            want = [None] * len(letters)
+            for i, t in enumerate(letters):
+                for other in letters:
+                    other.visible = other is t
+                want[i] = ink_box(frame(w))
+            for t in letters:
+                t.destroy()
+            letters = row(dict(fill=Gradient("white", "cyan", angle=-90)), 200)
+            for i, t in enumerate(letters):
+                for other in letters:
+                    other.visible = other is t
+                got = ink_box(frame(w))
+                with self.subTest(letter=t.text):
+                    for a, b in zip(got[:4], want[i][:4]):
+                        self.assertLessEqual(abs(int(a) - int(b)), 1, (got, want[i]))
+            for t in letters:
+                t.destroy()
+
+    def test_gradient_spans_the_ink(self):
+        # The material spans the line box: a top-to-bottom gradient still
+        # runs from light at the top of the letters to dark at their foot.
+        with world() as w:
+            t = Text("Hhgy", font=FONT, font_size=80, center=(300, 200))
+            t.fill = Gradient("white", "blue", angle=-90)
+            img = frame(w)
+            t.destroy()
+        top, bottom = ink_box(img)[:2]
+        lit = img.max(axis=2) >= 60
+        def red(row):
+            return img[row][lit[row]][:, 0].mean()
+        self.assertGreater(red(top + 2), red(bottom - 2) + 120)
 
 
 if __name__ == "__main__":

@@ -104,7 +104,9 @@ spec, not a Skia object. Assigning it remeasures. `Text(..., background=)` paint
 opaque rounded plate behind the **layout box** — visual only. Omit `width=` and
 the box follows the string (Label contract); with `width=` the box is fixed and
 overflow **clips** (no wrap). `\n` (and `\r` / `\r\n`) is a hard break: height
-is n × line metrics.
+is n × line metrics. The box and the baseline are the same for every ink: a
+Gradient / Texture `fill` or `line` spans the box, as on a Shape, and never
+moves or resizes the Text.
 
 **Text placement is one point.** `top_left=` / `top_center=` / `top_right=`
 (Rect's own part names) pin that point of the layout box; the string grows

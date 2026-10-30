@@ -438,16 +438,18 @@ class TestTextPaint(TextTestCase):
         self.assertAlmostEqual(t._y2 - t._y1, text_line_height(t._skia_font), places=3)
         self.assertAlmostEqual(t._x2 - t._x1, measure_text(t._skia_font, "BOXED"), places=3)
 
-    def test_gradient_box_matches_tight_glyphs(self):
+    def test_material_box_is_the_solid_box(self):
+        # The paint never moves or resizes a Text: a material ink once made a
+        # one-line box its tight ink, so "." and "y" left the line (2026-10-29).
         from scena.style import Gradient
-        from scena.uiwidget import build_upright_text_path
+        from scena.uiwidget import measure_text, text_line_height
         t = self.track(Text("BOXED", top_left=(20, 40), font_size=26))
+        before = (t._x1, t._y1, t._x2, t._y2)
         t.fill = Gradient("red", "white")
         t._refresh_layout()
-        path = build_upright_text_path("BOXED", 0.0, 0.0, t._skia_font)
-        b = path.computeTightBounds()
-        self.assertAlmostEqual(t._y2 - t._y1, float(b.height()), places=3)
-        self.assertAlmostEqual(t._x2 - t._x1, float(b.width()), places=3)
+        self.assertEqual((t._x1, t._y1, t._x2, t._y2), before)
+        self.assertAlmostEqual(t._y2 - t._y1, text_line_height(t._skia_font), places=3)
+        self.assertAlmostEqual(t._x2 - t._x1, measure_text(t._skia_font, "BOXED"), places=3)
 
     def test_glow_draws_visible_halo(self):
         import numpy as np

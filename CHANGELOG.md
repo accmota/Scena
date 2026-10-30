@@ -22,6 +22,14 @@ left out.
   layers it had just made). An object's own fields (`ship.items = []`)
   already worked this way. Numbers, text and tuples still compare by value:
   writing the same score again changes nothing.
+- A one-line `Text` with a `Gradient` or `Texture` fill or outline sits
+  where the same Text in a colour sits. Its letters had moved: a lone `"."`
+  floated to the middle of the line like a dash, `"y"` and `"p"` rose to the
+  height of the capitals, letters set one Text each side by side ran into
+  each other, and a whole line sat a few pixels off. Its box is now the same
+  as in a colour (a bit taller and wider than before, since it no longer
+  hugs the letters), so a top-to-bottom gradient runs over the full line
+  height.
 
 ## 0.11.0 — 2026-10-28
 

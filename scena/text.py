@@ -42,7 +42,6 @@ from .state import (
 from .style import PaintState
 from .uiwidget import (
     _make_ui_font,
-    build_upright_text_path,
     draw_string_upright,
     measure_text,
     text_baseline_in_box,
@@ -632,21 +631,6 @@ class Text(Graphic, PaintState):
         c = self.__dict__.get("text")
         return c if c is not None else Text.__dict__["text"].cell(self)
 
-    def _has_shader_ink(self) -> bool:
-        """True when fill/line is a shader material (Gradient / Texture / …).
-
-        Shader ink draws from the glyph atlas like solid ink (the material's
-        frame is the paint's local matrix); what changes is the box: a single
-        line is its tight ink, so the material spans the letters as on a Shape.
-        """
-        fill = self._fill
-        if fill is not None and not isinstance(fill, Color):
-            return True
-        line = self._line
-        if line is not None and not isinstance(line, Color):
-            return True
-        return False
-
     def flash_text(self, text, duration: float = 1.0, *, on_done=None):
         """Show ``text`` for ``duration`` seconds, then go back to the cell's text.
 
@@ -663,44 +647,19 @@ class Text(Graphic, PaintState):
         _flash_text(self, text, duration, on_done=on_done)
         return self
 
-    def _glyph_path0(self) -> skia.Path:
-        """Origin-space glyph outlines, rebuilt only when ink/font change.
-
-        Only measured (the tight ink box of shader ink); never drawn."""
-        content = self._displayed_text()
-        key = (content, float(self._font_size), id(self._skia_font))
-        if getattr(self, "_gp0_key", None) != key:
-            path = build_upright_text_path(content, 0.0, 0.0, self._skia_font)
-            self._gp0 = path
-            self._gp0_key = key
-            self._gp0_bounds = None
-            if path is not None and not path.isEmpty():
-                self._gp0_bounds = path.computeTightBounds()
-        return self._gp0
-
     def _glyph_box_size(self) -> tuple[float, float]:
-        """Advance × line metrics, or tight ink when a shader needs the path.
+        """Advance × line metrics, whatever the ink (a Color or a material).
 
-        A hard break uses max line width × n × line metrics (not tight ink).
-        No break keeps the single-line path below unchanged.
+        A hard break uses max line width × n × line metrics. A Gradient /
+        Texture ink has this same box: the paint never moves or resizes a
+        Text, and the material spans the box as on a Shape.
         """
         content = self._displayed_text()
         if _has_line_breaks(content):
             return self._broken_box_size(content)
-        need_path = self._has_shader_ink()
-        key = (content, float(self._font_size), id(self._skia_font), need_path)
+        key = (content, float(self._font_size), id(self._skia_font))
         if getattr(self, "_box_key", None) == key:
             return self._box_wh
-        if need_path:
-            self._glyph_path0()
-            b = getattr(self, "_gp0_bounds", None)
-            if b is not None:
-                w = float(b.width())
-                h = float(b.height())
-                if w > 1e-6 and h > 1e-6:
-                    self._box_key = key
-                    self._box_wh = (w, h)
-                    return self._box_wh
         wh = (measure_text(self._skia_font, content), text_line_height(self._skia_font))
         self._box_key = key
         self._box_wh = wh
@@ -1558,22 +1517,9 @@ class Text(Graphic, PaintState):
             self._draw_broken_lines(
                 skia_canvas, content, local_x1, local_y1, box_w, fill, stroke, glow,
             )
-        elif self._has_shader_ink():
-            # Shader materials: same glyph atlas, ink placed as the tight box.
-            self._glyph_path0()
-            ink = self._gp0_bounds
-            if ink is not None:
-                x = glyph_x - float(ink.left())
-                baseline = local_y1 - float(ink.top())
-                if fill is not None:
-                    if glow is not None:
-                        self._draw_string_glow(skia_canvas, content, x, baseline, glow)
-                    draw_string_upright(skia_canvas, content, x, baseline, self._skia_font, fill)
-                if stroke is not None:
-                    stroke.setStyle(skia.Paint.kStroke_Style)
-                    draw_string_upright(skia_canvas, content, x, baseline, self._skia_font, stroke)
         else:
-            # Solid Color (± Glow): GPU glyph atlas, same as old Label.
+            # Every ink (Color ± Glow, Gradient, Texture) draws from the GPU glyph
+            # atlas at the same baseline; a material rides on the paint.
             if content:
                 baseline = text_baseline_in_box(local_y1, h, self._skia_font)
                 if fill is not None:
