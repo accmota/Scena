@@ -7,6 +7,8 @@ One program, one picture per run, picked by CHANNEL_ART:
                           device shows; on a wide screen, the spark (BANNER_BG: backdrop)
   thumb      1280 x 720   a video's thumbnail: its title on the left, a still of
                           the video on the right (THUMB_IMAGE, THUMB_TITLE, ...)
+  thumb_tall 720 x 1280   a Short's cover (drawn at 1080 x 1920): the title on top,
+                          the still below, full width (the same THUMB_* settings)
 
 Ember-and-ice palette and Quantico, as in teaser.py and teaser2.py.
 
@@ -27,6 +29,8 @@ from scena import *
 ART = os.environ.get("CHANNEL_ART", "banner")
 if ART == "avatar":
     init(width=800, height=800, title="Scena avatar")
+elif ART == "thumb_tall":
+    init(width=720, height=1280, title="Scena thumb_tall")
 else:
     init(width=1280, height=720, title="Scena " + ART)
 seed(11)
@@ -134,6 +138,19 @@ def banner():
 
 # ---- thumbnail: a title on the left, a still on the right ----
 
+def title_size(lines, room):
+    """The biggest size at which every line fits in room px (measured before the fill)."""
+    size = 104
+    while True:
+        probes = [word(line, (300, 360), size) for line in lines]
+        widest = max(p.box.width for p in probes)
+        for p in probes:
+            p.destroy()
+        if widest <= room or size <= 56:
+            return size
+        size -= 4
+
+
 def thumb():
     image = os.environ["THUMB_IMAGE"]
     lines = os.environ["THUMB_TITLE"].split("|")
@@ -152,16 +169,7 @@ def thumb():
                          (1, night.with_alpha(0)), angle=0)     # eased: no edge where it starts
     if kicker:
         flush_left(word(kicker, (300, 610), 34, font=SMALL_FONT, color=EMBER), 44)
-    # the biggest size at which every line fits in 500 px (measured before the fill)
-    size = 104
-    while True:
-        probes = [word(line, (300, 360), size) for line in lines]
-        widest = max(p.box.width for p in probes)
-        for p in probes:
-            p.destroy()
-        if widest <= 500 or size <= 56:
-            break
-        size -= 4
+    size = title_size(lines, 500)
     y = 360 + (len(lines) - 1) * size * 0.52 + 40
     for line in lines:
         t = flush_left(word(line, (300, y), size), 40)
@@ -175,5 +183,36 @@ def thumb():
         flush_left(word(footer, (300, 70), 30, font=SMALL_FONT, color=FROST), 44)
 
 
-{"avatar": avatar, "banner": banner, "thumb": thumb}[ART]()
+# ---- a Short's cover: the title on top, the still below ----
+
+def thumb_tall():
+    image = os.environ["THUMB_IMAGE"]
+    lines = os.environ["THUMB_TITLE"].split("|")
+    kicker = os.environ.get("THUMB_KICKER", "")
+    sub = os.environ.get("THUMB_SUB", "")
+    # the still covers the bottom, full width; above it, night fading into it
+    still = Sprite(image, width=720)
+    still.center = (360, still.box.height / 2)
+    top = still.box.height
+    Rect(p1=(0, top), p2=(720, 1280), color=NIGHT, line_width=0)
+    fade = Rect(p1=(0, top - 220), p2=(720, top + 1), line_width=0)
+    night = Color(NIGHT)
+    fade.fill = Gradient((0, night), (0.3, night.with_alpha(0.8)), (0.65, night.with_alpha(0.3)),
+                         (1, night.with_alpha(0)), angle=-90)
+    # the text in the middle band, left of the Shorts buttons on the right edge
+    if kicker:
+        flush_left(word(kicker, (300, 1150), 38, font=SMALL_FONT, color=EMBER), 48)
+    size = title_size(lines, 600)
+    y = 1150 - 40 - size * 0.6
+    for line in lines:
+        t = flush_left(word(line, (300, y), size), 44)
+        t.fill = ICE_FILL
+        y -= size * 1.04
+    under = y + size * 1.04 - size * 0.62
+    rule((48, under), (48 + 220, under), EMBER, 6)
+    if sub:
+        flush_left(word(sub, (300, under - 52), 38, font=SMALL_FONT, color=FROST), 48)
+
+
+{"avatar": avatar, "banner": banner, "thumb": thumb, "thumb_tall": thumb_tall}[ART]()
 run()

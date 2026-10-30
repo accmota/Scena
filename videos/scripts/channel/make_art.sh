@@ -5,7 +5,8 @@
 #
 # Writes videos/finals/channel/: avatar.png (800x800), banner.png (2560x1440);
 # each thumbnail (1280x720, under YouTube's 2 MB) beside its video in
-# videos/finals/, with the video's name: scena_<video>.jpg, buildup_<id>.jpg.
+# videos/finals/, with the video's name: scena_<video>.jpg, buildup_<id>.jpg;
+# a Short's cover is upright (1080x1920: the title on top, the still below).
 # The stills come from the videos (ffmpeg); a build-up's still is its game,
 # without the code panel and the caption (1530 x 1100 from (1030, 165) of
 # 2560x1440). A thumbnail shows the right 720 px of a still scaled to 720 high:
@@ -35,10 +36,16 @@ still() {   # still VIDEO SECONDS NAME [game | W:H:X:Y | flip:W:H:X:Y]
 
 thumb() {   # thumb OUT NAME KICKER "LINE|LINE" FOOTER [SUBTITLE]  (OUT: under videos/finals/)
     export THUMB_IMAGE="$PWD/$STILLS/$2.jpg" THUMB_KICKER="$3" THUMB_TITLE="$4" \
-        THUMB_FOOTER="$5" THUMB_SUB="$6" CHANNEL_ART=thumb
-    png=$(draw "$2" 1280x720)
+        THUMB_FOOTER="$5" THUMB_SUB="$6" CHANNEL_ART=${ART:-thumb}
+    png=$(draw "$2" "${SIZE:-1280x720}")
     ffmpeg -v error -y -i "$png" -q:v 2 "$FINALS/$1.jpg"
     echo "$FINALS/$1.jpg"
+}
+
+tall_thumb() {  # tall_thumb OUT NAME KICKER "LINE|LINE" SUBTITLE: a Short's cover
+    ART=thumb_tall SIZE=1080x1920
+    thumb "$1" "$2" "$3" "$4" "" "$5"
+    ART= SIZE=
 }
 
 take() {    # take OUT RECORD_GAME_ARGS...: a take only the thumbnails use, recorded once
@@ -59,6 +66,14 @@ take guardian/thumbs/seed3.mp4 examples/guardian.py --pilot guard_ring --seed 3 
 still $REC/pulse/music_video.mp4 12.55 teaser 1300:1300:630:150   # the triangles a little off the star
 still $REC/guardian/thumbs/seed3.mp4 38.25 teaser2 flip:1200:1200:848:240
 still $FINALS/promo/scena_code.mp4 63 code
+# the later promos: each one's own picture, clear of its captions and headers
+P=$FINALS/promo
+still $P/scena_teaser3.mp4 16 teaser3 1180:1180:920:260        # the tutorial's staircase
+still $P/scena_teaser3_vertical.mp4 3 teaser3_vertical 960:950:60:445    # its opening game
+still $P/scena_engine.mp4 104 engine 1300:1300:700:140         # lit lines beside the pegs
+still $P/scena_effects.mp4 104.5 effects 1200:1200:670:235     # the portal, "They compose"
+still $P/scena_flow.mp4 26 flow 1400:1400:600:0                # the ring, foes spiralling out
+still $P/scena_salvo.mp4 22.45 salvo 1030:1030:1320:180        # the boss in the tunnel
 B=$FINALS/buildups
 end() { python -c "import sys; print(float(sys.argv[1]) - 1.5)" \
     "$(ffprobe -v error -show_entries format=duration -of csv=p=0 $B/buildup_$1.mp4)"; }
@@ -73,6 +88,12 @@ still $B/buildup_old_school.mp4 40 old_school game
 thumb promo/scena_teaser teaser   "SCENA"            "2D games|in Python"      "pip install scena"
 thumb promo/scena_teaser2 teaser2  "SCENA"            "Python|game engine|for beginners" "" "simple, expressive code"
 thumb promo/scena_code code     "SCENA"            "Real code,|real games"   "short programs, and what they do"
+thumb promo/scena_teaser3 teaser3 "SCENA"           "Built for|learning"      "" "simple, yet powerful"
+tall_thumb promo/scena_teaser3_vertical teaser3_vertical "SCENA" "Python|game engine" "built for learning"
+thumb promo/scena_engine engine   "SCENA"            "Watch the|engine work"   "" "real code, run as it is typed"
+thumb promo/scena_effects effects "SCENA"            "100+ visual|effects"     "" "built in, one line each"
+thumb promo/scena_flow flow       "SCENA"            "Short and|to the point"  "" "no boilerplate, no ceremony"
+thumb promo/scena_salvo salvo     "SCENA"            "Make something|beautiful" "" "a Python game engine"
 thumb buildups/buildup_first_script first_script  "SCENA TUTORIAL"  "Your first|script"   "34 lines, step by step"
 thumb buildups/buildup_catch_stars catch_stars   "SCENA TUTORIAL"  "Catch the|stars"     "a game in 33 lines"
 thumb buildups/buildup_ships_1 ships_1       "SCENA TUTORIAL"  "Ships"               "a shooter in 66 lines"

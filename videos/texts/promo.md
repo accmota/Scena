@@ -167,6 +167,7 @@ cynicmusic.com with the video's link once it is public.
 ## Flow teaser
 
 - **File:** `videos/finals/promo/scena_flow.mp4` (0:42; source `videos/scripts/flow/flow_teaser.py`)
+- **Thumbnail:** `videos/finals/promo/scena_flow.jpg`
 - **Playlist:** Scena: start here
 - **Chapters:** none (42 s)
 
