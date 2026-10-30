@@ -8,8 +8,7 @@ with: footer.md.
 
 **Name:** Scena
 
-**Handle** (first one that is free; keep the same one everywhere):
-`@scena-engine`, `@scenapy`, `@scena-dev`, `@playscena`
+**Handle:** `@Scena-python` (https://www.youtube.com/@Scena-python)
 
 **Avatar:** `videos/finals/channel/avatar.png` (800 × 800; YouTube crops it to a circle)
 **Banner:** `videos/finals/channel/banner.png` (2560 × 1440; title inside the 1546 × 423 middle every device shows)
