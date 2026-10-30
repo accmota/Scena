@@ -808,7 +808,7 @@ def _author_call(code, frame, resume: bool) -> None:
         loc = frame.f_locals
         args = tuple(r.label_of(loc.get(name)) for name in code.co_varnames[:min(n, 3)])
         if code.co_flags & _SUSPENDABLE:
-            loc.clear()
+            _drop_locals_cache(loc)
     r.counts["author_calls"] += 1
     r.events.append(("X", site, r.phases[-1] if r.phases else None,
                      f"{os.path.basename(code.co_filename)}:{code.co_firstlineno}:"
@@ -899,6 +899,17 @@ _frame_code = None
 
 import inspect as _inspect  # noqa: E402
 _SUSPENDABLE = _inspect.CO_GENERATOR | _inspect.CO_COROUTINE | _inspect.CO_ASYNC_GENERATOR
+
+
+def _drop_locals_cache(loc) -> None:
+    """Drop the snapshot a read of ``f_locals`` left on a frame that lives on.
+
+    CPython 3.12 caches a dict on the frame: empty it. From 3.13 (PEP 667)
+    ``f_locals`` is a write-through proxy with no cache and no ``clear``;
+    emptying it would delete the frame's own variables, so leave it alone.
+    """
+    if isinstance(loc, dict):
+        loc.clear()
 
 
 # ---------------------------------------------------------------------------
