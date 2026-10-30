@@ -4,7 +4,7 @@ A take is one run of one program by one pilot, with its variation in ``args``
 and ``seed``. Several takes of a game show the whole game (a win, a loss,
 another track); the edit picks the best parts. Ids are ``<game>/<take>``;
 ``--take <game>`` records all of a game's takes. Output:
-``recordings/<game>/<take>.mp4`` and its review sheet ``<take>.review.jpg``.
+``videos/recordings/<game>/<take>.mp4`` and its review sheet ``<take>.review.jpg``.
 
 Programs are the last version of each example (``naves_6_atos``, not
 ``naves_4_escudo``) and the README's own blocks (``README.md#<clip id>``).
@@ -236,6 +236,28 @@ TAKES = {
         ("key", 24.5, "H"), ("carry", 25.4, 26.6, (700, 420), (430, 460)),   # pan
         ("key", 27.6, "F"),                      # fit the level in view
         ("key", 29.0, "V"), ("glide", 29.2, 30.4, (1000, 160))))),
+    # The third teaser's editor tour (the same level, closer in): zoom, box
+    # select and lift; draw a rect, select it, resize it by a corner and turn
+    # it by its knob (28 px above its top edge); a hexagon, selected and
+    # duplicated twice; undo twice; pan, fit. A handle shows only on a
+    # selected shape: a press on an unselected one moves it.
+    "scena-editor/tour": dict(program="tools/readme/editor_ninja.py", pilot="tour",
+                              end="done", seconds=19.5, args=dict(end=19.0, script=(
+        ("glide", 0.0, 0.2, ("w", 1250, 420)),
+        *[("scroll", 0.1 * k, 1) for k in range(2, 14)],     # zoom about the pointer
+        ("carry", 1.8, 2.4, ("w", 1425, 360), ("w", 1695, 250)),   # box select
+        ("carry", 2.9, 3.8, ("w", 1560, 300), ("w", 1560, 420)),   # lift the three
+        ("key", 4.2, "R"), ("carry", 4.7, 5.4, ("w", 980, 600), ("w", 1180, 680)),
+        ("key", 5.8, "V"), ("click", 6.1, ("w", 1080, 640)),
+        ("carry", 6.7, 7.5, ("w", 1180, 600), ("w", 1260, 560)),   # resize by a corner
+        ("carry", 8.0, 9.2, ("w", 1120, 680, 0, 28), ("w", 1120, 620, 90, 45)),  # turn
+        ("key", 9.6, "N"), ("carry", 10.0, 10.6, ("w", 1380, 620), ("w", 1440, 690)),
+        ("key", 11.0, "V"), ("click", 11.3, ("w", 1380, 620)),
+        *_chord(11.6, 12.6, f"{PRIMARY}+D", 11.8, 12.2),         # duplicate twice
+        *_chord(13.0, 14.4, f"{PRIMARY}+Z", 13.2, 13.8),         # undo twice
+        ("key", 14.8, "H"), ("carry", 15.2, 16.2, (700, 420), (430, 460)),   # pan
+        ("key", 16.6, "F"),                     # fit the level in view
+        ("key", 17.2, "V"), ("glide", 17.4, 18.2, (1000, 160))))),
     # "This code → this game": the one-screen programs with their code beside
     # the game (the same runs as their plain takes).
     "primeiro_script/code": dict(program="examples/primeiro_script.py",

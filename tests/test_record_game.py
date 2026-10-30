@@ -443,6 +443,47 @@ class TestBuildup(unittest.TestCase):
         self.assertEqual(self.bu.step_word(tk.BUILDUPS["first_script"]["page"]), "Step")
         self.assertEqual(self.bu.step_word("docs/pt/tutorial/01-primeiro-script.html"), "Passo")
 
+    def test_the_end_screen_holds_its_text_to_the_end(self):
+        """The end screen fills the frame (no code panel), is ``END_SECONDS``
+        long and its text, in by the second second, stays to the last frame
+        (no fade: the install line is readable to the end)."""
+        sinks = []
+        r = rg.record("examples/end_screen.py",
+                      lambda size, fps: sinks.append(_Memory(size, fps)) or sinks[-1],
+                      source=self.bu.END_SCREEN.read_text(encoding="utf-8"), size=(320, 180),
+                      fps=30, gpu=False, progress=False, seconds=self.bu.END_SECONDS, tail=0.0)
+        frames = sinks[0].frames
+        self.assertEqual(r["game_size"], (320, 180))
+        self.assertEqual(len(frames), round(self.bu.END_SECONDS * 30))
+
+        def text(frame):          # the text's band, clear of the spark's round
+            return float(frame[50:135, 80:240, :3].mean())
+        self.assertGreater(text(frames[60]), text(frames[0]) + 20)    # ~17 -> ~49
+        self.assertAlmostEqual(text(frames[-1]), text(frames[60]), delta=0.1 * text(frames[60]))
+
+    def test_joining_puts_the_end_screen_last(self):
+        """``rejoin`` (and a full render) joins the steps in order, then the
+        end screen; a missing step clip refuses with the fix."""
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        bid = "first_script"
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / bid).mkdir()
+            n = len(self.steps[bid])
+            joined = []
+            with mock.patch.object(self.bu, "OUT", out), \
+                    mock.patch.object(self.bu, "end_clip", lambda: out / "end.mp4"), \
+                    mock.patch.object(self.bu, "join", lambda parts, o: joined.append(parts) or o):
+                with self.assertRaisesRegex(FileNotFoundError, "record it first"):
+                    self.bu.rejoin(bid)
+                for k in range(1, n + 1):
+                    (out / bid / f"step_{k:02d}.mp4").touch()
+                self.assertEqual(self.bu.rejoin(bid), out / f"{bid}.mp4")
+        self.assertEqual([p.name for p in joined[0]],
+                         [f"step_{k:02d}.mp4" for k in range(1, n + 1)] + ["end.mp4"])
+
     def test_a_page_with_two_programs_splits(self):
         """30-spins ends in the bars, then the oscilloscope: each build-up gets
         its own steps, numbered from 1."""
@@ -1032,6 +1073,26 @@ class TestPilotsPlay(unittest.TestCase):
         self.assertGreater(sloppy["pontos"], 0.7 * sloppy["perdidas"])
         self.assertGreaterEqual(sloppy["perdidas"], 1.5 * careful["perdidas"],
                                 "the two takes must look different")
+
+
+class TestTourTargets(unittest.TestCase):
+    """A tour reaches the editor's world through its camera; a handle that
+    sits a fixed number of screen pixels off a shape (the rotate knob) is a
+    world point plus design units."""
+
+    def test_world_point_and_a_handle_off_it(self):
+        from unittest import mock
+        import pilots
+        with mock.patch("scena_editor.view.view_point", lambda x, y: (x / 2, y / 2)):
+            self.assertEqual(pilots._target(None, ("w", 400, 200)), (200, 100))
+            self.assertEqual(pilots._target(None, ("w", 400, 200, 0, 28)), (200, 128))
+
+    def test_the_editor_tour_turns_the_shape_by_its_knob(self):
+        script = tk.TAKES["scena-editor/tour"]["args"]["script"]
+        knob = [ev for ev in script if ev[0] == "carry" and len(ev[3]) == 5]
+        self.assertEqual(len(knob), 1)
+        from scena_editor.tools import ROTATE_PX
+        self.assertEqual(knob[0][3][3:], (0, ROTATE_PX))    # the knob above the top edge
 
 
 if __name__ == "__main__":

@@ -121,6 +121,11 @@ Guards: `tests/test_readme.py`.
   the editor's own keys (`scena_editor.tools` `PRIMARY` / `REDO`, via
   `takes._chord`): Cmd on a Mac, Ctrl elsewhere, redo Ctrl+Y. A tour that
   holds `LEFT_CMD` plays another session on Windows (Testing Design, WP54).
+  In the editor a shape shows its
+  handles only once selected (a press on an unselected shape moves it), so
+  a resize or a turn is a click first; the rotate knob sits a fixed 28
+  screen pixels above the top edge, a target `("w", x, y, dx, dy)` (a
+  world point, then design units on).
 - **"This code → this game".** A take with `layout="code"` shows the
   program's code (no module docstring; Pygments colours; see "Code that
   reads" below) on the left 40 %
@@ -134,8 +139,11 @@ Guards: `tests/test_readme.py`.
   changes marked, each driven by its own pilot (`BUILDUPS` in
   `tools/video/takes.py`: a step that needs input to show its new part
   gets a short timetable). One clip per step, joined by ffmpeg without
-  re-encoding into `recordings/buildup/<id>.mp4`. An edited tutorial step
-  is in the next build-up with no edit here; a step added or moved shifts
+  re-encoding into `videos/recordings/buildup/<id>.mp4`;
+  `videos/scripts/kit/finish.py` makes it the upload in
+  `videos/finals/buildups/` ([videos/README.md](../videos/README.md)). An
+  edited tutorial step is in the next build-up with no edit here; a step
+  added or moved shifts
   the numbers in `BUILDUPS`. Build-ups read the English pages
   (`docs/en/tutorial/`, "Step N"; a Portuguese page says "Passo N"). A page
   that ends in two programs (`30-spins`: the bars, then the oscilloscope)
@@ -169,8 +177,23 @@ Guards: `tests/test_readme.py`.
   docstring). The next chapter starts when the build-up's `key(game)`
   changes (Old School: `st.t0`, set by `new_part`); the last one, the
   storyboard as the demo loops, plays `FINALE` s and ends the take.
-  Output `recordings/buildup/<id>.mp4`. A renamed function or comment in
+  Output `videos/recordings/buildup/<id>.mp4`. A renamed function or comment in
   the demo fails `TestChapters` (the picks must resolve).
+- **Every build-up ends in the same end screen.** Five seconds
+  (`buildup.END_SECONDS`) of `tools/video/end_screen.py`: SCENA, "2D games
+  and creative coding in Python", `pip install scena`,
+  `github.com/accmota/Scena`, in the teasers' ember-and-ice. The text is in
+  by 1.5 s and holds to the last frame (no fade, as the teasers learned:
+  the install line must stay readable); the motion is an underline growing
+  from the name's middle and a white spark with a tomato tail going once
+  round the card, clear of the text. It runs as `examples/end_screen.py`
+  (fonts from `examples/media`), full frame, and is recorded once
+  (`buildup.end_clip`, again when the program is newer) with the
+  build-ups' size, rate and encoder, so the join appends it without
+  re-encoding: after the last step, after a chapter build-up's take (kept
+  as `<id>/chapters.mp4`). `buildup.py <id> --join` rejoins the recorded
+  clips (a changed end screen reaches every build-up without recording
+  them again); the subtitles do not change, the end screen says nothing.
 - **Captions say what is going on.** A build-up shows one line in big
   letters (Quantico Bold, up to 4.5 % of the frame's height) in the
   letterbox band above the game, never over it; only a band lower than
@@ -187,7 +210,7 @@ Guards: `tests/test_readme.py`.
   (`buildup.CAPTION_FADE`). A line says what to look at, not what the
   code is called, and fits one line at full size (`TestCaptions`). The
   take reports the spans a caption was on screen; they become
-  `recordings/buildup/<id>.srt` (steps moved by the clips before them):
+  `videos/recordings/buildup/<id>.srt` (steps moved by the clips before them):
   YouTube's subtitles, and the timed script for a narration later.
 - **Debug mode on video.** `pilots.with_debug_keys` plays another pilot's
   run and adds Ctrl+Shift chords at set times (`ninja_5_espada/debug`:

@@ -22,8 +22,15 @@ is one run of a program; the panel shows the code of the part on screen
 (``excerpt``: picked definitions, a slice of the storyboard, folds), and
 the last chapter (the storyboard, as the demo loops) plays ``FINALE`` s.
 
-  recordings/buildup/<id>.mp4            a chapter build-up
-  recordings/buildup/<id>.srt            the captions, as subtitles
+  videos/recordings/buildup/<id>.mp4            a chapter build-up
+  videos/recordings/buildup/<id>.srt            the captions, as subtitles
+
+Every build-up ends in the same five seconds (``end_screen.py``: the name,
+what it is, ``pip install scena``, the repository), recorded once with the
+build-ups' own size, rate and encoder (``end_clip``) and joined after the
+last step or chapter.
+
+  videos/recordings/buildup/end_screen/end_screen.mp4   the end screen
 
 Captions (``say`` in ``BUILDUPS``): a line in big letters above the game
 says what is going on (``record_game.caption_box``): per step (default
@@ -32,13 +39,15 @@ its title), with times when a step says more than one thing, the finale's
 times they were on screen, are the ``.srt``: YouTube's subtitles and the
 narration's script.
 
-  recordings/buildup/<id>/step_NN.mp4    one clip per step
-  recordings/buildup/<id>.mp4            the steps joined
+  videos/recordings/buildup/<id>/step_NN.mp4    one clip per step
+  videos/recordings/buildup/<id>.mp4            the steps joined
 
   python tools/video/buildup.py --list
   python tools/video/buildup.py first_script            # every step, then joined
   python tools/video/buildup.py first_script --review   # one review sheet per step
   python tools/video/buildup.py old_school --review     # a chapter build-up's sheet
+  python tools/video/buildup.py --end-screen            # record the end screen again
+  python tools/video/buildup.py first_script --join     # rejoin the clips (a new end screen)
 """
 from __future__ import annotations
 
@@ -65,6 +74,8 @@ STEP_DEFAULTS = dict(pilot="watch", args={}, seconds=4.0, lead=0.0,
 FINALE = 8.0            # the last step plays on this long once its code is complete
 CAPTION_FADE = 0.3      # a caption fades in and out over this long
 FINALE_SAY = "The finished program: {lines} lines"
+END_SCREEN = ROOT / "end_screen.py"     # the five seconds every build-up ends in
+END_SECONDS = 5.0
 # Before a step's pilot plays, the viewer reads: its caption and the lines it
 # marks are on screen and the game runs with no input for READ_BASE s plus
 # the longer of the caption (READ_WORDS words a second) and the marked lines
@@ -497,9 +508,10 @@ def srt(spans) -> str:
                    for k, (a, b, text) in enumerate(spans, start=1))
 
 
-def _record(program, bid, stem, review_only, gpu, *, label, **kw):
-    """One clip of a build-up: ``recordings/buildup/<bid>/<stem>.mp4`` (none
-    with ``review_only``) and its review sheet."""
+def _record(program, bid, stem, review_only, gpu, *, label, layout="code", **kw):
+    """One clip of a build-up: ``videos/recordings/buildup/<bid>/<stem>.mp4`` (none
+    with ``review_only``) and its review sheet; ``layout``: code beside game,
+    or (``None``) the game on the whole frame."""
     from takes import DEFAULTS
     out = OUT / bid / f"{stem}.mp4"
     size, fps = ((rg.REVIEW_SIZE, rg.REVIEW_FPS) if review_only
@@ -514,7 +526,7 @@ def _record(program, bid, stem, review_only, gpu, *, label, **kw):
         return reviews[-1]
 
     r = rg.record(program, factory, size=size, fps=fps, gpu=gpu, progress=False,
-                  layout="code", **kw)
+                  layout=layout, **kw)
     r["out"] = None if review_only else str(out)
     r["length"] = r["frames"] / fps
     sheet = OUT / bid / f"{stem}.review.jpg"
@@ -535,7 +547,8 @@ def chapter_panels(bid: str) -> list:
 
 def render_chapters(bid: str, *, review_only: bool = False, gpu: bool = True) -> dict:
     """Record a chapter build-up: one run of the program, the panel showing
-    the code of the chapter on screen. A chapter starts when ``key(game)``
+    the code of the chapter on screen (``<bid>/chapters.mp4``, then joined
+    with the end screen). A chapter starts when ``key(game)``
     changes (``None``: not yet); the last one (the program's frame, while it
     loops) plays ``finale`` s, then the take ends. Captions: ``say[k]`` from
     chapter ``k``'s start (from 1; default its title), cut when the next
@@ -569,7 +582,7 @@ def render_chapters(bid: str, *, review_only: bool = False, gpu: bool = True) ->
                             caption_at=lambda game, t: seen["say"](t), label="chapters")
     out = r["out"]
     if out is not None:
-        out = str(Path(out).replace(OUT / f"{bid}.mp4"))
+        out = str(join([Path(out), end_clip()], OUT / f"{bid}.mp4"))
         (OUT / f"{bid}.srt").write_text(srt(r["captions"]), encoding="utf-8", newline="\n")
     return {"ok": True, "out": out, "sheet": str(sheet), "seconds": rep["seconds"],
             "ended": r["ended"], "chapters": seen["k"] + 1}
@@ -585,6 +598,49 @@ def _child(bid: str, n: int, review_only: bool) -> dict:
             return json.loads(line)
     tail = "\n".join((out.stderr or "").strip().splitlines()[-6:])
     return {"ok": False, "step": n, "error": f"exit {out.returncode}: {tail}"}
+
+
+def render_end_screen(*, review_only: bool = False, gpu: bool = True) -> dict:
+    """Record the end screen (child-process body): ``end_screen.py`` run as
+    ``examples/end_screen.py`` (its fonts in ``examples/media``) for
+    ``END_SECONDS``, at the build-ups' size, rate and encoder, so it joins
+    them without re-encoding."""
+    r, rep, sheet = _record("examples/end_screen.py", "end_screen", "end_screen", review_only,
+                            gpu, source=END_SCREEN.read_text(encoding="utf-8"),
+                            seconds=END_SECONDS, tail=0.0, layout=None, label="end screen")
+    return {"ok": True, "out": r["out"], "sheet": str(sheet), "seconds": rep["seconds"]}
+
+
+def end_clip(force: bool = False) -> Path:
+    """The end screen's clip, recorded (in a child process, as a step is)
+    when there is none or ``end_screen.py`` is newer."""
+    out = OUT / "end_screen" / "end_screen.mp4"
+    if force or not out.exists() or out.stat().st_mtime < END_SCREEN.stat().st_mtime:
+        cmd = [sys.executable, str(Path(__file__).resolve()), "--end-screen"]
+        done = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace",
+                              cwd=str(REPO), env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        if done.returncode != 0 or not out.exists():
+            tail = "\n".join((done.stderr or "").strip().splitlines()[-6:])
+            raise RuntimeError(f"the end screen failed: exit {done.returncode}: {tail}")
+    return out
+
+
+def rejoin(bid: str) -> Path:
+    """Join a build-up's clips again, as recorded (its steps, or its chapters'
+    take), with the end screen: a new end screen without recording the
+    build-up again. Its subtitles stay as they are (the end screen says
+    nothing)."""
+    from takes import BUILDUPS
+    b = BUILDUPS[bid]
+    if "chapters" in b:
+        parts = [OUT / bid / "chapters.mp4"]
+    else:
+        parts = [OUT / bid / f"step_{n:02d}.mp4"
+                 for n, _title, _code in page_steps(b["page"], b.get("example"))]
+    missing = [str(p) for p in parts if not p.exists()]
+    if missing:
+        raise FileNotFoundError(f"{bid}: no clip {', '.join(missing)}; record it first")
+    return join(parts + [end_clip()], OUT / f"{bid}.mp4")
 
 
 def join(parts: list[Path], out: Path) -> Path:
@@ -605,8 +661,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--review", action="store_true", help="only the review sheets (fast)")
     ap.add_argument("--step", type=int, help=argparse.SUPPRESS)
+    ap.add_argument("--end-screen", action="store_true", help="record the end screen")
+    ap.add_argument("--join", action="store_true",
+                    help="join the recorded clips again, with the end screen")
     ap.add_argument("-j", "--jobs", type=int, default=2)
     args = ap.parse_args(argv)
+    if args.end_screen:
+        r = render_end_screen(review_only=args.review)
+        print(f"{r['out'] or r['sheet']}: {r['seconds']:.1f} s")
+        return 0
     if args.list or not args.id:
         for bid, b in BUILDUPS.items():
             if "chapters" in b:
@@ -617,6 +680,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.id not in BUILDUPS:
         ap.error(f"no build-up {args.id!r}; --list shows them")
+    if args.join:
+        print(rejoin(args.id))
+        return 0
     if "chapters" in BUILDUPS[args.id]:
         if not args.review and rg.find_ffmpeg() is None:
             ap.error("no ffmpeg: install it (brew install ffmpeg) or pip install imageio-ffmpeg")
@@ -644,7 +710,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"FAILED  step {r['step']:2}: {r.get('error')}")
     if failed or args.review:
         return 1 if failed else 0
-    out = join([Path(r["out"]) for r in results], OUT / f"{args.id}.mp4")
+    out = join([Path(r["out"]) for r in results] + [end_clip()], OUT / f"{args.id}.mp4")
     out.with_suffix(".srt").write_text(srt(joined_captions(results)), encoding="utf-8",
                                        newline="\n")
     total = sum(r["seconds"] for r in results)

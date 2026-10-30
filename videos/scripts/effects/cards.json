@@ -1,0 +1,1185 @@
+[
+ {
+  "id": "visual-neon",
+  "family": "visual",
+  "name": "Neon",
+  "kind": "glow",
+  "code": "c.visual = Neon(\"magenta\")"
+ },
+ {
+  "id": "visual-halo",
+  "family": "visual",
+  "name": "Halo",
+  "kind": "glow",
+  "code": "c.visual = Halo()"
+ },
+ {
+  "id": "visual-halo~style-hollow",
+  "family": "visual",
+  "name": "Halo",
+  "kind": "glow",
+  "code": "c.visual = Halo(style=\"hollow\")"
+ },
+ {
+  "id": "visual-halo~style-fill",
+  "family": "visual",
+  "name": "Halo",
+  "kind": "glow",
+  "code": "c.visual = Halo(style=\"fill\")"
+ },
+ {
+  "id": "visual-halo~style-soft",
+  "family": "visual",
+  "name": "Halo",
+  "kind": "glow",
+  "code": "c.visual = Halo(style=\"soft\")"
+ },
+ {
+  "id": "visual-halo~style-line",
+  "family": "visual",
+  "name": "Halo",
+  "kind": "glow",
+  "code": "c.visual = Halo(style=\"line\")"
+ },
+ {
+  "id": "visual-halo~style-pulse",
+  "family": "visual",
+  "name": "Halo",
+  "kind": "glow",
+  "code": "c.visual = Halo(style=\"pulse\")"
+ },
+ {
+  "id": "visual-laser",
+  "family": "visual",
+  "name": "Laser",
+  "kind": "glow",
+  "code": "beam.visual = Laser()"
+ },
+ {
+  "id": "visual-rim",
+  "family": "visual",
+  "name": "Rim",
+  "kind": "glow",
+  "code": "c.visual = Rim()"
+ },
+ {
+  "id": "visual-bolt",
+  "family": "visual",
+  "name": "Bolt",
+  "kind": "glow",
+  "code": "shot.visual = Bolt(style=\"core\")"
+ },
+ {
+  "id": "visual-bolt~style-core",
+  "family": "visual",
+  "name": "Bolt",
+  "kind": "glow",
+  "code": "shot.visual = Bolt(style=\"core\")"
+ },
+ {
+  "id": "visual-bolt~style-filaments",
+  "family": "visual",
+  "name": "Bolt",
+  "kind": "glow",
+  "code": "shot.visual = Bolt(style=\"filaments\")"
+ },
+ {
+  "id": "visual-bolt~style-tesla",
+  "family": "visual",
+  "name": "Bolt",
+  "kind": "glow",
+  "code": "shot.visual = Bolt(style=\"tesla\")"
+ },
+ {
+  "id": "visual-multiborder",
+  "family": "visual",
+  "name": "MultiBorder",
+  "kind": "shell",
+  "code": "c.visual = MultiBorder()"
+ },
+ {
+  "id": "visual-organicoutline",
+  "family": "visual",
+  "name": "OrganicOutline",
+  "kind": "shell",
+  "code": "c.visual = OrganicOutline()"
+ },
+ {
+  "id": "visual-tracer",
+  "family": "visual",
+  "name": "Tracer",
+  "kind": "shell",
+  "code": "c.visual = Tracer()"
+ },
+ {
+  "id": "visual-dashring",
+  "family": "visual",
+  "name": "DashRing",
+  "kind": "shell",
+  "code": "c.visual = DashRing()"
+ },
+ {
+  "id": "visual-gearshell",
+  "family": "visual",
+  "name": "GearShell",
+  "kind": "shell",
+  "code": "c.visual = GearShell()"
+ },
+ {
+  "id": "visual-electricfield",
+  "family": "visual",
+  "name": "ElectricField",
+  "kind": "shell",
+  "code": "c.visual = ElectricField()"
+ },
+ {
+  "id": "visual-electricbolt",
+  "family": "visual",
+  "name": "ElectricBolt",
+  "kind": "shell",
+  "code": "c.visual = ElectricBolt(\"gold\")"
+ },
+ {
+  "id": "visual-ink",
+  "family": "visual",
+  "name": "Ink",
+  "kind": "shell",
+  "code": "c.visual = Ink()"
+ },
+ {
+  "id": "visual-inkbleed",
+  "family": "visual",
+  "name": "InkBleed",
+  "kind": "shell",
+  "code": "c.visual = InkBleed()"
+ },
+ {
+  "id": "visual-insertrim",
+  "family": "visual",
+  "name": "InsetRim",
+  "kind": "shell",
+  "code": "c.visual = InsetRim()"
+ },
+ {
+  "id": "visual-shield",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield()"
+ },
+ {
+  "id": "visual-shield~style-bubble",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"bubble\")"
+ },
+ {
+  "id": "visual-shield~style-nebula",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"nebula\")"
+ },
+ {
+  "id": "visual-shield~style-ember",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"ember\")"
+ },
+ {
+  "id": "visual-shield~style-void",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"void\")"
+ },
+ {
+  "id": "visual-shield~style-molten",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"molten\")"
+ },
+ {
+  "id": "visual-shield~style-bands",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"bands\")"
+ },
+ {
+  "id": "visual-shield~style-vortex",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"vortex\")"
+ },
+ {
+  "id": "visual-shield~style-cracks",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"cracks\")"
+ },
+ {
+  "id": "visual-shield~style-frost",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"frost\")"
+ },
+ {
+  "id": "visual-shield~style-plasma",
+  "family": "visual",
+  "name": "Shield",
+  "kind": "orb",
+  "code": "orb.visual = Shield(style=\"plasma\")"
+ },
+ {
+  "id": "visual-sphere",
+  "family": "visual",
+  "name": "Sphere",
+  "kind": "orb",
+  "code": "orb.visual = Sphere(\"steel blue\")"
+ },
+ {
+  "id": "visual-gel",
+  "family": "visual",
+  "name": "Gel",
+  "kind": "orb",
+  "code": "candy.visual = Gel(\"pink\")"
+ },
+ {
+  "id": "visual-extrude",
+  "family": "visual",
+  "name": "Extrude",
+  "kind": "element",
+  "code": "set_extrude_focus(W * 0.95, H * 0.95)\nship.visual = Extrude(depth=40, layers=5)"
+ },
+ {
+  "id": "visual-metal",
+  "family": "visual",
+  "name": "Metal",
+  "kind": "element",
+  "code": "c.visual = Metal()"
+ },
+ {
+  "id": "visual-water",
+  "family": "visual",
+  "name": "Water",
+  "kind": "element",
+  "code": "pool.visual = Water()"
+ },
+ {
+  "id": "visual-swell",
+  "family": "visual",
+  "name": "Swell",
+  "kind": "element",
+  "code": "fx.visual = Swell()"
+ },
+ {
+  "id": "visual-flame",
+  "family": "visual",
+  "name": "Flame",
+  "kind": "element",
+  "code": "ember.visual = Flame()"
+ },
+ {
+  "id": "visual-wave",
+  "family": "visual",
+  "name": "Wave",
+  "kind": "element",
+  "code": "c.visual = Wave()"
+ },
+ {
+  "id": "visual-aurora",
+  "family": "visual",
+  "name": "Aurora",
+  "kind": "element",
+  "code": "c.visual = Aurora()"
+ },
+ {
+  "id": "visual-liquify",
+  "family": "visual",
+  "name": "Liquify",
+  "kind": "element",
+  "code": "blob.visual = Liquify()"
+ },
+ {
+  "id": "visual-beat",
+  "family": "visual",
+  "name": "Beat",
+  "kind": "motion",
+  "code": "c.visual = Beat()"
+ },
+ {
+  "id": "visual-recolor",
+  "family": "visual",
+  "name": "Recolor",
+  "kind": "sprite",
+  "code": "sprite.visual = Recolor(\"blue\", \"tomato\")"
+ },
+ {
+  "id": "visual-aura",
+  "family": "visual",
+  "name": "Aura",
+  "kind": "sprite",
+  "code": "sprite.visual = Aura()"
+ },
+ {
+  "id": "visual-emissivebloom",
+  "family": "visual",
+  "name": "EmissiveBloom",
+  "kind": "sprite",
+  "code": "sprite.visual = EmissiveBloom()"
+ },
+ {
+  "id": "fx-dissolve-out",
+  "family": "life",
+  "name": "dissolve_out",
+  "kind": "life",
+  "code": "ship.dissolve_out(0.5, style=\"vortex\", on_done=ship.destroy)"
+ },
+ {
+  "id": "fx-burn-out",
+  "family": "life",
+  "name": "burn_out",
+  "kind": "life",
+  "code": "ship.burn_out(0.55, on_done=ship.destroy)"
+ },
+ {
+  "id": "fx-fade-out",
+  "family": "life",
+  "name": "fade_out",
+  "kind": "life",
+  "code": "ship.fade_out(0.35, on_done=ship.destroy)"
+ },
+ {
+  "id": "fx-implode",
+  "family": "life",
+  "name": "implode",
+  "kind": "life",
+  "code": "ship.implode(0.28, scale_end=0.05, on_done=ship.destroy)"
+ },
+ {
+  "id": "fx-dissolve-in",
+  "family": "life",
+  "name": "dissolve_in",
+  "kind": "life",
+  "code": "ship.dissolve_in(0.5, style=\"noise\", on_done=lambda: None)"
+ },
+ {
+  "id": "fx-fade-in",
+  "family": "life",
+  "name": "fade_in",
+  "kind": "life",
+  "code": "ship.fade_in(0.35, on_done=lambda: None)"
+ },
+ {
+  "id": "fx-flash",
+  "family": "hit",
+  "name": "flash",
+  "kind": "hit",
+  "code": "ship.flash(0.12)"
+ },
+ {
+  "id": "fx-blink",
+  "family": "hit",
+  "name": "blink",
+  "kind": "hit",
+  "code": "ship.blink(duration=0.8, rate=8)"
+ },
+ {
+  "id": "fx-pulse",
+  "family": "pulse",
+  "name": "pulse_outline",
+  "kind": "pulse",
+  "code": "ship.pulse_outline(0.25, color=(1, 1, 1, 1))"
+ },
+ {
+  "id": "fx-pop",
+  "family": "pop",
+  "name": "pop",
+  "kind": "pop",
+  "code": "ship.pop()"
+ },
+ {
+  "id": "fx-knock",
+  "family": "knock",
+  "name": "knock",
+  "kind": "knock",
+  "code": "ship.knock(distance=16, angle=30)"
+ },
+ {
+  "id": "fx-spark",
+  "family": "spark",
+  "name": "spark_burst",
+  "kind": "spark",
+  "code": "ship.spark_burst(0.35)"
+ },
+ {
+  "id": "spatial-fire",
+  "family": "spatial",
+  "name": "Fire",
+  "kind": "point",
+  "code": "Fire()"
+ },
+ {
+  "id": "spatial-fire~style-camp",
+  "family": "spatial",
+  "name": "Fire",
+  "kind": "point",
+  "code": "Fire(style=\"camp\")"
+ },
+ {
+  "id": "spatial-fire~style-soft",
+  "family": "spatial",
+  "name": "Fire",
+  "kind": "point",
+  "code": "Fire(style=\"soft\")"
+ },
+ {
+  "id": "spatial-fire~style-plume",
+  "family": "spatial",
+  "name": "Fire",
+  "kind": "point",
+  "code": "Fire(style=\"plume\")"
+ },
+ {
+  "id": "spatial-fire~style-tongues",
+  "family": "spatial",
+  "name": "Fire",
+  "kind": "point",
+  "code": "Fire(style=\"tongues\")"
+ },
+ {
+  "id": "spatial-fire~style-embers",
+  "family": "spatial",
+  "name": "Fire",
+  "kind": "point",
+  "code": "Fire(style=\"embers\")"
+ },
+ {
+  "id": "spatial-fire~style-blaze",
+  "family": "spatial",
+  "name": "Fire",
+  "kind": "point",
+  "code": "Fire(style=\"blaze\")"
+ },
+ {
+  "id": "spatial-rain",
+  "family": "spatial",
+  "name": "Rain",
+  "kind": "pad",
+  "code": "Rain(p1=(300, 250), p2=(700, 550))"
+ },
+ {
+  "id": "spatial-jet",
+  "family": "spatial",
+  "name": "Jet",
+  "kind": "beam",
+  "code": "Jet(p1=(200, 100), p2=(200, 40), width=14)"
+ },
+ {
+  "id": "spatial-sparks",
+  "family": "spatial",
+  "name": "Sparks",
+  "kind": "point",
+  "code": "fx = Sparks(center=(200, 150), radius=32, rate=40)"
+ },
+ {
+  "id": "spatial-glowspot",
+  "family": "spatial",
+  "name": "GlowSpot",
+  "kind": "point",
+  "code": "GlowSpot(center=(200, 150), radius=48, color=\"cyan\")"
+ },
+ {
+  "id": "spatial-orb",
+  "family": "spatial",
+  "name": "Orb",
+  "kind": "point",
+  "code": "Orb()"
+ },
+ {
+  "id": "spatial-sunburst",
+  "family": "spatial",
+  "name": "Sunburst",
+  "kind": "point",
+  "code": "Sunburst()"
+ },
+ {
+  "id": "spatial-starburst",
+  "family": "spatial",
+  "name": "Starburst",
+  "kind": "point",
+  "code": "Starburst()"
+ },
+ {
+  "id": "spatial-warp",
+  "family": "spatial",
+  "name": "Warp",
+  "kind": "point",
+  "code": "Warp()"
+ },
+ {
+  "id": "spatial-portal",
+  "family": "spatial",
+  "name": "Portal",
+  "kind": "point",
+  "code": "Portal()"
+ },
+ {
+  "id": "post-vignette",
+  "family": "post",
+  "name": "Vignette",
+  "kind": "fixed",
+  "code": "Vignette()"
+ },
+ {
+  "id": "post-grain",
+  "family": "post",
+  "name": "Grain",
+  "kind": "fixed",
+  "code": "Grain()"
+ },
+ {
+  "id": "post-fog",
+  "family": "post",
+  "name": "Fog",
+  "kind": "fixed",
+  "code": "Fog()"
+ },
+ {
+  "id": "post-bloom",
+  "family": "post",
+  "name": "Bloom",
+  "kind": "fixed",
+  "code": "bloom = Bloom(intensity=0.8)"
+ },
+ {
+  "id": "post-grade",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"cool\")"
+ },
+ {
+  "id": "post-grade~preset-filmic",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"filmic\")"
+ },
+ {
+  "id": "post-grade~preset-cool",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"cool\")"
+ },
+ {
+  "id": "post-grade~preset-warm",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"warm\")"
+ },
+ {
+  "id": "post-grade~preset-sepia",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"sepia\")"
+ },
+ {
+  "id": "post-grade~preset-bw",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"bw\")"
+ },
+ {
+  "id": "post-grade~preset-duo",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"duo\")"
+ },
+ {
+  "id": "post-grade~preset-night",
+  "family": "post",
+  "name": "Grade",
+  "kind": "fixed",
+  "code": "Grade(\"night\")"
+ },
+ {
+  "id": "post-chroma",
+  "family": "post",
+  "name": "Chroma",
+  "kind": "fixed",
+  "code": "Chroma()"
+ },
+ {
+  "id": "post-pixelate",
+  "family": "post",
+  "name": "Pixelate",
+  "kind": "fixed",
+  "code": "Pixelate()"
+ },
+ {
+  "id": "post-scanlines",
+  "family": "post",
+  "name": "Scanlines",
+  "kind": "fixed",
+  "code": "Scanlines()"
+ },
+ {
+  "id": "post-screenblur",
+  "family": "post",
+  "name": "ScreenBlur",
+  "kind": "fixed",
+  "code": "ScreenBlur()"
+ },
+ {
+  "id": "post-wash",
+  "family": "post",
+  "name": "Wash",
+  "kind": "fixed",
+  "code": "Wash()"
+ },
+ {
+  "id": "post-distantlight",
+  "family": "post",
+  "name": "DistantLight",
+  "kind": "light",
+  "code": "DistantLight()"
+ },
+ {
+  "id": "post-haze",
+  "family": "post",
+  "name": "Haze",
+  "kind": "anim",
+  "code": "Haze(kind=\"heat\")"
+ },
+ {
+  "id": "post-haze~kind-haze",
+  "family": "post",
+  "name": "Haze",
+  "kind": "anim",
+  "code": "Haze(kind=\"haze\")"
+ },
+ {
+  "id": "post-haze~kind-heat",
+  "family": "post",
+  "name": "Haze",
+  "kind": "anim",
+  "code": "Haze(kind=\"heat\")"
+ },
+ {
+  "id": "post-haze~kind-underwater",
+  "family": "post",
+  "name": "Haze",
+  "kind": "anim",
+  "code": "Haze(kind=\"underwater\")"
+ },
+ {
+  "id": "post-crt",
+  "family": "post",
+  "name": "Crt",
+  "kind": "anim",
+  "code": "Crt()"
+ },
+ {
+  "id": "post-vortex",
+  "family": "post",
+  "name": "Vortex",
+  "kind": "anim",
+  "code": "Vortex()"
+ },
+ {
+  "id": "post-zoomblur",
+  "family": "post",
+  "name": "ZoomBlur",
+  "kind": "anim",
+  "code": "ZoomBlur()"
+ },
+ {
+  "id": "post-kaleidoscope",
+  "family": "post",
+  "name": "Kaleidoscope",
+  "kind": "anim",
+  "code": "Kaleidoscope()"
+ },
+ {
+  "id": "post-prism",
+  "family": "post",
+  "name": "Prism",
+  "kind": "anim",
+  "code": "Prism()"
+ },
+ {
+  "id": "post-perspective",
+  "family": "post",
+  "name": "Perspective",
+  "kind": "anim",
+  "code": "Perspective()"
+ },
+ {
+  "id": "post-lamp",
+  "family": "post",
+  "name": "Lamp",
+  "kind": "light",
+  "code": "Lamp()"
+ },
+ {
+  "id": "post-spotlight",
+  "family": "post",
+  "name": "Spotlight",
+  "kind": "light",
+  "code": "Spotlight(range=400)"
+ },
+ {
+  "id": "post-godrays",
+  "family": "post",
+  "name": "GodRays",
+  "kind": "anim",
+  "code": "GodRays(target=(W * 0.62, H * 0.5))"
+ },
+ {
+  "id": "post-motiontrail",
+  "family": "post",
+  "name": "MotionTrail",
+  "kind": "anim",
+  "code": "ball = Circle(center=(W * 0.1, H * 0.5), radius=36, color=\"gold\")\nball.move_to(W * 0.9, H * 0.5, time=1.6)\nMotionTrail()"
+ },
+ {
+  "id": "post-colorsweep",
+  "family": "post",
+  "name": "ColorSweep",
+  "kind": "anim",
+  "code": "ColorSweep()"
+ },
+ {
+  "id": "post-colorwash",
+  "family": "post",
+  "name": "ColorWash",
+  "kind": "anim",
+  "code": "wash = ColorWash()"
+ },
+ {
+  "id": "post-cosmicbloom",
+  "family": "post",
+  "name": "CosmicBloom",
+  "kind": "anim",
+  "code": "CosmicBloom()"
+ },
+ {
+  "id": "post-flash",
+  "family": "impact",
+  "name": "canvas.flash",
+  "kind": "screen",
+  "code": "canvas.flash(0.6)"
+ },
+ {
+  "id": "post-shake",
+  "family": "impact",
+  "name": "canvas.shake",
+  "kind": "screen",
+  "code": "canvas.shake(10)"
+ },
+ {
+  "id": "post-glitch",
+  "family": "impact",
+  "name": "canvas.glitch",
+  "kind": "screen",
+  "code": "canvas.glitch()"
+ },
+ {
+  "id": "post-ripple",
+  "family": "impact",
+  "name": "canvas.ripple_at",
+  "kind": "point",
+  "code": "canvas.ripple_at(x, y, amount=1.0)"
+ },
+ {
+  "id": "post-wave",
+  "family": "impact",
+  "name": "canvas.wave_at",
+  "kind": "point",
+  "code": "canvas.wave_at(x, y, angle=0)"
+ },
+ {
+  "id": "post-explosion",
+  "family": "impact",
+  "name": "canvas.explosion_at",
+  "kind": "point",
+  "code": "canvas.explosion_at(x, y)"
+ },
+ {
+  "id": "post-burst",
+  "family": "impact",
+  "name": "canvas.burst_at",
+  "kind": "point",
+  "code": "canvas.burst_at(x, y, radius=42)"
+ },
+ {
+  "id": "post-fireworks",
+  "family": "impact",
+  "name": "canvas.fireworks_at",
+  "kind": "point",
+  "code": "canvas.fireworks_at(x, y)"
+ },
+ {
+  "id": "post-zap",
+  "family": "impact",
+  "name": "canvas.zap_at",
+  "kind": "point",
+  "code": "canvas.zap_at(x, y)"
+ },
+ {
+  "id": "post-zap~style-spark",
+  "family": "impact",
+  "name": "canvas.zap_at",
+  "kind": "point",
+  "code": "canvas.zap_at(x, y, style=\"spark\")"
+ },
+ {
+  "id": "post-zap~style-fork",
+  "family": "impact",
+  "name": "canvas.zap_at",
+  "kind": "point",
+  "code": "canvas.zap_at(x, y, style=\"fork\")"
+ },
+ {
+  "id": "post-zap~style-corona",
+  "family": "impact",
+  "name": "canvas.zap_at",
+  "kind": "point",
+  "code": "canvas.zap_at(x, y, style=\"corona\")"
+ },
+ {
+  "id": "post-hit",
+  "family": "impact",
+  "name": "canvas.hit_at",
+  "kind": "point",
+  "code": "canvas.hit_at(x, y, radius=32)"
+ },
+ {
+  "id": "post-hit~style-star",
+  "family": "impact",
+  "name": "canvas.hit_at",
+  "kind": "point",
+  "code": "canvas.hit_at(x, y, radius=32, style=\"star\")"
+ },
+ {
+  "id": "post-hit~style-disc",
+  "family": "impact",
+  "name": "canvas.hit_at",
+  "kind": "point",
+  "code": "canvas.hit_at(x, y, radius=32, style=\"disc\")"
+ },
+ {
+  "id": "post-debris",
+  "family": "impact",
+  "name": "canvas.debris_at",
+  "kind": "point",
+  "code": "canvas.debris_at(x, y, color=\"peru\", radius=80, count=22)"
+ },
+ {
+  "id": "post-bubbles",
+  "family": "impact",
+  "name": "canvas.bubbles_at",
+  "kind": "point",
+  "code": "canvas.bubbles_at(x, y, color=\"cyan\", count=18)"
+ },
+ {
+  "id": "bg-sky",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"night\")"
+ },
+ {
+  "id": "bg-sky~palette-day",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"day\")"
+ },
+ {
+  "id": "bg-sky~palette-dawn",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"dawn\")"
+ },
+ {
+  "id": "bg-sky~palette-sunset",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"sunset\")"
+ },
+ {
+  "id": "bg-sky~palette-dusk",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"dusk\")"
+ },
+ {
+  "id": "bg-sky~palette-night",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"night\")"
+ },
+ {
+  "id": "bg-sky~palette-space",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"space\")"
+ },
+ {
+  "id": "bg-sky~palette-overcast",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"overcast\")"
+ },
+ {
+  "id": "bg-sky~palette-desert",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"desert\")"
+ },
+ {
+  "id": "bg-sky~palette-forest",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"forest\")"
+ },
+ {
+  "id": "bg-sky~palette-toxic",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"toxic\")"
+ },
+ {
+  "id": "bg-sky~palette-ember",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"ember\")"
+ },
+ {
+  "id": "bg-sky~palette-ice",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"ice\")"
+ },
+ {
+  "id": "bg-sky~palette-underwater",
+  "family": "field",
+  "name": "SkyGradient",
+  "kind": "base",
+  "code": "SkyGradient(\"underwater\")"
+ },
+ {
+  "id": "bg-wallpaper",
+  "family": "field",
+  "name": "Wallpaper",
+  "kind": "base",
+  "code": "Wallpaper(\"navy\")"
+ },
+ {
+  "id": "bg-stars",
+  "family": "field",
+  "name": "Stars",
+  "kind": "ambient",
+  "code": "Stars()"
+ },
+ {
+  "id": "bg-clouds",
+  "family": "field",
+  "name": "Clouds",
+  "kind": "ambient",
+  "code": "canvas.background = SkyGradient(\"day\")\nClouds()"
+ },
+ {
+  "id": "bg-mist",
+  "family": "field",
+  "name": "Mist",
+  "kind": "ambient",
+  "code": "Mist()"
+ },
+ {
+  "id": "bg-stardust",
+  "family": "field",
+  "name": "Stardust",
+  "kind": "ambient",
+  "code": "Stardust()"
+ },
+ {
+  "id": "bg-chromadust",
+  "family": "field",
+  "name": "Chromadust",
+  "kind": "ambient",
+  "code": "Chromadust()"
+ },
+ {
+  "id": "bg-nebuladust",
+  "family": "field",
+  "name": "Nebuladust",
+  "kind": "ambient",
+  "code": "Nebuladust()"
+ },
+ {
+  "id": "bg-borealis",
+  "family": "field",
+  "name": "Borealis",
+  "kind": "ambient",
+  "code": "Borealis()"
+ },
+ {
+  "id": "bg-plasma",
+  "family": "field",
+  "name": "Plasma",
+  "kind": "ambient",
+  "code": "Plasma()"
+ },
+ {
+  "id": "bg-debris",
+  "family": "field",
+  "name": "Debris",
+  "kind": "ambient",
+  "code": "Debris()"
+ },
+ {
+  "id": "bg-embers",
+  "family": "field",
+  "name": "Embers",
+  "kind": "ambient",
+  "code": "Embers()"
+ },
+ {
+  "id": "bg-wind",
+  "family": "field",
+  "name": "WindStreaks",
+  "kind": "ambient",
+  "code": "WindStreaks()"
+ },
+ {
+  "id": "bg-ground",
+  "family": "field",
+  "name": "Ground",
+  "kind": "ambient",
+  "code": "Ground(horizon=0.42)"
+ },
+ {
+  "id": "bg-lattice",
+  "family": "field",
+  "name": "Lattice",
+  "kind": "ambient",
+  "code": "Lattice()"
+ },
+ {
+  "id": "bg-lattice~fold-square",
+  "family": "field",
+  "name": "Lattice",
+  "kind": "ambient",
+  "code": "Lattice(fold=\"square\")"
+ },
+ {
+  "id": "bg-lattice~fold-hex",
+  "family": "field",
+  "name": "Lattice",
+  "kind": "ambient",
+  "code": "Lattice(fold=\"hex\")"
+ },
+ {
+  "id": "bg-lattice~fold-tri",
+  "family": "field",
+  "name": "Lattice",
+  "kind": "ambient",
+  "code": "Lattice(fold=\"tri\")"
+ },
+ {
+  "id": "bg-lattice~edge-outline",
+  "family": "field",
+  "name": "Lattice",
+  "kind": "ambient",
+  "code": "Lattice(edge=\"outline\")"
+ },
+ {
+  "id": "bg-lattice~edge-fill",
+  "family": "field",
+  "name": "Lattice",
+  "kind": "ambient",
+  "code": "Lattice(edge=\"fill\")"
+ },
+ {
+  "id": "bg-nebula",
+  "family": "field",
+  "name": "Nebula",
+  "kind": "ambient",
+  "code": "Nebula()"
+ },
+ {
+  "id": "bg-churn",
+  "family": "field",
+  "name": "ChurningClouds",
+  "kind": "ambient",
+  "code": "ChurningClouds()"
+ },
+ {
+  "id": "bg-filament",
+  "family": "field",
+  "name": "FilamentField",
+  "kind": "ambient",
+  "code": "FilamentField()"
+ },
+ {
+  "id": "bg-floor",
+  "family": "field",
+  "name": "Floor",
+  "kind": "fly",
+  "code": "canvas.set_fly(Floor())"
+ },
+ {
+  "id": "bg-road",
+  "family": "field",
+  "name": "Road",
+  "kind": "fly",
+  "code": "canvas.set_fly(Road())"
+ },
+ {
+  "id": "bg-tunnel",
+  "family": "field",
+  "name": "Tunnel",
+  "kind": "fly",
+  "code": "canvas.set_fly(Tunnel())"
+ },
+ {
+  "id": "bg-starfly",
+  "family": "field",
+  "name": "StarFly",
+  "kind": "fly",
+  "code": "canvas.set_fly(StarFly())"
+ },
+ {
+  "id": "bg-planetfly",
+  "family": "field",
+  "name": "PlanetFly",
+  "kind": "fly",
+  "code": "canvas.set_fly(PlanetFly())"
+ }
+]

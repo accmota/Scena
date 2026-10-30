@@ -1016,14 +1016,19 @@ def slider_tour(game, t, *, drags=(), keys=(), end=30.0):
 
 def _target(game, target):
     """A point (design units) for a tour target: ``(x, y)``; ``("w", x, y)``
-    (a world point of the level editor, through its camera); ``"@name"`` (a
+    (a world point of the level editor, through its camera; ``("w", x, y, dx,
+    dy)``: that point moved dx, dy design units, as the rotate knob sits a
+    fixed number of pixels above a shape); ``"@name"`` (a
     global's centre); ``"middle:group"`` / ``"first:group"`` (a group's mean
     centre / first member); ``"dropdown"`` (the DropDown's box);
     ``"option:text"`` (a row of the open DropDown); else a widget label (or an
     open Menu's option)."""
     if isinstance(target, tuple) and target[0] == "w":   # a world point of the editor
         from scena_editor.view import view_point
-        return view_point(target[1], target[2])
+        x, y = view_point(target[1], target[2])
+        if len(target) == 5:        # ("w", x, y, dx, dy): then dx, dy design units on
+            return x + target[3], y + target[4]     # (a handle a few pixels off a shape)
+        return x, y
     if isinstance(target, tuple):
         return target
     ns = game.ns

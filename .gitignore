@@ -21,5 +21,7 @@ __pycache__/
 # Game examples in development, published to examples/ when ready
 /drafts/
 
-# Videos rendered by tools/video/record_game.py
-/recordings/
+# Videos: the scripts and texts are tracked; what they render is not
+# (videos/README.md)
+/videos/finals/
+/videos/recordings/

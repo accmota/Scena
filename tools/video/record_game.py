@@ -18,14 +18,14 @@ is wall time, never the world's.
 
   python tools/video/record_game.py examples/corrida.py --pilot pick_and_race --seconds 30
   python tools/video/record_game.py examples/ninja_4_perigos.py --pilot run_jump_and_throw \\
-      --lead 1 --seconds 12 --size 2560x1440 --out recordings/ninja.mp4
+      --lead 1 --seconds 12 --size 2560x1440 --out videos/recordings/ninja.mp4
   python tools/video/record_game.py README.md#catch-the-stars --pilot follow_stars --seconds 10
-  python tools/video/record_game.py examples/bolas.py --frames-dir recordings/bolas  # PNGs + WAV
+  python tools/video/record_game.py examples/bolas.py --frames-dir videos/recordings/bolas  # PNGs + WAV
 
 The shot list (``takes.py``) names every take of the YouTube videos: a
 program, a video pilot (``pilots.py``) with its keywords, a seed. A take ends
 when its pilot says the run is over (``game.done``, plus a tail) or at its
-cap. Each take writes ``recordings/<game>/<take>.mp4`` and a review sheet
+cap. Each take writes ``videos/recordings/<game>/<take>.mp4`` and a review sheet
 ``<take>.review.jpg`` (frames every 5 s, still and silent seconds, flags a
 stall the pilot did not mean). ``--review`` makes only the sheet, small and
 fast, to check a pilot before a full render. Several takes run as child
@@ -47,7 +47,7 @@ Output: ``.mp4`` (H.264, BT.709, AAC 48 kHz) or, with ``--prores``, ``.mov``
 (ProRes 422 HQ, PCM) for an editor; ``--frames-dir`` writes a PNG sequence and
 ``audio.wav`` and needs no encoder. Encoding needs ffmpeg: ``ffmpeg`` on the
 PATH or the ``imageio-ffmpeg`` package (``pip install imageio-ffmpeg``).
-Default output: ``recordings/<program>.mp4`` (git-ignored).
+Default output: ``videos/recordings/<program>.mp4`` (git-ignored; videos/README.md).
 """
 from __future__ import annotations
 
@@ -805,7 +805,7 @@ def _size(text: str) -> tuple:
 
 # ── Takes (the shot list in takes.py) ──────────────────────────────────────
 
-RECORDINGS = REPO / "recordings"
+RECORDINGS = REPO / "videos" / "recordings"
 REVIEW_SIZE, REVIEW_FPS = (640, 360), 30
 
 
@@ -931,7 +931,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cpu", action="store_true", help="raster only (no GPU / display)")
     ap.add_argument("--crf", type=int, default=16, help="H.264 quality (lower = better)")
     ap.add_argument("--prores", action="store_true", help=".mov ProRes 422 HQ + PCM (editing)")
-    ap.add_argument("--out", help="output file (default recordings/<program>.mp4)")
+    ap.add_argument("--out", help="output file (default videos/recordings/<program>.mp4)")
     ap.add_argument("--frames-dir", help="write PNG frames + audio.wav here instead")
     args = ap.parse_args(argv)
     if args.take or args.all or args.list:
@@ -953,7 +953,7 @@ def main(argv: list[str] | None = None) -> int:
             ap.error("no ffmpeg: install it (brew install ffmpeg) or "
                      "pip install imageio-ffmpeg; or use --frames-dir")
         ext = ".mov" if args.prores else ".mp4"
-        out = Path(args.out).resolve() if args.out else REPO / "recordings" / f"{stem}{ext}"
+        out = Path(args.out).resolve() if args.out else RECORDINGS / f"{stem}{ext}"
 
         def factory(size, fps):
             return FfmpegSink(out, size, fps, ffmpeg=ffmpeg, crf=args.crf, prores=args.prores)

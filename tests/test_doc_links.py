@@ -49,9 +49,11 @@ ROOT = layout.ROOT
 PRIVATE = ("workbench", "drafts", "documentation/archive", "documentation/notes",
            "documentation/proposals")
 
-SCAN_DIRS = ("design", "docs", "tools", "scena", "scena_editor", "tests", "scripts", "examples")
+# videos/: only its tracked half (finals/ and recordings/ are rendered output)
+SCAN_DIRS = ("design", "docs", "tools", "scena", "scena_editor", "tests", "scripts", "examples",
+             "videos/scripts", "videos/texts")
 ROOT_FILES = ("AGENTS.md", "CHANGELOG.md", "CLAUDE.md", "CONTRIBUTING.md", "README.md",
-              "pyproject.toml")
+              "pyproject.toml", "videos/README.md")
 SUFFIXES = (".md", ".py", ".txt", ".html", ".js", ".toml")
 SKIP_SUBTREES = ("scripts/bench/results",)  # gitignored bench output
 
@@ -82,11 +84,11 @@ def _is_private(rel: str) -> bool:
 def _published_files():
     me = os.path.abspath(__file__)
     for name in ROOT_FILES:
-        path = os.path.join(ROOT, name)
+        path = os.path.join(ROOT, *name.split("/"))
         if os.path.isfile(path):
             yield path
     for top in SCAN_DIRS:
-        for path in iter_files(os.path.join(ROOT, top), *SUFFIXES, recursive=True):
+        for path in iter_files(os.path.join(ROOT, *top.split("/")), *SUFFIXES, recursive=True):
             rel = _rel(path)
             if _is_private(rel) or any(rel.startswith(s + "/") for s in SKIP_SUBTREES):
                 continue
