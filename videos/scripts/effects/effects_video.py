@@ -8,7 +8,7 @@ counts); names are small labels; the cuts fall on the music's beat (178 bpm).
 
   0:00  title                 SCENA, Python game engine; 100+ visual effects, built in;
                               a ring of looks
-  0:07  looks                 one star through eight looks, others come out from behind;
+  0:07  looks                 one pentagon through eight looks, others come out from behind;
                               then every look at once, and on any shape (four swaps)
   0:28  in the world          the spatial effects fill a night landscape, then their
                               parameters move (the values shown live)
@@ -273,7 +273,7 @@ async def title(t):
     leave(row, words, ring, time=0.4)
 
 
-# ---- 0:07  looks: one star through eight, others come out from behind; then all ----
+# ---- 0:07  looks: one pentagon through eight, others come out from behind; then all ----
 
 CYCLE = ("Neon", "ElectricField", "Flame", "Metal", "Aurora", "OrganicOutline", "GearShell", "Shield")
 COMPANIONS = (      # (kind, look, its name, where it settles)
@@ -285,26 +285,26 @@ COMPANIONS = (      # (kind, look, its name, where it settles)
     ("triangle", lambda: Liquify(), "Liquify", (1160, 330)),
     ("sprite", lambda: EmissiveBloom(), "EmissiveBloom", (640, 110)),
 )
-STAR = Vec2(640, 380)
+MIDDLE = Vec2(640, 380)
 
 
 async def looks(t):
     Stars(color=FROST, density=0.25, twinkle=0.3)
     words = section_head("Looks", sub="dress any shape or sprite, in one line")
-    star = RegularPolygon(n=5, center=STAR, radius=120, color=Color("deep sky blue"))
-    star.layer = "top"                      # the others come out from behind it
-    star.rotate_by(360, time=12, loops="forever")
-    star.fade_in(0.3)
+    shape = RegularPolygon(n=5, center=MIDDLE, radius=120, color=Color("deep sky blue"))
+    shape.layer = "top"                     # the others come out from behind it
+    shape.rotate_by(360, time=12, loops="forever")
+    shape.fade_in(0.3)
     tag_, others = [], []
     for k, name in enumerate(CYCLE):
         await at(t + 0.4 + 3 * BEAT * k)
-        star.visual = globals()[name]()
+        shape.visual = globals()[name]()
         leave(tag_, style="fade", time=0.1)
-        tag_ = [name_tag(f"star.visual = {name}()", y=225, size=20)]
-        star.pop(scale=1.06)
+        tag_ = [name_tag(f"shape.visual = {name}()", y=225, size=20)]
+        shape.pop(scale=1.06)
         if 1 <= k <= len(COMPANIONS):
             kind, look, label, (x, y) = COMPANIONS[k - 1]
-            other = make_actor(kind, STAR.x, STAR.y, 46, PALETTE[k % 8], variant=k)
+            other = make_actor(kind, MIDDLE.x, MIDDLE.y, 46, PALETTE[k % 8], variant=k)
             other.visual = look()
             other.scale = 0.15
             other.scale_to(1.0, time=1.1, ease="ease_out")
@@ -314,7 +314,7 @@ async def looks(t):
                 small_tag(label, (x, y - 72))))
             others.append(other)
     await at(t + 0.4 + 3 * BEAT * len(CYCLE))
-    leave(star, tag_, others, words, time=0.3)
+    leave(shape, tag_, others, words, time=0.3)
     # the wall: every look and style, one tile a half beat
     words = section_head("Every look, every style", sub="on shapes, sprites and lines", rule=False)
     wall = cards("visual")
