@@ -34,14 +34,20 @@ Bug classes guarded:
   names, and the catch pilot must catch most and miss some
   (``TestPilotsPlay``: played without drawing). Whole games (Naves, the
   plane) are in ``test_record_game_deep`` (gate).
+* **A take presses one platform's keys.** The editor's shortcuts are Cmd on a
+  Mac and Ctrl elsewhere (redo Cmd+Shift+Z / Ctrl+Y): a tour that holds
+  ``LEFT_CMD`` duplicates and undoes nothing on Windows, so the editor
+  session ended two shapes short there (``TestPlatformKeys``).
 
     python -m unittest tests.test_record_game -v
 """
 from __future__ import annotations
 
+import ast
 import inspect
 import os
 import random
+import re
 import sys
 import unittest
 
@@ -577,6 +583,44 @@ def _play(tid, seconds, watch=None):
         return out
     finally:
         run.close(strict=False)
+
+
+class TestPlatformKeys(unittest.TestCase):
+    """A take plays on every platform: it never names a key that only some
+    keyboards have, and the editor session presses the editor's own chords."""
+
+    PLATFORM_ONLY = re.compile(r"^(LEFT_|RIGHT_)?(CMD|COMMAND|SUPER|WIN|WINDOWS|META)$")
+
+    def test_no_take_or_pilot_names_a_platform_key(self):
+        found = []
+        for name in ("takes.py", "pilots.py"):
+            path = os.path.join(ROOT, "tools", "video", name)
+            with open(path, encoding="utf-8") as f:
+                tree = ast.parse(f.read())
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                        and self.PLATFORM_ONLY.match(node.value)):
+                    found.append(f"{name}:{node.lineno}: {node.value!r}")
+        self.assertEqual(found, [], "spell an editor shortcut through scena_editor.tools "
+                                    "(PRIMARY, REDO): takes._chord")
+
+    def test_the_editor_session_holds_the_editor_chords(self):
+        from scena_editor.tools import PRIMARY, REDO
+        script = tk.TAKES["scena-editor/session"]["args"]["script"]
+        held = {ev[3] for ev in script if ev[0] == "hold"}
+        for chord in (f"{PRIMARY}+D", f"{PRIMARY}+Z", REDO):
+            *mods, key = chord.split("+")
+            with self.subTest(chord=chord):
+                self.assertLessEqual({f"LEFT_{m}" for m in mods}, held)
+                self.assertIn(key, {ev[2] for ev in script if ev[0] == "key"})
+
+    def test_a_chord_holds_its_modifiers_around_its_keys(self):
+        self.assertEqual(tk._chord(1.0, 2.0, "CMD+SHIFT+Z", 1.5),
+                         (("hold", 1.0, 2.0, "LEFT_CMD"), ("hold", 1.0, 2.0, "LEFT_SHIFT"),
+                          ("key", 1.5, "Z")))
+        self.assertEqual(tk._chord(1.0, 2.0, "CTRL+Y", 1.2, 1.6),
+                         (("hold", 1.0, 2.0, "LEFT_CTRL"), ("key", 1.2, "Y"),
+                          ("key", 1.6, "Y")))
 
 
 class TestPilotsPlay(unittest.TestCase):

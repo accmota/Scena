@@ -19,13 +19,25 @@ Fields (``DEFAULTS`` fills the rest):
 """
 from __future__ import annotations
 
-DEFAULTS = dict(args={}, lead=0.0, tail=2.0, seed=0, size=(2560, 1440), fps=60, crf=14,
+from scena_editor.tools import PRIMARY, REDO
+
+DEFAULTS =dict(args={}, lead=0.0, tail=2.0, seed=0, size=(2560, 1440), fps=60, crf=14,
                 end="cap", seconds=60.0, layout=None)
 
 # half: the bar's half width plus the star's (they touch inside it). Stars fall
 # faster than a bar crosses the screen: even a perfect player misses some.
 _PEGAR = dict(paddle="barra", group="estrelas", fall=220, speed=380, half=56)
 _CATCH = dict(paddle="paddle", group="stars", fall=180, speed=420, half=63)
+
+
+def _chord(start, stop, chord, *times):
+    """The editor's ``chord`` ("CTRL+Y", "CMD+SHIFT+Z"): its modifiers held from
+    ``start`` to ``stop``, its key pressed at each of ``times``. The editor's
+    shortcuts are the platform's (``scena_editor.tools``: Cmd on a Mac, Ctrl
+    elsewhere), so a tour spells them through it, never as ``LEFT_CMD``."""
+    *mods, key = chord.split("+")
+    return (*[("hold", start, stop, f"LEFT_{m}") for m in mods],
+            *[("key", when, key) for when in times])
 
 TAKES = {
     # Tutorial 01: every feature, scripted in order.
@@ -197,12 +209,10 @@ TAKES = {
         ("key", 14.0, "V"), ("click", 15.0, ("w", 1080, 640)),     # select the rect
         ("hold", 15.6, 17.0, "LEFT_SHIFT"),      # Shift+arrows: nudge by the grid
         ("key", 15.8, "RIGHT"), ("key", 16.2, "RIGHT"), ("key", 16.6, "UP"),
-        ("hold", 17.6, 18.6, "LEFT_CMD"), ("key", 17.8, "D"), ("key", 18.2, "D"),  # duplicate
+        *_chord(17.6, 18.6, f"{PRIMARY}+D", 17.8, 18.2),         # duplicate twice
         ("key", 19.2, "DEL"),                    # delete the last copy
-        ("hold", 20.2, 22.4, "LEFT_CMD"),        # undo three times
-        ("key", 20.4, "Z"), ("key", 21.1, "Z"), ("key", 21.8, "Z"),
-        ("hold", 23.0, 23.8, "LEFT_CMD"), ("hold", 23.0, 23.8, "LEFT_SHIFT"),
-        ("key", 23.3, "Z"),                      # redo
+        *_chord(20.2, 22.4, f"{PRIMARY}+Z", 20.4, 21.1, 21.8),   # undo three times
+        *_chord(23.0, 23.8, REDO, 23.3),                         # redo
         ("key", 24.5, "H"), ("carry", 25.4, 26.6, (700, 420), (430, 460)),   # pan
         ("key", 27.6, "F"),                      # fit the level in view
         ("key", 29.0, "V"), ("glide", 29.2, 30.4, (1000, 160))))),

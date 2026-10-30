@@ -117,7 +117,10 @@ Guards: `tests/test_readme.py`.
   keys and the wheel). While the button is down, that press owns the
   pointer, and the release happens where it was held: the next event's
   glide starts early and would pull a click off its button, or end the
-  editor's band select over nothing.
+  editor's band select over nothing. An editor shortcut is spelled through
+  the editor's own keys (`scena_editor.tools` `PRIMARY` / `REDO`, via
+  `takes._chord`): Cmd on a Mac, Ctrl elsewhere, redo Ctrl+Y. A tour that
+  holds `LEFT_CMD` plays another session on Windows (Testing Design, WP54).
 - **"This code → this game".** A take with `layout="code"` shows the
   program's code (no module docstring; Pygments colours; the largest font
   that fits every line, so meant for one-screen programs) on the left 40 %
