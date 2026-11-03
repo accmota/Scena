@@ -386,7 +386,9 @@ class Recorder:
             "ab": self.args.ab,
             "fb": self.fb,
             "rss_mb": [round(self.rss0, 1), round(self.rss1, 1)],
-            "load": [round(x, 2) for x in os.getloadavg()],
+            # Windows has no load average (os.getloadavg is POSIX only).
+            "load": ([round(x, 2) for x in os.getloadavg()]
+                     if hasattr(os, "getloadavg") else None),
             "scena_fingerprint": scena_fingerprint(),
             "sides": {k: v.summary() for k, v in self.sides.items()},
         }
@@ -399,15 +401,16 @@ class Recorder:
 def profile_by_file(prof: cProfile.Profile, frames: int) -> Dict[str, float]:
     st = pstats.Stats(prof)
     by: Dict[str, float] = {}
+    # "/" form, so Windows paths (and a checkout not named scena/) group too.
+    repo = REPO.replace("\\", "/").rstrip("/") + "/"
     for (fname, _line, _fn), (_cc, _nc, tt, _ct, _callers) in st.stats.items():
-        if "/scena/scena/" in fname:
-            key = "scena/" + fname.split("/scena/scena/", 1)[1]
+        fname = fname.replace("\\", "/")
+        if fname.startswith(repo):
+            key = fname[len(repo):]
         elif fname.startswith("~") or fname.startswith("<"):
             key = "builtins/C"
-        elif "site-packages" in fname:
+        elif "site-packages/" in fname:
             key = "lib/" + fname.split("site-packages/", 1)[1].split("/", 1)[0]
-        elif "/scena/" in fname:
-            key = os.path.relpath(fname, REPO)
         else:
             key = "python/" + os.path.basename(fname)
         by[key] = by.get(key, 0.0) + tt
@@ -550,6 +553,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    sys.stdout.reconfigure(errors="backslashreplace")   # piped on Windows: cp1252, strict (WP28)
     args = build_parser().parse_args(argv)
     if args.ladder:
         return run_ladder(args)

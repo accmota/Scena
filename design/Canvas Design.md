@@ -964,6 +964,46 @@ batch by `_batch_key` into one saveLayer / low-res RT. Large sparse same-key
 unions still pay a near-full-frame plate (cost tracks union AABB). Prefer
 clustered fleets and canvas Bloom for atmosphere. See [Effect System Design.md](Effect%20System%20Design.md).
 
+### GPU without MSAA (Intel on OpenGL)
+
+Skia turns multisampling off for every Intel GPU on OpenGL (a driver
+workaround in its GL caps): on the Windows laptop's Iris Xe
+`GL_MAX_SAMPLES` is 16 but `GrDirectContext.maxSurfaceSampleCountForColorType`
+is 1, an offscreen `MakeRenderTarget(…, 4)` returns None, and a window made
+with `glfw.SAMPLES` 4 cannot be wrapped (`MakeFromBackendRenderTarget` → None).
+So an MSAA window or render target is not a route there. Without MSAA Skia has
+no GPU renderer for an anti-aliased stroke wider than a pixel on a non-convex
+path: it rasterises a CPU mask the size of the path and uploads it, every draw
+whose path or sub-pixel offset changed (a stable path hits Skia's mask cache).
+A 1 px or hairline stroke goes to the GPU hairline renderer; a non-AA stroke to
+the tessellator. On the MSVC-built skia wheel that CPU mask is slow too
+(Testing Design WP50). Measured there (2026-11-03): a jagged r = 26 circle
+3 px wide ~150 µs a draw, 1 px 12 µs, non-AA 25 µs; a 200-point polyline that
+changes each frame 0.5 ms at 3 px against 0.02 ms as a hairline.
+
+What the engine does about it:
+
+- **Jagged looks bake their path effect** (`scena/_pe_bake.py`, Effect System
+  Design §5.6). A `DiscretePathEffect` on the paint leaves the path without a
+  cache key, so every Electric* / Ink / OrganicOutline / shock-stack stroke
+  took the mask. `_init_skia` calls `_pe_bake.configure(context)`: on a
+  context that cannot multisample, the look strokes (`visuals._draw_host_stroke`)
+  apply the effect themselves and draw a cached plain path. Raster bytes are
+  unchanged (`tests/test_pe_bake.py`). FX matrix, 48 hosts, high (ms a frame,
+  off → on): ElectricBolt 27.4 → 22–25, ElectricField 28.0 → 23, OrganicOutline
+  10.6–11.8 → 9.9, InkBleed 18.9 → 17.8, Ink 8.5 → 7.9; baseline 2.3 both. The
+  draw calls fall ~5× (≈100 → 15 µs); most of the rest moves to the flush,
+  where Skia rasterises each moving path at its new sub-pixel offset.
+- **Trails and tracks are left to Skia.** History bands (`_fill_band_path`),
+  `Track` and wide plain strokes change every frame, so neither a cache nor a
+  key helps. In the examples they are small: `pendulums.py` draws its Track in
+  ~0.5 ms of a 13 ms frame (the rest is Python), `balls.py` its Contrail bands
+  in ~0.3 ms of 9.7. Tessellating into `drawVertices` was weighed and not done:
+  its own edge coverage changes the pixels, overlapping joins double-blend a
+  translucent or additive stroke, and building `skia.Point` lists from Python
+  costs about what it saves. A clang-built skia wheel, or a GPU with MSAA,
+  removes the cost at its source.
+
 ### Playfield leave bounds
 
 **`canvas.playfield`** — world-fixed playfield for [`@leave_playfield`](../docs/en/guide/index.html#reagir-bounds).

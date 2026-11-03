@@ -11,6 +11,7 @@ import inspect
 from collections import namedtuple
 from typing import Optional, Tuple
 
+from . import _pe_bake
 from .leak_detector import LeakSampler
 from .canvas import ScenaCanvas, Canvas, GroupOperator, _must_solo_draw
 from .entity import _drawn, refresh_linked_channels, refresh_linked_visible
@@ -3197,6 +3198,9 @@ class ScenaFramework:
             # MakeGL returns None instead of raising; the surface would then
             # fail with a message that hides the cause (scena/_glfw_platform.py).
             raise RuntimeError(_no_gl_context_message())
+        # Without MSAA (every Intel GPU on GL) a jagged look stroke would take
+        # Skia's software mask each draw: bake its path effect (WP54).
+        _pe_bake.configure(self._context)
         self._create_drawing_surface()
 
     def _create_drawing_surface(self):

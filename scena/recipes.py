@@ -56,7 +56,7 @@ from .style import (
 )
 from .visuals import (
     Visual, CompiledVisual, GlowRimVisual, Halo,
-    _aura_lift_rgb, _aura_mix_hot, _paint_rgba,
+    _aura_lift_rgb, _aura_mix_hot, _paint_rgba, _draw_host_stroke,
     sample_body_rgba, sample_outline_rgba,
 )
 from .filters import Blur, GlowFilter, HostGlow
@@ -302,7 +302,7 @@ def _draw_electric_add_line(look, shape, skia_canvas, *, amount: float, speed: f
     paint = look._stroke_paint(
         color=rgb, width=width, blend=BlendMode.ADD, path_effect=pe, alpha=0.9,
     )
-    shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+    _draw_host_stroke(shape, skia_canvas, paint)
 
 
 def _draw_shock_pe_stack(
@@ -930,7 +930,7 @@ def _stroke_host_v2(skia_canvas, shape, paint) -> None:
         draw = getattr(shape, "_draw_sprite_silhouette_v2", None)
         if callable(draw) and draw(skia_canvas, paint):
             return
-    shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+    _draw_host_stroke(shape, skia_canvas, paint)
 
 
 def _world_stroke_kind(shape) -> Optional[str]:
@@ -1001,7 +1001,7 @@ def _stroke_group_world(shapes, skia_canvas, paint, *, centers=None) -> None:
             skia_canvas.drawCircle(float(cx), float(cy), float(r), paint)
         return
     for s in shapes:
-        s._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+        _draw_host_stroke(s, skia_canvas, paint)
 
 
 def _fill_group_world(shapes, skia_canvas, paint, *, centers=None) -> None:
@@ -1216,7 +1216,7 @@ def _energy_survival_ladder(
     if ff:
         _ff_draw_stroke(skia_canvas, shape, halo, 1.0, line_mode=line_mode)
     else:
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=halo)
+        _draw_host_stroke(shape, skia_canvas, halo)
     if core_width > 0.0:
         core = look._stroke_paint(
             color=core_color, width=float(core_width), blend=blend, **stroke_knobs,
@@ -1224,7 +1224,7 @@ def _energy_survival_ladder(
         if ff:
             _ff_draw_stroke(skia_canvas, shape, core, 0.98, line_mode=line_mode)
         else:
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=core)
+            _draw_host_stroke(shape, skia_canvas, core)
 
 
 def _forcefield_best_effort(
@@ -1668,7 +1668,7 @@ def _draw_brush_stroke(
         if _is_line_shape(shape):
             w = max(th * 0.85, w * 0.9)
         paint = look._stroke_paint(color=col, width=w, path_effect=pe)
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+        _draw_host_stroke(shape, skia_canvas, paint)
 
 
 class Recipe(Visual):
@@ -1941,7 +1941,7 @@ class Neon(Recipe):
         if _is_line_shape(shape):
             w = max(_host_line_width(shape), 0.8)
             stroke = self._stroke_paint(color=tint, width=w, **_host_stroke_knobs(shape))
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=stroke)
+            _draw_host_stroke(shape, skia_canvas, stroke)
             return
         fill = self._fill_paint_from(tint)
         shape._geometry_draw(skia_canvas, fill_paint=fill, stroke_paint=None)
@@ -2033,14 +2033,14 @@ class Neon(Recipe):
             width=base_w * (2.0 + 1.2 * self.amount) * env,
             blend=BlendMode.ADD, mask=mask, **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=halo)
+        _draw_host_stroke(shape, skia_canvas, halo)
         self._draw_body(shape, skia_canvas, tint)
         if passes >= 3:
             core = self._stroke_paint(
                 color=(1.0, 1.0, 1.0, 0.9), width=max(0.8, base_w * 0.45),
                 blend=BlendMode.ADD, **knobs,
             )
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=core)
+            _draw_host_stroke(shape, skia_canvas, core)
 
 
 class MultiBorder(Recipe):
@@ -2093,7 +2093,7 @@ class MultiBorder(Recipe):
             paint = self._stroke_paint(
                 color=tint, width=base_w + step * i, alpha=alpha, **knobs,
             )
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+            _draw_host_stroke(shape, skia_canvas, paint)
         shape._geometry_draw(skia_canvas)
 
 
@@ -3493,7 +3493,7 @@ class OrganicOutline(Recipe):
             color=fringe, width=w, path_effect=pe, **_host_stroke_knobs(shape),
         )
         shape._geometry_draw(skia_canvas)  # host fill + exact host line
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+        _draw_host_stroke(shape, skia_canvas, paint)
 
 
 class Tracer(Recipe):
@@ -3557,8 +3557,8 @@ class Tracer(Recipe):
             color=(1.0, 1.0, 0.95, 0.95), width=self.width * 0.7,
             blend=BlendMode.ADD, path_effect=pe, **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=tail)
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=head)
+        _draw_host_stroke(shape, skia_canvas, tail)
+        _draw_host_stroke(shape, skia_canvas, head)
 
 
 class _ElectricLineAdd(Recipe):
@@ -4358,7 +4358,7 @@ class Bolt(Recipe):
             blend=BlendMode.ADD,
             **_host_stroke_knobs(shape),
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=lip)
+        _draw_host_stroke(shape, skia_canvas, lip)
 
     def _render(self, shape, skia_canvas) -> None:
         if not fidelity_is_lite():
@@ -4489,7 +4489,7 @@ class Laser(Recipe):
             paint = self._stroke_paint(
                 color=col, width=w, blend=BlendMode.ADD, **knobs,
             )
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+            _draw_host_stroke(shape, skia_canvas, paint)
 
     def _laser_stroke_layers(self, shape):
         """ADD ladder (color, width) for one host. Shared by render and look-pass emit."""
@@ -4632,7 +4632,7 @@ class Ink(Recipe):
             color=self._primary_tint(shape), width=w, path_effect=pe,
             **_host_stroke_knobs(shape),
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=stroke)
+        _draw_host_stroke(shape, skia_canvas, stroke)
 
 
 class InkBleed(Recipe):
@@ -4698,7 +4698,7 @@ class InkBleed(Recipe):
                 width=max(th, 1.4),
                 **knobs,
             )
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=core)
+            _draw_host_stroke(shape, skia_canvas, core)
             return
         # Medium: core PE only (promoted former low).
         if t == TIER_MED:
@@ -4708,7 +4708,7 @@ class InkBleed(Recipe):
                 path_effect=self._pe_core,
                 **knobs,
             )
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=core)
+            _draw_host_stroke(shape, skia_canvas, core)
             return
         # High: mist blur + soft PE + core PE.
         mist = self._stroke_paint(
@@ -4717,21 +4717,21 @@ class InkBleed(Recipe):
             mask=self._mist_blur,
             **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=mist)
+        _draw_host_stroke(shape, skia_canvas, mist)
         edge = self._stroke_paint(
             color=(*host[:3], 0.55),
             width=max(th * 1.5, 2.0 + self.amount * 0.4),
             path_effect=self._pe_soft,
             **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=edge)
+        _draw_host_stroke(shape, skia_canvas, edge)
         core = self._stroke_paint(
             color=(*host[:3], 0.9),
             width=max(th, 1.4),
             path_effect=self._pe_core,
             **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=core)
+        _draw_host_stroke(shape, skia_canvas, core)
 
 
 class Recolor(Recipe):
@@ -5372,13 +5372,13 @@ class InsetRim(Recipe):
                 alpha=(tint[3] if len(tint) > 3 else 1.0) * 0.85,
                 **knobs,
             )
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=under)
+            _draw_host_stroke(shape, skia_canvas, under)
 
         base_w = self._outline_width(shape)
         border = self._stroke_paint(
             color=tint, width=base_w, **_host_stroke_knobs(shape),
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=border)
+        _draw_host_stroke(shape, skia_canvas, border)
 
 
 class Gel(Recipe):
@@ -5446,7 +5446,7 @@ class Gel(Recipe):
             ),
             width=_OUTLINE_GEL, blend=BlendMode.ADD, **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=rim)
+        _draw_host_stroke(shape, skia_canvas, rim)
 
 
 
@@ -5600,7 +5600,7 @@ class Metal(Recipe):
             color=edge, width=_OUTLINE_METAL, **_host_stroke_knobs(shape),
         )
         if _is_line_shape(shape):
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=rim)
+            _draw_host_stroke(shape, skia_canvas, rim)
             return
 
         rv = getattr(shape, "_rotation_value", None)
@@ -5669,12 +5669,12 @@ class Sphere(Recipe):
         rim = self._stroke_paint(
             color=(0.05, 0.08, 0.12, 0.35), width=1.2, **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=rim)
+        _draw_host_stroke(shape, skia_canvas, rim)
         hi = self._stroke_paint(
             color=(1.0, 1.0, 1.0, 0.18 * self.amount), width=1.0,
             blend=BlendMode.ADD, **knobs,
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=hi)
+        _draw_host_stroke(shape, skia_canvas, hi)
 
 
 # ---------------------------------------------------------------------------
@@ -5741,7 +5741,7 @@ class Wave(Recipe):
             color=(*tint[:3], 0.55), width=_OUTLINE_WAVE, blend=BlendMode.ADD,
             alpha=0.45, **_host_stroke_knobs(shape),
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=rim)
+        _draw_host_stroke(shape, skia_canvas, rim)
 
 
 class Aurora(Recipe):
@@ -5804,7 +5804,7 @@ class Aurora(Recipe):
             color=(*tint[:3], 0.55), width=_OUTLINE_AURORA, blend=BlendMode.ADD,
             alpha=0.5, **_host_stroke_knobs(shape),
         )
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=rim)
+        _draw_host_stroke(shape, skia_canvas, rim)
 
 
 # Compiled material / shell visuals (single-pass) live in visuals.py
