@@ -1246,7 +1246,7 @@
   "anim": "thumbs/visual-aurora.anim.webp",
   "card": "thumbs/visual-aurora.card.webp",
   "h": 300,
-  "hash": "ac5d934bd58edf97",
+  "hash": "58d41ab010fdc1f0",
   "scene": "shape",
   "src": "thumbs/visual-aurora.webp",
   "w": 480
@@ -1264,7 +1264,7 @@
   "anim": "thumbs/visual-bolt.anim.webp",
   "card": "thumbs/visual-bolt.card.webp",
   "h": 300,
-  "hash": "928537925019f71d",
+  "hash": "a5ebe94fb682ef8c",
   "scene": "shape",
   "src": "thumbs/visual-bolt.webp",
   "w": 480
@@ -1274,7 +1274,7 @@
   "card": "thumbs/visual-bolt.card.webp",
   "code": "Bolt(style=\"core\")",
   "h": 300,
-  "hash": "928537925019f71d",
+  "hash": "a5ebe94fb682ef8c",
   "order": 0,
   "param": "style",
   "parent": "visual-bolt",
@@ -1289,7 +1289,7 @@
   "card": "thumbs/visual-bolt~style-filaments.card.webp",
   "code": "Bolt(style=\"filaments\")",
   "h": 300,
-  "hash": "c9dc3695f360a0db",
+  "hash": "bb9bd2fe2a0e486d",
   "order": 1,
   "param": "style",
   "parent": "visual-bolt",
@@ -1303,7 +1303,7 @@
   "card": "thumbs/visual-bolt~style-tesla.card.webp",
   "code": "Bolt(style=\"tesla\")",
   "h": 300,
-  "hash": "d04d1d29242cd9b5",
+  "hash": "eae4ad6dc4ee6847",
   "order": 2,
   "param": "style",
   "parent": "visual-bolt",
@@ -1376,7 +1376,7 @@
  "visual-gel": {
   "card": "thumbs/visual-gel.card.webp",
   "h": 300,
-  "hash": "2ad5fd29288a6d17",
+  "hash": "9ff5fe4a9f005809",
   "scene": "shape",
   "src": "thumbs/visual-gel.webp",
   "w": 480
@@ -1384,7 +1384,7 @@
  "visual-halo": {
   "card": "thumbs/visual-halo.card.webp",
   "h": 300,
-  "hash": "53db96004ae5bb60",
+  "hash": "0a842e5fd2e300ee",
   "scene": "shape",
   "src": "thumbs/visual-halo.webp",
   "w": 480
@@ -1393,7 +1393,7 @@
   "card": "thumbs/visual-halo~style-fill.card.webp",
   "code": "Halo(style=\"fill\")",
   "h": 300,
-  "hash": "efeb2dafa2056e63",
+  "hash": "200e137c851254af",
   "order": 1,
   "param": "style",
   "parent": "visual-halo",
@@ -1406,7 +1406,7 @@
   "card": "thumbs/visual-halo~style-hollow.card.webp",
   "code": "Halo(style=\"hollow\")",
   "h": 300,
-  "hash": "1a8a676753824079",
+  "hash": "6591d86bc14ad47e",
   "order": 0,
   "param": "style",
   "parent": "visual-halo",
@@ -1419,7 +1419,7 @@
   "card": "thumbs/visual-halo~style-line.card.webp",
   "code": "Halo(style=\"line\")",
   "h": 300,
-  "hash": "7f0b4707e42c48b9",
+  "hash": "5435e4216b462df8",
   "order": 3,
   "param": "style",
   "parent": "visual-halo",
@@ -1433,7 +1433,7 @@
   "card": "thumbs/visual-halo~style-pulse.card.webp",
   "code": "Halo(style=\"pulse\")",
   "h": 300,
-  "hash": "b2b10a188ee79caf",
+  "hash": "d1af463d6182d280",
   "order": 4,
   "param": "style",
   "parent": "visual-halo",
@@ -1446,7 +1446,7 @@
   "card": "thumbs/visual-halo~style-soft.card.webp",
   "code": "Halo(style=\"soft\")",
   "h": 300,
-  "hash": "6f0a8e4c1787fe2b",
+  "hash": "d6398eb459342bb1",
   "order": 2,
   "param": "style",
   "parent": "visual-halo",
@@ -1459,7 +1459,7 @@
   "anim": "thumbs/visual-ink.anim.webp",
   "card": "thumbs/visual-ink.card.webp",
   "h": 300,
-  "hash": "c350502e6d57acfc",
+  "hash": "496002afd12528f5",
   "scene": "shape",
   "src": "thumbs/visual-ink.webp",
   "w": 480
@@ -1467,7 +1467,7 @@
  "visual-inkbleed": {
   "card": "thumbs/visual-inkbleed.card.webp",
   "h": 300,
-  "hash": "006a4fa3a2d6f9f9",
+  "hash": "bc0b335c412d5a57",
   "scene": "shape",
   "src": "thumbs/visual-inkbleed.webp",
   "w": 480
@@ -1475,7 +1475,7 @@
  "visual-insertrim": {
   "card": "thumbs/visual-insertrim.card.webp",
   "h": 300,
-  "hash": "a83dee0c07da1bba",
+  "hash": "9980d6fdd8008c30",
   "scene": "shape",
   "src": "thumbs/visual-insertrim.webp",
   "w": 480
@@ -1484,7 +1484,7 @@
   "anim": "thumbs/visual-laser.anim.webp",
   "card": "thumbs/visual-laser.card.webp",
   "h": 300,
-  "hash": "90f4d8e0df8c9a0e",
+  "hash": "511f861f28933637",
   "scene": "shape",
   "src": "thumbs/visual-laser.webp",
   "w": 480
@@ -1502,7 +1502,7 @@
   "anim": "thumbs/visual-metal.anim.webp",
   "card": "thumbs/visual-metal.card.webp",
   "h": 300,
-  "hash": "10e28885be74847e",
+  "hash": "37c75fef1777ea0c",
   "scene": "shape",
   "src": "thumbs/visual-metal.webp",
   "w": 480
@@ -1510,7 +1510,7 @@
  "visual-multiborder": {
   "card": "thumbs/visual-multiborder.card.webp",
   "h": 300,
-  "hash": "98eeb6cd9acf2ef9",
+  "hash": "c38283ae95589978",
   "scene": "shape",
   "src": "thumbs/visual-multiborder.webp",
   "w": 480
@@ -1518,7 +1518,7 @@
  "visual-neon": {
   "card": "thumbs/visual-neon.card.webp",
   "h": 300,
-  "hash": "0d9bc605dac75b83",
+  "hash": "fcda9b8a3b42bea3",
   "scene": "shape",
   "src": "thumbs/visual-neon.webp",
   "w": 480
@@ -1527,7 +1527,7 @@
   "anim": "thumbs/visual-organicoutline.anim.webp",
   "card": "thumbs/visual-organicoutline.card.webp",
   "h": 300,
-  "hash": "e6d4f26ab5dc22cf",
+  "hash": "2c0d1603acd86016",
   "scene": "shape",
   "src": "thumbs/visual-organicoutline.webp",
   "w": 480
@@ -1701,7 +1701,7 @@
   "anim": "thumbs/visual-sphere.anim.webp",
   "card": "thumbs/visual-sphere.card.webp",
   "h": 300,
-  "hash": "2eaf514c511e401a",
+  "hash": "66b56cbdddb0ef9b",
   "scene": "shape",
   "src": "thumbs/visual-sphere.webp",
   "w": 480
@@ -1719,7 +1719,7 @@
   "anim": "thumbs/visual-tracer.anim.webp",
   "card": "thumbs/visual-tracer.card.webp",
   "h": 300,
-  "hash": "32bb6f84830e3686",
+  "hash": "d68bf7f8c5bced31",
   "scene": "shape",
   "src": "thumbs/visual-tracer.webp",
   "w": 480
@@ -1737,7 +1737,7 @@
   "anim": "thumbs/visual-wave.anim.webp",
   "card": "thumbs/visual-wave.card.webp",
   "h": 300,
-  "hash": "47238b178b225bb7",
+  "hash": "5e59639bf5b605c9",
   "scene": "shape",
   "src": "thumbs/visual-wave.webp",
   "w": 480
