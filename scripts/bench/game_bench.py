@@ -386,7 +386,7 @@ class Recorder:
             "ab": self.args.ab,
             "fb": self.fb,
             "rss_mb": [round(self.rss0, 1), round(self.rss1, 1)],
-            "load": [round(x, 2) for x in os.getloadavg()],
+            "load": load_average(),
             "scena_fingerprint": scena_fingerprint(),
             "sides": {k: v.summary() for k, v in self.sides.items()},
         }
@@ -396,10 +396,18 @@ class Recorder:
         return out
 
 
+def load_average() -> List[float]:
+    """The 1 / 5 / 15 min load average; NaN on Windows, which has none."""
+    if not hasattr(os, "getloadavg"):
+        return [float("nan")] * 3
+    return [round(x, 2) for x in os.getloadavg()]
+
+
 def profile_by_file(prof: cProfile.Profile, frames: int) -> Dict[str, float]:
     st = pstats.Stats(prof)
     by: Dict[str, float] = {}
     for (fname, _line, _fn), (_cc, _nc, tt, _ct, _callers) in st.stats.items():
+        fname = fname.replace(os.sep, "/")
         if "/scena/scena/" in fname:
             key = "scena/" + fname.split("/scena/scena/", 1)[1]
         elif fname.startswith("~") or fname.startswith("<"):
