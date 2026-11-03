@@ -145,6 +145,7 @@ Newest first. Primary: median **work_ms**. Phases in backticks (`t` tick, `f` fl
 
 | Date | Protocol | Host | mix work_ms (FPS) | suite notes | Notes |
 |------|----------|------|------------------:|-------------|-------|
+| 2026-11-03 | `sched-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 1.675 (597.1) `t0.70 f0.03 d0.48` | ride tick **1.35** (n=200) is the heavy cell | |
 | 2026-10-14 | `sched-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 2.060 (485.5) `t0.86 f0.04 d0.51` | ride tick **1.82** (n=200) is the heavy cell | |
 | 2026-09-29 | `sched-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.563 (639.9) `t0.73 f0.03 d0.43` | ride tick **1.56** (n=200) is the heavy cell | |
 | 2026-09-28 | `sched-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.449 (690.0) `t0.73 f0.03 d0.43` | ride tick **1.61** (n=200) is the heavy cell | |
@@ -167,6 +168,44 @@ Newest first. Primary: median **work_ms**. Phases in backticks (`t` tick, `f` fl
 ## Runs
 
 Newest first.
+
+### 2026-11-03 — sched-1
+
+| | |
+|---|---|
+| When | 2026-11-03 09:44 -0300 (12:44 UTC) |
+| Protocol | `sched-1` |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.16 |
+| Git | bc74ebf89a89 |
+| Scena | `c961ca68dbb9` |
+| Repeats | mix 3 (median); suite single-shot |
+| Scripts | `sched.py` `360d5ff9f003` · `harness.py` `38953009d9e9` |
+
+Frozen argv as in the protocol table. Window = design size via the phase harness; FB follows the display scale (2× on Retina) and is not recorded.
+
+#### mix (median of 3)
+
+| Metric | Median | min–max | spread |
+|--------|------:|--------:|-------:|
+| work_ms | **1.675** | 1.675–1.691 | — |
+| FPS | 597.1 | | |
+| tick_ms | 0.704 | | |
+| flush_ms | 0.035 | | |
+| draw_ms | 0.476 | | |
+| coll_ms | 0.024 | | |
+| handles | 207 | | |
+| events | 40 | | |
+
+#### suite (single-shot)
+
+| mode | n | work_ms | tick_ms | flush_ms | draw_ms | fps | handles | events |
+|------|--:|--------:|--------:|---------:|--------:|----:|--------:|-------:|
+| ride | 200 | 2.608 | 1.353 | 0.002 | 0.725 | 383.4 | 200 | 0 |
+| tween | 150 | 2.423 | 1.337 | 0.001 | 0.540 | 412.8 | 450 | 0 |
+| timers | 200 | 1.402 | 0.297 | 0.001 | 0.695 | 713.0 | 400 | 0 |
+| when | 200 | 2.234 | 0.701 | 0.308 | 0.746 | 447.7 | 37 | 400 |
+| process | 80 | 0.831 | 0.231 | 0.001 | 0.290 | 1203.9 | 223 | 0 |
+| mix | 120 | 1.550 | 0.653 | 0.032 | 0.450 | 645.2 | 208 | 40 |
 
 ### 2026-10-14 — sched-1
 

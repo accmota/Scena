@@ -70,6 +70,7 @@ Newest first. Primary: **baseline ms @ high**.
 
 | Date | Protocol | Host | baseline ms (FPS) @ high | top-3 +ms | Notes |
 |------|----------|------|-------------------------:|-----------|-------|
+| 2026-11-03 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 1.055 (947) | xf_burn +38.3 · visual_neon +9.8 · visual_neon_unique +9.7 |  |
 | 2026-10-14 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.012 (988) | xf_burn +40.7 · visual_neon +11.9 · visual_neon_unique +10.9 |  |
 | 2026-09-29 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 1.043 (959) | xf_burn +37.5 · visual_neon_unique +10.2 · visual_neon +9.7 |  |
 | 2026-09-28 | fx-1 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 0.951 (1051) | xf_burn +36.6 · visual_neon_unique +10.1 · visual_neon +9.4 |  |
@@ -90,6 +91,44 @@ Newest first. Primary: **baseline ms @ high**.
 ## Runs
 
 Newest first.
+
+### 2026-11-03 — fx-1
+
+| | |
+|---|---|
+| When | 2026-11-03 09:47 -0300 (12:47 UTC) |
+| Protocol | `fx-1` (comparable) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.16 |
+| Git | bc74ebf89a89 |
+| Scena | `c961ca68dbb9` |
+| Repeats | single-shot per cell |
+| Scripts | fingerprint `c6882bf76cff` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `perf_fx_matrix.py` | `b88f781d1cce` |
+| `run_fx.py` | `7803a6f92036` |
+
+Frozen argv as in the protocol table.
+
+#### baseline @ high
+
+- **1.055 ms**  (947 fps)
+
+#### top-10 rank
+
+| # | Effect | Cat | ms | +ms vs base |
+|--:|--------|-----|---:|------------:|
+| 1 | `xf_burn` | transient | 39.35 | +38.30 |
+| 2 | `visual_neon` | visual | 10.86 | +9.81 |
+| 3 | `visual_neon_unique` | visual | 10.75 | +9.69 |
+| 4 | `xf_spark` | transient | 8.33 | +7.28 |
+| 5 | `visual_ink_bleed` | visual | 8.10 | +7.04 |
+| 6 | `visual_shieldgear` | visual | 6.25 | +5.20 |
+| 7 | `visual_electricbolt` | visual | 5.67 | +4.61 |
+| 8 | `visual_electricfield` | visual | 5.37 | +4.32 |
+| 9 | `visual_tail` | visual | 4.17 | +3.11 |
+| 10 | `visual_water` | visual | 4.01 | +2.95 |
 
 ### 2026-10-14 — fx-1
 

@@ -50,6 +50,7 @@ Newest first. Primary: median **ttff_ms**.
 
 | Date | Protocol | Host | ttff ms | import | build | window | first frame | warm excess ms (spikes) | Notes |
 |------|----------|------|--------:|-------:|------:|-------:|------------:|------------------------:|-------|
+| 2026-11-03 | `startup-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 522 | 198 | 27 | 116 | 57.4 | 103.4 (1) | |
 | 2026-10-14 | `startup-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 528 | 223 | 28 | 132 | 50.0 | 142.3 (1) | |
 | 2026-09-29 | `startup-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 474 | 184 | 25 | 120 | 54.2 | 93.9 (1) | |
 | 2026-09-28 | `startup-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 405 | 182 | 26 | 95 | 22.1 | 37.3 (2) | |
@@ -61,6 +62,31 @@ Newest first. Primary: median **ttff_ms**.
 ## Runs
 
 Newest first.
+
+### 2026-11-03 — startup-1
+
+| | |
+|---|---|
+| When | 2026-11-03 09:54 -0300 (12:54 UTC) |
+| Protocol | `startup-1` |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.16 |
+| Git | bc74ebf89a89 |
+| Scena | `c961ca68dbb9` |
+| Launches | 5 fresh processes (median) |
+| Scripts | `perf_startup.py` `2ff9734756e8` · `frame_probe.py` `6a973197eeed` |
+
+| Stage | median ms | min–max |
+|-------|---------:|--------:|
+| python_ms | 24.92 | 24.01–27.25 |
+| import_ms | 198.10 | 193.13–214.33 |
+| build_ms | 26.77 | 25.68–28.13 |
+| window_ms | 116.06 | 114.24–133.65 |
+| first_ms | 57.41 | 53.78–60.11 |
+| ttff_ms | 522.44 | 488.96–546.68 |
+| warm_excess_ms | 103.42 | 90.87–256.14 |
+| warm_spikes | 1.00 | 1.00–1.00 |
+| warm_worst_ms | 53.95 | 50.24–56.84 |
+| steady_work_ms | 0.71 | 0.70–0.77 |
 
 ### 2026-10-14 — startup-1
 

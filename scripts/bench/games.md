@@ -44,6 +44,7 @@ Noise: ≲5 % is noise, ≳15 % noteworthy (auto-diff against the last row).
 
 | Date | Protocol | Host | Load | FB | ninja | horda | horda 400 | mundo | mundo 4000 | corrida | corrida max | festa | festa RSS | Notes |
 |------|----------|------|-----:|----|------:|------:|----------:|------:|-----------:|--------:|------------:|------:|----------:|-------|
+| 2026-11-03 | `games-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 3.9 | 2006x1504 | 2.44 | 9.34 | 59.44 | 16.08 | 36.87 | 1.43 | 11.23 | 42.68 | 259 |  |
 | 2026-10-14 | `games-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 3.1 | mixed | 2.56 | 11.17 | 91.10 | 17.99 | 40.10 | 1.63 | 24.00 | 43.46 | 280 |  |
 | 2026-10-13 | `games-2` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 2.6 | 2006x1504 | 2.59 | 11.14 | 71.84 | 18.62 | 41.21 | 1.77 | 23.85 | 44.27 | 278 | first games-2 row (HEAD af106c9) |
 
@@ -296,6 +297,39 @@ What remains:
 | B4 (bench) | startup import time doubled in the 2026-10-12 run, likely a no-bytecode shell | confirmed artifact (with bytecode: import 179 ms, ttff 406 ms, both better than the dashboard); `perf_startup` launches now always use bytecode |
 
 ## Runs
+
+### 2026-11-03 — games-2
+
+| | |
+|---|---|
+| When | 2026-11-03 09:47 -0300 (12:47 UTC) |
+| Protocol | `games-2` (comparable) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.16 |
+| Load | 3.94 (median of runs) |
+| FB | festa 2006x1504 (the gated cells) |
+| Repeats | 3 (interleaved; median) |
+| Git | bc74ebf89a89 |
+| Scena | `c961ca68dbb9` |
+| Scripts | fingerprint `2434bc7ad5c6` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `game_bench.py` | `4e02c9456dbf` |
+| `run_games.py` | `0474575bb1c2` |
+| `games/horda.py` | `d1861b67aea7` |
+| `games/mundo.py` | `4950da970c40` |
+| `games/corrida.py` | `72a99d1c4f3f` |
+| `games/festa.py` | `cba1b8c5597b` |
+
+| Game | work | runs | p95 | p99 | max | x4 | fps | RSS end | FB | top phases |
+|------|-----:|------|----:|----:|----:|---:|----:|--------:|----|------------|
+| ninja  | 2.44 | 2.70 / 2.43 / 2.44 | 2.73 | 2.84 | 13.0 | 9.8 | 355 | 386 | 2006x1504 | simulate 1.97, processes 1.39, collision 0.53, draw_frame 0.41 |
+| horda n=150 | 9.34 | 9.61 / 9.17 / 9.34 | 12.39 | 13.62 | 18.7 | 37.3 | 101 | 228 | 2006x1504 | simulate 8.09, collision 7.10, draw_frame 1.08, scene_draw 0.92 |
+| horda400 n=400 | 59.44 | 61.05 / 56.06 / 59.44 | 109.36 | 112.60 | 113.7 | 237.8 | 17 | 236 | 2006x1504 | simulate 54.52, collision 51.53, draw_frame 4.55, scene_draw 4.29 |
+| mundo tiles=1500,robots=20 | 16.08 | 16.25 / 16.08 / 16.08 | 18.28 | 19.62 | 30.3 | 64.3 | 59 | 322 | 2006x1504 | simulate 12.87, collision 8.71, processes 4.06, draw_frame 3.07 |
+| mundo4000 tiles=4000,robots=20 | 36.87 | 37.11 / 36.66 / 36.87 | 42.07 | 44.49 | 49.7 | 147.5 | 27 | 370 | 2006x1504 | simulate 28.15, collision 21.99, draw_frame 8.50, scene_draw 8.22 |
+| corrida speed=600 | 1.43 | 1.44 / 1.43 / 1.43 | 1.70 | 1.92 | 11.2 | 5.7 | 563 | 298 | 2506x1504 | simulate 1.07, collision 0.52, processes 0.42, present 0.35 |
+| festa n=300 | 42.68 | 42.38 / 43.14 / 42.68 | 49.33 | 51.57 | 52.2 | 170.7 | 22 | 259 | 2006x1504 | submit 25.80, draw_frame 9.65, scene_draw 8.64, simulate 7.16 |
 
 ### 2026-10-14 — games-2
 

@@ -49,6 +49,7 @@ Newest first. Primary: sierpinski **work_ms**.
 
 | Date | Protocol | Host | sierpinski work_ms (FPS) | shallow work_ms (FPS) | Notes |
 |------|----------|------|-------------------------:|----------------------:|-------|
+| 2026-11-03 | `graph-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 10.595 (94.4) | 4.693 (213.1) |  |
 | 2026-10-14 | `graph-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 11.546 (86.6) | 6.110 (163.7) |  |
 | 2026-09-29 | `graph-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 7.610 (131.4) | 4.263 (234.6) |  |
 | 2026-09-28 | `graph-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 6.938 (144.1) | 4.283 (233.5) |  |
@@ -68,6 +69,35 @@ Newest first. Primary: sierpinski **work_ms**.
 ## Runs
 
 Newest first.
+
+### 2026-11-03 — graph-1
+
+| | |
+|---|---|
+| When | 2026-11-03 09:47 -0300 (12:47 UTC) |
+| Protocol | `graph-1` (pro-forma) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.16 |
+| Git | bc74ebf89a89 |
+| Scena | `c961ca68dbb9` |
+| Repeats | single-shot |
+| Scripts | fingerprint `4c7251af9ee9` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `sierpinsky.py` | `43d169448391` |
+| `reactive_graph.py` | `8e44d78eaae7` |
+| `run_graph.py` | `1afaa3b51833` |
+| `harness.py` | `38953009d9e9` |
+
+Frozen argv as in the protocol table. Window = design size via the phase harness; FB follows the display scale (2× on Retina) and is not recorded.
+
+#### sierpinski depth=5
+
+- work_ms **10.595**  FPS 94.4  draw 6.506  flush 0.003
+
+#### reactive_graph (shallow ~200)
+
+- work_ms **4.693**  FPS 213.1  draw 2.561  flush 0.001
 
 ### 2026-10-14 — graph-1
 

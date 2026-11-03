@@ -94,6 +94,7 @@ Newest first. Primary: median **work_ms**. cpu/live phases in backticks (`t` tic
 
 | Date | Protocol | Host | cpu_mix work_ms (FPS) | gpu_mix work_ms (FPS) | heroes_mass work_ms (FPS) | live_mix work_ms (FPS) | soak last RSS / idle / Δobj | Notes |
 |------|----------|------|----------------------:|----------------------:|--------------------------:|-----------------------:|----------------------------:|-------|
+| 2026-11-03 | balanced-2 | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 4.582 (218.2) `t1.29 c1.49 d1.07` | 10.198 (98.1) | 7.445 (134.3) | 9.095 (109.9) `t3.10 c3.16 d1.22` | 191.0 MiB / 0.705 ms / Δobj 0 |  |
 | 2026-10-14 | balanced-2 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 5.452 (183.4) `t1.33 c1.56 d1.01` | 9.305 (107.5) | 8.329 (120.1) | 8.903 (112.3) `t3.07 c3.12 d1.10` | 210.5 MiB / 0.754 ms / Δobj 0 |  |
 | 2026-09-29 | balanced-2 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 4.795 (208.6) `t1.37 c1.68 d0.99` | 8.430 (118.6) | 6.227 (160.6) | 8.390 (119.2) `t2.72 c3.26 d1.03` | 177.7 MiB / 0.811 ms / Δobj 0 |  |
 | 2026-09-28 | balanced-2 | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 4.482 (223.1) `t1.31 c1.71 d0.99` | 6.628 (150.9) § | 7.637 (130.9) § | 8.124 (123.1) `t2.71 c3.31 d1.04` | 171.6 MiB / 0.802 ms / Δobj 0 | post B1+B2 fixes (pull stores raw; hot validators). § GPU cells ran at FB 1200×800 (1×, window on another display) — not comparable to the 2× rows; the gpu −25% auto-diff is the FB change. Same code at 2× on 09-29: heroes 6.18 ms, draw 2.35 (flat vs 09-24) |
@@ -127,6 +128,51 @@ Newest first. Primary: median **work_ms**. cpu/live phases in backticks (`t` tic
 ## Runs
 
 Newest first.
+
+### 2026-11-03 — balanced-2
+
+| | |
+|---|---|
+| When | 2026-11-03 09:43 -0300 (12:43 UTC) |
+| Protocol | `balanced-2` (comparable) |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.16 |
+| Git | bc74ebf89a89 |
+| Scena | `c961ca68dbb9` |
+| Repeats | 3 (median) |
+| Scripts | fingerprint `c90b827a0504` |
+
+| File | sha256[:12] |
+|------|-------------|
+| `cpu_mix.py` | `264e596fbe54` |
+| `gpu_mix.py` | `de58ed18127f` |
+| `live_mix.py` | `6ececcf47eb3` |
+| `soak_leak.py` | `611eb054bef8` |
+| `harness.py` | `38953009d9e9` |
+| `run_balanced.py` | `66590e33721c` |
+
+Summary row:
+
+| 2026-11-03 | balanced-2 | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 4.582 (218.2) `t1.29 c1.49 d1.07` | 10.198 (98.1) | 7.445 (134.3) | 9.095 (109.9) `t3.10 c3.16 d1.22` | 191.0 MiB / 0.705 ms / Δobj 0 |  |
+
+#### cpu_mix
+
+- work_ms **4.582 ±18%**  FPS 218.2  tick 1.288  coll 1.492  draw 1.067
+
+#### gpu_mix (realistic)
+
+- work_ms **10.198 ±16%**  FPS 98.1  draw 4.689  post 0.117  FB 2400×1600
+
+#### gpu_mix (heroes_mass n=48)
+
+- work_ms **7.445 ±15%**  FPS 134.3  draw 3.302  post 0.000  FB 2400×1600
+
+#### live_mix
+
+- work_ms **9.095 ±4%**  FPS 109.9  tick 3.098  coll 3.162  draw 1.221
+
+#### soak_leak
+
+- last RSS **191.03 MiB**  last idle **0.705 ms**  Δrss 0.83  Δwork -0.038  Δobj 0  Δhandles 0
 
 ### 2026-10-14 — balanced-2
 

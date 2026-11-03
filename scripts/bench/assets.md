@@ -58,6 +58,7 @@ Newest first. Primary: **Σ cold first-use ms**.
 
 | Date | Protocol | Host | Σ cold ms | worst asset (ms) | Σ warm ms | Notes |
 |------|----------|------|----------:|-----------------:|----------:|-------|
+| 2026-11-03 | `assets-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.16 | 64.5 | wall_png 16.1 | 6.6 | |
 | 2026-10-14 | `assets-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 68.7 | wall_png 15.3 | 7.2 | |
 | 2026-09-29 | `assets-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 83.9 | wall_png 36.8 | 6.5 | |
 | 2026-09-28 | `assets-1` | Apple M4 · Darwin 26.6.2 · Py 3.12.13 | 86.8 | wall_png 38.0 | 7.0 | |
@@ -71,6 +72,27 @@ Newest first. Primary: **Σ cold first-use ms**.
 ## Runs
 
 Newest first.
+
+### 2026-11-03 — assets-1
+
+| | |
+|---|---|
+| When | 2026-11-03 09:54 -0300 (12:54 UTC) |
+| Protocol | `assets-1` |
+| Host | Apple M4 · Darwin 26.6.2 · Py 3.12.16 |
+| Git | bc74ebf89a89 |
+| Scena | `c961ca68dbb9` |
+| Launches | 3 fresh processes (median per asset) |
+| Scripts | `perf_assets.py` `c31b9c291b26` · `frame_probe.py` `6a973197eeed` |
+
+| Asset | construct | cold first-use | warm | decode (CPU) |
+|-------|---------:|---------------:|-----:|-------------:|
+| sprite | 4.25 | **7.39** | 0.64 | 3.10 |
+| atlas | 5.68 | **7.37** | 1.04 | 1.66 |
+| strip | 14.36 | **15.80** | 0.76 | 9.27 |
+| hitbox | 9.05 | **9.29** | 1.13 | — |
+| wall_jpg | 5.45 | **8.62** | 1.51 | 3.95 |
+| wall_png | 14.91 | **16.07** | 1.48 | 12.63 |
 
 ### 2026-10-14 — assets-1
 
