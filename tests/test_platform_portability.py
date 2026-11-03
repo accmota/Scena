@@ -69,6 +69,15 @@ Found on the 0.10.1 quick tier on Windows (2026-10-27; WP49):
   1.12 s (idle: ~0.1 s). An example's or a game's test counts the work (the
   example's lines, the points tried), never reads a clock: no
   ``tests/test_example_*.py`` / ``tests/test_game_*.py`` calls one.
+
+Found by the quick tier on the Windows laptop (2026-11-03; WP56):
+
+* **pyminiaudio opens most files by a narrow path.** ``decode_file``, the
+  ``*_read_file*`` family and the Ogg branch of ``get_file_info`` pass the
+  path to C as UTF-8 bytes and C opens it in the Windows code page: a sound
+  under a ``Música`` folder played silence. The engine reads the bytes in
+  Python (``audio._decode_path`` / ``_file_info``) and calls only
+  ``stream_file`` (wide-char on Windows) by path.
 """
 from __future__ import annotations
 
@@ -315,6 +324,75 @@ class TestSourceScansUseTheHelper(unittest.TestCase):
             [".glob", ".glob", ".iterdir", ".rglob", "listdir", "os.listdir",
              "os.scandir", "os.walk"],
         )
+
+
+# pyminiaudio functions that take a path. Only these open it with the
+# wide-char API on Windows; ``get_file_info`` does except for an Ogg, so it is
+# called in one place, which routes an Ogg through bytes (WP56).
+_MA_PATH_OK = frozenset({"stream_file"})
+_MA_PATH_ONE_PLACE = {"get_file_info": ("scena/audio.py", "_file_info")}
+
+
+def _miniaudio_path_calls(path: str):
+    """``(line, name, enclosing function)`` of each ``miniaudio.<name>(...)``
+    that takes a path (a ``*_file*`` name, or ``read_file``)."""
+    with open(path, encoding="utf-8") as fh:
+        tree = ast.parse(fh.read(), path)
+    out = []
+
+    def visit(node, fn):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                visit(child, child.name)
+                continue
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
+                f = child.func
+                if (isinstance(f.value, ast.Name) and f.value.id == "miniaudio"
+                        and ("_file" in f.attr or f.attr == "read_file")):
+                    out.append((child.lineno, f.attr, fn))
+            visit(child, fn)
+    visit(tree, None)
+    return out
+
+
+class TestSoundFilesOpenByAWidePath(unittest.TestCase):
+    """WP56: a narrow-path pyminiaudio call fails on a non-ASCII path on
+    Windows (error -7, the sound plays silence)."""
+
+    def test_only_wide_path_calls_take_a_path(self):
+        bad = []
+        for root in (SCENA, EDITOR):
+            for path in iter_files(root, ".py", recursive=True):
+                rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+                for line, name, fn in _miniaudio_path_calls(path):
+                    if name in _MA_PATH_OK or _MA_PATH_ONE_PLACE.get(name) == (rel, fn):
+                        continue
+                    bad.append(f"{rel}:{line}: miniaudio.{name}() in {fn}")
+        self.assertEqual(
+            bad, [],
+            "read the file's bytes and decode them (scena/audio.py _decode_path): "
+            "pyminiaudio opens this by a narrow path, which fails on a non-ASCII "
+            "path on Windows:\n" + "\n".join(bad),
+        )
+
+    def test_guard_sees_each_spelling(self):
+        src = ("import miniaudio\n"
+               "miniaudio.decode_file(p)\n"
+               "def f():\n    miniaudio.vorbis_read_file(p)\n"
+               "miniaudio.stream_file(p)\n"
+               "miniaudio.decode(data)\n"
+               "def _file_info():\n    miniaudio.get_file_info(p)\n"
+               "miniaudio.read_file(p)\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            f = os.path.join(tmp, "m.py")
+            with open(f, "w", encoding="utf-8") as fh:
+                fh.write(src)
+            found = _miniaudio_path_calls(f)
+        self.assertEqual(found, [
+            (2, "decode_file", None), (4, "vorbis_read_file", "f"),
+            (5, "stream_file", None), (8, "get_file_info", "_file_info"),
+            (9, "read_file", None),
+        ])
 
 
 class TestTextIoNamesItsEncoding(unittest.TestCase):
