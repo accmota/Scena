@@ -33,6 +33,12 @@ left out.
 - On Windows, a sound whose path has an accent or any other non-ASCII
   letter now plays. A file in a `Música` folder, under a user named `João`,
   or named `ação.wav` was silence with a "Could not decode sound" warning.
+- `shape.center + vec` and the other Point sums and differences (`p - v`,
+  `v + p`, `p + (1, 2)`) run about 10 times faster: 43 → 4 µs each. They
+  no longer make garbage only the collector can free. In `examples/guardian.py`,
+  whose Arrows use one for each wing, the heaviest wave's slow frames (p95)
+  went from 10.3 to 6 ms, and 50 Arrows from 7.9 to 3.1 ms a frame. Nothing
+  to change in a game: the result is the same `Point`.
 
 ## 0.11.0 — 2026-10-28
 

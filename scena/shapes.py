@@ -10,7 +10,9 @@ from collections.abc import Sequence
 from abc import ABC, abstractmethod
 
 from functools import wraps
+from operator import attrgetter
 
+from . import state as _state
 from ._defaults import Unset
 from ._pkg import RetiredClassMeta
 from .style import PaintState, LookLike
@@ -19,7 +21,7 @@ from .scenamath import Vec2, vec_from_angle
 from .state import (
     probe_private,
     _notify_source_anchors,
-    Attribute, Container, ContainerSlot, ScalarSlot, ScalarAnchor, FieldRef, FieldType,
+    Attribute, Container, ContainerSet, ContainerSlot, ScalarSlot, ScalarAnchor, FieldRef, FieldType,
     batch_update_attrs, batch_update_self, ephemeral_creation, LinkedAttributeError, DestroyedError,
     CallableAssignError,
     driver_conflict_message,
@@ -3348,6 +3350,66 @@ def _marker_fill(color, alpha) -> Color:
     return hit
 
 
+_isfinite = math.isfinite
+_object_new = object.__new__
+
+# What a free Point copies from the default paint state when it is built:
+# ``Point.temp``'s template stays good while these are the same.
+_temp_look_of = attrgetter(
+    '_line_width', '_dash', '_line_cap', '_line_join', '_line', '_fill', '_blend',
+    '_line_filter', '_fill_filter', '_visual', '_look_identity', '_glow', '_shadow',
+    '_hue', '_gray', '_tail', '_tail_follow', '_tail_locked_angle',
+    '_stamp_base_ff', '_stamp_base_lf', '_tail_angle', '_tail_size', '_tail_amount',
+)
+# A temp's own, filled per call. ``_pose_cell`` and ``_subtree_cache`` are made
+# on first use: built eagerly, the one queued a cell for the collision drain
+# and the other (``[self]``) made every temp a cycle for the collector.
+_TEMP_POINT_OWN = frozenset({'_pose_cell', '_subtree_cache'})
+_temp_point_look = None     # the look the template below was read under
+_temp_point_dict = None     # the general constructor's ``__dict__``, key order included
+_temp_point_slots = ()      # (slot setter, value) for every slot it sets
+_set_temp_canvas = None     # the ``_scenacanvas`` slot's setter
+_temp_canvas_class = None   # ScenaCanvas (canvas imports this module)
+
+
+def _read_temp_point_template(look) -> bool:
+    """Read ``Point.temp``'s template off one Point the general constructor
+    built, so no field is listed by hand. False when the default paint holds
+    state a template cannot share (a look's identity dict, a tail's live
+    formula fields): such a world keeps the constructor."""
+    global _temp_point_look, _temp_point_dict, _temp_point_slots
+    global _set_temp_canvas, _temp_canvas_class
+    _temp_point_look = None
+    defaults = PaintState._default_instance
+    if defaults._look_identity is not None or defaults._tail is not None:
+        return False
+    if _temp_canvas_class is None:
+        from .canvas import ScenaCanvas
+        _temp_canvas_class = ScenaCanvas
+    with ephemeral_creation():
+        made = Point(0.0, 0.0, layer=None)
+    fields = {k: v for k, v in made.__dict__.items() if k not in _TEMP_POINT_OWN}
+    fields['_scena_system'] = fields['_parts'] = None
+    slots = []
+    for klass in Point.__mro__:
+        names = klass.__dict__.get('__slots__', ())
+        for name in (names,) if isinstance(names, str) else names:
+            if name in ('__weakref__', '__dict__'):
+                continue
+            setter = klass.__dict__[name].__set__
+            if name == '_scenacanvas':
+                _set_temp_canvas = setter
+                continue
+            try:
+                slots.append((setter, object.__getattribute__(made, name)))
+            except AttributeError:
+                pass                    # a slot the constructor leaves unset
+    _temp_point_dict = fields
+    _temp_point_slots = tuple(slots)
+    _temp_point_look = look
+    return True
+
+
 class Point(Shape):
     """XY locus. Undrawn by default (``layer=None``, ``visible=False``) for efficiency.
 
@@ -3681,8 +3743,32 @@ class Point(Shape):
             x = x.value
         if isinstance(y, Attribute):
             y = y.value
+        x = float(x)
+        y = float(y)
+        defaults = PaintState._default_instance
+        if (cls is Point and _isfinite(x) and _isfinite(y) and defaults is not None
+                and _state._global_scena_system is not None):
+            # Fast path (every arithmetic result): the state the general
+            # constructor below leaves, from a template read off a real one.
+            # Shapes Design, "Point arithmetic"; guard:
+            # test_ephemeral_math.TestPointTempFastPath.
+            look = _temp_look_of(defaults)
+            if look == _temp_point_look or _read_temp_point_template(look):
+                canvas = _temp_canvas_class._current_canvas
+                if canvas is not None:
+                    p = _object_new(Point)
+                    for set_slot, value in _temp_point_slots:
+                        set_slot(p, value)
+                    _set_temp_canvas(p, canvas)
+                    d = p.__dict__
+                    d.update(_temp_point_dict)
+                    d['_scena_system'] = _state._global_scena_system
+                    d['_parts'] = ContainerSet()
+                    d['x'] = x
+                    d['y'] = y
+                    return p
         with ephemeral_creation():
-            return cls(float(x), float(y), layer=None)
+            return cls(x, y, layer=None)
 
     def _marker_radius(self) -> float:
         """Draw radius: larger for handles, smaller for guides."""
@@ -3988,8 +4074,7 @@ class Point(Shape):
 
 # The ephemeral Point a linked State cell holds refuses in-place writes
 # (``state._LinkedPointGuard``, G5); other Points pay nothing.
-from . import state as _state_for_point  # noqa: E402
-_state_for_point._LINKED_POINT = Point
+_state._LINKED_POINT = Point
 
 
 class LineModel(Enum):

@@ -374,7 +374,7 @@ For **in-`__init__` model-relation wiring** written as `self.<part>.assign_formu
 - `rotate_*` / `scale_*` move the point about `about` (default: self → no-op for position).
   The heading still turns: `rotate_by(a)` about itself adds `a` to `angle`, as
   `rotate_to` sets it (raycast's default `angle` reads it). Bug G1.
-- Arithmetic uses `Point.temp` under `ephemeral_creation` (never linked, not on canvas).
+- Arithmetic uses `Point.temp`: ephemeral, never linked, not on canvas ([Point arithmetic](#point-arithmetic), "A result skips the constructor").
 - **`==` is identity** (and so is the hash: `__hash__ = object.__hash__`,
   restated because a class that defines `__eq__` loses it). A Point is an
   object, and the engine relies on that: the registry scans `layer._interactive`
@@ -792,6 +792,30 @@ Default pivot (`about=None`) is `shape.center` (Point: self). For `rotate_*` / `
 ### Point arithmetic
 
 `p + (dx, dy)` and `p + vec` return a new detached `Point`. `(dx, dy) + p` is the same translation. `p - (dx, dy)` translates by the negated delta (a `Point`). `p - other_point` is the `Vec2` between them. `p + other_point` raises — the midpoint is `middle_point`, the vector is `a - b`. The result is not registered and not linked. A formula `bullet.center @= lambda: ship.center + (0, 10)` still follows `ship`, because the formula reads `ship.center`.
+
+**A result skips the constructor (performance rule).** Games write `shape.center + vec` in formulas and `on_update` many times a frame, and a Point is a whole Shape: about 90 slots and 29 `__dict__` keys, ~41 µs through the constructor. Each general build also queued a pose cell for the collision drain and left `_subtree_cache = [self]`, so every result was a reference cycle only the collector could free. `Point.temp` now copies a template for an exact `Point` with finite coordinates, the same idea as `Vec2.temp` ([Reactive Design, "Vec2"](Reactive%20Design.md#vec2-scenamathpy)):
+
+- **The template is read, not listed.** `shapes._read_temp_point_template` builds one Point through the general constructor and keeps its `__dict__` and every slot it set, so a new field reaches the temps by itself. Per call: the current `_scena_system` and `_scenacanvas`, a fresh `_parts`, `x`, `y`. Shared by every temp: immutable values only (the `Color`, the empty `GroupTags`, the paint memo).
+- **It follows the defaults.** A temp copies its look from `PaintState._default_instance`, which `set_defaults` replaces, an act change puts back by assignment, and `set_defaults().line_width = 7` writes in place. No hook sees all three, so each call compares `_temp_look_of(defaults)` (one C-level `attrgetter`, ~0.3 µs) with the look the template was read under and rereads it on a difference. Add a field here if `_copy_look_from` starts copying a new one. A default look with an identity dict or a tail keeps the constructor: those hold per-object state a template cannot share.
+- **`_pose_cell` and `_subtree_cache` are absent until used.** Their readers already make them on first use (`_pose_cell_of`, `_subtree_list`), and the pose revision starts at 0 (`pose_rev`). So a temp queues no cell and holds no cycle: its last reference frees it.
+- **Everything else takes the constructor and its errors:** a subclass (`setup`, hooks), NaN / inf, no scena system, no canvas, no defaults.
+- **Slots are set by a loop over their descriptors' `__set__` (2.9 µs).** `object.__setattr__` costs 5 µs. A generated `exec` function on a raw subclass with `__class__` swapped back costs 0.7 µs, but saves only ~0.2 ms in the worst game frame measured for much more machinery, so it was left out. Returning a `Vec2` from `p + v` would also be cheap, but it is a published type change (`.draggable`, `.move_to`, `p - q`). A lazy subclass that builds itself on first miss would make `type(p)` lie.
+
+Measured 2026-11-03 (HEAD tree against this one, four interleaved rounds, one process per side, real loop at 2× framebuffer):
+
+| Spelling / scene | Before | After |
+| --- | --- | --- |
+| `Point.temp(1.0, 2.0)` | 41.0 µs | 3.6 µs |
+| `shape.center + vec` | 43.5 µs | 4.4 µs |
+| `vec + shape.center` | 43.3 µs | 4.6 µs |
+| `shape.center + (1, 2)` | 42.9 µs | 4.3 µs |
+| 50 guardian Arrows (two formula wings each), work per frame | 7.9 ms | 3.1 ms |
+| `examples/guardian.py` Swarm, work p95 / mean | 10.3 / 3.2 ms | 6.2 / 2.7 ms |
+| Same run, collections / time in the collector | ~1300 / 240 ms | ~210 / 50 ms |
+| `horda` n=400 (control), work | 36.1 ms | 36.3 ms (noise) |
+| `shape.center - point`, `Vec2.temp` (controls) | 1.03, 0.39 µs | 1.01, 0.38 µs |
+
+What remains of the Swarm's p95 is the wing formulas' pull at draw (~13 µs a wing), not arithmetic. Guard: `tests/test_ephemeral_math.py`, `TestPointTempFastPath` (slot by slot and key by key the general constructor's state, under changed, written-in-place and reinstalled defaults; each door compared whole with the general path; no cycle, no queued cell; a spy that the constructor did not run).
 
 `+=` / `-=` on a Point raise `TypeError`. `ship.center += (dx, dy)` would be unswept placement (walls do not stop it) and, on a free marker, would rebind the name to a new point. Move with `move_by(dx, dy)`. Place with `ship.center = ship.center + (dx, dy)`.
 

@@ -836,7 +836,7 @@ flush()
 
 ## Ephemeral containers
 
-Arithmetic temps (`Point.temp()`, `Vec2` ops, etc.) are created under `with ephemeral_creation()` (an exact `Vec2` from two finite floats gets the same state written directly: [Vec2](#vec2-scenamathpy), "Arithmetic results skip the constructor"):
+Arithmetic temps (`Point.temp()`, `Vec2` ops, etc.) are created under `with ephemeral_creation()` (an exact `Vec2` or `Point` from two finite floats gets the same state written directly: [Vec2](#vec2-scenamathpy), "Arithmetic results skip the constructor"; [Shapes Design](Shapes%20Design.md#point-arithmetic), "A result skips the constructor"):
 
 - `_ephemeral = True`, `node_id = None` — never registered
 - no structural or formula edges

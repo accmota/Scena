@@ -175,8 +175,10 @@ dst.every(0.05, lambda: contrail.snapshot(dst))
   `tests/test_contrail_rebuild.py` (byte-identical stroke, bands, alphas and
   centre against the pre-change rebuild over random trails, through
   `snapshot` too; a spy: one curve per span, one `_phantom_open` a rebuild).
-  What remains of a snapshot is mostly the detached `Point` (~43 µs, a full
-  Shape build even through `Point.temp`) and reading the points back.
+  What remained of a snapshot then was mostly the detached `Point` (~43 µs, a
+  full Shape build) and reading the points back. `snapshot(x, y)` now takes
+  `Point.temp`'s template (~4 µs, [Shapes Design](Shapes%20Design.md#point-arithmetic));
+  `snapshot(point)` still copies through the constructor.
 - No `stroke=` (stroke-only shape → `color=` is enough). Sampling stays `every` + `snapshot` — see [Sampling](#sampling).
 - Snapshot for travel: `Track(points=list(contrail), smooth=0)`.
 
