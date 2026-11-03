@@ -16,9 +16,11 @@ Strategy: design/Testing Design.md, "Laws and equations".
 """
 from __future__ import annotations
 
+import gc
 import os
 import sys
 import unittest
+import weakref
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -130,6 +132,57 @@ class TestRecorderSeesEveryDoor(unittest.TestCase):
                 break
         self.assertEqual(order, ["update", "tick", "collision", "leave", "hover", "flush",
                                  "predraw", "expire"])
+
+
+class TestSuspendableFrames(unittest.TestCase):
+    """A task or generator frame lives on after the recorder reads its locals.
+
+    CPython 3.12 caches the read on the frame (the recorder drops it); from
+    3.13 ``f_locals`` is a proxy with no cache and no ``clear`` (PEP 667).
+    The 0.11.0 gate on 3.14 failed every laws run with a task method:
+    ``'FrameLocalsProxy' object has no attribute 'clear'``.
+    """
+
+    def test_a_task_method_is_recorded_without_error(self):
+        run = ProgramRun("tests/laws/fixtures/s4_timers")
+        attach(run)
+        run.start()
+        try:
+            run.step(30)
+        finally:
+            run.close()
+        self.assertEqual(run.laws.errors, [])
+        first = [e for e in run.laws.events
+                 if e[0] == "X" and e[3].endswith(":Sleeper.count") and not e[5]]
+        self.assertTrue(first, "the Sleeper's task never started under the recorder")
+
+    def test_the_frame_keeps_its_variables(self):
+        def body():
+            x = 41
+            yield
+            yield x + 1
+
+        g = body()
+        next(g)
+        trace._drop_locals_cache(g.gi_frame.f_locals)
+        self.assertEqual(next(g), 42)
+
+    def test_what_the_frame_let_go_is_freed(self):
+        class Thing:
+            pass
+
+        def body():
+            x = Thing()
+            yield weakref.ref(x)
+            x = None
+            yield
+
+        g = body()
+        ref = next(g)
+        trace._drop_locals_cache(g.gi_frame.f_locals)
+        next(g)
+        gc.collect()
+        self.assertIsNone(ref(), "the f_locals snapshot still holds what the frame dropped")
 
 
 class TestLabelsFollowTheObject(unittest.TestCase):

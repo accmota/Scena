@@ -386,9 +386,7 @@ class Recorder:
             "ab": self.args.ab,
             "fb": self.fb,
             "rss_mb": [round(self.rss0, 1), round(self.rss1, 1)],
-            # Windows has no load average (os.getloadavg is POSIX only).
-            "load": ([round(x, 2) for x in os.getloadavg()]
-                     if hasattr(os, "getloadavg") else None),
+            "load": load_average(),
             "scena_fingerprint": scena_fingerprint(),
             "sides": {k: v.summary() for k, v in self.sides.items()},
         }
@@ -396,6 +394,13 @@ class Recorder:
             out["profile_by_file"] = profile_by_file(self.prof, max(1, sum(
                 s.frames for s in self.sides.values())))
         return out
+
+
+def load_average() -> List[float]:
+    """The 1 / 5 / 15 min load average; NaN on Windows, which has none."""
+    if not hasattr(os, "getloadavg"):
+        return [float("nan")] * 3
+    return [round(x, 2) for x in os.getloadavg()]
 
 
 def profile_by_file(prof: cProfile.Profile, frames: int) -> Dict[str, float]:
@@ -407,6 +412,8 @@ def profile_by_file(prof: cProfile.Profile, frames: int) -> Dict[str, float]:
         fname = fname.replace("\\", "/")
         if fname.startswith(repo):
             key = fname[len(repo):]
+        elif "/scena/scena/" in fname:               # another checkout of the repo
+            key = "scena/" + fname.split("/scena/scena/", 1)[1]
         elif fname.startswith("~") or fname.startswith("<"):
             key = "builtins/C"
         elif "site-packages/" in fname:

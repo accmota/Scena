@@ -19,6 +19,7 @@ import io
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -403,6 +404,61 @@ class TestFingerprintRowLabel(unittest.TestCase):
     def test_new_and_old_labels(self):
         for label in ("Scena", "Stage"):
             self.assertEqual(rb.latest_scena_fingerprint(self._log(label)), "0123456789ab", label)
+
+
+import game_bench as gb  # noqa: E402
+
+
+class TestGameBenchOnWindows(unittest.TestCase):
+    """Regression for 2026-11-03: ``game_bench.py`` read ``os.getloadavg()``,
+    which Windows lacks, so every run raised at its report (and ``run_games``
+    lost every game). Its profile grouping split on ``/`` only, so on Windows
+    no file was filed under ``scena/``."""
+
+    def test_load_is_nan_without_getloadavg(self):
+        with mock.patch.object(gb, "os", types.SimpleNamespace()):   # Windows' os: no getloadavg
+            load = gb.load_average()
+        self.assertEqual(len(load), 3)
+        self.assertTrue(all(x != x for x in load))
+        g = rg.summarize_game([_game_rep(10.0, load=float("nan"))])
+        self.assertNotEqual(g["load"], g["load"])
+
+    def test_profile_files_backslash_paths_under_scena(self):
+        class _Stats:
+            stats = {(r"C:\src\scena\scena\collision.py", 1, "step"): (1, 1, 0.004, 0.004, {}),
+                     ("/src/scena/scena/canvas.py", 1, "draw"): (1, 1, 0.002, 0.002, {})}
+        with mock.patch.object(gb.pstats, "Stats", return_value=_Stats()), \
+                mock.patch.object(gb.os, "sep", "\\"):
+            by = gb.profile_by_file(None, 2)
+        self.assertEqual(by, {"scena/collision.py": 2.0, "scena/canvas.py": 1.0})
+
+
+import run_all  # noqa: E402
+
+
+class TestRunAllPreviewWritesNothing(unittest.TestCase):
+    """Regression for 2026-11-03: ``run_all.py --no-append`` on the Windows
+    laptop still ran ``dashboard.py``, which rewrote the tracked dashboard's
+    fingerprint line with that host beside the Mac's rows."""
+
+    def _scripts(self, argv):
+        ran = []
+
+        def fake_run(cmd, **_kw):
+            ran.append(os.path.basename(cmd[1]))
+            return mock.Mock(returncode=0)
+
+        with mock.patch.object(run_all.subprocess, "run", fake_run), \
+                mock.patch.object(sys, "argv", ["run_all.py", "--only", "text"] + argv), \
+                contextlib.redirect_stdout(io.StringIO()):
+            run_all.main()
+        return ran
+
+    def test_preview_skips_the_dashboard(self):
+        self.assertEqual(self._scripts(["--no-append"]), ["perf_text.py"])
+
+    def test_a_logged_run_refreshes_it(self):
+        self.assertEqual(self._scripts([]), ["perf_text.py", "dashboard.py"])
 
 
 if __name__ == "__main__":
