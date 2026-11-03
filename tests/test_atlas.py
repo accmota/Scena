@@ -1396,3 +1396,96 @@ class TestTwoEllipseGate(unittest.TestCase):
         self.assertTrue(_two_ellipse_can_win([], 4.0, 0.05))
         self.assertTrue(_two_ellipse_can_win([(0.79, 1.0, None)], 4.0, 0.05))
         self.assertFalse(_two_ellipse_can_win([(0.80, 1.0, None)], 4.0, 0.05))
+
+
+def _compose_strip_by_drawing(images, names):
+    """``compose_strip`` as it packed before 0.11.1: nearest-neighbour draws
+    on a raster surface (80 ms for ten 363 × 458 frames on an MSVC-built
+    skia wheel). The reference the pixel-copy packer must match byte for byte."""
+    widths = [max(1, int(im.width())) for im in images]
+    heights = [max(1, int(im.height())) for im in images]
+    info = skia.ImageInfo.Make(int(sum(widths)), int(max(heights)),
+                               skia.kRGBA_8888_ColorType, skia.kPremul_AlphaType)
+    surf = skia.Surface.MakeRaster(info)
+    canvas = surf.getCanvas()
+    canvas.clear(skia.ColorTRANSPARENT)
+    frames = []
+    x = 0
+    sampling = skia.SamplingOptions(skia.FilterMode.kNearest)
+    paint = skia.Paint(AntiAlias=False)
+    for im, name, w, h in zip(images, names, widths, heights):
+        dst = skia.Rect.MakeXYWH(float(x), 0.0, float(w), float(h))
+        canvas.drawImageRect(im, skia.Rect.MakeWH(float(w), float(h)), dst, sampling, paint)
+        frames.append(AtlasFrame(str(name), x, 0, w, h))
+        x += w
+    return surf.makeImageSnapshot(), tuple(frames)
+
+
+def _translucent_image(w, h, color_type, alpha_type):
+    """A gradient with every alpha level, in the given layout."""
+    yy, xx = np.mgrid[0:h, 0:w]
+    rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    rgba[..., 0] = (xx * 37 + yy * 11) % 256
+    rgba[..., 1] = (xx * 5 + yy * 53) % 256
+    rgba[..., 2] = (xx * 101) % 256
+    rgba[..., 3] = (xx * 13 + yy * 29) % 256
+    if alpha_type == skia.kPremul_AlphaType:
+        rgba[..., :3] = (rgba[..., :3].astype(np.uint16) * rgba[..., 3:4] // 255).astype(np.uint8)
+    if color_type == skia.kBGRA_8888_ColorType:
+        rgba = rgba[..., [2, 1, 0, 3]].copy()
+    return skia.Image.fromarray(rgba, colorType=color_type, alphaType=alpha_type)
+
+
+class TestComposeStripBytes(unittest.TestCase):
+    """WP55: the packer copies pixels instead of drawing; the strip and its
+    frames are the ones the raster draws made."""
+
+    def assertSamePack(self, images):
+        from scena.atlas import compose_strip
+        names = [f"f{i}" for i in range(len(images))]
+        got, got_frames = compose_strip(images, names)
+        ref, ref_frames = _compose_strip_by_drawing(images, names)
+        fields = AtlasFrame.__slots__[:-1]     # every slot but the frozen flag
+        self.assertEqual([tuple(getattr(f, k) for k in fields) for f in got_frames],
+                         [tuple(getattr(f, k) for k in fields) for f in ref_frames])
+        self.assertEqual((got.width(), got.height()), (ref.width(), ref.height()))
+        self.assertEqual(got.colorType(), ref.colorType())
+        self.assertEqual(got.alphaType(), ref.alphaType())
+        self.assertIsNone(got.colorSpace())
+        self.assertIsNone(ref.colorSpace())
+        a = got.toarray(colorType=skia.kRGBA_8888_ColorType, alphaType=skia.kPremul_AlphaType)
+        b = ref.toarray(colorType=skia.kRGBA_8888_ColorType, alphaType=skia.kPremul_AlphaType)
+        self.assertTrue(b.any())
+        self.assertTrue(np.array_equal(a, b))
+
+    def test_a_decoded_frame_sequence(self):
+        from scena.sprite import _decode_image
+        files = [media("ninja", f"Run__{i:03d}.png") for i in range(10)]
+        self.assertSamePack([_decode_image(f) for f in files])
+
+    def test_mixed_files_and_heights(self):
+        from scena.sprite import _decode_image
+        self.assertSamePack([
+            _decode_image(media("planets", "planet00.png")),
+            _decode_image(media("explosions", "exp1.jpg")),
+            _decode_image(media("ninja", "Run__000.png")),
+        ])
+
+    def test_every_layout_short_frames_and_odd_sizes(self):
+        images = [
+            _translucent_image(7, 5, skia.kRGBA_8888_ColorType, skia.kUnpremul_AlphaType),
+            _translucent_image(13, 9, skia.kBGRA_8888_ColorType, skia.kPremul_AlphaType),
+            _translucent_image(1, 1, skia.kRGBA_8888_ColorType, skia.kPremul_AlphaType),
+            _translucent_image(4, 11, skia.kBGRA_8888_ColorType, skia.kUnpremul_AlphaType),
+            _solid_rect_image(6, 3, [(1, 1, 3, 1)]),
+        ]
+        self.assertSamePack(images)
+
+    def test_below_a_short_frame_is_transparent(self):
+        from scena.atlas import compose_strip
+        tall = _solid_rect_image(4, 10, [(0, 0, 4, 10)])
+        short = _solid_rect_image(3, 2, [(0, 0, 3, 2)])
+        img, _frames = compose_strip([tall, short], ["t", "s"])
+        px = img.toarray(colorType=skia.kRGBA_8888_ColorType, alphaType=skia.kPremul_AlphaType)
+        self.assertTrue((px[2:, 4:7] == 0).all())
+        self.assertTrue((px[:2, 4:7, 3] == 255).all())

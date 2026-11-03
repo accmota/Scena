@@ -81,14 +81,17 @@ def main() -> None:
         if proc.returncode != 0:
             failed.append(key)
             print(f"!! {key} exited {proc.returncode}", flush=True)
-    # Always refresh the index from whatever logs exist.
-    dash = subprocess.run(
-        [sys.executable, str(BENCH_DIR / "dashboard.py")],
-        cwd=str(REPO_ROOT),
-    )
+    # Refresh the index from whatever logs exist; a preview writes nothing (its
+    # fingerprint line would name this run's host beside rows it did not log).
+    dash_rc = 0
+    if not args.no_append:
+        dash_rc = subprocess.run(
+            [sys.executable, str(BENCH_DIR / "dashboard.py")],
+            cwd=str(REPO_ROOT),
+        ).returncode
     elapsed = time.perf_counter() - t0
     print(f"\nrun_all elapsed={elapsed:.1f}s  steps={names}")
-    if dash.returncode != 0:
+    if dash_rc != 0:
         failed.append("dashboard")
     if failed:
         raise SystemExit(f"failed: {', '.join(failed)}")

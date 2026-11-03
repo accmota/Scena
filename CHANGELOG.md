@@ -30,6 +30,9 @@ left out.
   as in a colour (a bit taller and wider than before, since it no longer
   hugs the letters), so a top-to-bottom gradient runs over the full line
   height.
+- On Windows, a sound whose path has an accent or any other non-ASCII
+  letter now plays. A file in a `Música` folder, under a user named `João`,
+  or named `ação.wav` was silence with a "Could not decode sound" warning.
 
 ## 0.11.0 — 2026-10-28
 

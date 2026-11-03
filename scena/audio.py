@@ -85,6 +85,33 @@ def _warn_asset(key: str, message: str) -> None:
     report_author_warning("play_sound", message)
 
 
+def _decode_path(miniaudio, path: str):
+    """Decode a whole file from bytes read by Python. pyminiaudio's
+    ``decode_file`` passes the path to C as bytes in the filesystem encoding
+    (UTF-8) and C opens it in the Windows code page, so any non-ASCII character
+    in the path (a ``Música`` folder, a user named ``João``) failed with
+    error -7 and the sound played silence (Testing Design WP56). ``stream_file`` already
+    opens the file with the wide-char API there."""
+    with open(path, "rb") as f:
+        data = f.read()
+    return miniaudio.decode(
+        data,
+        output_format=miniaudio.SampleFormat.FLOAT32,
+        nchannels=2,
+        sample_rate=SAMPLE_RATE,
+    )
+
+
+def _file_info(miniaudio, path: str):
+    """``get_file_info``, an Ogg's from bytes: pyminiaudio's Vorbis branch
+    opens by a narrow path too (its WAV / MP3 / FLAC branches use the wide-char
+    API on Windows)."""
+    if os.path.splitext(path)[1].lower() in (".ogg", ".vorbis"):
+        with open(path, "rb") as f:
+            return miniaudio.vorbis_get_info(f.read())
+    return miniaudio.get_file_info(path)
+
+
 def _load_asset(path: str, *, stream: Optional[bool], label: str) -> Tuple[Optional[np.ndarray], float, bool]:
     """Return ``(samples|None, duration, is_stream)``. Missing/corrupt → silence."""
     abs_path = os.path.abspath(path)
@@ -109,19 +136,14 @@ def _load_asset(path: str, *, stream: Optional[bool], label: str) -> Tuple[Optio
         _PCM_CACHE[(abs_path, False)] = packed
         return packed
     try:
-        info = miniaudio.get_file_info(path)
+        info = _file_info(miniaudio, path)
         duration = float(getattr(info, "duration", 0.0) or 0.0) or _MISSING_DURATION_S
     except Exception as e:
-        # ``get_file_info`` picks the decoder by the extension; ``decode_file``
+        # ``get_file_info`` picks the decoder by the extension; ``_decode_path``
         # reads the content. An Ogg saved as ``.wav`` (or a file with no
         # extension) still plays, buffered (AU10).
         try:
-            samples = pcm_from_decoded(miniaudio.decode_file(
-                path,
-                output_format=miniaudio.SampleFormat.FLOAT32,
-                nchannels=2,
-                sample_rate=SAMPLE_RATE,
-            ))
+            samples = pcm_from_decoded(_decode_path(miniaudio, path))
         except Exception:
             samples = None
         if samples is not None and samples.shape[0] > 0:
@@ -149,12 +171,7 @@ def _load_asset(path: str, *, stream: Optional[bool], label: str) -> Tuple[Optio
         return packed
 
     try:
-        decoded = miniaudio.decode_file(
-            path,
-            output_format=miniaudio.SampleFormat.FLOAT32,
-            nchannels=2,
-            sample_rate=SAMPLE_RATE,
-        )
+        decoded = _decode_path(miniaudio, path)
         samples = pcm_from_decoded(decoded)
         duration = float(samples.shape[0]) / float(SAMPLE_RATE)
         packed = (samples, duration, False)
@@ -181,12 +198,7 @@ def _force_decode(path: str, label: str) -> np.ndarray:
     if miniaudio is None:
         return make_silence(_MISSING_DURATION_S)
     try:
-        decoded = miniaudio.decode_file(
-            path,
-            output_format=miniaudio.SampleFormat.FLOAT32,
-            nchannels=2,
-            sample_rate=SAMPLE_RATE,
-        )
+        decoded = _decode_path(miniaudio, path)
         samples = pcm_from_decoded(decoded)
         duration = float(samples.shape[0]) / float(SAMPLE_RATE)
         _PCM_CACHE[(abs_path, False)] = (samples, duration, False)

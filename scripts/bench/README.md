@@ -42,7 +42,7 @@ Every snapshot records a **scena fingerprint** (content hash of `scena/`) so two
 - Framebuffer scale is part of a GPU workload. The window follows the display it opens on (Retina 2× vs an external 1×), so a GPU cell is only compared with a row at the same FB: `balanced-2` stamps it (`§` = 1×) and its auto-diff skips other scales (`pulse.fb_scale_tag` / `cell_fb_tag`). Runners that do not record FB (sched / graph / text / fx / background) cannot tell — if a GPU-heavy cell jumps, check which display the window used.
 - **Which `scena` runs.** The package may be installed editable from the main checkout, and a script run as `python scripts/bench/x.py` gets its own folder on `sys.path`, not the repo root. A runner that does not insert its root (`sched.py` and most runners) imports whatever is installed: in a worktree it measures **main's** engine, and an A/B between two checkouts compares main with itself. Put the checkout first (`PYTHONPATH=<checkout> python …`, from a folder outside any checkout) or use a runner that takes `--root` (`perf_watchdog.py`). Check with the fingerprint, or `scena.__file__` (2026-10-19: a windowed watchdog A/B first ran main for every variant).
 - JSON dumps → `results/` (gitignored) or `/tmp`.
-- Runners **append** their pulse log (summary row + run subsection). `--no-append` prints only.
+- Runners **append** their pulse log (summary row + run subsection). `--no-append` prints only (`run_all.py --no-append` also leaves `dashboard.md` alone). Use it on a machine whose rows should not join the Mac's trend (the Windows laptop: no load average, RSS reads NaN).
 
 ## Suite
 

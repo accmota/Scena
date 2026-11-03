@@ -2298,20 +2298,22 @@ def compose_strip(images: Sequence[skia.Image], names: Sequence[str]) -> Tuple[s
     heights = [max(1, int(im.height())) for im in images]
     total_w = int(sum(widths))
     max_h = int(max(heights))
-    info = skia.ImageInfo.Make(total_w, max_h, skia.kRGBA_8888_ColorType, skia.kPremul_AlphaType)
-    surf = skia.Surface.MakeRaster(info)
-    canvas = surf.getCanvas()
-    canvas.clear(skia.ColorTRANSPARENT)
+    # Pixel copies, not draws on a raster surface: the same bytes (premul
+    # RGBA, no colour space, transparent below a short frame), and the
+    # platform's raster pipeline is out of it. MSVC-built skia wheels paid
+    # 80 ms for ten 363 × 458 frames there, 5 ms here (Testing Design WP55).
+    packed = np.zeros((max_h, total_w, 4), dtype=np.uint8)
     frames: List[AtlasFrame] = []
     x = 0
-    sampling = skia.SamplingOptions(skia.FilterMode.kNearest)
-    paint = skia.Paint(AntiAlias=False)
     for im, name, w, h in zip(images, names, widths, heights):
-        dst = skia.Rect.MakeXYWH(float(x), 0.0, float(w), float(h))
-        canvas.drawImageRect(im, skia.Rect.MakeWH(float(w), float(h)), dst, sampling, paint)
+        px = im.toarray(colorType=skia.kRGBA_8888_ColorType, alphaType=skia.kPremul_AlphaType)
+        packed[:h, x:x + w] = px
         frames.append(AtlasFrame(str(name), x, 0, w, h))
         x += w
-    return surf.makeImageSnapshot(), tuple(frames)
+    image = skia.Image.fromarray(
+        packed, colorType=skia.kRGBA_8888_ColorType, alphaType=skia.kPremul_AlphaType,
+    )
+    return image, tuple(frames)
 
 
 # ---------------------------------------------------------------------------

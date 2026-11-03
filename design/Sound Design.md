@@ -404,7 +404,7 @@ banner (amber), same Ctrl+Shift+E dismiss. Terminal
 `warnings.warn` still fires.
 
 `miniaudio.get_file_info` picks its decoder by the file's extension, and
-`decode_file` by its content. When the first fails, `_load_asset` tries the
+decoding the bytes picks it by their content. When the first fails, `_load_asset` tries the
 second and plays the file buffered if it decodes (an Ogg saved as `.wav`, a
 file with no extension: AU10); otherwise the warning ends "Scena plays WAV,
 FLAC, Ogg Vorbis and MP3: convert the file to one of them" (`_FORMATS`). A
@@ -417,6 +417,22 @@ since the `Sound` was made, `_frame_source` warns and plays silence of the
 file's length instead of raising `FileNotFoundError` into the author's line
 (AU3). The matrix of files × ways to play them is
 `test_audio_stress.TestBadAssets` (`tests/audio_stress_support.bad_assets`).
+
+**Paths that are not ASCII (WP56).** pyminiaudio opens most files by a narrow
+path: `decode_file`, the `*_read_file*` family and the Ogg branch of
+`get_file_info` pass the path to C as UTF-8 bytes, and on Windows C opens it in
+the ANSI code page. A sound anywhere under a `Música` folder, or a user named
+`João`, failed with error -7 and played silence with a warning. So the engine
+reads the file in Python and decodes the bytes (`audio._decode_path`:
+`miniaudio.decode`), takes an Ogg's info from its bytes (`_file_info`:
+`vorbis_get_info`), and opens by path only through `stream_file`, which uses the
+wide-char API on Windows (as do the WAV / MP3 / FLAC branches of
+`get_file_info`). Reading the bytes costs what `decode_file` cost (it read the
+whole file too); a streamed Ogg's info reads the file once, when the `Sound` is
+made. Guards: `test_audio_stress.TestNonAsciiPaths` (WAV, Ogg, MP3 under a
+non-ASCII folder and name, buffered and streamed, the same samples as an ASCII
+copy) and `test_platform_portability.TestSoundFilesOpenByAWidePath` (no other
+pyminiaudio call takes a path in `scena/` or `scena_editor/`).
 
 ### No miniaudio
 

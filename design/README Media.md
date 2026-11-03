@@ -130,7 +130,7 @@ Guards: `tests/test_readme.py`.
   editor's band select over nothing. An editor shortcut is spelled through
   the editor's own keys (`scena_editor.tools` `PRIMARY` / `REDO`, via
   `takes._chord`): Cmd on a Mac, Ctrl elsewhere, redo Ctrl+Y. A tour that
-  holds `LEFT_CMD` plays another session on Windows (Testing Design, WP54).
+  holds `LEFT_CMD` plays another session on Windows (Testing Design, WP57).
   In the editor a shape shows its
   handles only once selected (a press on an unselected shape moves it), so
   a resize or a turn is a click first; the rotate knob sits a fixed 28

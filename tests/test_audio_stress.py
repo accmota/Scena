@@ -18,6 +18,9 @@ Bug classes (Testing Design, "Audio stress"; campaign 2026-10-27):
   read ended the stream at once: ``pitch`` above ~9, a 2 s hitch (AU4).
 - **A file named for another format.** An Ogg saved as ``.wav`` was silence
   (AU10).
+- **A path that is not ASCII.** On Windows a sound under a ``Música`` folder
+  (or a user named ``João``) decoded to silence: pyminiaudio opens files by a
+  narrow path there (WP56).
 
     python tests/run_tiers.py focused test_audio_stress
 """
@@ -29,6 +32,8 @@ import sys
 import tempfile
 import unittest
 import warnings
+from contextlib import contextmanager
+from unittest import mock
 
 import numpy as np
 
@@ -81,6 +86,25 @@ class _Raises(FrameSource):
         if self.n >= self.at:
             raise self.exc
         return np.zeros((int(n_frames), 2), dtype=np.float32), None
+
+
+@contextmanager
+def vanished_under_a_stream(path: str):
+    """``path`` is gone for the next open. POSIX unlinks a file a stream holds
+    open; Windows refuses (WinError 32: in use), so there the next open (the
+    reopen at a lap) fails as a missing file's does in pyminiaudio:
+    ``FileNotFoundError`` (WP56)."""
+    try:
+        os.remove(path)
+    except PermissionError:
+        import miniaudio
+
+        def gone(*_a, **_k):
+            raise FileNotFoundError(path)
+        with mock.patch.object(miniaudio, "stream_file", gone):
+            yield
+        return
+    yield
 
 
 class AudioCase(unittest.TestCase):
@@ -408,6 +432,56 @@ class TestEffectKnobLiveWrites(AudioCase):
         h.cancel()
 
 
+class TestNonAsciiPaths(AudioCase):
+    """WP56: a sound under a non-ASCII folder or name plays, every format,
+    buffered and streamed, with no warning and the ASCII copy's samples."""
+
+    def setUp(self):
+        super().setUp()
+        if miniaudio_or_none() is None:
+            self.skipTest("no miniaudio: nothing decodes")
+        self.plain = os.path.join(self.tmp, "plain")
+        self.odd = os.path.join(self.tmp, "Música ação 音")
+        os.mkdir(self.plain)
+        os.mkdir(self.odd)
+
+    def _pair(self, name, make):
+        ext = os.path.splitext(name)[1]
+        return (make(os.path.normpath(os.path.join(self.plain, "a" + ext))),
+                make(os.path.normpath(os.path.join(self.odd, name))))
+
+    def _files(self):
+        def media_copy(parts):
+            return lambda dst: copy_media(os.path.dirname(dst), *parts, name=os.path.basename(dst))
+        return {
+            "wav": self._pair("ção 音.wav", lambda dst: write_wav(dst, 0.5)),
+            "ogg": self._pair("ção 音.ogg", media_copy(("audio", "jump.ogg"))),
+            "mp3": self._pair("vitória.mp3", media_copy(("audio", "victory.mp3"))),
+        }
+
+    def test_buffered_every_format_decodes_like_its_ascii_copy(self):
+        for fmt, (plain, odd) in self._files().items():
+            with self.subTest(fmt=fmt):
+                ref = Sound(plain, stream=False)
+                got, seen = self.warnings_of(lambda: Sound(odd, stream=False))
+                self.assertEqual(seen, [])
+                self.assertGreater(float(np.abs(got._samples).max()), 0.05, f"{fmt}: silence")
+                self.assertTrue(np.array_equal(got._samples, ref._samples))
+
+    def test_streamed_every_format_plays_and_ends(self):
+        for fmt, (plain, odd) in self._files().items():
+            with self.subTest(fmt=fmt):
+                reset_process_scheduler()
+                ref = Sound(plain, stream=True)
+                s, seen = self.warnings_of(lambda: Sound(odd, stream=True))
+                self.assertTrue(s._is_stream, "vacuous: not a stream")
+                self.assertAlmostEqual(s.duration, ref.duration, places=3)
+                h, seen2 = self.warnings_of(lambda: play_sound(s, pitch=4.0))
+                frames(60 * 4)
+                self.assertEqual(seen + seen2, [])
+                self.assertTrue(h.done)
+
+
 class TestStreamsUnderChange(AudioCase):
     """Group B and F: the file moves, the pitch is extreme, the frame hitches."""
 
@@ -434,8 +508,8 @@ class TestStreamsUnderChange(AudioCase):
         """AU2 offline: the reopen at the lap raised inside the mix."""
         h = play_sound(self.long, loops="forever", pitch=8.0)
         frames(10)
-        os.remove(self.long)
-        _, seen = self.warnings_of(lambda: frames(120))
+        with vanished_under_a_stream(self.long):
+            _, seen = self.warnings_of(lambda: frames(120))
         self.assertTrue(h.done or h.cancelled)
         self.assertEqual(len(seen), 1, seen)
         later = play_sound(Sound._from_pcm(make_sine(440, 0.2)))
@@ -537,8 +611,8 @@ class TestLiveDevice(AudioCase):
         with live_mixer():
             h = play_sound(long, loops="forever", pitch=16.0)       # a lap is ~0.56 s
             frames(5, sleep=True)
-            os.remove(long)
-            _, seen = self.warnings_of(lambda: wait_frames(lambda: h.done, timeout=3))
+            with vanished_under_a_stream(long):
+                _, seen = self.warnings_of(lambda: wait_frames(lambda: h.done, timeout=3))
             self.assertTrue(h.done)
             self.assertEqual(len(seen), 1)
             later = play_sound(Sound._from_pcm(make_sine(440, 0.1)))

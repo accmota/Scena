@@ -843,6 +843,7 @@ Do not read this appendix as a license to open the whole cluster.
 | ImageFilters (`Blur`, …) | `filters.py` | `style.py` | [Effect System Design.md](Effect%20System%20Design.md) ([§5.5](Effect%20System%20Design.md#55-changing-the-effect-system-without-regressing-hot-paths) before edits) |
 | `.visual` compiled looks | `visuals.py` | — | [Effect System Design.md](Effect%20System%20Design.md) ([§5.5](Effect%20System%20Design.md#55-changing-the-effect-system-without-regressing-hot-paths) before edits) |
 | `Neon` / multipass costumes | `recipes.py` | `visuals.py` | [Effect System Design.md](Effect%20System%20Design.md) |
+| Jagged look strokes on a GPU without MSAA (Intel on GL) | `_pe_bake.py` | `visuals.py` (`_draw_host_stroke`), `orchestration.py` (`_init_skia`) | [Canvas Design.md — GPU without MSAA](Canvas%20Design.md#gpu-without-msaa-intel-on-opengl) |
 | `.glow` / `.shadow` / `.hue` / `.gray` / `.tail` | `stamps.py` | `style.py` | [Effect System Design.md](Effect%20System%20Design.md) |
 | Transients (`flash`, `pop`, …) | `transients.py` | — | [Effect System Design.md](Effect%20System%20Design.md) |
 | `SpatialFx` host | `spatial_fx.py` | `spatial_fx_effects.py` (kinds) | [Effect System Design.md](Effect%20System%20Design.md) |

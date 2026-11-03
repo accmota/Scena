@@ -18,6 +18,7 @@ from .entity import scena_kind
 from ._defaults import Unset
 from .color import Color, ColorLike
 from .filters import GlowFilter, DropShadow, HostGlow, Blur, glow_blur_radius
+from . import _pe_bake
 from .style import _interned_setattr, is_stroke_type
 from .validate import expect_choice, magnitude, fixed_magnitude
 from .validate import formula_knobs as _formula_knobs_of
@@ -335,6 +336,15 @@ def _geometry_tape_ok(shape) -> bool:
 
 
 _TAPE_KINDS: Dict[type, bool] = {}
+
+
+def _draw_host_stroke(shape, skia_canvas, paint) -> None:
+    """The host's ``_geometry_draw`` with ``paint`` as its stroke. A
+    ``DiscretePathEffect`` stroke on a ``scena.shapes`` kind draws as a cached
+    plain path when ``scena._pe_bake`` is on (a GPU without MSAA)."""
+    if _pe_bake.ENABLED and _geometry_tape_ok(shape):
+        skia_canvas = _pe_bake.bake_target(skia_canvas, paint)
+    shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
 
 
 def _aura_anchor(shape) -> Tuple[float, float]:
@@ -1155,7 +1165,7 @@ class CheapGlow(CompiledVisual):
                     ops = rec.ops
                     tape = ops is not None
                 else:
-                    shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+                    _draw_host_stroke(shape, skia_canvas, paint)
             return
         paint.setStyle(skia.Paint.kFill_Style)
         extra = pad / self._host_radius(shape)
@@ -1468,7 +1478,7 @@ class Halo(CompiledVisual):
         draw_v2 = getattr(shape, "_draw_sprite_silhouette_v2", None)
         if callable(draw_v2) and draw_v2(skia_canvas, rim):
             return
-        shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=rim)
+        _draw_host_stroke(shape, skia_canvas, rim)
 
     def _identity_patch(self, shape) -> None:
         if self._seed is None:
@@ -1521,10 +1531,10 @@ class Halo(CompiledVisual):
             skia_canvas.translate(cx, cy)
             skia_canvas.scale(scale, scale)
             skia_canvas.translate(-cx, -cy)
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+            _draw_host_stroke(shape, skia_canvas, paint)
             skia_canvas.restore()
         else:
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+            _draw_host_stroke(shape, skia_canvas, paint)
 
     def _draw_medium_rim(self, shape, skia_canvas) -> None:
         """Unfiltered outline at medium — sharpness without high's spine stack."""
@@ -2162,10 +2172,10 @@ class GlowRimVisual(CompiledVisual):
             skia_canvas.translate(cx, cy)
             skia_canvas.scale(scale, scale)
             skia_canvas.translate(-cx, -cy)
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+            _draw_host_stroke(shape, skia_canvas, paint)
             skia_canvas.restore()
         else:
-            shape._geometry_draw(skia_canvas, fill_paint=None, stroke_paint=paint)
+            _draw_host_stroke(shape, skia_canvas, paint)
 
     def _with_filters_stripped(self, shape, fn) -> None:
         saved_ff = getattr(shape, "_fill_filter", None)
