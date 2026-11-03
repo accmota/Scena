@@ -172,6 +172,206 @@ cynicmusic.com with the video's link once it is public.
 
 ---
 
+## Built for learning (teaser 3)
+
+- **File:** `videos/finals/promo/scena_teaser3.mp4` (2:33; source `videos/scripts/teaser3/teaser3.py`)
+- **Thumbnail:** `videos/finals/promo/scena_teaser3.jpg`
+- **Playlist:** Scena: start here
+- **Chapters:** the title (9 s) is folded into the first one: YouTube wants
+  chapters of 10 s or more
+
+**Title:** Scena: a Python game engine built for learning (teaser)
+**Título:** Scena: uma engine de jogos em Python feita para aprender (teaser)
+
+**Description:**
+
+```
+Scena is a Python game engine for beginners. This teaser shows why, without code: each idea is a picture.
+
+Simple, yet powerful. Nothing hidden: behind each game, real code. A rich vocabulary for games. Widgets and the mouse, a level editor built in, effects with parameters that compose, and games made with Scena.
+
+Scena has a complete 33 chapter tutorial, from a first script to real games.
+
+0:00 Built for learning
+0:26 Simple, yet powerful
+0:39 Nothing hidden
+0:55 A vocabulary
+1:18 Interfaces
+1:33 The level editor
+1:52 Effects
+2:17 Games made with Scena
+
+Music: "The Adventure Begins" by Bart Kelsey
+https://opengameart.org/content/adventure-begins
+Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Excerpt, with one bar played twice and a fade-out.
+
+[shared footer: footer.md]
+```
+
+**Descrição:**
+
+```
+Scena é uma engine de jogos em Python para iniciantes. Este teaser mostra por quê, sem código: cada ideia é uma imagem.
+
+Um tutorial completo, do primeiro script a jogos de verdade. Simples, mas poderoso. Nada escondido: por trás de cada jogo, o código de verdade dele. Um vocabulário em que cada palavra faz uma coisa. Widgets e o mouse, um editor de fases embutido, efeitos com parâmetros que se combinam, e jogos feitos com Scena.
+
+0:00 Feito para aprender
+0:26 Simples, mas poderoso
+0:39 Nada escondido
+0:55 Um vocabulário
+1:18 Interfaces
+1:33 O editor de fases
+1:52 Efeitos
+2:17 Jogos feitos com Scena
+
+Música: "The Adventure Begins" de Bart Kelsey
+https://opengameart.org/content/adventure-begins
+Licença CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Trecho, com um compasso tocado duas vezes e saída suave.
+
+[rodapé: footer.md]
+```
+
+---
+
+## Teaser 3, the Short (vertical)
+
+- **File:** `videos/finals/promo/scena_teaser3_vertical.mp4` (0:45, 1080 × 1920; source `videos/scripts/teaser3/teaser3_vertical.py`)
+- **Thumbnail:** `videos/finals/promo/scena_teaser3_vertical.jpg`
+- **Playlist:** none (it goes to the channel's Shorts)
+- **Chapters:** none (a Short)
+
+**Title:** Scena: a Python game engine for beginners #shorts
+**Título:** Scena: uma engine de jogos em Python para iniciantes #shorts
+
+**Description:**
+
+```
+Scena is a Python game engine for beginners: simple and expressive, a rich vocabulary of plain words, composable effects with parameters, a level editor built in, and real games, all in Python.
+
+Music: "Adventure Theme" by Cleyton Kauffman (CC0), https://opengameart.org/content/adventure-theme
+
+[shared footer: footer.md]
+```
+
+**Descrição:**
+
+```
+Scena é uma engine de jogos em Python para iniciantes: um vocabulário de palavras simples, efeitos com parâmetros que se sobrepõem, um editor de fases embutido e jogos de verdade, tudo em Python.
+
+Música: "Adventure Theme" de Cleyton Kauffman (CC0), https://opengameart.org/content/adventure-theme
+
+[rodapé: footer.md]
+```
+
+---
+
+## Watch the engine work (the engine video)
+
+- **File:** `videos/finals/promo/scena_engine.mp4` (3:34; source `videos/scripts/engine/engine_video.py`)
+- **Thumbnail:** `videos/finals/promo/scena_engine.jpg`
+- **Playlist:** Scena: start here (after the code video, its companion)
+- **Chapters:** the title (8 s) is folded into the first one
+
+**Title:** Watch the engine work: Scena runs Python code, line by line
+**Título:** Veja a engine trabalhar: o Scena roda código Python, linha a linha
+
+**Description:**
+
+```
+Each part types a short Python program beside the game it makes, and runs it as it is typed. Two lights show the run as it really is, nothing scripted: orange, the line Python runs now; blue, a line whose work is still going (a motion, a wait, a timer, a process). A rule lights when its moment comes, a formula when it is read again, a timer's line when it fires.
+
+You say what is there and what it does; the engine carries it on.
+
+0:00 Objects
+0:34 Formulas
+1:02 Events
+1:29 Collisions
+1:56 Time
+2:26 Groups
+2:54 Acts
+
+Music: "Vampire's Piano" by TAD (CC0), https://opengameart.org/content/vampires-piano
+
+[shared footer: footer.md]
+```
+
+**Descrição:**
+
+```
+Cada parte digita um programa Python curto ao lado do jogo que ele faz, e o roda enquanto é digitado. Duas luzes mostram a execução como ela é, nada roteirizado: laranja, a linha que o Python roda agora; azul, uma linha cujo trabalho ainda continua (um movimento, uma espera, um timer, um processo). Uma regra acende quando chega a hora dela, uma fórmula quando é lida de novo, a linha de um timer quando ele dispara.
+
+Você diz o que está lá e o que faz; a engine leva adiante.
+
+0:00 Objetos
+0:34 Fórmulas
+1:02 Eventos
+1:29 Colisões
+1:56 Tempo
+2:26 Grupos
+2:54 Atos
+
+Música: "Vampire's Piano" de TAD (CC0), https://opengameart.org/content/vampires-piano
+
+[rodapé: footer.md]
+```
+
+---
+
+## 100+ visual effects, built in (the effects video)
+
+- **File:** `videos/finals/promo/scena_effects.mp4` (2:25; source `videos/scripts/effects/effects_video.py`)
+- **Thumbnail:** `videos/finals/promo/scena_effects.jpg`
+- **Playlist:** Scena: start here
+- **Chapters:** the title (7 s) is folded into the first one; impacts (7 s)
+  and entrances and exits (8 s) share one
+
+**Title:** Scena: 100+ visual effects built into a Python game engine
+**Título:** Scena: mais de 100 efeitos visuais prontos numa engine de jogos em Python
+
+**Description:**
+
+```
+Looks, effects in the world, backgrounds, screen effects, impacts, entrances and exits: more than 100 visual effects come with Scena, each one a line of code. Every effect has parameters, and they compose: a look on any shape, backgrounds layered into one sky, screen effects stacked on one picture.
+
+Every effect here is the API Guide's own catalogue card, running the Guide's own snippet: what plays is what you write.
+
+0:00 Looks
+0:28 In the world
+0:42 Backgrounds
+1:06 Screen effects
+1:24 Impacts, entrances and exits
+1:39 All together
+1:53 One line each
+
+Music: "Boss Battle Music" by Juhani Junkala (CC0), https://opengameart.org/content/boss-battle-music
+
+[shared footer: footer.md]
+```
+
+**Descrição:**
+
+```
+Visuais, efeitos no mundo, fundos, efeitos de tela, impactos, entradas e saídas: mais de 100 efeitos visuais vêm com o Scena, cada um uma linha de código. Todo efeito tem parâmetros, e eles se combinam: um visual em qualquer forma, fundos em camadas num só céu, efeitos de tela empilhados numa só imagem.
+
+Cada efeito aqui é o card do catálogo do próprio Guia da API, rodando o trecho do próprio Guia: o que aparece é o que você escreve.
+
+0:00 Visuais
+0:28 No mundo
+0:42 Fundos
+1:06 Efeitos de tela
+1:24 Impactos, entradas e saídas
+1:39 Tudo junto
+1:53 Uma linha cada
+
+Música: "Boss Battle Music" de Juhani Junkala (CC0), https://opengameart.org/content/boss-battle-music
+
+[rodapé: footer.md]
+```
+
+---
+
 ## Flow teaser
 
 - **File:** `videos/finals/promo/scena_flow.mp4` (0:42; source `videos/scripts/flow/flow_teaser.py`)
@@ -204,6 +404,44 @@ Música: "Space (orchestral)" de lasercheese – https://soundcloud.com/laserost
 https://opengameart.org/content/space-orchestral
 Licença CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
 Trecho, com entrada suave.
+
+[rodapé: footer.md]
+```
+
+---
+
+## Salvo teaser
+
+- **File:** `videos/finals/promo/scena_salvo.mp4` (0:37; source `videos/scripts/salvo/salvo_teaser.py`)
+- **Thumbnail:** `videos/finals/promo/scena_salvo.jpg`
+- **Playlist:** Scena: start here
+- **Chapters:** none (37 s)
+
+**Title:** Scena: a Python game engine, easy to begin, room to grow (teaser)
+**Título:** Scena: uma engine de jogos em Python, fácil de começar, espaço para crescer (teaser)
+
+**Description:**
+
+```
+A shooter played as a demo, every frame drawn by Scena. Just Python. Easy to begin, room to grow. Simple, yet powerful. Real code, nothing hidden. Built for learning, with a full tutorial. Make something beautiful.
+
+Music: "Battle in the winter" by Johan Brodd
+https://opengameart.org/content/battle-in-the-winter
+Licensed under CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Excerpt: the opening joined to the ending, with a fade-out.
+
+[shared footer: footer.md]
+```
+
+**Descrição:**
+
+```
+Um jogo de nave jogado como demo, cada quadro desenhado pelo Scena. Só Python. Fácil de começar, espaço para crescer. Simples, mas poderoso. Código de verdade, nada escondido. Feito para aprender, com um tutorial completo. Faça algo bonito.
+
+Música: "Battle in the winter" de Johan Brodd
+https://opengameart.org/content/battle-in-the-winter
+Licença CC BY 3.0: https://creativecommons.org/licenses/by/3.0/
+Trecho: a abertura unida ao final, com saída suave.
 
 [rodapé: footer.md]
 ```

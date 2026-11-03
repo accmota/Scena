@@ -65,10 +65,16 @@ License, and the shared footer (footer.md) pasted as the default description.
 
 **Playlists:**
 
-1. *Scena: start here*: Teaser, What a game looks like in Scena, Each line says what happens
+1. *Scena: start here*: Teaser, Built for learning (teaser 3), What a game
+   looks like in Scena, Watch the engine work (its companion, right after it),
+   Each line says what happens, 100+ visual effects built in, Flow teaser,
+   Salvo teaser
 2. *Tutorial, step by step* (in tutorial order): Your first script, Catch the stars,
    Ships, Balls, Movement, Ninja, Spinning bars, Oscilloscope
 3. *Demos*: Dancing triangles, Old-school megademo
+
+Teaser 3's vertical cut is a Short: it goes to the channel's Shorts tab, not
+to a playlist.
 
 **Channel trailer** (Customization, "Layout", for people who are not subscribed):
 the Teaser (93 s: short is what a trailer should be).
