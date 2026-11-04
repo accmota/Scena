@@ -241,6 +241,9 @@ class TestLooksKeepTheirBytes(unittest.TestCase):
 
     def setUp(self):
         init(width=240, height=240)
+        # Process-wide, so tearDown puts it back: "low" left here turned off
+        # bloom and Aura in later modules (deep serial pass 2026-11-03).
+        self._quality = canvas.fx_quality
         canvas.fx_quality = "high"
         self._clocks = (_recipes._clock, _visuals._clock)
         _recipes._clock = _visuals._clock = lambda: 0.37     # one seed for both frames
@@ -251,6 +254,7 @@ class TestLooksKeepTheirBytes(unittest.TestCase):
         _recipes._clock, _visuals._clock = self._clocks
         _pe_bake.ENABLED = self._enabled
         _pe_bake.clear_cache()
+        canvas.fx_quality = self._quality
 
     def _hosts(self):
         rect = Rect(center=(120, 120), width=60, height=40)

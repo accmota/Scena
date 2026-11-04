@@ -404,7 +404,8 @@ def child_main(argv: Sequence[str]) -> None:
     class Loader(unittest.TestLoader):
         def loadTestsFromNames(self, names, module=None):
             suites = [self.loadTestsFromName(n, module) for n in names]
-            state = {"at": leftovers.mark()}    # after imports: import-time actors are not counted
+            state = {"at": leftovers.mark(),    # after imports: import-time actors are not counted
+                     "fx_quality": leftovers.fx_quality_now()}
             return with_leftover_checks(
                 suites, lambda mod: leftovers.LeftoverCheck(mod, state))
 

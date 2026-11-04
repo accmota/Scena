@@ -142,6 +142,23 @@ def module_sweep():
     return setUpModule, tearDownModule
 
 
+def fx_quality_now():
+    """The active FX quality preset, or None (Scena not loaded)."""
+    fq = sys.modules.get("scena.fx_quality")
+    return fq._active_quality if fq is not None else None
+
+
+def restore_fx_quality(quality) -> None:
+    """Put the FX quality preset back: through the framework when there is one
+    (its scales and filter batching follow the preset), else the draw slots."""
+    from scena.orchestration import ScenaFramework
+    if ScenaFramework._instance is not None:
+        ScenaFramework._instance.fx_quality = quality
+    else:
+        from scena.fx_quality import activate_quality
+        activate_quality(quality)
+
+
 def _actors(items: List[Any]) -> List[Any]:
     """The live, non-part items of ``items``: the actors themselves."""
     from scena.entity import is_part
@@ -187,8 +204,9 @@ def sites(items: List[Any], top: int = 6) -> str:
 
 class LeftoverCheck(unittest.TestCase):
     """Runs after a module's ``tearDownModule`` (``tests/run_tiers.py`` puts one
-    after each module): fails when the module left a live actor it made, or
-    more than ``LIMIT`` live parts."""
+    after each module): fails when the module left a live actor it made, more
+    than ``LIMIT`` live parts, or ``canvas.fx_quality`` changed (put back for
+    the next module)."""
 
     def __init__(self, module: str, state: dict) -> None:
         super().__init__("test_module_cleans_up")
@@ -210,6 +228,8 @@ class LeftoverCheck(unittest.TestCase):
         return out
 
     def test_module_cleans_up(self):
+        with self.subTest(setting="fx_quality"):
+            self._check_fx_quality()
         try:
             left = made_since(self.state["at"])
             if len(left) > LIMIT or _actors(left):
@@ -250,3 +270,18 @@ class LeftoverCheck(unittest.TestCase):
                 f"{self.module} left {len(left)} live roster items (limit {LIMIT}): "
                 f"{describe(left)}. Destroy what the tests make: "
                 "`setUpModule, tearDownModule = module_sweep()` (tests/leftovers.py)")
+
+    def _check_fx_quality(self) -> None:
+        """The FX quality preset is process-wide: one a module leaves changed
+        draws every later module at that quality. Deep serial pass 2026-11-03:
+        test_pe_bake left "low", and EmissiveBloom and Aura drew nothing in
+        test_shape_pixel_looks (25 failures far from their cause)."""
+        before, now = self.state.get("fx_quality"), fx_quality_now()
+        if before is None or now is before:
+            self.state["fx_quality"] = now
+            return
+        restore_fx_quality(before)      # the next module starts where this one did
+        self.fail(
+            f"{self.module} left canvas.fx_quality {now.value!r} (it started at "
+            f"{before.value!r}): every later module draws at that quality. Put it "
+            "back: save canvas.fx_quality in setUp, restore it in tearDown")

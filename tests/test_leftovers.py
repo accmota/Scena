@@ -203,5 +203,59 @@ class TestChildRun(unittest.TestCase):
         self.assertTrue(res.ok, log)
 
 
+class TestFxQualityLeft(unittest.TestCase):
+    """The FX quality preset is process-wide: test_pe_bake left "low" and
+    EmissiveBloom and Aura drew nothing in a later module of the deep serial
+    pass (2026-11-03). The check names the module that changed it and puts it
+    back, so the next module starts at the quality the first one found."""
+
+    def _run(self, restore):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        with open(os.path.join(tmp, "lowers_mod.py"), "w", encoding="utf-8") as fh:
+            fh.write(textwrap.dedent(f"""
+                import unittest
+                from scena import canvas, init
+                RESTORE = {restore}
+
+                class T(unittest.TestCase):
+                    def setUp(self):
+                        init(width=100, height=100)
+                        self.q = canvas.fx_quality
+                    def tearDown(self):
+                        if RESTORE:
+                            canvas.fx_quality = self.q
+                    def test_lowers(self):
+                        canvas.fx_quality = "low"
+            """))
+        with open(os.path.join(tmp, "reads_mod.py"), "w", encoding="utf-8") as fh:
+            fh.write(textwrap.dedent("""
+                import unittest
+                from scena import canvas, init
+
+                class T(unittest.TestCase):
+                    def test_reads(self):
+                        init(width=100, height=100)
+                        self.assertEqual(canvas.fx_quality.value, "high")
+            """))
+        runner = rt.Runner(os.path.join(tmp, "logs"), timeout=120, workers=1,
+                           stream=io.StringIO())
+        (res,) = runner.run([rt.Job("quality", ["lowers_mod", "reads_mod"],
+                                    {"PYTHONPATH": tmp})])
+        with open(res.log, encoding="utf-8") as fh:
+            return res, fh.read()
+
+    def test_a_module_that_leaves_it_changed_fails_and_the_next_starts_clean(self):
+        res, log = self._run(restore=False)
+        self.assertFalse(res.ok, log)
+        self.assertIn("lowers_mod left canvas.fx_quality 'low' (it started at 'high')", log)
+        self.assertNotIn("test_reads", log)     # reads_mod ran at "high"
+        self.assertIn("failures=1", log)
+
+    def test_restored_passes(self):
+        res, log = self._run(restore=True)
+        self.assertTrue(res.ok, log)
+
+
 if __name__ == "__main__":
     unittest.main()

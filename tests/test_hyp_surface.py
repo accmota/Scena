@@ -42,6 +42,7 @@ from surface_support import (  # noqa: E402
     family_of, remove, reset_background_base, settle, surface_census,
 )
 from system_support import zombies  # noqa: E402
+from tests.leftovers import mark, sweep  # noqa: E402
 from graph_support import gc_paused  # noqa: E402
 from hypothesis import given, note, settings, strategies as hst  # noqa: E402
 
@@ -741,6 +742,7 @@ def _method_junk_test(name):
             reset_background_base()
             with quiet():
                 obj = make_instance(name)   # no-arg or a listed representative
+            at = mark()     # what the call makes (Circle.tangent_lines_from: two Lines)
             try:
                 settle()
                 before = surface_census()
@@ -756,6 +758,9 @@ def _method_junk_test(name):
                     self.assertTrue(err[0], f"{call} raised {err[1]}")
                     self.assertEqual(_trace(before), {}, f"{call} raised but left a trace")
             finally:
+                # A call that took the junk may return new actors; they outlive
+                # obj and fresh_world (deep 2026-11-03: leftover Lines).
+                sweep(at)
                 remove(obj)
 
     test.__doc__ = f"{name}: junk as the first argument of a public method is an author error."
