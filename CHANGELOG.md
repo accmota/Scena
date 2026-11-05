@@ -33,6 +33,11 @@ left out.
 - On Windows, a sound whose path has an accent or any other non-ASCII
   letter now plays. A file in a `Música` folder, under a user named `João`,
   or named `ação.wav` was silence with a "Could not decode sound" warning.
+- A fast shot no longer passes through the back of a target that is moving
+  away from its path. The contact was lost when the target ended the frame
+  clear of the shot's path, though it had been across it: at 5 DU per frame
+  a shot crossing about the rear 4 DU of the target hit nothing, more for a
+  faster target. This holds for a target moved by `move_by` and by placement.
 - `shape.center + vec` and the other Point sums and differences (`p - v`,
   `v + p`, `p + (1, 2)`) run about 10 times faster: 43 → 4 µs each. They
   no longer make garbage only the collector can free. In `examples/guardian.py`,

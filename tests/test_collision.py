@@ -6668,6 +6668,115 @@ class TestSweptDetection(CollisionTestCase):
         ox, _oy = self.at(0, 0)
         self.assertLess(float(ball.center.x), ox + 148.0)  # resolve still stops it
 
+    # A fast shot along y = 0 crosses the rear of a target that leaves upward: its
+    # end box is clear of the shot's swept box, its start pose is across the path.
+    # The relative path hits, so the broad phase must keep the pair.
+    def _leaving_target(self, write, shape="circle", crowd=0, shot_dx=600.0, rise=5.0, x=0.0):
+        shot = self.track(Circle(center=self.at(-40, 0), radius=2, group="shot"))
+        extra = [self.track(Circle(center=self.at(-300 - 30 * k, 300), radius=2, group="shot"))
+                 for k in range(crowd)]
+        if shape == "circle":
+            target = self.track(Circle(center=self.at(x, 19), radius=20, group="enemy"))
+        else:
+            target = self.track(Rect(center=self.at(x, 19), width=40, height=40, group="enemy"))
+        others = [self.track(Circle(center=self.at(300 + 30 * k, 300), radius=2, group="enemy"))
+                  for k in range(crowd)]
+        log = []
+        collide("shot", "enemy")(lambda me, other, info: log.append((me, other)))
+        self.step()
+        self.assertEqual(log, [])
+        shot.move_by(shot_dx, 0)
+        write(target, rise)
+        self.step()
+        stats = get_collision_system().last_stats
+        return log, shot, target, stats, extra + others
+
+    @staticmethod
+    def _by(target, rise):
+        target.move_by(0, rise)
+
+    @staticmethod
+    def _placed(target, rise):
+        target.center = (target.center.x, target.center.y + rise)
+
+    def test_a_fast_shot_hits_a_slow_target_leaving_its_path(self):
+        for write in (self._by, self._placed):
+            for shape in ("circle", "rect"):
+                for crowd in (0, 8):              # 8 + 8 is the numpy cross-tag path
+                    with self.subTest(write=write.__name__, shape=shape, crowd=crowd):
+                        reset_collision_system()
+                        log, shot, target, stats, extra = self._leaving_target(write, shape, crowd)
+                        self.assertEqual(log, [(shot, target)])
+                        self.assertEqual(stats["swept_hits"], 1)
+                        for body in [shot, target] + extra:
+                            body.destroy()
+
+    def test_the_widening_is_what_keeps_the_pair(self):
+        """Canary: with only the fast bodies widened, the pair never reaches the sweep."""
+        from unittest import mock
+        cls = get_collision_system().__class__
+
+        def fast_only(system, idx, swept):
+            for c in system._fast_colliders:
+                row = swept[idx[id(c)]]
+                start = c._proxy_start
+                row[0], row[1] = min(row[0], start[0]), min(row[1], start[1])
+                row[2], row[3] = max(row[2], start[2]), max(row[3], start[3])
+
+        with mock.patch.object(cls, "_widen_moved_for_fast", fast_only):
+            log, *_rest = self._leaving_target(self._by)
+        self.assertEqual(log, [])
+
+    def test_a_target_that_teleports_off_the_path_is_not_hit(self):
+        def teleport(target, rise):
+            target.center = (target.center.x, target.center.y + 2000.0)
+
+        log, _shot, _target, stats, _extra = self._leaving_target(teleport)
+        self.assertEqual(log, [])
+        self.assertEqual(stats["swept_hits"], 0)
+
+    def test_a_target_that_leaves_before_the_shot_arrives_is_not_hit(self):
+        """The widened box only brings the pair to the exact sweep: a target gone
+        by the time the shot crosses (same boxes, later crossing) stays a miss."""
+        log, _shot, _target, stats, _extra = self._leaving_target(
+            self._by, shot_dx=120.0, rise=19.0, x=45.0)
+        self.assertEqual(log, [])
+        self.assertEqual(stats["proxy_pairs"], 1)  # the widened box did reach the pair
+        self.assertEqual(stats["swept_hits"], 0)
+
+    def test_two_slow_bodies_widened_on_a_fast_step_do_not_touch(self):
+        """Start boxes that overlap but end poses that do not: on a step with an
+        unrelated fast body the pair may reach the narrow phase, and stays no contact."""
+        a = self.track(Circle(center=self.at(0, 0), radius=10, group="shot"))
+        b = self.track(Circle(center=self.at(19, 0), radius=10, group="enemy"))
+        fast = self.track(Circle(center=self.at(-500, -500), radius=2, group="other"))
+        log = []
+        collide("shot", "enemy")(lambda me, other, info: log.append(other))
+        collide("other", "enemy")(lambda me, other, info: log.append(other))
+        self.step()
+        log.clear()                               # they begin in contact
+        exits = []
+        collide_exit("shot", "enemy")(lambda me, other, info: exits.append(other))
+        a.move_by(-5, 0)
+        b.move_by(5, 0)
+        fast.move_by(100, 0)
+        self.step()
+        self.assertEqual(log, [])
+        self.assertEqual(exits, [b])
+
+    def test_no_fast_body_no_widening(self):
+        """Perf contract: the moved-body walk runs only on a step with a fast body."""
+        from unittest import mock
+        cls = get_collision_system().__class__
+        a = self.track(Circle(center=self.at(0, 0), radius=10, group="shot"))
+        self._enemy(x=200)
+        collide("shot", "enemy")(lambda *args: None)
+        self.step()
+        with mock.patch.object(cls, "_widen_moved_for_fast",
+                               side_effect=AssertionError("widened with no fast body")):
+            a.move_by(2, 0)
+            self.step()
+
     def test_slow_scene_pays_nothing(self):
         """Perf contract: a scene with no fast body never widens, sweeps or TOIs."""
         coll = sys.modules["scena.collision"]

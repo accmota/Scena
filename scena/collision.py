@@ -123,6 +123,9 @@ _SEAM_STEP = 2.0
 # thick_a + thick_b, with room for a rotated proxy's sqrt(2)). ``math.inf``
 # restores end-pose-only detection (bench A/B, canary tests).
 _FAST_MOTION_FRACTION = 0.5
+# A placement below this (squared, DU) is rounding in a proxy center, inside
+# ``_PROXY_EPS``: the fast-step broad phase does not widen for it.
+_PLACEMENT_NOISE2 = 1e-6
 _SETTLE_BIAS = 0.5
 _SETTLE_MAX = 8.0
 _SETTLE_ITERS = 4
@@ -7038,6 +7041,65 @@ class CollisionSystem:
         collider._proxy_key = keys
         return prims
 
+    def _widen_moved_for_fast(self, idx: Dict[int, int], swept: np.ndarray) -> None:
+        """On a step with a fast collider, every body that moved covers where it
+        began, not only the fast ones: ``_swept_contacts`` tests a pair's relative
+        path, so a slow partner counts from its start pose. With only its end box,
+        a partner leaving the fast body's path lost the pair before the sweep.
+
+        A placement counts as ``_swept_contacts`` counts it, on the scale of a
+        frame's travel; a larger one is a teleport and widens nothing. O(moved):
+        a straight motion grows the box on the side it came from, so the common
+        case reads nothing back from ``swept``.
+        """
+        scale2 = -1.0                           # read off the fast bodies when needed
+        for c in self._moved_now:
+            i = idx.get(id(c))
+            if i is None:
+                continue
+            p = c._proxy
+            start = c._proxy_start
+            if start is None:
+                mx = my = 0.0
+            else:
+                mx, my = c._motion_dx, c._motion_dy
+                row = swept[i]
+                if c._motion_path is not None:  # curved: its box has every waypoint
+                    row[0] = min(row[0], start[0])
+                    row[1] = min(row[1], start[1])
+                    row[2] = max(row[2], start[2])
+                    row[3] = max(row[3], start[3])
+                else:
+                    if mx > 0.0:
+                        row[0] = start[0]
+                    elif mx < 0.0:
+                        row[2] = start[2]
+                    if my > 0.0:
+                        row[1] = start[1]
+                    elif my < 0.0:
+                        row[3] = start[3]
+            ex = c._end_cx
+            if ex is None:
+                continue
+            px = (p[0] + p[2]) * 0.5 - ex - mx
+            py = (p[1] + p[3]) * 0.5 - c._end_cy - my
+            dist2 = px * px + py * py
+            if dist2 <= _PLACEMENT_NOISE2:
+                continue
+            if scale2 < 0.0:
+                scale2 = 0.0
+                for f in self._fast_colliders:
+                    scale2 = max(scale2, f._thick2,
+                                 f._motion_dx * f._motion_dx + f._motion_dy * f._motion_dy)
+            if dist2 > max(scale2, c._thick2, mx * mx + my * my):
+                continue
+            ox, oy = mx + px, my + py
+            row = swept[i]
+            row[0] = min(row[0], p[0] - ox)
+            row[1] = min(row[1], p[1] - oy)
+            row[2] = max(row[2], p[2] - ox)
+            row[3] = max(row[3], p[3] - oy)
+
     def _declared_broad_pairs(
         self,
         colliders: List[Collider],
@@ -7067,22 +7129,8 @@ class CollisionSystem:
                     row[2] = s2
                 if s3 > row[3]:
                     row[3] = s3
-        # Fast colliders (swept detection) widen the same way; resolve bodies
-        # already did above. Empty list on a scene with no fast body.
-        for c in self._fast_colliders:
-            i = idx.get(id(c))
-            if i is None or c._in_resolve:
-                continue
-            start = c._proxy_start
-            row = swept[i]
-            if start[0] < row[0]:
-                row[0] = start[0]
-            if start[1] < row[1]:
-                row[1] = start[1]
-            if start[2] > row[2]:
-                row[2] = start[2]
-            if start[3] > row[3]:
-                row[3] = start[3]
+        if self._fast_colliders:                # empty on a scene with no fast body
+            self._widen_moved_for_fast(idx, swept)
 
         pairs: List[Tuple[int, int]] = []
         seen: Set[Tuple[int, int]] = set()
@@ -7356,13 +7404,7 @@ class CollisionSystem:
                 self._update_debug_draw([])
             return
 
-        proxy = np.zeros((n_proxy, 4), dtype=np.float64)
-        for i, c in enumerate(live):
-            p = c._proxy
-            proxy[i, 0] = p[0]
-            proxy[i, 1] = p[1]
-            proxy[i, 2] = p[2]
-            proxy[i, 3] = p[3]
+        proxy = np.array([c._proxy for c in live], dtype=np.float64)
         self._last_aabb = proxy
 
         # Broad phase: declared pairs only (@collide, resolve, ANYTHING).

@@ -324,6 +324,10 @@ class TestFastMotionAgainstSweptOracle(unittest.TestCase):
 
     @given(specs=hst.lists(circle_spec, min_size=2, max_size=8),
            frames=hst.lists(hst.lists(fly, min_size=1, max_size=3), min_size=1, max_size=8))
+    # A fast body crosses where a slow partner began; the partner's end box is clear
+    # of the fast body's swept box (the broad phase dropped it before the sweep).
+    @example(specs=[("circle", "hb", -13.0, 47.0, 6.0, 0.0), ("circle", "ha", 0.0, 23.0, 21.0, 0.0)],
+             frames=[[(0, 0.0, 5.0), (1, -22.0, 0.0)]])
     def test_contacts_match_swept_circle_oracle(self, specs, frames):
         margin = 1e-3
         with system_world(draw=False) as w:
