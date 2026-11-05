@@ -24,12 +24,14 @@ Design — Numbers and signs, Construct-to-place):
 """
 from __future__ import annotations
 
+import gc
 import inspect
 import math
 import os
 import sys
 import unittest
 import weakref
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -42,7 +44,7 @@ from surface_support import (  # noqa: E402
     family_of, remove, reset_background_base, settle, surface_census,
 )
 from system_support import zombies  # noqa: E402
-from tests.leftovers import mark, sweep  # noqa: E402
+from tests.leftovers import made_since, mark, sweep  # noqa: E402
 from graph_support import gc_paused  # noqa: E402
 from hypothesis import given, note, settings, strategies as hst  # noqa: E402
 
@@ -726,9 +728,38 @@ def _public_methods(cls):
     return out
 
 
-def _method_junk_test(name):
+def _call_method_with_junk(case, name, attr, value):
+    """One example of the method fuzz: ``make_instance(name).attr(value)``."""
     cls = getattr(scena, name)
-    methods = _public_methods(cls)
+    call = f"{name}().{attr}({value!r})"
+    with fresh_world():
+        reset_background_base()
+        with quiet():
+            obj = make_instance(name)   # no-arg or a listed representative
+        at = mark()     # what the call makes (Circle.tangent_lines_from: two Lines)
+        try:
+            settle()
+            before = surface_census()
+            err = None
+            try:
+                with quiet():
+                    getattr(obj, attr)(value)
+            except DestroyedError:
+                pass   # e.g. a method that destroys, then a later step
+            except Exception as exc:  # noqa: BLE001
+                err = (_is_author_error(exc, _param_names(getattr(cls, attr))), _describe(exc))
+            if err is not None:   # after the except block (traceback released)
+                case.assertTrue(err[0], f"{call} raised {err[1]}")
+                case.assertEqual(_trace(before), {}, f"{call} raised but left a trace")
+        finally:
+            # A call that took the junk may return new actors; they outlive
+            # obj and fresh_world (deep 2026-11-03: leftover Lines).
+            sweep(at)
+            remove(obj)
+
+
+def _method_junk_test(name):
+    methods = _public_methods(getattr(scena, name))
 
     @settings(max_examples=max(4, settings().max_examples // 5))
     @given(data=hst.data())
@@ -737,31 +768,7 @@ def _method_junk_test(name):
             return
         attr = data.draw(hst.sampled_from(methods), label="method")
         value = data.draw(junk, label="value")
-        call = f"{name}().{attr}({value!r})"
-        with fresh_world():
-            reset_background_base()
-            with quiet():
-                obj = make_instance(name)   # no-arg or a listed representative
-            at = mark()     # what the call makes (Circle.tangent_lines_from: two Lines)
-            try:
-                settle()
-                before = surface_census()
-                err = None
-                try:
-                    with quiet():
-                        getattr(obj, attr)(value)
-                except DestroyedError:
-                    pass   # e.g. a method that destroys, then a later step
-                except Exception as exc:  # noqa: BLE001
-                    err = (_is_author_error(exc, _param_names(getattr(cls, attr))), _describe(exc))
-                if err is not None:   # after the except block (traceback released)
-                    self.assertTrue(err[0], f"{call} raised {err[1]}")
-                    self.assertEqual(_trace(before), {}, f"{call} raised but left a trace")
-            finally:
-                # A call that took the junk may return new actors; they outlive
-                # obj and fresh_world (deep 2026-11-03: leftover Lines).
-                sweep(at)
-                remove(obj)
+        _call_method_with_junk(self, name, attr, value)
 
     test.__doc__ = f"{name}: junk as the first argument of a public method is an author error."
     return test
@@ -799,6 +806,37 @@ class TestMethodJunk(unittest.TestCase):
     for _n in METHOD_NAMES:
         locals()["test_" + _n] = _method_junk_test(_n)
     del _n
+
+
+class TestMethodJunkLeavesNoActors(unittest.TestCase):
+    """O15: an example destroys what its call made, even when the "junk" was valid.
+
+    Only the deep budget draws such a value often enough to fail the module's
+    LeftoverCheck, so the case is pinned here at every budget (this module is
+    SLOW: gate and deep run it, quick does not).
+    """
+
+    CALL = ("Circle", "tangent_lines_from", (1939, 1571144))   # a valid outside point
+
+    @staticmethod
+    def _live_lines_since(at):
+        gc.collect()
+        return [o for o in made_since(at)
+                if type(o).__name__ == "Line" and getattr(o, "is_alive", False)]
+
+    def test_a_call_that_makes_actors_leaves_none(self):
+        at = mark()
+        _call_method_with_junk(self, *self.CALL)
+        self.assertEqual(self._live_lines_since(at), [])
+
+    def test_the_call_does_make_actors(self):
+        # Vacuity guard: without the sweep this call leaves its two Lines, so the
+        # test above would catch an example that stopped cleaning up.
+        at = mark()
+        self.addCleanup(sweep, at)
+        with mock.patch.object(sys.modules[__name__], "sweep"):
+            _call_method_with_junk(self, *self.CALL)
+        self.assertEqual(len(self._live_lines_since(at)), 2)
 
 # ---------------------------------------------------------------------------
 # Canaries — put a known bug back; the property must fail
