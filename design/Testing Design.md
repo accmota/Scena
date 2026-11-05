@@ -1421,7 +1421,7 @@ deep tier's serial pass runs both roots in one process (`serial_names`).
 | **focused** (T0) | After every edit | The named modules, `dev`, canaries off | seconds |
 | **quick** (T1) | Before calling any change done | Every module except `SLOW`, `dev`, canaries off | ~50 s (2026-10-10: 214 jobs, ~410 s summed; it was ~25 s at 107 modules; not timed on the Mac since the tier grew). Windows laptop (i5-1245U: 2 performance + 8 efficiency cores, 10 workers): ~11 min (2026-10-27, 0.10.1: 348 jobs, 686 s wall, ~6 840 s summed; 0.9.0: 623 s) |
 | **gate** (T2) | Bug loop step 5; before a milestone | Every module, `ci`, canaries on, `SPLIT` modules sharded (`test_hyp_surface` by class and chunk, `test_prog_invariance` / `test_prog_isolation` one class per program, `test_tutorial_steps` one class per page, the game deep modules) | ~3.7 min idle (2026-09-28, 8 workers). Loaded by peer sessions (2026-10-10): 687 s wall / 5494 s summed with `test_prog_invariance` (653 s) as the floor; after the split 838 s / 6698 s at load ~75, longest job a `test_hyp_surface.TestConstructorJunk` shard (~300 s). Wall ≈ CPU sum / 8 |
-| **deep** (T3) | Nightly; bug loop step 8 (milestone close) | Every module at `deep`, soak on, **then one serial pass** over both test roots (`dev`) | 2 h + |
+| **deep** (T3) | Nightly; bug loop step 8 (milestone close) | Every module at `deep`, soak on, **then one serial pass** over both test roots (`dev`) | 2 h + on the Mac. Windows laptop (`-j 4`, 2026-11-04): 8 h 18 min, about 4 h 18 min of jobs, then the serial pass, cut off at ~92% by the 4 h limit it had then |
 
 ```
 python tests/run_tiers.py focused test_collision test_diff_collision
@@ -1457,6 +1457,13 @@ Why this shape (measured 2026-09-28, 5001 tests):
   live item in the HUD column (A39), a leftover hidden Point (O5). When you fix
   one, put the missing condition (a leftover actor, a live column item) into the
   isolated test, so the next one is caught without the serial pass.
+- **The serial pass has its own limit and writes each test's name as it runs.** It
+  holds every module, so a job's limit does not fit it (`Tier.serial_timeout`, 8 h;
+  `--timeout` overrides both), and unittest names failures only at the end of a dotted
+  run, so a pass cut short used to leave marks without names (2026-11-04: 33 marks, and
+  the map back to test names was off by a whole module). A timed-out pass reports 0
+  tests; its failures are the `FAIL` and `ERROR` statuses in its log, after ` ... ` or, when
+  the test warned, alone on a line (`tests/README.txt`; `TestSerialPass`).
 
 Measured again 2026-10-10 (217 quick jobs: 118 s wall, 943 s summed; today ~50 s):
 

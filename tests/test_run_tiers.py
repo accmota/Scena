@@ -408,6 +408,77 @@ class TestRunner(unittest.TestCase):
             self.assertIn("TIMEOUT", res.status)
 
 
+class TestSerialPass(unittest.TestCase):
+    """The serial pass holds every module, so it has its own limit, and a pass cut
+    short keeps the names of what failed (deep 2026-11-04: on the Windows laptop
+    it reached ~92% in the 4 h a job gets, and left 33 marks with no names)."""
+
+    def test_deep_gives_it_more_than_a_job(self):
+        deep = rt.TIERS["deep"]
+        self.assertGreater(deep.serial_timeout, deep.timeout)
+
+    def test_it_waits_its_own_limit_and_reports_it(self):
+        waits, args = [], []
+
+        class Proc:
+            def wait(self, timeout=None):
+                waits.append(timeout)
+                if len(waits) == 1:
+                    raise rt.subprocess.TimeoutExpired("x", timeout)
+                return -9
+
+            def kill(self):
+                pass
+
+        def popen(cmd, **_k):
+            args.extend(cmd)
+            return Proc()
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(rt.subprocess, "Popen", popen), \
+                mock.patch.object(rt, "serial_names", return_value=["tests.test_lerp"]):
+            runner = rt.Runner(tmp, timeout=1, workers=1, stream=io.StringIO())
+            res = runner.run_serial({}, timeout=7)
+        self.assertEqual(waits[0], 7)
+        self.assertIn("TIMEOUT after 7 s", res.status)
+        self.assertIn("-v", args)
+
+    def _main_limit(self, *argv):
+        seen = []
+
+        def run_serial(_runner, _env, timeout=None):
+            seen.append(timeout)
+            return rt.Result(rt.Job("serial:all", []), 0.0, 0, 1, "OK", "")
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(rt, "plan", return_value=[]), \
+                mock.patch.object(rt.Runner, "run_serial", run_serial):
+            rt.main(["deep", *argv], out_root=tmp, stream=io.StringIO())
+        return seen
+
+    def test_main_passes_the_tiers_limit_and_an_explicit_one_wins(self):
+        self.assertEqual(self._main_limit(), [rt.TIERS["deep"].serial_timeout])
+        self.assertEqual(self._main_limit("--timeout", "60"), [60.0])
+
+    def test_a_pass_that_dies_keeps_the_name_of_what_failed(self):
+        # A dotted run would leave only "F" here: unittest prints names at the end.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            with open(os.path.join(tmp, "dying_serial_mod.py"), "w", encoding="utf-8") as fh:
+                fh.write("import os\nimport unittest\n\n"
+                         "class T(unittest.TestCase):\n"
+                         "    def test_a_fails(self):\n"
+                         "        self.fail('planted')\n\n"
+                         "    def test_b_dies(self):\n"
+                         "        os._exit(9)\n")
+            with mock.patch.object(rt, "serial_names", return_value=["dying_serial_mod"]):
+                runner = rt.Runner(os.path.join(tmp, "logs"), timeout=120, workers=1,
+                                   stream=io.StringIO())
+                os.makedirs(runner.out_dir)
+                res = runner.run_serial({"PYTHONPATH": tmp})
+            self.assertFalse(res.ok)
+            with open(res.log, encoding="utf-8", errors="replace") as fh:
+                log = fh.read()
+        self.assertRegex(log, r"test_a_fails .* \.\.\. FAIL")
+
+
 class TestLogEncoding(unittest.TestCase):
     """WP8: the child writes its log in its stdio encoding; the parent reads it
     back. On Windows they disagreed (cp1252 vs UTF-8) and the runner crashed

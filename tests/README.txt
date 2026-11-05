@@ -24,6 +24,11 @@ commits its heap; on a 16 GB machine the default gate -j (CPUs - 2) ran out
 of commit (native aborts, rc=3221227274, and timeouts; WP30). There:
   python tests/run_tiers.py gate -j 4
 
+Deep's serial pass (serial:all): its own limit, 8 h (--timeout overrides it), and
+verbose, so a pass cut short keeps its results. Its failures so far:
+  grep -nE '(^| \.\.\. )(FAIL|ERROR)$' .scena_test_runs/deep/serial_all.log
+A test that warned has its FAIL on a line of its own, its name above the warning.
+
 Job budget: each job gets the tier's timeout (quick 300 s, gate 30 min). A
 module past ~15 s at dev joins SLOW in run_tiers.py (quick skips it; gate and
 deep run it); a gate job that dominates the wall joins SPLIT (one job per

@@ -140,6 +140,7 @@ class Tier:
     split: bool = False
     soak: bool = False
     serial_pass: bool = False           # finish with one single-process discover
+    serial_timeout: float = 0.0         # seconds for that pass (it holds every module)
 
 
 TIERS: Dict[str, Tier] = {
@@ -147,7 +148,7 @@ TIERS: Dict[str, Tier] = {
     "quick": Tier("quick", "dev", canaries=False, timeout=300, exclude=SLOW),
     "gate": Tier("gate", "ci", canaries=True, timeout=1800, split=True),
     "deep": Tier("deep", "deep", canaries=True, timeout=4 * 3600, split=True,
-                 soak=True, serial_pass=True),
+                 soak=True, serial_pass=True, serial_timeout=8 * 3600),
 }
 
 
@@ -495,9 +496,11 @@ class Runner:
         self._done = 0
         self._total = 0
 
-    def _run(self, job: Job, extra_args: Sequence[str] = ()) -> Result:
+    def _run(self, job: Job, extra_args: Sequence[str] = (),
+             timeout: Optional[float] = None) -> Result:
         log = os.path.join(self.out_dir, log_name(job.label))
         env = child_env(dict(os.environ), job.env)
+        limit = self.timeout if timeout is None else timeout
         start = time.time()
         with open_fresh(log) as fh:
             proc = subprocess.Popen([sys.executable, os.path.join(TESTS, "run_tiers.py"), CHILD,
@@ -506,7 +509,7 @@ class Runner:
             with self._lock:
                 self._procs.add(proc)
             try:
-                rc = proc.wait(timeout=self.timeout)
+                rc = proc.wait(timeout=limit)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
@@ -519,7 +522,7 @@ class Runner:
             text = fh.read()
         ran, status = parse_output(text)
         if rc == -9:
-            status = f"TIMEOUT after {self.timeout:.0f} s"
+            status = f"TIMEOUT after {limit:.0f} s"
         res = Result(job, seconds, rc, ran, status, log)
         with self._lock:
             self._done += 1
@@ -541,10 +544,13 @@ class Runner:
                     p.kill()
             raise
 
-    def run_serial(self, env: Dict[str, str]) -> Result:
+    def run_serial(self, env: Dict[str, str], timeout: Optional[float] = None) -> Result:
+        """Every module in one process. Verbose: unittest names a failure only at
+        the end of a dotted run, so a pass that dies or times out would keep its
+        marks and lose the names (deep 2026-11-04: 33 marks, no names)."""
         self._total += 1
         job = Job("serial:all", serial_names(), env)
-        return self._run(job)
+        return self._run(job, extra_args=("-v",), timeout=timeout)
 
 
 def load_timings(path: str) -> Dict[str, float]:
@@ -651,7 +657,7 @@ def main(argv: Optional[Sequence[str]] = None, *, out_root: str = OUT,
     save_timings(timings_path, results, env["SCENA_HYPOTHESIS_PROFILE"])
     if tier.serial_pass and not args.modules:
         serial_env = dict(env, SCENA_HYPOTHESIS_PROFILE="dev", SCENA_SOAK="0")
-        results.append(runner.run_serial(serial_env))
+        results.append(runner.run_serial(serial_env, args.timeout or tier.serial_timeout or None))
     ok = summarize(results, time.time() - start, stream)
     if args.sentinel:
         ok = sentinel_summary(stream) and ok
